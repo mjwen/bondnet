@@ -1,0 +1,13 @@
+build/
+dist/
+.cache/
+*.egg-info/
+*.o
+*.so
+*.pyc
+*.log
+*.out
+*.pkl
+*.pt
+.idea
+.DS_Store
