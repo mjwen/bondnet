@@ -5,9 +5,12 @@ dist/
 *.o
 *.so
 *.pyc
-*.log
-*.out
 *.pkl
 *.pt
+*.svg
+*.sdf
+*.csv
+*.log
+*.out
 .idea
 .DS_Store
