@@ -94,13 +94,37 @@ class BabelMolAdaptor2(BabelMolAdaptor):
 class Molecule:
     def __init__(self, db_entry):
         self.db_entry = db_entry
-        self.mol = pymatgen.Molecule.from_dict(db_entry['output']['optimized_molecule'])
+        try:
+            self.mol = pymatgen.Molecule.from_dict(
+                db_entry['output']['optimized_molecule']
+            )
+        except KeyError:
+            print('error seen for id:', db_entry['_id'])
+            raise KeyError
 
         mol_graph = MoleculeGraph.with_local_env_strategy(
             self.mol, OpenBabelNN(order=True), reorder=False, extend_structure=False
         )
         self.mol_graph = metal_edge_extender(mol_graph)
         self.ob_adaptor = BabelMolAdaptor2.from_molecule_graph(self.mol_graph)
+
+    @property
+    def id(self):
+        return self._get_property_from_db_entry(['_id'])
+
+    @property
+    def entropy(self):
+        return self._get_property_from_db_entry(['output', 'entropy'])
+
+    @property
+    def enthalpy(self):
+        return self._get_property_from_db_entry(['output', 'enthalpy'])
+
+    @property
+    def free_energy(self, T):
+        # energy = self._get_property_from_db_entry(['output', 'final_energy'])
+        # TODO seems Sam did some transfromation in his mol_entry code, ask him what it is
+        return self.enthalpy - T * self.entropy
 
     @property
     def graph(self):
@@ -140,6 +164,17 @@ class Molecule:
     def _get_edge_attr(self, attr):
         return [a for _, _, a in self.graph.edges.data(attr)]
 
+    def _get_property_from_db_entry(self, keys):
+        """
+        Args:
+            keys (list of str): the keys to go to the property in the DB. For
+                example: ['output', 'entropy']
+        """
+        out = self.db_entry
+        for k in keys:
+            out = out[k]
+        return out
+
     def write(self, filename=None, file_format='sdf'):
         return self.ob_adaptor.pybel_mol.write(file_format, filename, overwrite=True)
 
@@ -154,12 +189,17 @@ class Molecule:
         Draw.MolToFile(m, filename)
 
 
-def create_dataset(db_path):
-    db_entries = recover_database(db_path)
+def create_dataset(db_entries):
 
-    with open('electrolyte.sdf', 'w') as fx, open('electrolyte.csv', 'w') as fy:
+    with open('electrolyte_all.sdf', 'w') as fx, open('electrolyte_all.csv', 'w') as fy:
+
+        fy.write('mol,property_1\n')
+
         for entry in db_entries:
-            m = Molecule(entry)
+            try:
+                m = Molecule(entry)
+            except KeyError:
+                continue
 
             conn = m.get_connectivity()
             species = m.get_species()
@@ -179,8 +219,11 @@ def create_dataset(db_path):
             # print('smiles', smiles, 'formula', formula, '\nsdf', sdf)
 
             fx.write(sdf)
+            fy.write('{},{}\n'.format(m.id, m.entropy))
 
 
 if __name__ == '__main__':
-    db_path = '/Users/mjwen/Applications/mongo_db_access/database_small.pkl'
-    create_dataset(db_path)
+    # db_path = '/Users/mjwen/Applications/mongo_db_access/database_small.pkl'
+    db_path = '/Users/mjwen/Applications/mongo_db_access/database.pkl'
+    db_entries = recover_database(db_path)
+    create_dataset(db_entries)
