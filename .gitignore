@@ -7,6 +7,7 @@ dist/
 *.pyc
 *.pkl
 *.pt
+*.json
 *.svg
 *.sdf
 *.csv
