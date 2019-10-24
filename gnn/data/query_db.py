@@ -1,6 +1,7 @@
 import copy
 import itertools
 import logging
+import warnings
 import json
 from tqdm import tqdm
 from collections import defaultdict
@@ -267,7 +268,7 @@ class Molecule:
     def ob_adaptor(self):
         if self._ob_adaptor is None:
             self._ob_adaptor = BabelMolAdaptor2.from_molecule_graph(self.mol_graph)
-        return self._ob_ddaptor
+        return self._ob_adaptor
 
     @property
     def ob_mol(self):
@@ -663,13 +664,61 @@ class ReactionExtractor:
         (break a bond not in a ring) or ``A -> D`` (break a bond in a ring)
 
         Returns:
-
+            A list of reactions.
         """
         A2B = self.extract_A_to_B_style_reaction()
         A2BC = self.extract_A_to_B_C_style_reaction()
         self.reactions = A2B + A2BC
 
         return A2B, A2BC
+
+    def group_by_reactant(self):
+        """
+        Group all the reactions according to the reactant.
+        Many reactions will have the same reactant if we break different bond.
+        Returns:
+            A dict with reactant id as the key and a list of reactions (that have the
+            same reactant) as the value.
+
+        """
+        grouped_reactions = defaultdict(list)
+        for r in self.reactions:
+            grouped_reactions[r.reactants[0].id].append(r)
+        return grouped_reactions
+
+    def get_reactants_bond_energies(self, ids=None):
+        """
+        Get the bond energy of reactants.
+
+        Each bond energy is computed from the reaction energy, If there is no reaction
+        associated with a bond, its bond energy is set to None.
+
+        Args:
+            ids: a list of string identifier specifying the reactants whose bond
+                energies need to be returned. If ``None`` all are returned.
+
+        Returns:
+            A dict of dict. The outer dict has reactant instance as the key and the
+            inner dict has bond indices (a tuple) as the key and bond energy (a float,
+            could be None) as the value.
+        """
+        grouped_reactions = self.group_by_reactant()
+
+        reactants_bond_energies = dict()
+        for _, reactions in grouped_reactions.items():
+            reactant = reactions[0].reactants[0]
+            if ids is not None and reactant.id not in ids:
+                continue
+            bonds = reactant.graph.edges()
+            energies = {bond: None for bond in bonds}
+            for r in reactions:
+                energies[r.get_broken_bond()] = r.get_reaction_free_energy()
+            reactants_bond_energies[reactant] = energies
+
+        if ids is not None and len(ids) != len(reactants_bond_energies):
+            warnings.warn('bond energies for some molecules not available.')
+
+        return reactants_bond_energies
 
     @staticmethod
     def _get_formula_composition_map(mols):
@@ -715,6 +764,7 @@ class ReactionExtractor:
 
     def to_file(self, filename='rxns.pkl'):
         logger.info('Start writing reactions to file: {}'.format(filename))
+
         for m in self.molecules:
             m.make_picklable()
         d = {
@@ -729,9 +779,12 @@ class ReactionExtractor:
     def from_file(cls, filename):
         logger.info('Start loading reactions from file: {}'.format(filename))
         d = pickle_load(filename)
+        logger.info('Finish loading {} reactions'.format(len(d['reactions'])))
+
         return cls(d['molecules'], d['reactions'])
 
-    def to_file_ids(self, filename='rxns.json'):
+    def to_file_by_ids(self, filename='rxns.json'):
+        logger.info('Start writing reactions by ids to file: {}'.format(filename))
         reaction_ids = []
         for i, r in enumerate(self.reactions):
             reaction_ids.append(r.as_dict())
@@ -739,21 +792,16 @@ class ReactionExtractor:
             json.dump(reaction_ids, f)
 
     @classmethod
-    def from_file_ids(cls, filename, db_path):
+    def from_file_by_ids(cls, filename, db_path):
+        logger.info('Start loading reactions by ids from file: {}'.format(filename))
+
         db = DatabaseOperation.from_file(db_path)
         mols = db.to_molecules(purify=True)
         id_to_mol_map = {m.id: m for m in mols}
 
-        logger.info('Start loading extracted reactions from file: {}'.format(filename))
         with open(filename, 'r') as f:
             reactions = json.load(f)
-        logger.info(
-            'Finish loading {} extracted reactions from file: {}'.format(
-                len(reactions), filename
-            )
-        )
 
-        logger.info('Start recover reactions from ids...')
         rxns = []
         for r in tqdm(reactions):
             reactants = [id_to_mol_map[i] for i in r['reactants']]
@@ -761,5 +809,7 @@ class ReactionExtractor:
             broken_bond = r['broken_bond']
             rxn = Reaction(reactants, products, broken_bond)
             rxns.append(rxn)
+
+        logger.info('Finish loading {} reactions'.format(len(reactions)))
 
         return cls(mols, rxns)

@@ -1,6 +1,6 @@
 import pytest
 from gnn.data.query_db import DatabaseOperation, ReactionExtractor
-from gnn.data.utils import print_dict
+from pprint import pprint
 
 
 def test_buckets():
@@ -12,9 +12,9 @@ def test_buckets():
 
     extractor = ReactionExtractor(molecules)
     buckets = extractor.bucket_molecules(keys=['formula', 'charge', 'spin_multiplicity'])
-    print_dict(buckets)
+    pprint(buckets)
     buckets = extractor.bucket_molecules(keys=['formula'])
-    print_dict(buckets)
+    pprint(buckets)
 
 
 def test_extract_A_to_B():
@@ -57,8 +57,27 @@ def test_extract_A_to_B_C():
     )
 
 
+def test_reactants_bond_energies():
+    filename = '/Users/mjwen/Applications/mongo_db_access/extracted_data/A2B_rxns.pkl'
+    extractor = ReactionExtractor.from_file(filename)
+    print('Number of reactions', len(extractor.reactions))
+
+    energies = extractor.get_reactants_bond_energies(
+        ids=[
+            '5d1a85699ab9e0c05b205da6',
+            '5d6125285bf3381f3628224f',
+            '5d1a8a199ab9e0c05b216242',
+            '5d2087639ab9e0c05bf3a8e8',
+            '5d215def9ab9e0c05b08eb60',
+            '5d35cb225bf3381f368d44e4',
+        ]
+    )
+    pprint(energies)
+
+
 if __name__ == '__main__':
     # test_buckets()
     # test_extract_A_to_B()
     # test_extract_A_to_B_C()
-    test_load_A_to_B()
+    # test_load_A_to_B()
+    test_reactants_bond_energies()

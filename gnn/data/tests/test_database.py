@@ -30,6 +30,16 @@ def test_create_dataset():
     print('entries saved:', len(mols))
 
 
+def test_molecules():
+    db_path = '/Users/mjwen/Applications/mongo_db_access/extracted_data/database_LiEC.pkl'
+    db = DatabaseOperation.from_file(db_path)
+    mols = db.to_molecules()
+    for i, m in enumerate(mols):
+        print(i, m.id)
+        m.draw('./images/mol_{}.svg'.format(i))
+
+
 if __name__ == '__main__':
     # test_filter()
-    test_create_dataset()
+    # test_create_dataset()
+    test_molecules()
