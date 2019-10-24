@@ -1,8 +1,7 @@
-import pickle
 import copy
 import itertools
-import json
 import logging
+import json
 from tqdm import tqdm
 from collections import defaultdict
 from atomate.qchem.database import QChemCalcDb
@@ -14,7 +13,7 @@ from pymatgen.io.babel import BabelMolAdaptor
 import openbabel as ob
 from rdkit import Chem
 from rdkit.Chem import Draw, AllChem
-from gnn.data.utils import create_directory
+from gnn.data.utils import create_directory, pickle_dump, pickle_load
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -47,14 +46,22 @@ class DatabaseOperation:
         Returns:
             A list of database entries.
         """
-        logger.info('Start building database from file: {}'.format(filename))
-
-        with open(filename, 'rb') as f:
-            entries = pickle.load(f)
+        logger.info('Start loading database from file: {}'.format(filename))
+        entries = pickle_load(filename)
         return cls(entries)
 
-    @staticmethod
-    def filter(entries, keys, value):
+    def to_file(self, size=None, filename='database.pkl'):
+        """
+        Dump a list of database molecule entries to disk.
+        This is purely for efficiency stuff, since the next time we want to query the
+        database, we can simply load the dumped one instead of query the actual database.
+        """
+        logger.info('Start writing database to file: {}'.format(filename))
+        size = size or -1
+        entries = self.entries[:size]
+        pickle_load(entries, filename)
+
+    def filter(self, keys, value):
         """
         Filter out all database entries whose value match the give value.
 
@@ -67,43 +74,71 @@ class DatabaseOperation:
             list of database entries that are filtered out
         """
         results = []
-        for entry in entries:
+        for entry in self.entries:
             v = entry
             for k in keys:
                 v = v[k]
             if v == value:
                 results.append(entry)
-        return results
 
-    @staticmethod
-    def to_molecules(entries):
+        self.entries = results
+
+    def to_molecules(self, purify=True):
+        """
+        Convert data entries to molecules.
+
+        Args:
+            purify (bool): If True, return unique ones, i.e. remove ones that have higher
+                free energy. Uniqueness is determined isomorphism, charge, and spin
+                multiplicity.
+
+        Returns:
+            A list of Molecule object
+        """
+
+        logger.info('Start converting DB entries to molecules...')
+
+        n_not_opt_mol = 0
+        n_not_unique_mol = 0
         mols = []
-        for entry in entries:
+        for entry in self.entries:
             try:
-                mols.append(Molecule(entry))
+                m = Molecule(entry)
+                if purify:
+                    idx = -1
+                    for i_p_m, p_m in enumerate(mols):
+                        # TODO check whether spin_multiplicity is needed
+                        if (
+                            m.mol_graph.isomorphic_to(p_m.mol_graph)
+                            and m.charge == p_m.charge
+                            and m.spin_multiplicity == p_m.spin_multiplicity
+                        ):
+                            n_not_unique_mol += 1
+                            idx = i_p_m
+                            break
+                    if idx >= 0:
+                        if m.free_energy < mols[idx].free_energy:
+                            mols[idx] = m
+                    else:
+                        mols.append(m)
+                else:
+                    mols.append(m)
             except KeyError:
+                n_not_opt_mol += 1
                 pass
+        logger.info(
+            'DB entry size: {}; Entries without `["output"]["optimized_molecule"]`'
+            ': {}; Isomorphic entries: {}; Entries converted to molecules: {}.'.format(
+                len(self.entries), n_not_opt_mol, n_not_unique_mol, len(mols)
+            )
+        )
+
         return mols
 
     @staticmethod
-    def to_file(entries, size=None, filename='database.pkl'):
-        """
-        Dump a list of database molecule entries to disk.
-        This is purely for efficiency stuff, since the next time we want to query the
-        database, we can simply load the dumped one instead of query the actual database.
-        """
-        logger.info('Start writing database to file: {}'.format(filename))
-
-        size = size or -1
-        entries = entries[:size]
-        with open(filename, 'wb') as f:
-            pickle.dump(entries, f)
-
-    @staticmethod
     def create_sdf_csv_dataset(
-        entries, structure_name='electrolyte.sdf', label_name='electrolyte.csv'
+        molecules, structure_name='electrolyte.sdf', label_name='electrolyte.csv'
     ):
-
         logger.info(
             'Start writing dataset to files: {} and {}'.format(structure_name, label_name)
         )
@@ -112,11 +147,8 @@ class DatabaseOperation:
 
             fy.write('mol,property_1\n')
 
-            for i, entry in enumerate(entries):
-                try:
-                    m = Molecule(entry)
-                except KeyError:
-                    continue
+            for i, m in enumerate(molecules):
+                entry = m.db_entry
 
                 # conn = m.get_connectivity()
                 # species = m.get_species()
@@ -208,16 +240,34 @@ class Molecule:
             print('error seen for id:', db_entry['_id'])
             raise KeyError
 
-        self.mol_graph = MoleculeGraph.with_local_env_strategy(
-            self.mol, OpenBabelNN(order=True), reorder=False, extend_structure=False
-        )
-        if use_metal_edge_extender:
-            self.mol_graph = metal_edge_extender(self.mol_graph)
-        self.ob_adaptor = BabelMolAdaptor2.from_molecule_graph(self.mol_graph)
+        self.use_metal_edge_extender = use_metal_edge_extender
+
+        self._mol_graph = None
+        self._ob_adaptor = None
+        self._fragments = None
 
     @property
     def pymatgen_mol(self):
         return self.mol
+
+    @property
+    def mol_graph(self):
+        if self._mol_graph is None:
+            self._mol_graph = MoleculeGraph.with_local_env_strategy(
+                self.pymatgen_mol,
+                OpenBabelNN(order=True),
+                reorder=False,
+                extend_structure=False,
+            )
+            if self.use_metal_edge_extender:
+                self._mol_graph = metal_edge_extender(self.mol_graph)
+        return self._mol_graph
+
+    @property
+    def ob_adaptor(self):
+        if self._ob_adaptor is None:
+            self._ob_adaptor = BabelMolAdaptor2.from_molecule_graph(self.mol_graph)
+        return self._ob_ddaptor
 
     @property
     def ob_mol(self):
@@ -288,6 +338,12 @@ class Molecule:
     def composition_dict(self):
         return self.pymatgen_mol.composition.as_dict()
 
+    @property
+    def fragments(self):
+        if self._fragments is None:
+            self._fragments = self._get_fragments()
+        return self._fragments
+
     def get_connectivity(self):
         conn = []
         for u, v in self.graph.edges():
@@ -302,6 +358,9 @@ class Molecule:
 
     def get_bond_order(self):
         return self._get_edge_attr('weight')
+
+    def make_picklable(self):
+        self._ob_adaptor = None
 
     def _get_node_attr(self, attr):
         return [a for _, a in self.graph.nodes.data(attr)]
@@ -319,6 +378,29 @@ class Molecule:
         for k in keys:
             out = out[k]
         return out
+
+    def _get_fragments(self):
+        """
+        Fragment molecule by breaking ONE bond.
+
+        Returns:
+            A dictionary with key of bond index (a tuple (idx1, idx2)), and value a list
+            of the new mol_graphs (could be empty if the mol has no bonds).
+        """
+        sub_mols = {}
+        for edge in self.graph.edges():
+            try:
+                new_mgs = self.mol_graph.split_molecule_subgraphs(
+                    [edge], allow_reverse=False, alterations=None
+                )
+                sub_mols[edge] = new_mgs
+            except MolGraphSplitError:
+                # print('cannot split:', self.id)
+                new_mg = copy.deepcopy(self.mol_graph)
+                idx1, idx2 = edge
+                new_mg.break_edge(idx1, idx2, allow_reverse=True)
+                sub_mols[edge] = [new_mg]
+        return sub_mols
 
     def write(self, filename=None, file_format='sdf'):
         self.ob_mol.SetTitle(str(self.id))
@@ -343,7 +425,9 @@ class Reaction:
     (break a bond not in a ring) or ``A -> D`` (break a bond in a ring)
 
     Args:
-        reactants:
+        reactants: a list of Molecules
+        products: a list of Molecules
+        broken_bond (tuple): index indicating the broken bond in the mol_graph
     """
 
     def __init__(self, reactants, products, broken_bond=None):
@@ -351,30 +435,7 @@ class Reaction:
         assert 1 <= len(products) <= 2, 'incorrect number of products, should be 1 or 2'
         self.reactants = reactants
         self.products = products
-        self.broken_bond = broken_bond or self.get_broken_bond()
-        self._tags = {}
-
-    def as_dict(self):
-        d = {
-            "@module": self.__class__.__module__,
-            "@class": self.__class__.__name__,
-            "reactants": [m.id for m in self.reactants],
-            "products": [m.id for m in self.products],
-            "broken_bond": self.broken_bond,
-        }
-        return d
-
-    @property
-    def tags(self):
-        return self._tags
-
-    @tags.setter
-    def tags(self, keys, values):
-        self._tags = dict(zip(keys, values))
-
-    @tags.setter
-    def tags(self, key_val_dict):
-        self._tags = dict(key_val_dict)
+        self.broken_bond = broken_bond
 
     def get_broken_bond(self):
         if self.broken_bond is None:
@@ -388,12 +449,14 @@ class Reaction:
                 )
             self.broken_bond = bond
 
+        return self.broken_bond
+
     def get_broken_bond_attr(self):
         """
         Returns a dict of the species and bond order of the broken bond.
         """
         graph = self.reactants[0].graph
-        u, v = self.broken_bond
+        u, v = self.get_broken_bond()
         spec_u = graph.nodes[u]['specie']
         spec_v = graph.nodes[v]['specie']
         # TODO, we temporarily need the try except block because the
@@ -414,36 +477,26 @@ class Reaction:
             energy += mol.free_energy
         return energy
 
+    def to_file(self, filename):
+        mols = self.reactants + self.products
+        for m in mols:
+            m.make_picklable()
+        d = {
+            "@module": self.__class__.__module__,
+            "@class": self.__class__.__name__,
+            "reactants": self.reactants,
+            "products": self.products,
+            "broken_bond": self.broken_bond,
+        }
+        pickle_dump(d, filename)
 
-def fragment_molecule(mol_graph, mol_id=None):
-    """
-    Fragment molecule by breaking ONE bond.
-
-    Args:
-        mol_graph:
-
-    Returns:
-        A dictionary with key of bond index (a tuple (idx1, idx2)), and value of the new
-        mol_graphs. Could be empty if the mol has no bonds.
-    """
-    mg = mol_graph
-    sub_mols = {}
-    for edge in mg.graph.edges():
-        try:
-            new_mgs = mg.split_molecule_subgraphs(
-                [edge], allow_reverse=False, alterations=None
-            )
-            sub_mols[edge] = new_mgs
-        except MolGraphSplitError:
-            # print('cannot split:', mol_id)
-            new_mg = copy.deepcopy(mg)
-            idx1, idx2 = edge
-            new_mg.break_edge(idx1, idx2, allow_reverse=True)
-            sub_mols[edge] = [new_mg]
-    return sub_mols
+    @classmethod
+    def from_file(cls, filename):
+        d = pickle_dump(filename)
+        return cls(d['reactants'], d['products'], d['broken_bond'])
 
 
-def is_valid_A_to_B_reaction(reactant, product, reactant_fragments=None):
+def is_valid_A_to_B_reaction(reactant, product):
     """
     A -> B
     Args:
@@ -454,14 +507,13 @@ def is_valid_A_to_B_reaction(reactant, product, reactant_fragments=None):
         A tuple of the bond indices, if this is valid reaction;
         None, otherwise.
     """
-    fragments = reactant_fragments or fragment_molecule(reactant.mol_graph, reactant.id)
-    for edge, mgs in fragments.items():
+    for edge, mgs in reactant.fragments.items():
         if len(mgs) == 1 and mgs[0].isomorphic_to(product.mol_graph):
             return edge
     return None
 
 
-def is_valid_A_to_B_C_reaction(reactant, products, reactant_fragments=None):
+def is_valid_A_to_B_C_reaction(reactant, products):
     """
     A -> B + C
     Args:
@@ -472,8 +524,7 @@ def is_valid_A_to_B_C_reaction(reactant, products, reactant_fragments=None):
         A tuple of the bond indices, if this is valid reaction;
         None, otherwise.
     """
-    fragments = reactant_fragments or fragment_molecule(reactant.mol_graph, reactant.id)
-    for edge, mgs in fragments.items():
+    for edge, mgs in reactant.fragments.items():
         if len(mgs) == 2:
             if (
                 mgs[0].isomorphic_to(products[0].mol_graph)
@@ -487,28 +538,27 @@ def is_valid_A_to_B_C_reaction(reactant, products, reactant_fragments=None):
 
 
 class ReactionExtractor:
-    def __init__(self, molecules):
-        self.mols = molecules
+    def __init__(self, molecules, reactions=None):
+        self.molecules = molecules or self._get_molecules_from_reactions(reactions)
+        self.reactions = reactions
+
+        self.buckets = None
+        self.bucket_keys = None
 
     def get_molecule_properties(self, keys):
         values = defaultdict(list)
-        for m in self.mols:
+        for m in self.molecules:
             for k in keys:
                 values[k].append(getattr(m, k))
         return values
 
-    def bucket_molecules(
-        self, keys=['formula', 'charge', 'spin_multiplicity'], purify=True
-    ):
+    def bucket_molecules(self, keys=['formula', 'charge']):
         """
         Classify molecules into nested dictionaries according to molecule properties
         specified in ``keys``.
 
         Args:
             keys (list of str): each str should be a molecule property.
-            purify (bool): Purify each bucket such that we only have one instance
-                of each molecule with the lowest energy. (i.e. remove molecules with
-                the same connectivity but different atom positions.
 
         Returns:
             nested dictionary of molecules classified according to keys.
@@ -517,7 +567,7 @@ class ReactionExtractor:
 
         num_keys = len(keys)
         buckets = {}
-        for m in self.mols:
+        for m in self.molecules:
             b = buckets
             for i, k in enumerate(keys):
                 v = getattr(m, k)
@@ -527,62 +577,19 @@ class ReactionExtractor:
                     b.setdefault(v, {})
                 b = b[v]
 
-        if purify:
-            buckets = self.purify_buckets(buckets)
-
         self.bucket_keys = keys
         self.buckets = buckets
 
-        return buckets
-
-    def purify_buckets(self, buckets):
+    def extract_A_to_B_style_reaction(self):
         """
-        Purify each bucket such that we only have one instance of each molecule with
-        the lowest energy. (i.e. remove molecules with the same connectivity but
-        different atom positions.
-        Returns:
-            A list of molecules.
+        Return a list of A -> B reactions.
         """
-
-        def iter_nested_dict(d, new_d):
-            for k, v in d.items():
-                if isinstance(v, dict):
-                    new_d[k] = {}
-                    iter_nested_dict(v, new_d[k])
-                else:
-                    new_d[k] = self.purify(v)
-
-        new_buckets = {}
-        iter_nested_dict(buckets, new_buckets)
-
-        return new_buckets
-
-    @staticmethod
-    def purify(molecules):
-        """
-        Given a list of molecules, return unique ones, i.e. remove ones that are
-        isomorphic and have higher free energy.
-        """
-        purified = []
-        for mol in molecules:
-            idx = -1
-            for i_p_mol, p_mol in enumerate(purified):
-                if mol.mol_graph.isomorphic_to(p_mol.mol_graph):
-                    idx = i_p_mol
-                    break
-            if idx >= 0:
-                if mol.free_energy < purified[idx].free_energy:
-                    purified[idx] = mol
-            else:
-                purified.append(mol)
-        return purified
-
-    def extract_A_to_B_style_reaction(self, mol_fragments=None):
         logger.info('Start extracting A -> B style reactions')
 
-        mol_fragments = mol_fragments or self.fragment_molecules(self.mols)
+        if self.buckets is None:
+            self.bucket_molecules(keys=['formula', 'charge'])
 
-        A_to_B_rxns = []
+        A2B = []
         i = 0
         for formula, entries_formula in self.buckets.items():
             i += 1
@@ -590,20 +597,25 @@ class ReactionExtractor:
                 print('@@flag1 running bucket', i)
             for charge, entries_charges in entries_formula.items():
                 for A, B in itertools.permutations(entries_charges, 2):
-                    bond = is_valid_A_to_B_reaction(A, B, mol_fragments[A.id])
+                    bond = is_valid_A_to_B_reaction(A, B)
                     if bond is not None:
-                        A_to_B_rxns.append(Reaction([A], [B], bond))
+                        A2B.append(Reaction([A], [B], bond))
+        self.reactions = A2B
 
-        return A_to_B_rxns
+        return A2B
 
-    def extract_A_to_B_C_style_reaction(self, mol_fragments=None, fcmap=None):
+    def extract_A_to_B_C_style_reaction(self):
+        """
+        Return a list of A -> B + C reactions.
+        """
         logger.info('Start extracting A -> B + C style reactions')
 
-        mol_fragments = mol_fragments or self.fragment_molecules(self.mols)
-        fcmap = fcmap or self.get_formula_composition_map(self.mols)
+        if self.buckets is None:
+            self.bucket_molecules(keys=['formula', 'charge'])
 
+        fcmap = self._get_formula_composition_map(self.molecules)
+        A2BC = []
         i = 0
-        A_to_B_C_rxns = []
         for (
             (formula_A, entries_formula_A),
             (formula_B, entries_formula_B),
@@ -638,11 +650,12 @@ class ReactionExtractor:
                 for A, B, C in itertools.product(
                     entries_charge_A, entries_charge_B, entries_charge_C
                 ):
-                    bond = is_valid_A_to_B_C_reaction(A, [B, C], mol_fragments[A.id])
+                    bond = is_valid_A_to_B_C_reaction(A, [B, C])
                     if bond is not None:
-                        A_to_B_C_rxns.append(Reaction([A], [B, C], bond))
+                        A2BC.append(Reaction([A], [B, C], bond))
+        self.reactions = A2BC
 
-        return A_to_B_C_rxns
+        return A2BC
 
     def extract_one_bond_break(self):
         """
@@ -652,36 +665,14 @@ class ReactionExtractor:
         Returns:
 
         """
-        mol_fragments = self.fragment_molecules(self.mols)
-        fcmap = self.get_formula_composition_map(self.mols)
-
-        A2B = self.extract_A_to_B_style_reaction(mol_fragments, fcmap)
-        A2BC = self.extract_A_to_B_C_style_reaction(mol_fragments, fcmap)
+        A2B = self.extract_A_to_B_style_reaction()
+        A2BC = self.extract_A_to_B_C_style_reaction()
+        self.reactions = A2B + A2BC
 
         return A2B, A2BC
 
     @staticmethod
-    def to_file(reactions, filename='rxns.json'):
-        logger.info('Start writing reactions to file: {}'.format(filename))
-
-        reaction_ids = []
-        for i, r in enumerate(reactions):
-            if i % 100 == 0:
-                print('@@flag, as_dict:', i)
-            reaction_ids.append(r.as_dict())
-
-        with open(filename, 'w') as f:
-            json.dump(reaction_ids, f)
-
-    @staticmethod
-    def fragment_molecules(mols):
-        fragments = dict()
-        for m in mols:
-            fragments[m.id] = fragment_molecule(m.mol_graph, m.id)
-        return fragments
-
-    @staticmethod
-    def get_formula_composition_map(mols):
+    def _get_formula_composition_map(mols):
         fcmap = dict()
         for m in mols:
             fcmap[m.formula] = m.composition_dict
@@ -712,31 +703,63 @@ class ReactionExtractor:
         return True
 
     @staticmethod
+    def _get_molecules_from_reactions(reactions):
+        mols = []
+        for r in reactions:
+            mols.extend(r.reactants + r.products)
+        return list(set(mols))
+
+    @staticmethod
     def _is_valid_A_to_B_C_charge(charge1, charge2, charge3):
         return charge1 == charge2 + charge3
 
+    def to_file(self, filename='rxns.pkl'):
+        logger.info('Start writing reactions to file: {}'.format(filename))
+        for m in self.molecules:
+            m.make_picklable()
+        d = {
+            "@module": self.__class__.__module__,
+            "@class": self.__class__.__name__,
+            "molecules": self.molecules,
+            "reactions": self.reactions,
+        }
+        pickle_dump(d, filename)
 
-def load_extracted_reactions(filename, db_path):
-    entries = DatabaseOperation.from_file(db_path).entries
-    mols = DatabaseOperation.to_molecules(entries)
-    id_to_mol_map = {m.id: m for m in mols}
+    @classmethod
+    def from_file(cls, filename):
+        logger.info('Start loading reactions from file: {}'.format(filename))
+        d = pickle_load(filename)
+        return cls(d['molecules'], d['reactions'])
 
-    logger.info('Start loading extracted reactions from file: {}'.format(filename))
-    with open(filename, 'r') as f:
-        reactions = json.load(f)
-    logger.info(
-        'Finish loading {} extracted reactions from file: {}'.format(
-            len(reactions), filename
+    def to_file_ids(self, filename='rxns.json'):
+        reaction_ids = []
+        for i, r in enumerate(self.reactions):
+            reaction_ids.append(r.as_dict())
+        with open(filename, 'w') as f:
+            json.dump(reaction_ids, f)
+
+    @classmethod
+    def from_file_ids(cls, filename, db_path):
+        db = DatabaseOperation.from_file(db_path)
+        mols = db.to_molecules(purify=True)
+        id_to_mol_map = {m.id: m for m in mols}
+
+        logger.info('Start loading extracted reactions from file: {}'.format(filename))
+        with open(filename, 'r') as f:
+            reactions = json.load(f)
+        logger.info(
+            'Finish loading {} extracted reactions from file: {}'.format(
+                len(reactions), filename
+            )
         )
-    )
 
-    logger.info('Start recover reactions from ids...')
-    rxns = []
-    for r in tqdm(reactions):
-        reactants = [id_to_mol_map[i] for i in r['reactants']]
-        products = [id_to_mol_map[i] for i in r['products']]
-        broken_bond = r['broken_bond']
-        rxn = Reaction(reactants, products, broken_bond)
-        rxns.append(rxn)
+        logger.info('Start recover reactions from ids...')
+        rxns = []
+        for r in tqdm(reactions):
+            reactants = [id_to_mol_map[i] for i in r['reactants']]
+            products = [id_to_mol_map[i] for i in r['products']]
+            broken_bond = r['broken_bond']
+            rxn = Reaction(reactants, products, broken_bond)
+            rxns.append(rxn)
 
-    return rxns
+        return cls(mols, rxns)

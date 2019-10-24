@@ -1,4 +1,5 @@
 import os
+import pickle
 
 
 def create_directory(filename):
@@ -17,3 +18,15 @@ def print_dict(d, indent=0):
             print_dict(v, indent + 4)
         else:
             print(' ' * indent + '{0}: {1}'.format(k, v))
+
+
+def pickle_dump(obj, filename):
+    create_directory(filename)
+    with open(filename, 'wb') as f:
+        pickle.dump(obj, f)
+
+
+def pickle_load(filename):
+    with open(filename, 'rb') as f:
+        obj = pickle.load(f)
+    return obj

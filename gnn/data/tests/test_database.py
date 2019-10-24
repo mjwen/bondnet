@@ -8,24 +8,26 @@ from gnn.data.query_db import DatabaseOperation
 
 def test_filter():
 
-    db_path = '/Users/mjwen/Applications/mongo_db_access/database.pkl'
+    db_path = '/Users/mjwen/Applications/mongo_db_access/extracted_data/database.pkl'
     db = DatabaseOperation.from_file(db_path)
-    LiEC_entries = db.filter(db.entries, keys=['formula_pretty'], value='LiH4(CO)3')
+    db.filter(keys=['formula_pretty'], value='LiH4(CO)3')
     db.to_file(
-        LiEC_entries,
-        size=None,
-        filename='/Users/mjwen/Applications/mongo_db_access/database_LiEC.pkl',
+        filename='/Users/mjwen/Applications/mongo_db_access/extracted_data/database_LiEC.pkl'
     )
 
 
 def test_create_dataset():
 
-    db_path = '/Users/mjwen/Applications/mongo_db_access/database_LiEC.pkl'
+    db_path = '/Users/mjwen/Applications/mongo_db_access/extracted_data/database.pkl'
     db = DatabaseOperation.from_file(db_path)
-    entries = db.entries
-    # entries = db.entries[:6]
-    db.create_sdf_csv_dataset(entries, 'electrolyte_LiEC.sdf', 'electrolyte_LiEC.csv')
-    print('entries saved:', len(entries))
+    mols = db.to_molecules(purify=True)
+    # mols = mols[:6]
+    db.create_sdf_csv_dataset(
+        mols,
+        '/Users/mjwen/Applications/mongo_db_access/extracted_data/electrolyte_LiEC.sdf',
+        '/Users/mjwen/Applications/mongo_db_access/extracted_data/electrolyte_LiEC.csv',
+    )
+    print('entries saved:', len(mols))
 
 
 if __name__ == '__main__':
