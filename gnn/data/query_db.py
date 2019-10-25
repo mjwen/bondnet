@@ -491,6 +491,14 @@ class Reaction:
         }
         pickle_dump(d, filename)
 
+    def as_dict(self):
+        d = {
+            "reactants": ['{}_{}'.format(m.formula, m.id) for m in self.reactants],
+            "products": ['{}_{}'.format(m.formula, m.id) for m in self.products],
+            "broken_bond": self.broken_bond,
+            "bond_energy": self.get_reaction_free_energy(),
+        }
+
     @classmethod
     def from_file(cls, filename):
         d = pickle_dump(filename)
@@ -677,13 +685,13 @@ class ReactionExtractor:
         Group all the reactions according to the reactant.
         Many reactions will have the same reactant if we break different bond.
         Returns:
-            A dict with reactant id as the key and a list of reactions (that have the
+            A dict with reactant as the key and a list of reactions (that have the
             same reactant) as the value.
 
         """
         grouped_reactions = defaultdict(list)
         for r in self.reactions:
-            grouped_reactions[r.reactants[0].id].append(r)
+            grouped_reactions[r.reactants[0]].append(r)
         return grouped_reactions
 
     def get_reactants_bond_energies(self, ids=None):
@@ -710,9 +718,10 @@ class ReactionExtractor:
             if ids is not None and reactant.id not in ids:
                 continue
             bonds = reactant.graph.edges()
+
             energies = {bond: None for bond in bonds}
             for r in reactions:
-                energies[r.get_broken_bond()] = r.get_reaction_free_energy()
+                energies[r.get_broken_bond()] = r.as_dict()
             reactants_bond_energies[reactant] = energies
 
         if ids is not None and len(ids) != len(reactants_bond_energies):
