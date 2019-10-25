@@ -498,6 +498,7 @@ class Reaction:
             "broken_bond": self.broken_bond,
             "bond_energy": self.get_reaction_free_energy(),
         }
+        return d
 
     @classmethod
     def from_file(cls, filename):
@@ -718,7 +719,6 @@ class ReactionExtractor:
             if ids is not None and reactant.id not in ids:
                 continue
             bonds = reactant.graph.edges()
-
             energies = {bond: None for bond in bonds}
             for r in reactions:
                 energies[r.get_broken_bond()] = r.as_dict()
