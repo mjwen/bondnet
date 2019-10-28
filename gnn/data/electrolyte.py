@@ -219,7 +219,7 @@ class ElectrolyteDataset:
             with open(self.sdf_file, 'rb') as f:
                 self.labels = pickle.load(f)
         else:
-            print('Start preprocessing dataset t ...')
+            print('Start preprocessing dataset ...')
 
             self.target = pd.read_csv(
                 self.label_file, index_col=0, usecols=['mol', 'property_1']
