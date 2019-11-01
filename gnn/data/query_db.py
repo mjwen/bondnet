@@ -649,6 +649,7 @@ class ReactionExtractor:
             ):
                 continue
 
+            reaction_ids = []
             for (
                 (charge_A, entries_charge_A),
                 (charge_B, entries_charge_B),
@@ -666,7 +667,12 @@ class ReactionExtractor:
                 ):
                     bond = is_valid_A_to_B_C_reaction(A, [B, C])
                     if bond is not None:
-                        A2BC.append(Reaction([A], [B, C], bond))
+                        ids = set([A.id, B.id, C.id])
+                        # remove repeating reactions (e.g. A->B+C and A->C+B)
+                        if ids not in reaction_ids:
+                            A2BC.append(Reaction([A], [B, C], bond))
+                            reaction_ids.append(ids)
+
         self.reactions = A2BC
 
         return A2BC
