@@ -6,6 +6,13 @@ from gnn.data.query_db import DatabaseOperation
 #     db.to_file(db.entries)
 
 
+def test_get_job_types():
+    db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
+    db = DatabaseOperation.from_file(db_path)
+    filename = "~/Applications/mongo_db_access/extracted_data/job_types.yml"
+    db.get_job_types(filename)
+
+
 def test_select(n=200):
     db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
     db = DatabaseOperation.from_file(db_path)
@@ -35,24 +42,25 @@ def test_create_dataset():
 
 
 def test_molecules():
-    db_path = "~/Applications/mongo_db_access/extracted_data/database_LiEC.pkl"
-    # db_path = '~/Applications/mongo_db_access/extracted_data/database.pkl'
+    # db_path = "~/Applications/mongo_db_access/extracted_data/database_LiEC.pkl"
+    db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
     db = DatabaseOperation.from_file(db_path)
-    mols = db.to_molecules(optimized=False)
+    mols = db.to_molecules(optimized=True)
     for m in mols:
         # fname = '~/Applications/mongo_db_access/extracted_data/images/{}_{}.svg'.format(
         #     m.formula, m.id
         # )
         # m.draw(fname, show_atom_idx=True)
 
-        fname = "~/Applications/mongo_db_access/extracted_data/pdb/{}_{}.pdb".format(
+        fname = "/Users/mjwen/Applications/mongo_db_access/extracted_data/pdb/{}_{}.pdb".format(
             m.formula, m.id
         )
         m.write(fname, file_format="pdb")
 
 
 if __name__ == "__main__":
-    test_select()
+    # test_select()
+    # test_get_job_types()
     # test_filter()
     # test_create_dataset()
-    # test_molecules()
+    test_molecules()

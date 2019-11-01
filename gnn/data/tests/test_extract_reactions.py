@@ -91,6 +91,13 @@ def test_reactants_bond_energies():
     pprint(energies)
 
 
+def test_reactants_bond_energies_to_file():
+    filename = "~/Applications/mongo_db_access/extracted_data/reactions.pkl"
+    extractor = ReactionExtractor.from_file(filename)
+    filename = "~/Applications/mongo_db_access/extracted_data/bond_energies.yml"
+    extractor.bond_energies_to_file(filename)
+
+
 def test_create_struct_label_dataset():
     # filename = "~/Applications/mongo_db_access/extracted_data/reactions_A2B.pkl"
     # filename = "~/Applications/mongo_db_access/extracted_data/reactions_A2BC.pkl"
@@ -107,6 +114,7 @@ if __name__ == "__main__":
     # test_buckets()
     # test_extract_A_to_B()
     # test_extract_A_to_B_C()
-    # test_extract_one_bond_break()
+    test_extract_one_bond_break()
     # test_reactants_bond_energies()
-    test_create_struct_label_dataset()
+    # test_reactants_bond_energies_to_file()
+    # test_create_struct_label_dataset()

@@ -3,6 +3,7 @@ import itertools
 import logging
 import warnings
 import json
+import networkx as nx
 from tqdm import tqdm
 from collections import defaultdict, OrderedDict
 from atomate.qchem.database import QChemCalcDb
@@ -14,7 +15,13 @@ from pymatgen.io.babel import BabelMolAdaptor
 import openbabel as ob
 from rdkit import Chem
 from rdkit.Chem import Draw, AllChem
-from gnn.data.utils import create_directory, pickle_dump, pickle_load, expand_path
+from gnn.data.utils import (
+    create_directory,
+    pickle_dump,
+    pickle_load,
+    yaml_dump,
+    expand_path,
+)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -82,18 +89,24 @@ class BabelMolAdaptor2(BabelMolAdaptor):
 class Molecule:
     def __init__(self, db_entry, use_metal_edge_extender=True, optimized=True):
         self.db_entry = db_entry
-        try:
-            if optimized:
+        if optimized:
+            if db_entry["state"] != "successful":
+                raise UnsuccessfulEntryError
+            try:
                 self.mol = pymatgen.Molecule.from_dict(
                     db_entry["output"]["optimized_molecule"]
                 )
-            else:
+            except KeyError:
                 self.mol = pymatgen.Molecule.from_dict(
-                    db_entry["input"]["initial_molecule"]
+                    db_entry["output"]["initial_molecule"]
                 )
-        except KeyError:
-            print("error seen for id:", db_entry["_id"])
-            raise KeyError
+                print(
+                    "use initial_molecule for id: {}; job type:{} ".format(
+                        db_entry["_id"], db_entry["output"]["job_type"]
+                    )
+                )
+        else:
+            self.mol = pymatgen.Molecule.from_dict(db_entry["input"]["initial_molecule"])
 
         self.use_metal_edge_extender = use_metal_edge_extender
 
@@ -292,7 +305,12 @@ class DatabaseOperation:
 
         # This contains all the production jobs(wb97xv/def2-tzvppd/smd(LiEC parameters)).
         # Every target_entries[i] is a dictionary of all the information for one job.
-        entries = list(mmdb.collection.find({"tags.class": "smd_production"}))
+        query = {"tags.class": "smd_production"}
+        entries = list(mmdb.collection.find(query))
+
+        # to query by id: also needs to: from bson.objectid import ObjectId
+        # query = {'_id': ObjectId('5d1a6e059ab9e0c05b1b2a1a')}
+
         return cls(entries)
 
     @classmethod
@@ -340,6 +358,15 @@ class DatabaseOperation:
 
         self.entries = results
 
+    def get_job_types(self, filename="job_types.yml"):
+        counts = defaultdict(list)
+        for entry in self.entries:
+            job_type = entry["output"]["job_type"]
+            counts[job_type].append(str(entry["_id"]))
+        for k, v in counts.items():
+            print("number of '{}' type jobs: {}".format(k, len(v)))
+        yaml_dump(counts, filename)
+
     def to_molecules(self, optimized=True, purify=True):
         """
         Convert data entries to molecules.
@@ -357,7 +384,8 @@ class DatabaseOperation:
 
         logger.info("Start converting DB entries to molecules...")
 
-        n_not_opt_mol = 0
+        n_unsuccessful_entry = 0
+        n_unconnected_mol = 0
         n_not_unique_mol = 0
         mols = []
         for entry in self.entries:
@@ -365,6 +393,11 @@ class DatabaseOperation:
                 m = Molecule(entry, optimized=optimized)
                 if purify:
                     idx = -1
+                    # check for connectivity
+                    if not nx.is_weakly_connected(m.graph):
+                        n_unconnected_mol += 1
+                        continue
+                    # check for isomorphism
                     for i_p_m, p_m in enumerate(mols):
                         # TODO check whether spin_multiplicity is needed
                         if (
@@ -382,13 +415,16 @@ class DatabaseOperation:
                         mols.append(m)
                 else:
                     mols.append(m)
-            except KeyError:
-                n_not_opt_mol += 1
-                pass
+            except UnsuccessfulEntryError:
+                n_unsuccessful_entry += 1
         logger.info(
-            'DB entry size: {}; Entries without `["output"]["optimized_molecule"]`'
-            ": {}; Isomorphic entries: {}; Entries converted to molecules: {}.".format(
-                len(self.entries), n_not_opt_mol, n_not_unique_mol, len(mols)
+            "DB entry size: {}; Unsuccessful entries {}; Isomorphic entries: {}; "
+            "Unconnected molecules: {}; Entries converted to molecules: {}.".format(
+                len(self.entries),
+                n_unsuccessful_entry,
+                n_not_unique_mol,
+                n_unconnected_mol,
+                len(mols),
             )
         )
 
@@ -571,8 +607,8 @@ class ReactionExtractor:
         i = 0
         for formula, entries_formula in self.buckets.items():
             i += 1
-            if i % 100 == 0:
-                print("@@flag1 running bucket", i)
+            if i % 10000 == 0:
+                print("@@flag running bucket", i)
             for charge, entries_charges in entries_formula.items():
                 for A, B in itertools.permutations(entries_charges, 2):
                     bond = is_valid_A_to_B_reaction(A, B)
@@ -601,8 +637,8 @@ class ReactionExtractor:
         ) in itertools.product(self.buckets.items(), repeat=3):
 
             i += 1
-            if i % 100 == 0:
-                print("@@flag1 running bucket", i)
+            if i % 10000 == 0:
+                print("@@flag running bucket", i)
 
             composition_A = fcmap[formula_A]
             composition_B = fcmap[formula_B]
@@ -675,21 +711,23 @@ class ReactionExtractor:
                 energies need to be returned. If ``None`` all are returned.
 
         Returns:
-            A dict of dict. The outer dict has reactant instance as the key and the
-            inner dict has bond indices (a tuple) as the key and bond attributes ( a
-            dict of energy, bond order, ect.).
+            A dict of dict of dict. The outer dict has reactant instance as the key,
+            the middle dict has has bond indices (a tuple) as the key and the inner
+            dict has charges (a tuple) as the key and bond attributes (a dict of energy,
+            bond order, ect.).
         """
         grouped_reactions = self.group_by_reactant()
 
-        reactants_bond_energies = dict()
+        reactants_bond_energies = OrderedDict()
         for reactant, reactions in grouped_reactions.items():
             if ids is not None and reactant.id not in ids:
                 continue
             energies = OrderedDict()
             for bond in reactant.graph.edges():
-                energies[bond] = None
+                energies[bond] = dict()
             for r in reactions:
-                energies[r.get_broken_bond()] = r.as_dict()
+                charges = tuple([m.charge for m in r.products])
+                energies[r.get_broken_bond()][charges] = r.as_dict()
             reactants_bond_energies[reactant] = energies
 
         if ids is not None and len(ids) != len(reactants_bond_energies):
@@ -697,6 +735,18 @@ class ReactionExtractor:
 
         return reactants_bond_energies
 
+    def bond_energies_to_file(self, filename):
+        reactants_energies = self.get_reactants_bond_energies()
+        d = {}
+        for r, v in reactants_energies.items():
+            new_k = r.formula + "_" + r.id
+            new_v = {
+                (k[0] + 1, k[1] + 1): vv for k, vv in v.items()
+            }  # +1 to make index the same as rdkit
+            d[new_k] = new_v
+        yaml_dump(d)
+
+    # TODO this needs to be updated due to the change of the reactnats_bond_energies fn
     def create_struct_label_dataset(
         self, struct_name="sturct.sdf", label_name="label.txt"
     ):
@@ -869,3 +919,8 @@ def is_valid_A_to_B_C_reaction(reactant, products):
             ):
                 return edge
     return None
+
+
+class UnsuccessfulEntryError(Exception):
+    def __init__(self):
+        pass

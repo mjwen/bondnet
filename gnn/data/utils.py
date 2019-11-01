@@ -1,5 +1,6 @@
 import os
 import pickle
+import yaml
 
 
 def expand_path(path):
@@ -27,3 +28,10 @@ def pickle_load(filename):
     with open(filename, "rb") as f:
         obj = pickle.load(f)
     return obj
+
+
+def yaml_dump(obj, filename):
+    filename = expand_path(filename)
+    create_directory(filename)
+    with open(filename, "w") as f:
+        yaml.dump(obj, f, default_flow_style=False)
