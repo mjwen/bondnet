@@ -23,8 +23,11 @@ def test_select(n=200):
 def test_filter():
     db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
     db = DatabaseOperation.from_file(db_path)
-    db.filter(keys=["formula_pretty"], value="LiH4(CO)3")
-    db.to_file(filename="~/Applications/mongo_db_access/extracted_data/database_LiEC.pkl")
+    # db.filter(keys=["formula_pretty"], value="LiH4(CO)3")
+    # db.to_file(filename="~/Applications/mongo_db_access/extracted_data/database_LiEC.pkl")
+
+    db.filter(keys=["formula_alphabetical"], values=["H1", "H2"])
+    db.to_file(filename="~/Applications/mongo_db_access/extracted_data/database_H.pkl")
 
 
 def test_create_dataset():
@@ -45,12 +48,12 @@ def test_molecules():
     # db_path = "~/Applications/mongo_db_access/extracted_data/database_LiEC.pkl"
     db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
     db = DatabaseOperation.from_file(db_path)
-    mols = db.to_molecules(optimized=True)
+    mols = db.to_molecules(optimized=False)
     for m in mols:
-        # fname = '~/Applications/mongo_db_access/extracted_data/images/{}_{}.svg'.format(
-        #     m.formula, m.id
-        # )
-        # m.draw(fname, show_atom_idx=True)
+        fname = "~/Applications/mongo_db_access/extracted_data/mol_svg/{}_{}.svg".format(
+            m.formula, m.id
+        )
+        m.draw(fname, show_atom_idx=True)
 
         fname = "/Users/mjwen/Applications/mongo_db_access/extracted_data/pdb/{}_{}.pdb".format(
             m.formula, m.id

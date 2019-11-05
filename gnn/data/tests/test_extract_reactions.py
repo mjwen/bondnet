@@ -54,8 +54,9 @@ def test_extract_A_to_B_C():
 
 
 def test_extract_one_bond_break():
-    db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
-    # db_path = "~/Applications/mongo_db_access/extracted_data/database_n200.pkl"
+    # db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
+    db_path = "~/Applications/mongo_db_access/extracted_data/database_n200.pkl"
+    # db_path = "~/Applications/mongo_db_access/extracted_data/database_H.pkl"
     db = DatabaseOperation.from_file(db_path)
     molecules = db.to_molecules()
     print("db recovered, number of moles:", len(molecules))
@@ -65,36 +66,19 @@ def test_extract_one_bond_break():
     print("number of buckets", len(extractor.buckets))
 
     extractor.extract_one_bond_break()
-    filename = "~/Applications/mongo_db_access/extracted_data/reactions.pkl"
-    # filename = "~/Applications/mongo_db_access/extracted_data/reactions_n200.pkl"
+    # filename = "~/Applications/mongo_db_access/extracted_data/reactions.pkl"
+    filename = "~/Applications/mongo_db_access/extracted_data/reactions_n200.pkl"
+    # filename = "~/Applications/mongo_db_access/extracted_data/reactions_H.pkl"
     extractor.to_file(filename)
 
 
-def test_reactants_bond_energies():
-    # filename = "~/Applications/mongo_db_access/extracted_data/reactions_A2B.pkl"
-    # filename = "~/Applications/mongo_db_access/extracted_data/reactions_A2BC.pkl"
+def test_reactants_bond_energies_to_file():
     # filename = "~/Applications/mongo_db_access/extracted_data/reactions.pkl"
     filename = "~/Applications/mongo_db_access/extracted_data/reactions_n200.pkl"
+    # filename = "~/Applications/mongo_db_access/extracted_data/reactions_H.pkl"
     extractor = ReactionExtractor.from_file(filename)
-    print("Number of reactions", len(extractor.reactions))
-
-    energies = extractor.get_reactants_bond_energies(
-        ids=[
-            "5d1a85699ab9e0c05b205da6",
-            "5d6125285bf3381f3628224f",
-            "5d1a8a199ab9e0c05b216242",
-            "5d2087639ab9e0c05bf3a8e8",
-            "5d215def9ab9e0c05b08eb60",
-            "5d35cb225bf3381f368d44e4",
-        ]
-    )
-    pprint(energies)
-
-
-def test_reactants_bond_energies_to_file():
-    filename = "~/Applications/mongo_db_access/extracted_data/reactions.pkl"
-    extractor = ReactionExtractor.from_file(filename)
-    filename = "~/Applications/mongo_db_access/extracted_data/bond_energies.yml"
+    filename = "~/Applications/mongo_db_access/extracted_data/bond_energies_H.yml"
+    filename = "~/Applications/mongo_db_access/extracted_data/bond_energies_n200.yml"
     extractor.bond_energies_to_file(filename)
 
 
@@ -116,5 +100,5 @@ if __name__ == "__main__":
     # test_extract_A_to_B_C()
     test_extract_one_bond_break()
     # test_reactants_bond_energies()
-    # test_reactants_bond_energies_to_file()
-    # test_create_struct_label_dataset()
+    test_reactants_bond_energies_to_file()
+    test_create_struct_label_dataset()
