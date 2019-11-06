@@ -1,5 +1,4 @@
-import pytest
-from gnn.data.query_db import DatabaseOperation
+from gnn.data.database import DatabaseOperation
 
 # def test_query_database():
 #     db = DatabaseOperation.from_query()
@@ -62,8 +61,8 @@ def test_molecules():
 
 
 def test_write_group_isomorphic_to_file():
-    db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
-    # db_path = "~/Applications/mongo_db_access/extracted_data/database_n200.pkl"
+    # db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
+    db_path = "~/Applications/mongo_db_access/extracted_data/database_n200.pkl"
     db = DatabaseOperation.from_file(db_path)
     mols = db.to_molecules(optimized=True, purify=True)
     filename = "/Users/mjwen/Applications/mongo_db_access/extracted_data/isomorphic.txt"

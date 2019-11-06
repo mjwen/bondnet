@@ -1,5 +1,5 @@
-import pytest
-from gnn.data.query_db import DatabaseOperation, ReactionExtractor
+from gnn.data.database import DatabaseOperation
+from gnn.data.reaction import ReactionExtractor
 from pprint import pprint
 
 

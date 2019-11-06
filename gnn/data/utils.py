@@ -12,7 +12,6 @@ def create_directory(filename):
     dirname = os.path.dirname(filename)
     if not os.path.exists(dirname):
         os.makedirs(dirname)
-
     return filename
 
 
