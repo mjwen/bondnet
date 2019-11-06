@@ -48,7 +48,7 @@ def test_molecules():
     # db_path = "~/Applications/mongo_db_access/extracted_data/database_LiEC.pkl"
     db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
     db = DatabaseOperation.from_file(db_path)
-    mols = db.to_molecules(optimized=False)
+    mols = db.to_molecules(optimized=True)
     for m in mols:
         fname = "~/Applications/mongo_db_access/extracted_data/mol_svg/{}_{}.svg".format(
             m.formula, m.id
@@ -61,9 +61,19 @@ def test_molecules():
         m.write(fname, file_format="pdb")
 
 
+def test_write_group_isomorphic_to_file():
+    db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
+    # db_path = "~/Applications/mongo_db_access/extracted_data/database_n200.pkl"
+    db = DatabaseOperation.from_file(db_path)
+    mols = db.to_molecules(optimized=True, purify=True)
+    filename = "/Users/mjwen/Applications/mongo_db_access/extracted_data/isomorphic.txt"
+    db.write_group_isomorphic_to_file(mols, filename)
+
+
 if __name__ == "__main__":
     # test_select()
     # test_get_job_types()
     # test_filter()
     # test_create_dataset()
-    test_molecules()
+    # test_molecules()
+    test_write_group_isomorphic_to_file()

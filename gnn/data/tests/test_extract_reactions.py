@@ -94,11 +94,21 @@ def test_create_struct_label_dataset():
     )
 
 
+def test_create_struct_label_dataset_with_lowest_energy_across_charge():
+    filename = "~/Applications/mongo_db_access/extracted_data/reactions_n200.pkl"
+    extractor = ReactionExtractor.from_file(filename)
+    extractor.create_struct_label_dataset_with_lowest_energy_across_charge(
+        struct_name="~/Applications/mongo_db_access/extracted_data/sturct_n200.sdf",
+        label_name="~/Applications/mongo_db_access/extracted_data/label_n200.txt",
+    )
+
+
 if __name__ == "__main__":
     # test_buckets()
     # test_extract_A_to_B()
     # test_extract_A_to_B_C()
-    test_extract_one_bond_break()
+    # test_extract_one_bond_break()
     # test_reactants_bond_energies()
-    test_reactants_bond_energies_to_file()
+    # test_reactants_bond_energies_to_file()
     test_create_struct_label_dataset()
+    test_create_struct_label_dataset_with_lowest_energy_across_charge()

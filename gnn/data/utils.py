@@ -25,6 +25,7 @@ def pickle_dump(obj, filename):
 
 def pickle_load(filename):
     filename = expand_path(filename)
+    create_directory(filename)
     with open(filename, "rb") as f:
         obj = pickle.load(f)
     return obj

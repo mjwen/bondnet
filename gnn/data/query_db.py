@@ -29,6 +29,14 @@ logger.setLevel(logging.INFO)
 
 
 class BabelMolAdaptor2(BabelMolAdaptor):
+    @classmethod
+    def from_molecule_graph(cls, mol_graph):
+        if not isinstance(mol_graph, MoleculeGraph):
+            raise ValueError("not get mol graph")
+        self = cls(mol_graph.molecule)
+        self._add_missing_bond(mol_graph)
+        return self
+
     def add_bond(self, idx1, idx2, order):
         """
         Add a bond to an openbabel molecule with the specified order
@@ -40,49 +48,44 @@ class BabelMolAdaptor2(BabelMolAdaptor):
         """
         # TODO more clever way to handle this, see the add_edge of `MoleculeGraph`
         # check whether bond exists
-        for obbond in ob.OBMolBondIter(self._obmol):
+        for obbond in ob.OBMolBondIter(self.openbabel_mol):
             if (obbond.GetBeginAtomIdx() == idx1 and obbond.GetEndAtomIdx() == idx2) or (
                 obbond.GetBeginAtomIdx() == idx2 and obbond.GetEndAtomIdx() == idx1
             ):
                 raise Exception("bond exists")
-
-        self._obmol.AddBond(idx1, idx2, order)
-
-    @classmethod
-    def from_molecule_graph(cls, mol_graph):
-        if not isinstance(mol_graph, MoleculeGraph):
-            raise ValueError("not get mol graph")
-        self = cls(mol_graph.molecule)
-        self._add_missing_bond(mol_graph)
-
-        return self
+        self.openbabel_mol.AddBond(idx1, idx2, order)
 
     def _add_missing_bond(self, mol_graph):
-        def is_ob_bonds(coords1, coords2):
+        if self.openbabel_mol.NumBonds() == len(mol_graph.graph.edges()):
+            return
 
-            for i, atom in enumerate(ob.OBMolAtomDFSIter(self._obmol)):
-                cdi = [atom.GetX(), atom.GetY(), atom.GetZ()]
-                if not np.allclose(cdi, coords1):
+        def is_ob_bonds(idx1, idx2, ob_atoms):
+            for atom in ob_atoms:
+                if atom.GetIdx() != idx1:
                     continue
                 for neighbor in ob.OBAtomAtomIter(atom):
-                    cdn = [neighbor.GetX(), neighbor.GetY(), neighbor.GetZ()]
-                    if np.allclose(cdn, coords2):
+                    if neighbor.GetIdx() == idx2:
                         return True
             return False
 
-        def find_ob_index(coords):
-            for atom in ob.OBMolAtomDFSIter(self._obmol):
+        # graph idx to ob idx map
+        idx_map = dict()
+        natoms = self.openbabel_mol.NumAtoms()
+        for graph_idx in range(natoms):
+            coords = list(mol_graph.graph.nodes[graph_idx]["coords"])
+            for atom in ob.OBMolAtomDFSIter(self.openbabel_mol):
                 c = [atom.GetX(), atom.GetY(), atom.GetZ()]
                 if np.allclose(c, coords):
-                    return atom.GetIdx()
-            raise Exception("atom not found.")  # should never get here
+                    idx_map[graph_idx] = atom.GetIdx()
+                    break
+            if graph_idx not in idx_map:
+                raise Exception("atom not found.")
 
+        ob_atoms = [a for a in ob.OBMolAtomDFSIter(self.openbabel_mol)]
         for i, j, attr in mol_graph.graph.edges.data():
-            coords_i = list(mol_graph.graph.nodes[i]["coords"])
-            coords_j = list(mol_graph.graph.nodes[j]["coords"])
-            if not is_ob_bonds(coords_i, coords_j):
-                idxi = find_ob_index(coords_i)
-                idxj = find_ob_index(coords_j)
+            idxi = idx_map[i]
+            idxj = idx_map[j]
+            if not is_ob_bonds(idxi, idxj, ob_atoms):
                 self.add_bond(idxi, idxj, order=0)
 
 
@@ -229,9 +232,21 @@ class Molecule:
                     c = [atom.GetX(), atom.GetY(), atom.GetZ()]
                     if np.allclose(c, coords):
                         self._graph_idx_to_ob_idx_map[graph_idx] = atom.GetIdx()
-                if graph_idx not in self.graph_idx_to_ob_idx_map:
+                        break
+                if graph_idx not in self._graph_idx_to_ob_idx_map:
                     raise Exception("atom not found.")
         return self._graph_idx_to_ob_idx_map
+
+    def get_sdf_bond_indices(self, sdf=None):
+        sdf = sdf or self.write(file_format="sdf")
+        lines = sdf.split("\n")
+        split_3 = lines[3].split()
+        natoms = int(split_3[0])
+        nbonds = int(split_3[1])
+        bonds = []
+        for line in lines[4 + natoms : 4 + natoms + nbonds]:
+            bonds.append(tuple(sorted([int(i) for i in line.split()[:2]])))
+        return bonds
 
     def get_connectivity(self):
         conn = []
@@ -394,7 +409,7 @@ class DatabaseOperation:
             print("number of '{}' type jobs: {}".format(k, len(v)))
         yaml_dump(counts, filename)
 
-    def to_molecules(self, optimized=True, purify=True):
+    def to_molecules(self, optimized=True, purify=True, sort=True):
         """
         Convert data entries to molecules.
 
@@ -405,6 +420,7 @@ class DatabaseOperation:
                 free energy. Uniqueness is determined isomorphism, charge, and spin
                 multiplicity. If `optimized` is False, this will be set to `False`
                 internally.
+            sort (bool): If True, sort molecules by their formula.
 
         Returns:
             A list of Molecule object
@@ -415,19 +431,23 @@ class DatabaseOperation:
         n_unsuccessful_entry = 0
         n_unconnected_mol = 0
         n_not_unique_mol = 0
-        mols = []
+
         if not optimized:
             purify = False
+
+        mols = []
         for entry in self.entries:
             try:
                 m = Molecule(entry, optimized=optimized)
                 if purify:
-                    idx = -1
+
                     # check for connectivity
                     if not nx.is_weakly_connected(m.graph):
                         n_unconnected_mol += 1
                         continue
+
                     # check for isomorphism
+                    idx = -1
                     for i_p_m, p_m in enumerate(mols):
                         # TODO check whether spin_multiplicity is needed
                         if (
@@ -458,7 +478,43 @@ class DatabaseOperation:
             )
         )
 
+        if sort:
+            mols = sorted(mols, key=lambda m: m.formula)
+
         return mols
+
+    def group_isomorphic(self, molecules):
+        """
+        Group molecules
+        Args:
+            molecules: a list of Molecules.
+
+        Returns:
+            A list of list, with inner list of isomorphic molecules.
+
+        """
+        groups = []
+        for m in molecules:
+            find_iso = False
+            for g in groups:
+                iso_m = g[0]
+                if m.mol_graph.isomorphic_to(iso_m.mol_graph):
+                    g.append(m)
+                    find_iso = True
+                    break
+            if not find_iso:
+                groups.append([m])
+        return groups
+
+    def write_group_isomorphic_to_file(self, molecules, filename):
+        groups = self.group_isomorphic(molecules)
+        filename = expand_path(filename)
+        create_directory(filename)
+        with open(filename, "w") as f:
+            for g in groups:
+                for m in g:
+                    f.write("{}_{}_{}    ".format(m.formula, m.id, m.charge))
+                f.write("\n")
 
     @staticmethod
     def create_sdf_csv_dataset(
@@ -519,7 +575,7 @@ class Reaction:
         if self.broken_bond is None:
             if len(self.products) == 1:
                 bond = is_valid_A_to_B_reaction(self.reactants[0], self.products[0])
-            elif len(self.products) == 2:
+            else:
                 bond = is_valid_A_to_B_C_reaction(self.reactants[0], self.products)
             if bond is None:
                 raise RuntimeError(
@@ -813,7 +869,19 @@ class ReactionExtractor:
 
         return A2B, A2BC
 
-    def group_by_reactant_and_charge(
+    def group_by_reactant(self, string_reactant_index=False):
+        """
+        Group reactions to dict with reactant as the key and list of reactions as the
+        value.
+        """
+        grouped_reactions = defaultdict(list)
+        for rxn in self.reactions:
+            reactant = rxn.reactants[0]
+            reactant_idx = self._get_reactant_index(reactant, string_reactant_index)
+            grouped_reactions[reactant_idx].append(rxn)
+        return grouped_reactions
+
+    def group_by_reactant_charge_and_bond(
         self, string_reactant_index=False, babel_bond_indices=True
     ):
         """
@@ -832,80 +900,185 @@ class ReactionExtractor:
             the middle dict has charges (a tuple) as the key and the inner dict has bond
             indices (a tuple) as the key and bond attributes (a dict of energy,
             bond order, ect.).
-
-
         """
+        grouped_reactions = self.group_by_reactant(string_reactant_index=False)
 
-        def get_bond_idx(bond, reactant, babel_bond_indices):
-            if babel_bond_indices:
-                idx0 = reactant.graph_idx_to_ob_idx_map[bond[0]]
-                idx1 = reactant.graph_idx_to_ob_idx_map[bond[1]]
-                bond_indices = tuple(sorted([idx0, idx1]))
-            else:
-                bond_indices = bond
-            return bond_indices
-
-        grouped_reactions = defaultdict(list)
-        for rxn in self.reactions:
-            grouped_reactions[rxn.reactants[0]].append(rxn)
-
-        groups = dict()
+        groups = OrderedDict()
         for reactant, reactions in grouped_reactions.items():
-            if string_reactant_index:
-                reactant_idx = reactant.formula + "_" + reactant.id
-            else:
-                reactant_idx = reactant
+            reactant_idx = self._get_reactant_index(reactant, string_reactant_index)
             groups[reactant_idx] = dict()
+
             for rxn in reactions:
                 charge = tuple([m.charge for m in (rxn.reactants + rxn.products)])
-                if charge not in groups[reactant_idx]:
-                    groups[reactant_idx][charge] = OrderedDict()
-                    for bond in reactant.graph.edges():
-                        bond_indices = get_bond_idx(bond, reactant, babel_bond_indices)
-                        groups[reactant_idx][charge][bond_indices] = None
+                groups[reactant_idx][charge] = OrderedDict()
+                for bond in reactant.graph.edges():
+                    bond_indices = self._get_bond_indices(
+                        bond, reactant, babel_bond_indices
+                    )
+                    groups[reactant_idx][charge][bond_indices] = None
+
             for rxn in reactions:
                 charge = tuple([m.charge for m in (rxn.reactants + rxn.products)])
-                bond_indices = get_bond_idx(
+                bond_indices = self._get_bond_indices(
                     rxn.get_broken_bond(), reactant, babel_bond_indices
                 )
                 groups[reactant_idx][charge][bond_indices] = rxn.as_dict()
 
         return groups
 
-    def bond_energies_to_file(
-        self, filename, string_reactant_index=True, babel_bond_indices=True
+    def group_by_reactant_bond_and_charge(
+        self, string_reactant_index=False, babel_bond_indices=True
     ):
-        groups = self.group_by_reactant_and_charge(
-            string_reactant_index, babel_bond_indices
-        )
+        """
+        Group all the reactions to nested dicts according to the reactant, bond, and
+        charge.
+
+        Args:
+            string_reactant_index: If True, the reactant id (a string) is used as the
+                key for the outer dict, otherwise, the reactant instance is used.
+            babel_bond_indices: If True, babel atoms (indices) will be used as the key
+                to denote broken bond for the inner dict, otherwise, mol_graph nodes
+                will be used.
+
+        Returns:
+            A dict of dict of dict. The outer dict has reactant index as the key,
+            the middle dict has charges (a tuple) as the key and the inner dict has bond
+            indices (a tuple) as the key and bond attributes (a dict of energy,
+            bond order, ect.).
+        """
+        grouped_reactions = self.group_by_reactant(string_reactant_index=False)
+
+        groups = OrderedDict()
+        for reactant, reactions in grouped_reactions.items():
+            reactant_idx = self._get_reactant_index(reactant, string_reactant_index)
+            groups[reactant_idx] = OrderedDict()
+
+            for bond in reactant.graph.edges():
+                bond_indices = self._get_bond_indices(bond, reactant, babel_bond_indices)
+                groups[reactant_idx][bond_indices] = dict()
+
+            for rxn in reactions:
+                charge = tuple([m.charge for m in (rxn.reactants + rxn.products)])
+                bond_indices = self._get_bond_indices(
+                    rxn.get_broken_bond(), reactant, babel_bond_indices
+                )
+                groups[reactant_idx][bond_indices][charge] = rxn.as_dict()
+
+        return groups
+
+    def bond_energies_to_file(
+        self,
+        filename,
+        mode="reactant_bond_and_charge",
+        string_reactant_index=True,
+        babel_bond_indices=True,
+    ):
+        if mode == "reactant_bond_and_charge":
+            groups = self.group_by_reactant_bond_and_charge(
+                string_reactant_index, babel_bond_indices
+            )
+        elif mode == "reactant_charge_and_bond":
+            groups = self.group_by_reactant_charge_and_bond(
+                string_reactant_index, babel_bond_indices
+            )
+        else:
+            raise RuntimeError("mode unsupported")
         for m in self.molecules:
             m.make_picklable()
         yaml_dump(groups, filename)
 
+    def write_sdf(self, molecules, filename="molecules.sdf"):
+        """
+        Write molecules sdf to file.
+
+        Args:
+            filename (str): output filename
+            molecules: an iterable of molecules, e.g. list, OrderedDict
+        """
+        logger.info("Start writing to sdf file: {}".format(filename))
+        filename = expand_path(filename)
+        create_directory(filename)
+        with open(filename, "w") as f:
+            for m in molecules:
+                sdf = m.write(file_format="sdf")
+                f.write(sdf)
+
+    def create_struct_label_dataset_with_lowest_energy_across_charge(
+        self, struct_name="sturct.sdf", label_name="label.txt"
+    ):
+        """
+        Write the reactions to files.
+
+        Each reactant may have multiple products corresponding to various charge
+        combinations. Here, we write the lowest energy one.
+        """
+        grouped_reactions = self.group_by_reactant_bond_and_charge(False, True)
+
+        # write sdf
+        self.write_sdf(grouped_reactions, struct_name)
+
+        # write label
+        label_name = expand_path(label_name)
+        create_directory(label_name)
+        with open(label_name, "w") as f:
+            f.write(
+                "# Each line lists the bond energies of a molecule. "
+                "The number of items in each line is equal to 2 times the number of "
+                "bonds. The first half are bond energies and  the next half values are "
+                "indicators (0 or 1) to specify whether the bond energy exist in the "
+                "dataset. A value of 0 means the corresponding bond energy should be "
+                "ignored, whatever its value is.\n"
+            )
+            for reactant, reactions in grouped_reactions.items():
+
+                bonds_energy = dict()
+                for bond, rxns in reactions.items():
+                    bonds_energy[bond] = None
+                    for charge, attr in rxns.items():
+                        if attr:
+                            if bonds_energy[bond] is not None:
+                                bonds_energy[bond] = min(
+                                    bonds_energy[bond], attr["bond_energy"]
+                                )
+                            else:
+                                bonds_energy[bond] = attr["bond_energy"]
+
+                # write bond energies in the same order as sdf file
+                sdf_bonds = reactant.get_sdf_bond_indices()
+                for bond in sdf_bonds:
+                    energy = bonds_energy[bond]
+                    if energy is None:
+                        f.write("0.0 ")
+                    else:
+                        f.write("{:.15g} ".format(energy))
+                f.write("   ")
+
+                # write bond energy indicator
+                for bond in sdf_bonds:
+                    energy = bonds_energy[bond]
+                    if energy is None:
+                        f.write("0 ")
+                    else:
+                        f.write("1 ")
+                f.write("\n")
+
     def create_struct_label_dataset(
         self, struct_name="sturct.sdf", label_name="label.txt"
     ):
-        def get_rdf_bond_order(sdf):
-            lines = sdf.split("\n")
-            split_3 = lines[3].split()
-            natoms = int(split_3[0])
-            nbonds = int(split_3[1])
-            bonds = []
-            for line in lines[4 + natoms : 4 + natoms + nbonds]:
-                bonds.append(tuple(sorted([int(i) for i in line.split()[:2]])))
-            return bonds
+        """
+        Write the reactions to files.
 
-        logger.info(
-            "Start writing reactions to files: {} and {}".format(struct_name, label_name)
-        )
+        Each reactant may have multiple products corresponding to various charge
+        combinations. Here, we write all of them.
+        """
+        grouped_reactions = self.group_by_reactant_charge_and_bond(False, True)
 
-        reactants_bond_energies = self.group_by_reactant_and_charge(
-            string_reactant_index=False, babel_bond_indices=True
-        )
+        molecules = []
 
-        struct_name, label_name = expand_path(struct_name), expand_path(label_name)
-        with open(struct_name, "w") as f_struct, open(label_name, "w") as f_label:
-            f_label.write(
+        label_name = expand_path(label_name)
+        create_directory(label_name)
+        with open(label_name, "w") as f:
+            f.write(
                 "# Each line lists the bond energies of a molecule. "
                 "It contains four parts: "
                 "1) the number of substances N (i.e. number of reactants and products) "
@@ -917,43 +1090,45 @@ class ReactionExtractor:
                 "value of 0 means the corresponding bond energy will be ignored, "
                 "no matter what its value is.\n"
             )
-            for reactant, reactions in reactants_bond_energies.items():
-                # struct
-                sdf = reactant.write(file_format="sdf")
-                f_struct.write(sdf)
+            for reactant, reactions in grouped_reactions.items():
+                sdf_bonds = reactant.get_sdf_bond_indices()
 
-                sdf_bonds = get_rdf_bond_order(sdf)
-
-                # label
                 for charge, rxns in reactions.items():
-                    f_label.write("{} ".format(len(charge)))
-                    for c in charge:
-                        f_label.write("{} ".format(c))
-                    f_label.write("   ")
+                    molecules.append(reactant)
 
-                    # write bond energies in the same order as sdf file
-                    bond_energies = dict()
+                    # number of substance and substance charges
+                    f.write("{} ".format(len(charge)))
+                    for c in charge:
+                        f.write("{} ".format(c))
+                    f.write("   ")
+
+                    bonds_energy = dict()
                     for bond, attr in rxns.items():
                         if attr is not None:
-                            bond_energies[bond] = attr["bond_energy"]
+                            bonds_energy[bond] = attr["bond_energy"]
                         else:
-                            bond_energies[bond] = None
+                            bonds_energy[bond] = None
+
+                    # write bond energies in the same order as sdf file
                     for bond in sdf_bonds:
-                        energy = bond_energies[bond]
+                        energy = bonds_energy[bond]
                         if energy is None:
-                            f_label.write("0.0 ")
+                            f.write("0.0 ")
                         else:
-                            f_label.write("{:.15g} ".format(energy))
-                    f_label.write("   ")
+                            f.write("{:.15g} ".format(energy))
+                    f.write("   ")
 
                     # write bond energy indicator
                     for bond in sdf_bonds:
-                        energy = bond_energies[bond]
+                        energy = bonds_energy[bond]
                         if energy is None:
-                            f_label.write("0 ")
+                            f.write("0 ")
                         else:
-                            f_label.write("1 ")
-                    f_label.write("\n")
+                            f.write("1 ")
+                    f.write("\n")
+
+        # write sdf
+        self.write_sdf(molecules, struct_name)
 
     @staticmethod
     def _get_formula_composition_map(mols):
@@ -968,6 +1143,30 @@ class ReactionExtractor:
             if int(amt) % 2 != 0:
                 return False
         return True
+
+    @staticmethod
+    def _get_bond_indices(bond, reactant, use_babel_bond_indices):
+        """
+        Convert mol_graph bond indices to babel bond indices.
+        """
+        if use_babel_bond_indices:
+            idx0 = reactant.graph_idx_to_ob_idx_map[bond[0]]
+            idx1 = reactant.graph_idx_to_ob_idx_map[bond[1]]
+            bond_indices = tuple(sorted([idx0, idx1]))
+        else:
+            bond_indices = bond
+        return bond_indices
+
+    @staticmethod
+    def _get_reactant_index(reactant, use_string_reactant_index):
+        """
+        Convert reactant to an identifier, which is used as index.
+        """
+        if use_string_reactant_index:
+            reactant_idx = reactant.formula + "_" + reactant.id
+        else:
+            reactant_idx = reactant
+        return reactant_idx
 
     @staticmethod
     def _is_valid_A_to_B_C_composition(composition1, composition2, composition3):
