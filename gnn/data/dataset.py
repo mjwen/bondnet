@@ -51,18 +51,18 @@ class AtomFeaturizer:
         is_donor = defaultdict(int)
         is_acceptor = defaultdict(int)
 
-        fdef_name = os.path.join(RDConfig.RDDataDir, 'BaseFeatures.fdef')
+        fdef_name = os.path.join(RDConfig.RDDataDir, "BaseFeatures.fdef")
         mol_featurizer = ChemicalFeatures.BuildFeatureFactory(fdef_name)
         mol_feats = mol_featurizer.GetFeaturesForMol(mol)
         mol_conformers = mol.GetConformers()
         assert len(mol_conformers) == 1
 
         for i in range(len(mol_feats)):
-            if mol_feats[i].GetFamily() == 'Donor':
+            if mol_feats[i].GetFamily() == "Donor":
                 node_list = mol_feats[i].GetAtomIds()
                 for u in node_list:
                     is_donor[u] = 1
-            elif mol_feats[i].GetFamily() == 'Acceptor':
+            elif mol_feats[i].GetFamily() == "Acceptor":
                 node_list = mol_feats[i].GetAtomIds()
                 for u in node_list:
                     is_acceptor[u] = 1
@@ -75,7 +75,7 @@ class AtomFeaturizer:
             aromatic = atom.GetIsAromatic()
             hybridization = atom.GetHybridization()
             num_h = atom.GetTotalNumHs()
-            atom_feats_dict['node_type'].append(atom_type)
+            atom_feats_dict["node_type"].append(atom_type)
 
             h_u = []
             h_u += [int(symbol == x) for x in self.species]
@@ -92,15 +92,15 @@ class AtomFeaturizer:
                 )
             ]
             h_u.append(num_h)
-            atom_feats_dict['n_feat'].append(
+            atom_feats_dict["n_feat"].append(
                 torch.tensor(np.array(h_u).astype(np.float32))
             )
 
-        self._feature_size = len(atom_feats_dict['n_feat'][0])
+        self._feature_size = len(atom_feats_dict["n_feat"][0])
 
-        atom_feats_dict['n_feat'] = torch.stack(atom_feats_dict['n_feat'], dim=0)
-        atom_feats_dict['node_type'] = torch.tensor(
-            np.array(atom_feats_dict['node_type']).astype(np.int64)
+        atom_feats_dict["n_feat"] = torch.stack(atom_feats_dict["n_feat"], dim=0)
+        atom_feats_dict["node_type"] = torch.tensor(
+            np.array(atom_feats_dict["node_type"]).astype(np.int64)
         )
 
         return atom_feats_dict
@@ -143,7 +143,7 @@ class BondFeaturizer:
         num_atoms = mol.GetNumAtoms()
         assert (
             num_atoms > 1
-        ), 'number of atoms < 2; cannot featurize bond edge of molecule'
+        ), "number of atoms < 2; cannot featurize bond edge of molecule"
 
         for u in range(num_atoms):
             for v in range(num_atoms):
@@ -155,7 +155,7 @@ class BondFeaturizer:
                     bond_type = None
                 else:
                     bond_type = e_uv.GetBondType()
-                bond_feats_dict['e_feat'].append(
+                bond_feats_dict["e_feat"].append(
                     [
                         float(bond_type == x)
                         for x in (
@@ -167,16 +167,16 @@ class BondFeaturizer:
                         )
                     ]
                 )
-                bond_feats_dict['distance'].append(np.linalg.norm(geom[u] - geom[v]))
+                bond_feats_dict["distance"].append(np.linalg.norm(geom[u] - geom[v]))
 
-        bond_feats_dict['e_feat'] = torch.tensor(
-            np.array(bond_feats_dict['e_feat']).astype(np.float32)
+        bond_feats_dict["e_feat"] = torch.tensor(
+            np.array(bond_feats_dict["e_feat"]).astype(np.float32)
         )
 
-        self._feature_size = len(bond_feats_dict['e_feat'][0])
+        self._feature_size = len(bond_feats_dict["e_feat"][0])
 
-        bond_feats_dict['distance'] = torch.tensor(
-            np.array(bond_feats_dict['distance']).astype(np.float32)
+        bond_feats_dict["distance"] = torch.tensor(
+            np.array(bond_feats_dict["distance"]).astype(np.float32)
         ).reshape(-1, 1)
 
         return bond_feats_dict
@@ -199,7 +199,7 @@ class ElectrolyteDataset:
         self.label_file = os.path.abspath(label_file)
 
         if self._is_pickled(self.sdf_file) != self._is_pickled(self.label_file):
-            raise ValueError('sdf file and label file does not have the same format')
+            raise ValueError("sdf file and label file does not have the same format")
         if self._is_pickled(self.sdf_file):
             self._pickled = True
         else:
@@ -214,17 +214,17 @@ class ElectrolyteDataset:
     def _load(self):
 
         if self._pickled:
-            with open(self.sdf_file, 'rb') as f:
+            with open(self.sdf_file, "rb") as f:
                 self.graphs = pickle.load(f)
-            with open(self.sdf_file, 'rb') as f:
+            with open(self.sdf_file, "rb") as f:
                 self.labels = pickle.load(f)
         else:
-            print('Start preprocessing dataset ...')
+            print("Start preprocessing dataset ...")
 
             self.target = pd.read_csv(
-                self.label_file, index_col=0, usecols=['mol', 'property_1']
+                self.label_file, index_col=0, usecols=["mol", "property_1"]
             )
-            self.target = self.target[['property_1']]
+            self.target = self.target[["property_1"]]
 
             self.graphs = []
             self.labels = []
@@ -239,7 +239,7 @@ class ElectrolyteDataset:
             for mol, label in zip(supp, self.target.iterrows()):
                 mol = rdmolops.AddHs(mol, explicitOnly=False)
                 cnt += 1
-                print('Processing molecule {}/{}'.format(cnt, dataset_size))
+                print("Processing molecule {}/{}".format(cnt, dataset_size))
 
                 graph = mol_to_complete_graph(
                     mol, atom_featurizer=atom_featurizer, bond_featurizer=bond_featurizer
@@ -252,14 +252,14 @@ class ElectrolyteDataset:
                 self.labels.append(label)
 
             self._feature_size = {
-                'atom_featurizer': atom_featurizer.feature_size,
-                'bond_featurizer': bond_featurizer.feature_size,
+                "atom_featurizer": atom_featurizer.feature_size,
+                "bond_featurizer": bond_featurizer.feature_size,
             }
 
             # save to disk
-            with open(os.path.splitext(self.sdf_file)[0] + '.pkl', 'wb') as f:
+            with open(os.path.splitext(self.sdf_file)[0] + ".pkl", "wb") as f:
                 pickle.dump(self.graphs, f)
-            with open(os.path.splitext(self.label_file)[0] + '.pkl', 'wb') as f:
+            with open(os.path.splitext(self.label_file)[0] + ".pkl", "wb") as f:
                 pickle.dump(self.labels, f)
 
         self.set_mean_and_std()
@@ -294,7 +294,7 @@ class ElectrolyteDataset:
 
     @staticmethod
     def _is_pickled(fname):
-        if os.path.splitext(fname)[1] == 'pkl':
+        if os.path.splitext(fname)[1] == "pkl":
             return True
         else:
             return False

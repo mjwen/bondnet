@@ -488,9 +488,10 @@ class ReactionExtractor:
         create_directory(label_name)
         with open(label_name, "w") as f:
             f.write(
-                "# Each line lists the bond energies of a molecule. "
-                "The number of items in each line is equal to 2 times the number of "
-                "bonds. The first half are bond energies and  the next half values are "
+                "# Each line lists the molecule charge and bond energies of a molecule. "
+                "The number of items in each line is equal to 1 + 2*N, where N is the "
+                "number bonds. The first item is the moledule charge. The first half "
+                "of the remaining items are bond energies and the next half values are "
                 "indicators (0 or 1) to specify whether the bond energy exist in the "
                 "dataset. A value of 0 means the corresponding bond energy should be "
                 "ignored, whatever its value is.\n"
@@ -508,6 +509,9 @@ class ReactionExtractor:
                                 )
                             else:
                                 bonds_energy[bond] = attr["bond_energy"]
+
+                # write charge
+                f.write("{}    ".format(reactant.charge))
 
                 # write bond energies in the same order as sdf file
                 sdf_bonds = reactant.get_sdf_bond_indices()

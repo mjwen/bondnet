@@ -5,20 +5,20 @@ import dgl
 from dgl.model_zoo.chem import MPNNModel
 import networkx as nx
 import matplotlib.pyplot as plt
-from gnn.data.electrolyte import ElectrolyteDataset
+from gnn.data.dataset import ElectrolyteDataset
 
 ##########################################################################################
 # dataset
 ##########################################################################################
-dataset = ElectrolyteDataset(sdf_file='./electrolyte.sdf', label_file='./electrolyte.csv')
-print('dataset size:', len(dataset))
+dataset = ElectrolyteDataset(sdf_file="./electrolyte.sdf", label_file="./electrolyte.csv")
+print("dataset size:", len(dataset))
 for g, label in dataset:
-    print('graph', g)
+    print("graph", g)
     for k, v in g.ndata.items():
         print(k, v, v.shape)
     for k, v in g.edata.items():
         print(k, v, v.shape)
-    print('label', label, label.shape)
+    print("label", label, label.shape)
 
     nx_G = g.to_networkx().to_undirected()
     # Kamada-Kawaii layout usually looks pretty for arbitrary graphs
@@ -28,7 +28,7 @@ for g, label in dataset:
 
     break
 
-print('feature_size', dataset.feature_size)
+print("feature_size", dataset.feature_size)
 
 # batch of data
 def collate(samples):
@@ -68,8 +68,8 @@ epoch_losses = []
 for epoch in range(30):
     epoch_loss = 0
     for iter, (bg, label) in enumerate(data_loader):
-        n_feat = bg.ndata['n_feat']
-        e_feat = bg.edata['e_feat']
+        n_feat = bg.ndata["n_feat"]
+        e_feat = bg.edata["e_feat"]
         prediction = model(bg, n_feat, e_feat)
         loss = loss_func(prediction, label)
         optimizer.zero_grad()
@@ -77,5 +77,5 @@ for epoch in range(30):
         optimizer.step()
         epoch_loss += loss.detach().item()
     epoch_loss /= iter + 1
-    print('Epoch {}, loss {:.4f}'.format(epoch, epoch_loss))
+    print("Epoch {}, loss {:.4f}".format(epoch, epoch_loss))
     epoch_losses.append(epoch_loss)

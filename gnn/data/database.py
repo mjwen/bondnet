@@ -4,15 +4,24 @@ import warnings
 import numpy as np
 import networkx as nx
 from collections import defaultdict
+from monty.dev import requires
 from atomate.qchem.database import QChemCalcDb
 import pymatgen
+from pymatgen.core.structure import Molecule
 from pymatgen.analysis.graphs import MoleculeGraph, MolGraphSplitError
 from pymatgen.analysis.local_env import OpenBabelNN
 from pymatgen.analysis.fragmenter import metal_edge_extender
 from pymatgen.io.babel import BabelMolAdaptor
-import openbabel as ob
 from rdkit import Chem
 from rdkit.Chem import Draw, AllChem
+
+
+try:
+    import openbabel as ob
+    import pybel as pb
+except Exception:
+    pb = None
+    ob = None
 from gnn.data.utils import (
     create_directory,
     pickle_dump,
@@ -26,15 +35,69 @@ logger.setLevel(logging.INFO)
 
 
 class BabelMolAdaptor2(BabelMolAdaptor):
-    @classmethod
-    def from_molecule_graph(cls, mol_graph):
+    """
+    Fix to BabelMolAdaptor (see FIX below):
+    1. Set spin_multiplicity and charge after EndModify, otherwise, it does not take
+    effect.
+    2. Add and remove bonds between mol graph and obmol, since the connectivity of mol
+    graph can be edited and different from the underlying pymatgen mol.
+    """
+
+    @requires(
+        pb and ob,
+        "BabelMolAdaptor requires openbabel to be installed with "
+        "Python bindings. Please get it at http://openbabel.org.",
+    )
+    def __init__(self, mol):
+        """
+        Initializes with pymatgen Molecule or OpenBabel"s OBMol.
+
+        Args:
+            mol: pymatgen's Molecule or OpenBabel OBMol
+        """
+        if isinstance(mol, Molecule):
+            if not mol.is_ordered:
+                raise ValueError("OpenBabel Molecule only supports ordered " "molecules.")
+
+            # For some reason, manually adding atoms does not seem to create
+            # the correct OBMol representation to do things like force field
+            # optimization. So we go through the indirect route of creating
+            # an XYZ file and reading in that file.
+            obmol = ob.OBMol()
+            obmol.BeginModify()
+            for site in mol:
+                coords = [c for c in site.coords]
+                atomno = site.specie.Z
+                obatom = ob.OBAtom()
+                obatom.thisown = 0
+                obatom.SetAtomicNum(atomno)
+                obatom.SetVector(*coords)
+                obmol.AddAtom(obatom)
+                del obatom
+            obmol.ConnectTheDots()
+            obmol.PerceiveBondOrders()
+            obmol.Center()
+            obmol.Kekulize()
+            obmol.EndModify()
+
+            # FIX 1
+            obmol.SetTotalSpinMultiplicity(mol.spin_multiplicity)
+            obmol.SetTotalCharge(mol.charge)
+
+            self._obmol = obmol
+        elif isinstance(mol, ob.OBMol):
+            self._obmol = mol
+
+    @staticmethod
+    def from_molecule_graph(mol_graph):
         if not isinstance(mol_graph, MoleculeGraph):
             raise ValueError("not get mol graph")
-        self = cls(mol_graph.molecule)
-        self._add_missing_bond(mol_graph)
+        self = BabelMolAdaptor2(mol_graph.molecule)
+        # FIX 2
+        self._add_and_remove_bond(mol_graph)
         return self
 
-    def add_bond(self, idx1, idx2, order):
+    def add_bond(self, idx1, idx2, order=0):
         """
         Add a bond to an openbabel molecule with the specified order
 
@@ -43,52 +106,55 @@ class BabelMolAdaptor2(BabelMolAdaptor):
            idx2 (int): The atom index of the other atom participating in the bond
            order (float): Bond order of the added bond
         """
-        # TODO more clever way to handle this, see the add_edge of `MoleculeGraph`
         # check whether bond exists
         for obbond in ob.OBMolBondIter(self.openbabel_mol):
             if (obbond.GetBeginAtomIdx() == idx1 and obbond.GetEndAtomIdx() == idx2) or (
                 obbond.GetBeginAtomIdx() == idx2 and obbond.GetEndAtomIdx() == idx1
             ):
-                raise Exception("bond exists")
+                raise Exception("bond exists not added")
         self.openbabel_mol.AddBond(idx1, idx2, order)
 
-    def _add_missing_bond(self, mol_graph):
-        if self.openbabel_mol.NumBonds() == len(mol_graph.graph.edges()):
-            return
-
-        def is_ob_bonds(idx1, idx2, ob_atoms):
-            for atom in ob_atoms:
-                if atom.GetIdx() != idx1:
-                    continue
-                for neighbor in ob.OBAtomAtomIter(atom):
-                    if neighbor.GetIdx() == idx2:
-                        return True
-            return False
+    def _add_and_remove_bond(self, mol_graph):
+        """
+        Add bonds in mol_graph not in obmol to obmol, and remove bonds in obmol but
+        not in mol_graph.
+        """
 
         # graph idx to ob idx map
         idx_map = dict()
         natoms = self.openbabel_mol.NumAtoms()
         for graph_idx in range(natoms):
             coords = list(mol_graph.graph.nodes[graph_idx]["coords"])
-            for atom in ob.OBMolAtomDFSIter(self.openbabel_mol):
+            for atom in ob.OBMolAtomIter(self.openbabel_mol):
                 c = [atom.GetX(), atom.GetY(), atom.GetZ()]
                 if np.allclose(c, coords):
                     idx_map[graph_idx] = atom.GetIdx()
                     break
             if graph_idx not in idx_map:
-                raise Exception("atom not found.")
+                raise Exception("atom not found in obmol.")
 
-        ob_atoms = [a for a in ob.OBMolAtomDFSIter(self.openbabel_mol)]
-        for i, j, attr in mol_graph.graph.edges.data():
-            idxi = idx_map[i]
-            idxj = idx_map[j]
-            if not is_ob_bonds(idxi, idxj, ob_atoms):
-                self.add_bond(idxi, idxj, order=0)
+        # graph bonds
+        graph_bonds = []
+        for i, j, _ in mol_graph.graph.edges.data():
+            graph_bonds.append(sorted([idx_map[i], idx_map[j]]))
+
+        # open babel bonds
+        ob_bonds = []
+        for bond in ob.OBMolBondIter(self.openbabel_mol):
+            ob_bonds.append(sorted([bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()]))
+
+        # add and and remove bonds
+        for bond in graph_bonds:
+            if bond not in ob_bonds:
+                self.add_bond(*bond, order=0)
+        for bond in ob_bonds:
+            if bond not in graph_bonds:
+                self.remove_bond(*bond)
 
 
 # TODO should let Molecule not dependent on db_entry. The needed property from db_entry
 #  should be passed in at init
-class Molecule:
+class MoleculeWrapper:
     def __init__(self, db_entry, use_metal_edge_extender=True, optimized=True):
         self.db_entry = db_entry
         if optimized:
@@ -225,7 +291,7 @@ class Molecule:
             self._graph_idx_to_ob_idx_map = dict()
             for graph_idx in range(len(self.atoms)):
                 coords = list(self.graph.nodes[graph_idx]["coords"])
-                for atom in ob.OBMolAtomDFSIter(self.ob_mol):
+                for atom in ob.OBMolAtomIter(self.ob_mol):
                     c = [atom.GetX(), atom.GetY(), atom.GetZ()]
                     if np.allclose(c, coords):
                         self._graph_idx_to_ob_idx_map[graph_idx] = atom.GetIdx()
@@ -435,7 +501,7 @@ class DatabaseOperation:
         mols = []
         for entry in self.entries:
             try:
-                m = Molecule(entry, optimized=optimized)
+                m = MoleculeWrapper(entry, optimized=optimized)
                 if purify:
 
                     # check for connectivity
