@@ -15,4 +15,5 @@ dist/
 *.out
 .idea
 .vscode
+.pytest_cache
 .DS_Store

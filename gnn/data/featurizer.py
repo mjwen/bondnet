@@ -1,14 +1,17 @@
 import numpy as np
-import os
-from collections import defaultdict
 import torch
-from functools import partial
+import os
+import pickle
+import warnings
+from collections import defaultdict
 import dgl
-import dgl.backend as F
+from dgl.data.chem.utils import mol_to_complete_graph
 
 try:
     from rdkit import Chem
-    from rdkit.Chem import rdmolfiles, rdmolops
+    from rdkit.Chem import rdmolops
+    from rdkit.Chem import ChemicalFeatures
+    from rdkit import RDConfig
 except ImportError:
     pass
 
@@ -19,7 +22,7 @@ class AtomFeaturizer:
     """
 
     def __init__(self, species):
-        self.species = species
+        self.species = sorted(species)
 
     @property
     def feature_size(self):
@@ -46,8 +49,6 @@ class AtomFeaturizer:
         fdef_name = os.path.join(RDConfig.RDDataDir, "BaseFeatures.fdef")
         mol_featurizer = ChemicalFeatures.BuildFeatureFactory(fdef_name)
         mol_feats = mol_featurizer.GetFeaturesForMol(mol)
-        mol_conformers = mol.GetConformers()
-        assert len(mol_conformers) == 1
 
         for i in range(len(mol_feats)):
             if mol_feats[i].GetFamily() == "Donor":
@@ -70,30 +71,30 @@ class AtomFeaturizer:
             atom_feats_dict["node_type"].append(atom_type)
 
             h_u = []
-            h_u += [int(symbol == x) for x in self.species]
+            h_u += one_hot_encoding(symbol, self.species)
             h_u.append(atom_type)
             h_u.append(is_acceptor[u])
             h_u.append(is_donor[u])
             h_u.append(int(aromatic))
-            h_u += [
-                int(hybridization == x)
-                for x in (
+            h_u += one_hot_encoding(
+                hybridization,
+                [
                     Chem.rdchem.HybridizationType.SP,
                     Chem.rdchem.HybridizationType.SP2,
                     Chem.rdchem.HybridizationType.SP3,
-                )
-            ]
-            h_u.append(num_h)
-            atom_feats_dict["n_feat"].append(
-                torch.tensor(np.array(h_u).astype(np.float32))
+                ],
             )
+            h_u.append(num_h)
+            atom_feats_dict["a_feat"].append(h_u)
 
-        self._feature_size = len(atom_feats_dict["n_feat"][0])
-
-        atom_feats_dict["n_feat"] = torch.stack(atom_feats_dict["n_feat"], dim=0)
-        atom_feats_dict["node_type"] = torch.tensor(
-            np.array(atom_feats_dict["node_type"]).astype(np.int64)
+        atom_feats_dict["a_feat"] = torch.tensor(
+            np.asarray(atom_feats_dict["a_feat"], dtype=np.float32)
         )
+        atom_feats_dict["node_type"] = torch.tensor(
+            np.asarray(atom_feats_dict["node_type"], dtype=np.int64)
+        )
+
+        self._feature_size = len(atom_feats_dict["a_feat"][0])
 
         return atom_feats_dict
 
@@ -128,48 +129,31 @@ class BondFeaturizer:
 
         bond_feats_dict = defaultdict(list)
 
-        mol_conformers = mol.GetConformers()
-        assert len(mol_conformers) == 1
-        geom = mol_conformers[0].GetPositions()
+        num_bonds = mol.GetNumBonds()
+        if num_bonds < 1:
+            warnings.warn("molecular has no bonds")
 
-        num_atoms = mol.GetNumAtoms()
-        assert (
-            num_atoms > 1
-        ), "number of atoms < 2; cannot featurize bond edge of molecule"
+        for i in range(num_bonds):
+            bond = mol.GetBondWithIdx(i)
+            bond_type = bond.GetBondType()
+            feature = one_hot_encoding(
+                bond_type,
+                [
+                    Chem.rdchem.BondType.SINGLE,
+                    Chem.rdchem.BondType.DOUBLE,
+                    Chem.rdchem.BondType.TRIPLE,
+                    Chem.rdchem.BondType.AROMATIC,
+                    Chem.rdchem.BondType.IONIC,
+                    None,
+                ],
+            )
+            bond_feats_dict["b_feat"].append(feature)
 
-        for u in range(num_atoms):
-            for v in range(num_atoms):
-                if u == v and not self_loop:
-                    continue
-
-                e_uv = mol.GetBondBetweenAtoms(u, v)
-                if e_uv is None:
-                    bond_type = None
-                else:
-                    bond_type = e_uv.GetBondType()
-                bond_feats_dict["e_feat"].append(
-                    [
-                        float(bond_type == x)
-                        for x in (
-                            Chem.rdchem.BondType.SINGLE,
-                            Chem.rdchem.BondType.DOUBLE,
-                            Chem.rdchem.BondType.TRIPLE,
-                            Chem.rdchem.BondType.AROMATIC,
-                            None,
-                        )
-                    ]
-                )
-                bond_feats_dict["distance"].append(np.linalg.norm(geom[u] - geom[v]))
-
-        bond_feats_dict["e_feat"] = torch.tensor(
-            np.array(bond_feats_dict["e_feat"]).astype(np.float32)
+        bond_feats_dict["b_feat"] = torch.tensor(
+            np.asarray(bond_feats_dict["b_feat"], dtype=np.float32)
         )
 
-        self._feature_size = len(bond_feats_dict["e_feat"][0])
-
-        bond_feats_dict["distance"] = torch.tensor(
-            np.array(bond_feats_dict["distance"]).astype(np.float32)
-        ).reshape(-1, 1)
+        self._feature_size = len(bond_feats_dict["b_feat"][0])
 
         return bond_feats_dict
 
@@ -187,7 +171,7 @@ class GlobalStateFeaturizer:
         global_feats_dict = dict()
         g = one_hot_encoding(charge, [-1, 0, 1])
         self._feature_size = len(g)
-        global_feats_dict["g_feat"] = torch.tensor(g)
+        global_feats_dict["g_feat"] = torch.tensor([g])
         return global_feats_dict
 
 
@@ -254,11 +238,11 @@ class HeteroMoleculeGraph:
         g = dgl.heterograph(
             {
                 ("atom", "anb", "bond"): a2b,
-                ("bond", "anb", "atom"): b2a,
+                ("bond", "bna", "atom"): b2a,
                 ("atom", "ang", "global"): a2g,
-                ("global", "ang", "atom"): g2a,
+                ("global", "gna", "atom"): g2a,
                 ("bond", "bng", "global"): b2g,
-                ("global", "bng", "bond"): g2b,
+                ("global", "gnb", "bond"): g2b,
             }
         )
         return g, bond_idx_to_atom_idx
