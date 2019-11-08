@@ -1,185 +1,28 @@
 """
-The electorlyte dataset.
-
-Based on the TencentAlchemy dataset of dgl:
-https://docs.dgl.ai/_modules/dgl/data/chem/alchemy.html#TencentAlchemyDataset
+The Li-EC electorlyte dataset.
 """
 import numpy as np
 import torch
 import os
 import pickle
+import logging
 from collections import defaultdict
-from dgl.data.chem.utils import mol_to_complete_graph
+from gnn.utils import expand_path, create_directory, pickle_dump, pickle_load
+from gnn.data.featurizer import (
+    AtomFeaturizer,
+    BondFeaturizer,
+    GlobalStateFeaturizer,
+    HeteroMoleculeGraph,
+)
 
 try:
-    import pandas as pd
     from rdkit import Chem
     from rdkit.Chem import rdmolops
-    from rdkit.Chem import ChemicalFeatures
-    from rdkit import RDConfig
 except ImportError:
     pass
 
 
-class AtomFeaturizer:
-    """
-    Featurization for all atoms in a molecule. The atom indices will be preserved.
-    """
-
-    def __init__(self, species):
-        self.species = species
-
-    @property
-    def feature_size(self):
-        return self._feature_size
-
-    def __call__(self, mol):
-        """
-        Parameters
-        ----------
-        mol : rdkit.Chem.rdchem.Mol
-            RDKit molecule object
-
-        Returns
-        -------
-        atom_feats_dict : dict
-            Dictionary for atom features
-        """
-        mol = rdmolops.AddHs(mol, explicitOnly=False)
-
-        atom_feats_dict = defaultdict(list)
-        is_donor = defaultdict(int)
-        is_acceptor = defaultdict(int)
-
-        fdef_name = os.path.join(RDConfig.RDDataDir, "BaseFeatures.fdef")
-        mol_featurizer = ChemicalFeatures.BuildFeatureFactory(fdef_name)
-        mol_feats = mol_featurizer.GetFeaturesForMol(mol)
-        mol_conformers = mol.GetConformers()
-        assert len(mol_conformers) == 1
-
-        for i in range(len(mol_feats)):
-            if mol_feats[i].GetFamily() == "Donor":
-                node_list = mol_feats[i].GetAtomIds()
-                for u in node_list:
-                    is_donor[u] = 1
-            elif mol_feats[i].GetFamily() == "Acceptor":
-                node_list = mol_feats[i].GetAtomIds()
-                for u in node_list:
-                    is_acceptor[u] = 1
-
-        num_atoms = mol.GetNumAtoms()
-        for u in range(num_atoms):
-            atom = mol.GetAtomWithIdx(u)
-            symbol = atom.GetSymbol()
-            atom_type = atom.GetAtomicNum()
-            aromatic = atom.GetIsAromatic()
-            hybridization = atom.GetHybridization()
-            num_h = atom.GetTotalNumHs()
-            atom_feats_dict["node_type"].append(atom_type)
-
-            h_u = []
-            h_u += [int(symbol == x) for x in self.species]
-            h_u.append(atom_type)
-            h_u.append(is_acceptor[u])
-            h_u.append(is_donor[u])
-            h_u.append(int(aromatic))
-            h_u += [
-                int(hybridization == x)
-                for x in (
-                    Chem.rdchem.HybridizationType.SP,
-                    Chem.rdchem.HybridizationType.SP2,
-                    Chem.rdchem.HybridizationType.SP3,
-                )
-            ]
-            h_u.append(num_h)
-            atom_feats_dict["n_feat"].append(
-                torch.tensor(np.array(h_u).astype(np.float32))
-            )
-
-        self._feature_size = len(atom_feats_dict["n_feat"][0])
-
-        atom_feats_dict["n_feat"] = torch.stack(atom_feats_dict["n_feat"], dim=0)
-        atom_feats_dict["node_type"] = torch.tensor(
-            np.array(atom_feats_dict["node_type"]).astype(np.int64)
-        )
-
-        return atom_feats_dict
-
-
-class BondFeaturizer:
-    """
-    Featurization for all bonds in a molecule. The bond indices will be preserved.
-    """
-
-    def __init__(self):
-        pass
-
-    @property
-    def feature_size(self):
-        return self._feature_size
-
-    def __call__(self, mol, self_loop=False):
-        """
-        Parameters
-        ----------
-        mol : rdkit.Chem.rdchem.Mol
-            RDKit molecule object
-        self_loop : bool
-            Whether to add self loops. Default to be False.
-
-        Returns
-        -------
-        bond_feats_dict : dict
-            Dictionary for bond features
-        """
-        mol = rdmolops.AddHs(mol, explicitOnly=False)
-
-        bond_feats_dict = defaultdict(list)
-
-        mol_conformers = mol.GetConformers()
-        assert len(mol_conformers) == 1
-        geom = mol_conformers[0].GetPositions()
-
-        num_atoms = mol.GetNumAtoms()
-        assert (
-            num_atoms > 1
-        ), "number of atoms < 2; cannot featurize bond edge of molecule"
-
-        for u in range(num_atoms):
-            for v in range(num_atoms):
-                if u == v and not self_loop:
-                    continue
-
-                e_uv = mol.GetBondBetweenAtoms(u, v)
-                if e_uv is None:
-                    bond_type = None
-                else:
-                    bond_type = e_uv.GetBondType()
-                bond_feats_dict["e_feat"].append(
-                    [
-                        float(bond_type == x)
-                        for x in (
-                            Chem.rdchem.BondType.SINGLE,
-                            Chem.rdchem.BondType.DOUBLE,
-                            Chem.rdchem.BondType.TRIPLE,
-                            Chem.rdchem.BondType.AROMATIC,
-                            None,
-                        )
-                    ]
-                )
-                bond_feats_dict["distance"].append(np.linalg.norm(geom[u] - geom[v]))
-
-        bond_feats_dict["e_feat"] = torch.tensor(
-            np.array(bond_feats_dict["e_feat"]).astype(np.float32)
-        )
-
-        self._feature_size = len(bond_feats_dict["e_feat"][0])
-
-        bond_feats_dict["distance"] = torch.tensor(
-            np.array(bond_feats_dict["distance"]).astype(np.float32)
-        ).reshape(-1, 1)
-
-        return bond_feats_dict
+logger = logging.getLogger(__name__)
 
 
 class ElectrolyteDataset:
@@ -195,8 +38,8 @@ class ElectrolyteDataset:
     """
 
     def __init__(self, sdf_file, label_file):
-        self.sdf_file = os.path.abspath(sdf_file)
-        self.label_file = os.path.abspath(label_file)
+        self.sdf_file = sdf_file
+        self.label_file = label_file
 
         if self._is_pickled(self.sdf_file) != self._is_pickled(self.label_file):
             raise ValueError("sdf file and label file does not have the same format")
@@ -205,6 +48,8 @@ class ElectrolyteDataset:
         else:
             self._pickled = False
 
+        self._feature_size = None
+
         self._load()
 
     @property
@@ -212,58 +57,99 @@ class ElectrolyteDataset:
         return self._feature_size
 
     def _load(self):
+        logger.info(
+            "Start loading dataset from {} and {}...".format(
+                self.sdf_file, self.label_file
+            )
+        )
 
         if self._pickled:
-            with open(self.sdf_file, "rb") as f:
-                self.graphs = pickle.load(f)
-            with open(self.sdf_file, "rb") as f:
-                self.labels = pickle.load(f)
+            self.graphs = pickle_load(self.sdf_file)
+            self.labels = pickle_load(self.label_file)
+            filename = self._default_stat_dict_filename()
+            self._feature_size = self.load_stat_dict(filename)
         else:
-            print("Start preprocessing dataset ...")
 
-            self.target = pd.read_csv(
-                self.label_file, index_col=0, usecols=["mol", "property_1"]
-            )
-            self.target = self.target[["property_1"]]
+            properties = self._read_label_file()
+            supp = Chem.SDMolSupplier(self.sdf_file)
+            species = self._get_species()
+            dataset_size = len(properties)
+
+            atom_featurizer = AtomFeaturizer(species)
+            bond_featurizer = BondFeaturizer()
+            global_featiruzer = GlobalStateFeaturizer()
 
             self.graphs = []
             self.labels = []
+            for i, (mol, prop) in enumerate(zip(supp, properties)):
+                if i % 100 == 0:
+                    logger.info("Processing molecule {}/{}".format(i, dataset_size))
 
-            supp = Chem.SDMolSupplier(self.sdf_file)
-            species = self._get_species()
-            atom_featurizer = AtomFeaturizer(species)
-            bond_featurizer = BondFeaturizer()
-
-            cnt = 0
-            dataset_size = len(self.target)
-            for mol, label in zip(supp, self.target.iterrows()):
-                mol = rdmolops.AddHs(mol, explicitOnly=False)
-                cnt += 1
-                print("Processing molecule {}/{}".format(cnt, dataset_size))
-
-                graph = mol_to_complete_graph(
-                    mol, atom_featurizer=atom_featurizer, bond_featurizer=bond_featurizer
+                charge = prop[0]
+                nbonds = len(prop) - 1
+                bonds_energy = torch.tensor(
+                    np.asarray(prop[1 : nbonds + 1], dtype=np.float32)
                 )
-                smile = Chem.MolToSmiles(mol)
-                graph.smile = smile
-                self.graphs.append(graph)
+                bonds_indicator = torch.tensor(
+                    np.asarray(prop[nbonds + 1 :], dtype=np.float32)
+                )
 
-                label = torch.tensor(np.array(label[1].tolist(), np.float32))
+                mol = rdmolops.AddHs(mol, explicitOnly=True)
+
+                grapher = HeteroMoleculeGraph(
+                    atom_featurizer=atom_featurizer,
+                    bond_featurizer=bond_featurizer,
+                    global_state_featurizer=global_featiruzer,
+                )
+                g = grapher.build_graph_and_featurize(mol, charge)
+                # TODO the smiles can be removed (if we want to attach some thing, we can
+                # attach the moloid)
+                smile = Chem.MolToSmiles(mol)
+                g.smile = smile
+                self.graphs.append(g)
+
+                label = {"energies": bonds_energy, "indicators": bonds_indicator}
                 self.labels.append(label)
 
             self._feature_size = {
                 "atom_featurizer": atom_featurizer.feature_size,
                 "bond_featurizer": bond_featurizer.feature_size,
+                "global_featurizer": global_featiruzer.feature_size,
             }
+            self.save_dataset()
+            filename = self._default_stat_dict_filename()
+            self.save_stat_dict(filename)
 
-            # save to disk
-            with open(os.path.splitext(self.sdf_file)[0] + ".pkl", "wb") as f:
-                pickle.dump(self.graphs, f)
-            with open(os.path.splitext(self.label_file)[0] + ".pkl", "wb") as f:
-                pickle.dump(self.labels, f)
+        logger.info("Finish loading {} graphs...".format(len(self.labels)))
 
-        self.set_mean_and_std()
-        print(len(self.graphs), "loaded!")
+    def save_dataset(self):
+        filename = os.path.splitext(self.sdf_file)[0] + ".pkl"
+        pickle_dump(self.graphs, filename)
+        filename = os.path.splitext(self.label_file)[0] + ".pkl"
+        pickle_dump(self.labels, filename)
+
+    def _default_stat_dict_filename(self):
+        filename = expand_path(self.sdf_file)
+        return os.path.join(
+            os.path.dirname(filename), self.__class__.__name__ + "_stat_dict.pkl"
+        )
+
+    def load_stat_dict(self, filename):
+        return pickle_load(filename)
+
+    def save_stat_dict(self, filename):
+        pickle_dump(self._feature_size, filename)
+
+    def _read_label_file(self):
+        rslt = []
+        with open(self.label_file, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("#"):
+                    continue
+                line = [float(i) for i in line.split()]
+                rslt.append(line)
+        return rslt
 
     def _get_species(self):
         suppl = Chem.SDMolSupplier(self.sdf_file)
@@ -274,27 +160,30 @@ class ElectrolyteDataset:
             system_species.update(species)
         return list(system_species)
 
-    def set_mean_and_std(self, mean=None, std=None):
-        """Set mean and std or compute from labels for future normalization.
+    # TODO we may need to implement normalization in featurizer and provide a wrapper
+    # here. But it seems we do not need to normalize label
+    # def set_mean_and_std(self, mean=None, std=None):
+    #     """Set mean and std or compute from labels for future normalization.
 
-        Parameters
-        ----------
-        mean : int or float
-            Default to be None.
-        std : int or float
-            Default to be None.
-        """
-        labels = np.array([i.numpy() for i in self.labels])
-        if mean is None:
-            mean = np.mean(labels, axis=0)
-        if std is None:
-            std = np.std(labels, axis=0)
-        self.mean = mean
-        self.std = std
+    #     Parameters
+    #     ----------
+    #     mean : int or float
+    #         Default to be None.
+    #     std : int or float
+    #         Default to be None.
+    #     """
+    #     labels = np.array([i.numpy() for i in self.labels])
+    #     if mean is None:
+    #         mean = np.mean(labels, axis=0)
+    #     if std is None:
+    #         std = np.std(labels, axis=0)
+    #     self.mean = mean
+    #     self.std = std
 
     @staticmethod
-    def _is_pickled(fname):
-        if os.path.splitext(fname)[1] == "pkl":
+    def _is_pickled(filename):
+        filename = expand_path(filename)
+        if os.path.splitext(filename)[1] == "pkl":
             return True
         else:
             return False
@@ -306,8 +195,8 @@ class ElectrolyteDataset:
             item (int): Datapoint index
 
         Returns:
-            g: DGLGraph for the ith datapoint
-            l (Tensor of dtype float32): Labels of the datapoint for all tasks
+            g: DGLHeteroGraph for the ith datapoint
+            l (dict): Labels of the datapoint for all tasks
         """
         g, l = self.graphs[item], self.labels[item]
         return g, l
