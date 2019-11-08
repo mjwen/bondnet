@@ -207,9 +207,9 @@ class HeteroMoleculeGraph:
                 the bond.
         """
 
-        g, bond_idx_to_atom_idx = self.build_graph(mol)
+        g = self.build_graph(mol)
         g = self.featurize(g, mol, charge)
-        return g, bond_idx_to_atom_idx
+        return g
 
     def build_graph(self, mol):
         num_atoms = mol.GetNumAtoms()
@@ -221,7 +221,7 @@ class HeteroMoleculeGraph:
             bond = mol.GetBondWithIdx(i)
             u = bond.GetBeginAtomIdx()
             v = bond.GetEndAtomIdx()
-            bond_idx_to_atom_idx[i] = sorted(tuple([u, v]))
+            bond_idx_to_atom_idx[i] = (u, v)
 
         a2b = []
         b2a = []
@@ -230,6 +230,7 @@ class HeteroMoleculeGraph:
                 if a in bond:
                     b2a.append([b, a])
                     a2b.append([a, b])
+
         a2g = [(a, 0) for a in range(num_atoms)]
         g2a = [(0, a) for a in range(num_atoms)]
         b2g = [(b, 0) for b in range(num_bonds)]
@@ -245,7 +246,8 @@ class HeteroMoleculeGraph:
                 ("global", "gnb", "bond"): g2b,
             }
         )
-        return g, bond_idx_to_atom_idx
+
+        return g
 
     def featurize(self, g, mol, charge):
 
@@ -255,6 +257,44 @@ class HeteroMoleculeGraph:
             g.nodes["global"].data.update(self.global_state_featurizer(charge))
 
         return g
+
+    @staticmethod
+    def get_bond_to_atom_map(g):
+        """
+        Query which atoms are associated with the bonds.
+        
+        Args:
+            g: dgl hetero graph
+        
+        Returns:
+            dict: with bond index as the key and a tuple of atom indices of atoms that
+                form the bond.
+        """
+        nbonds = g.number_of_nodes("bond")
+        bond_to_atom_map = dict()
+        for i in range(nbonds):
+            atoms = g.successors(i, "bna")
+            bond_to_atom_map[i] = sorted(atoms)
+        return bond_to_atom_map
+
+    @staticmethod
+    def get_atom_to_bond_map(g):
+        """
+        Query which bonds are associated with the atoms.
+        
+        Args:
+            g: dgl hetero graph
+        
+        Returns:
+            dict: with atom index as the key and a list of indices of bonds is
+            connected to the atom.
+        """
+        natoms = g.number_of_nodes("atom")
+        atom_to_bond_map = dict()
+        for i in range(natoms):
+            bonds = g.successors(i, "anb")
+            atom_to_bond_map[i] = sorted(list(bonds))
+        return atom_to_bond_map
 
 
 def one_hot_encoding(x, allowable_set):

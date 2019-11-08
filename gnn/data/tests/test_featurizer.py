@@ -1,5 +1,6 @@
-import torch
 import numpy as np
+from collections import defaultdict
+import torch
 from rdkit import Chem
 from gnn.data.featurizer import (
     AtomFeaturizer,
@@ -79,10 +80,8 @@ def test_global_state_featurizer():
 
 def test_build_graph():
     m = make_EC_mol()
-    # species = list(set([a.GetSymbol() for a in m.GetAtoms()]))
-
     grapher = HeteroMoleculeGraph()
-    g, bond_idx_to_atom_idx = grapher.build_graph(m)
+    g = grapher.build_graph(m)
 
     nodes = ["atom", "bond", "global"]
     edges = ["anb", "bna", "ang", "gna", "bng", "gnb"]
@@ -92,6 +91,19 @@ def test_build_graph():
     assert num_nodes == [6, 6, 1]
     num_edges = [g.number_of_edges(e) for e in edges]
     assert num_edges == [12, 12, 6, 6, 6, 6]
+
+    # this is in info contained in the sdf file (note dgl graph index starts from 0)
+    bond_to_atom_map = {0: [0, 1], 1: [1, 3], 2: [2, 5], 3: [0, 2], 4: [1, 4], 5: [4, 5]}
+    atom_to_bond_map = defaultdict(list)
+    for b, atoms in bond_to_atom_map.items():
+        for a in atoms:
+            atom_to_bond_map[a].append(b)
+    atom_to_bond_map = {a: sorted(bonds) for a, bonds in atom_to_bond_map.items()}
+
+    ref_b2a_map = grapher.get_bond_to_atom_map(g)
+    ref_a2b_map = grapher.get_atom_to_bond_map(g)
+    assert bond_to_atom_map == ref_b2a_map
+    assert atom_to_bond_map == ref_a2b_map
 
 
 def test_graph_featurize():
@@ -104,7 +116,7 @@ def test_graph_featurize():
         bond_featurizer=BondFeaturizer(),
         global_state_featurizer=GlobalStateFeaturizer(),
     )
-    g, bond_idx_to_atom_idx = grapher.build_graph_and_featurize(m, charge)
+    g = grapher.build_graph_and_featurize(m, charge)
     assert np.allclose(g.nodes["atom"].data["a_feat"], a_feat)
     assert np.allclose(g.nodes["bond"].data["b_feat"], b_feat)
     assert np.allclose(g.nodes["global"].data["g_feat"], g_feat)
