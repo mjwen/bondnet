@@ -37,9 +37,10 @@ class ElectrolyteDataset:
             can be provided for fast recovery.
     """
 
-    def __init__(self, sdf_file, label_file):
+    def __init__(self, sdf_file, label_file, pickle_dataset=False):
         self.sdf_file = sdf_file
         self.label_file = label_file
+        self.pickle_dataset = pickle_dataset
 
         if self._is_pickled(self.sdf_file) != self._is_pickled(self.label_file):
             raise ValueError("sdf file and label file does not have the same format")
@@ -86,7 +87,7 @@ class ElectrolyteDataset:
                     logger.info("Processing molecule {}/{}".format(i, dataset_size))
 
                 charge = prop[0]
-                nbonds = len(prop) - 1
+                nbonds = int((len(prop) - 1) / 2)
                 bonds_energy = torch.tensor(
                     np.asarray(prop[1 : nbonds + 1], dtype=np.float32)
                 )
@@ -116,9 +117,10 @@ class ElectrolyteDataset:
                 "bond_featurizer": bond_featurizer.feature_size,
                 "global_featurizer": global_featiruzer.feature_size,
             }
-            self.save_dataset()
-            filename = self._default_stat_dict_filename()
-            self.save_stat_dict(filename)
+            if self.pickle_dataset:
+                self.save_dataset()
+                filename = self._default_stat_dict_filename()
+                self.save_stat_dict(filename)
 
         logger.info("Finish loading {} graphs...".format(len(self.labels)))
 

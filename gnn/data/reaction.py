@@ -5,13 +5,7 @@ import networkx as nx
 from tqdm import tqdm
 from collections import defaultdict, OrderedDict
 from gnn.data.database import DatabaseOperation
-from gnn.data.utils import (
-    create_directory,
-    pickle_dump,
-    pickle_load,
-    yaml_dump,
-    expand_path,
-)
+from gnn.utils import create_directory, pickle_dump, pickle_load, yaml_dump, expand_path
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -191,7 +185,7 @@ class Reaction:
 
     @classmethod
     def from_file(cls, filename):
-        d = pickle_dump(filename)
+        d = pickle_load(filename)
         return cls(d["reactants"], d["products"], d["broken_bond"])
 
 
@@ -249,11 +243,11 @@ class ReactionExtractor:
 
         A2B = []
         i = 0
-        for formula, entries_formula in self.buckets.items():
+        for _, entries_formula in self.buckets.items():
             i += 1
             if i % 10000 == 0:
                 print("@@flag running bucket", i)
-            for charge, entries_charges in entries_formula.items():
+            for _, entries_charges in entries_formula.items():
                 for A, B in itertools.permutations(entries_charges, 2):
                     bond = is_valid_A_to_B_reaction(A, B)
                     if bond is not None:
@@ -501,7 +495,7 @@ class ReactionExtractor:
                 bonds_energy = dict()
                 for bond, rxns in reactions.items():
                     bonds_energy[bond] = None
-                    for charge, attr in rxns.items():
+                    for _, attr in rxns.items():
                         if attr:
                             if bonds_energy[bond] is not None:
                                 bonds_energy[bond] = min(
@@ -609,7 +603,7 @@ class ReactionExtractor:
 
     @staticmethod
     def _is_even_composition(composition):
-        for spec, amt in composition.items():
+        for _, amt in composition.items():
             if int(amt) % 2 != 0:
                 return False
         return True
@@ -690,7 +684,7 @@ class ReactionExtractor:
     def to_file_by_ids(self, filename="rxns.json"):
         logger.info("Start writing reactions by ids to file: {}".format(filename))
         reaction_ids = []
-        for i, r in enumerate(self.reactions):
+        for r in self.reactions:
             reaction_ids.append(r.as_dict())
         with open(filename, "w") as f:
             json.dump(reaction_ids, f)
