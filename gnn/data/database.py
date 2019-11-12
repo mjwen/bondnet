@@ -22,13 +22,7 @@ try:
 except Exception:
     pb = None
     ob = None
-from gnn.data.utils import (
-    create_directory,
-    pickle_dump,
-    pickle_load,
-    yaml_dump,
-    expand_path,
-)
+from gnn.utils import create_directory, pickle_dump, pickle_load, yaml_dump, expand_path
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)

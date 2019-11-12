@@ -54,8 +54,8 @@ def test_extract_A_to_B_C():
 
 
 def test_extract_one_bond_break():
-    # db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
-    db_path = "~/Applications/mongo_db_access/extracted_data/database_n200.pkl"
+    db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
+    # db_path = "~/Applications/mongo_db_access/extracted_data/database_n200.pkl"
     # db_path = "~/Applications/mongo_db_access/extracted_data/database_H.pkl"
     db = DatabaseOperation.from_file(db_path)
     molecules = db.to_molecules()
@@ -66,8 +66,8 @@ def test_extract_one_bond_break():
     print("number of buckets", len(extractor.buckets))
 
     extractor.extract_one_bond_break()
-    # filename = "~/Applications/mongo_db_access/extracted_data/reactions.pkl"
-    filename = "~/Applications/mongo_db_access/extracted_data/reactions_n200.pkl"
+    filename = "~/Applications/mongo_db_access/extracted_data/reactions.pkl"
+    # filename = "~/Applications/mongo_db_access/extracted_data/reactions_n200.pkl"
     # filename = "~/Applications/mongo_db_access/extracted_data/reactions_H.pkl"
     extractor.to_file(filename)
 
@@ -107,8 +107,8 @@ if __name__ == "__main__":
     # test_buckets()
     # test_extract_A_to_B()
     # test_extract_A_to_B_C()
-    test_extract_one_bond_break()
+    # test_extract_one_bond_break()
     # test_reactants_bond_energies()
     # test_reactants_bond_energies_to_file()
-    test_create_struct_label_dataset()
+    # test_create_struct_label_dataset()
     test_create_struct_label_dataset_with_lowest_energy_across_charge()

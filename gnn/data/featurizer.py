@@ -315,4 +315,3 @@ def one_hot_encoding(x, allowable_set):
         x == allowable_set[i].
     """
     return list(map(lambda s: x == s, allowable_set))
-
