@@ -3,7 +3,7 @@
 import torch
 import dgl
 import numpy as np
-from gnn.layer.gat import UnifySize, NodesAttentionLayer, heterograph_edge_softmax
+from gnn.layer.gatconv import UnifySize, NodeAttentionLayer, heterograph_edge_softmax
 
 
 def make_hetero_graph():
@@ -78,7 +78,7 @@ def test_node_attn_layer():
     in_feats = 3
     out_feats = 8
     num_heads = 2
-    attn_layer = NodesAttentionLayer(
+    attn_layer = NodeAttentionLayer(
         master_node="atom",
         attn_nodes=["bond", "global"],
         attn_edges=["b2a", "g2a"],

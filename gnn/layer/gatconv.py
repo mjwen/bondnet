@@ -27,7 +27,7 @@ class UnifySize(nn.Module):
         return [fc(h) for fc, h in zip(self.linears, feats)]
 
 
-class NodesAttentionLayer(nn.Module):
+class NodeAttentionLayer(nn.Module):
     """
     Graph attention for nodes from other nodes.
     """
@@ -68,7 +68,7 @@ class NodesAttentionLayer(nn.Module):
                 :matorch:`H` is torche number of heads, and :matorch:`D_{out}` is size of
                 output feature.
         """
-        super(NodesAttentionLayer, self).__init__()
+        super(NodeAttentionLayer, self).__init__()
         self.master_node = master_node
         self.attn_nodes = attn_nodes
         self.attn_edges = attn_edges
