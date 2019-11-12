@@ -1,3 +1,8 @@
+"""
+Featurize a molecule heterograph of atom, bond, and global nodes with RDkit.
+"""
+# pylint: disable=no-member,not-callable
+
 import numpy as np
 import torch
 import os
@@ -238,12 +243,12 @@ class HeteroMoleculeGraph:
 
         g = dgl.heterograph(
             {
-                ("atom", "anb", "bond"): a2b,
-                ("bond", "bna", "atom"): b2a,
-                ("atom", "ang", "global"): a2g,
-                ("global", "gna", "atom"): g2a,
-                ("bond", "bng", "global"): b2g,
-                ("global", "gnb", "bond"): g2b,
+                ("atom", "a2b", "bond"): a2b,
+                ("bond", "b2a", "atom"): b2a,
+                ("atom", "a2g", "global"): a2g,
+                ("global", "g2a", "atom"): g2a,
+                ("bond", "b2g", "global"): b2g,
+                ("global", "g2b", "bond"): g2b,
             }
         )
 
@@ -273,7 +278,7 @@ class HeteroMoleculeGraph:
         nbonds = g.number_of_nodes("bond")
         bond_to_atom_map = dict()
         for i in range(nbonds):
-            atoms = g.successors(i, "bna")
+            atoms = g.successors(i, "b2a")
             bond_to_atom_map[i] = sorted(atoms)
         return bond_to_atom_map
 
@@ -292,7 +297,7 @@ class HeteroMoleculeGraph:
         natoms = g.number_of_nodes("atom")
         atom_to_bond_map = dict()
         for i in range(natoms):
-            bonds = g.successors(i, "anb")
+            bonds = g.successors(i, "a2b")
             atom_to_bond_map[i] = sorted(list(bonds))
         return atom_to_bond_map
 

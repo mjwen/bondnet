@@ -1,3 +1,4 @@
+# pylint: disable=no-member
 import numpy as np
 from collections import defaultdict
 import torch
@@ -84,7 +85,7 @@ def test_build_graph():
     g = grapher.build_graph(m)
 
     nodes = ["atom", "bond", "global"]
-    edges = ["anb", "bna", "ang", "gna", "bng", "gnb"]
+    edges = ["a2b", "b2a", "a2g", "g2a", "b2g", "g2b"]
     assert g.ntypes == nodes
     assert g.etypes == edges
     num_nodes = [g.number_of_nodes(n) for n in nodes]
