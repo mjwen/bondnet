@@ -61,7 +61,7 @@ def test_atom_featurizer():
     feat = featurizer(m)
     assert featurizer.feature_size == 10
     assert np.array_equal(feat["node_type"], node_type)
-    assert np.allclose(feat["a_feat"], a_feat)
+    assert np.allclose(feat["feat"], a_feat)
 
 
 def test_bond_featurizer():
@@ -69,14 +69,14 @@ def test_bond_featurizer():
     featurizer = BondFeaturizer()
     feat = featurizer(m)
     assert featurizer.feature_size == 6
-    assert np.allclose(feat["b_feat"], b_feat)
+    assert np.allclose(feat["feat"], b_feat)
 
 
 def test_global_state_featurizer():
     featurizer = GlobalStateFeaturizer()
     feat = featurizer(charge=1)
     assert featurizer.feature_size == 3
-    assert np.allclose(feat["g_feat"], g_feat)
+    assert np.allclose(feat["feat"], g_feat)
 
 
 def test_build_graph():
@@ -118,6 +118,6 @@ def test_graph_featurize():
         global_state_featurizer=GlobalStateFeaturizer(),
     )
     g = grapher.build_graph_and_featurize(m, charge)
-    assert np.allclose(g.nodes["atom"].data["a_feat"], a_feat)
-    assert np.allclose(g.nodes["bond"].data["b_feat"], b_feat)
-    assert np.allclose(g.nodes["global"].data["g_feat"], g_feat)
+    assert np.allclose(g.nodes["atom"].data["feat"], a_feat)
+    assert np.allclose(g.nodes["bond"].data["feat"], b_feat)
+    assert np.allclose(g.nodes["global"].data["feat"], g_feat)

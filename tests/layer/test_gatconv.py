@@ -114,12 +114,12 @@ def test_gat_conv_layer():
     attn_nodes = [["bond", "global"], ["atom", "global"], ["atom", "bond"]]
     attn_edges = [["b2a", "g2a"], ["a2b", "g2b"], ["a2g", "b2g"]]
     gat_layer = GATConv(
-        in_feats,
-        out_feats,
-        num_heads,
         master_nodes,
         attn_nodes,
         attn_edges,
+        in_feats,
+        out_feats,
+        num_heads,
         unify_size=True,
     )
 

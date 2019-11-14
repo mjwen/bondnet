@@ -199,12 +199,12 @@ class GATConv(nn.Module):
 
     def __init__(
         self,
+        master_nodes,
+        attn_nodes,
+        attn_edges,
         in_feats,
         out_feats,
         num_heads,
-        master_nodes=["atom", "bond", "global"],
-        attn_nodes=[["bond", "global"], ["atom", "global"], ["atom", "bond"]],
-        attn_edges=[["b2a", "g2a"], ["a2b", "g2b"], ["a2g", "b2g"]],
         feat_drop=0.0,
         attn_drop=0.0,
         negative_slope=0.2,
@@ -234,6 +234,7 @@ class GATConv(nn.Module):
             unify_size (bool, optional): [description]. Defaults to False.
         """
         super(GATConv, self).__init__()
+
         self.master_nodes = master_nodes
         self.attn_mechamism = {
             master: {"nodes": n, "edges": e}

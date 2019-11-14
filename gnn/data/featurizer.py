@@ -90,16 +90,16 @@ class AtomFeaturizer:
                 ],
             )
             h_u.append(num_h)
-            atom_feats_dict["a_feat"].append(h_u)
+            atom_feats_dict["feat"].append(h_u)
 
-        atom_feats_dict["a_feat"] = torch.tensor(
-            np.asarray(atom_feats_dict["a_feat"], dtype=np.float32)
+        atom_feats_dict["feat"] = torch.tensor(
+            np.asarray(atom_feats_dict["feat"], dtype=np.float32)
         )
         atom_feats_dict["node_type"] = torch.tensor(
             np.asarray(atom_feats_dict["node_type"], dtype=np.int64)
         )
 
-        self._feature_size = len(atom_feats_dict["a_feat"][0])
+        self._feature_size = len(atom_feats_dict["feat"][0])
 
         return atom_feats_dict
 
@@ -152,13 +152,13 @@ class BondFeaturizer:
                     None,
                 ],
             )
-            bond_feats_dict["b_feat"].append(feature)
+            bond_feats_dict["feat"].append(feature)
 
-        bond_feats_dict["b_feat"] = torch.tensor(
-            np.asarray(bond_feats_dict["b_feat"], dtype=np.float32)
+        bond_feats_dict["feat"] = torch.tensor(
+            np.asarray(bond_feats_dict["feat"], dtype=np.float32)
         )
 
-        self._feature_size = len(bond_feats_dict["b_feat"][0])
+        self._feature_size = len(bond_feats_dict["feat"][0])
 
         return bond_feats_dict
 
@@ -176,7 +176,7 @@ class GlobalStateFeaturizer:
         global_feats_dict = dict()
         g = one_hot_encoding(charge, [-1, 0, 1])
         self._feature_size = len(g)
-        global_feats_dict["g_feat"] = torch.tensor([g])
+        global_feats_dict["feat"] = torch.tensor([g])
         return global_feats_dict
 
 
