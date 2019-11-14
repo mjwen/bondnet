@@ -42,9 +42,11 @@ class HGAT(nn.Module):
 
         super(HGAT, self).__init__()
 
-        master_nodes = (["atom", "bond", "global"],)
-        attn_nodes = ([["bond", "global"], ["atom", "global"], ["atom", "bond"]],)
-        attn_edges = ([["b2a", "g2a"], ["a2b", "g2b"], ["a2g", "b2g"]],)
+        self.g = g
+
+        master_nodes = ["atom", "bond", "global"]
+        attn_nodes = [["bond", "global"], ["atom", "global"], ["atom", "bond"]]
+        attn_edges = [["b2a", "g2a"], ["a2b", "g2b"], ["a2g", "b2g"]]
         in_feats = [g.nodes[ntype].data["feat"].shape[1] for ntype in master_nodes]
         out_feats = gat_hidden_size
 
@@ -70,12 +72,13 @@ class HGAT(nn.Module):
 
         # hidden gat layers
         for _ in range(1, num_gat_layers):
+            in_size = [out_feats for _ in in_feats]
             self.gat_layers.append(
                 HGATConv(
                     master_nodes,
                     attn_nodes,
                     attn_edges,
-                    in_feats,
+                    in_size,
                     out_feats,
                     num_heads,
                     feat_drop=feat_drop,

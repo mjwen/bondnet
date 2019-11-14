@@ -258,7 +258,9 @@ class HeteroMoleculeGraph:
 
         if self.atom_featurizer is not None:
             g.nodes["atom"].data.update(self.atom_featurizer(mol))
+        if self.bond_featurizer is not None:
             g.nodes["bond"].data.update(self.bond_featurizer(mol))
+        if self.global_state_featurizer is not None:
             g.nodes["global"].data.update(self.global_state_featurizer(charge))
 
         return g
