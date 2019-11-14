@@ -3,7 +3,12 @@
 import torch
 import dgl
 import numpy as np
-from gnn.layer.gatconv import UnifySize, NodeAttentionLayer, heterograph_edge_softmax
+from gnn.layer.gatconv import (
+    UnifySize,
+    NodeAttentionLayer,
+    GATConv,
+    heterograph_edge_softmax,
+)
 
 
 def make_hetero_graph():
@@ -31,13 +36,14 @@ def make_hetero_graph():
 
 
 def test_unify_size():
-    in_feats = [2, 3]
+    in_feats = {"a": 2, "b": 3}
     out_feats = 4
     us = UnifySize(in_feats, out_feats)
-    feats = [torch.zeros(2), torch.zeros(3)]
-    h = us(feats)
-    for x in h:
-        assert x.shape[0] == out_feats
+
+    feats = {"a": torch.zeros(2), "b": torch.zeros(3)}
+    feats = us(feats)
+    for k, v in feats.items():
+        assert v.shape[0] == out_feats
 
 
 def test_edge_softmax():
@@ -99,5 +105,35 @@ def test_node_attn_layer():
     assert np.array_equal(out.shape, [natoms, num_heads, out_feats])
 
 
-# test_edge_softmax()
+def test_gat_conv_layer():
+
+    in_feats = [2, 3, 4]
+    out_feats = 5
+    num_heads = 2
+    master_nodes = ["atom", "bond", "global"]
+    attn_nodes = [["bond", "global"], ["atom", "global"], ["atom", "bond"]]
+    attn_edges = [["b2a", "g2a"], ["a2b", "g2b"], ["a2g", "b2g"]]
+    gat_layer = GATConv(
+        in_feats,
+        out_feats,
+        num_heads,
+        master_nodes,
+        attn_nodes,
+        attn_edges,
+        unify_size=True,
+    )
+
+    g = make_hetero_graph()
+    num_nodes = [g.number_of_nodes("atom"), g.number_of_nodes("bond"), 1]
+
+    feats = {}
+    ntype2num = {}
+    for ntype, ift, num in zip(master_nodes, in_feats, num_nodes):
+        feats[ntype] = torch.randn(num, ift)
+        ntype2num[ntype] = num
+    out = gat_layer(g, feats)
+
+    assert set(out.keys()) == set(master_nodes)
+    for k, v in out.items():
+        assert np.array_equal(v.shape, [ntype2num[k], out_feats])
 

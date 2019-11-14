@@ -1,6 +1,6 @@
 """Torch modules for GAT for heterograph."""
 # pylint: disable=no-member
-
+from functools import partial
 import torch
 from torch import nn
 from dgl import function as fn
@@ -12,19 +12,29 @@ class UnifySize(nn.Module):
     A layer to to unify the feature size of different types nodes.
 
     Args:
-        in_feats (list): in feature sizes of different types nodes
+        in_feats (dict): in feature sizes of nodes with node type as key and size as value
         out_feats (int): output feature size
     """
 
     def __init__(self, in_feats, out_feats):
         super(UnifySize, self).__init__()
         # NOTE, we could use nolinear mapping here to add more power
-        self.linears = nn.ModuleList(
-            [nn.Linear(size, out_feats, bias=False) for size in in_feats]
+        self.linears = nn.ModuleDict(
+            {
+                ntype: nn.Linear(size, out_feats, bias=False)
+                for ntype, size in in_feats.items()
+            }
         )
 
     def forward(self, feats):
-        return [fc(h) for fc, h in zip(self.linears, feats)]
+        """
+        Args:
+            feats (dict): features dict with node type as key and feature as value 
+        
+        Returns:
+            dict: size adjusted features dict
+        """
+        return {ntype: self.linears[ntype](x) for ntype, x in feats.items()}
 
 
 class NodeAttentionLayer(nn.Module):
@@ -54,9 +64,9 @@ class NodeAttentionLayer(nn.Module):
             attn_edges (list of str): the type of the edges that connect
                 attention nodes to master nodes, should be of same size of attention
                 nodes
-            in_feats ([type]): [description]
-            out_feats ([type]): [description]
-            num_heads ([type]): [description]
+            in_feats (int): [description]
+            out_feats (int): [description]
+            num_heads (int): [description]
             feat_drop (float, optional): [description]. Defaults to 0.0.
             attn_drop (float, optional): [description]. Defaults to 0.0.
             negative_slope (float, optional): [description]. Defaults to 0.2.
@@ -72,9 +82,10 @@ class NodeAttentionLayer(nn.Module):
         self.master_node = master_node
         self.attn_nodes = attn_nodes
         self.attn_edges = attn_edges
-        self._num_heads = num_heads
-        self._in_feats = in_feats
-        self._out_feats = out_feats
+        self.num_heads = num_heads
+        self.in_feats = in_feats
+        self.out_feats = out_feats
+
         # NOTE we may want to combine this fc layer with the UnifySize layer, if we want
         # to use smaller number of parameters. Of course, this depents on the actural
         # size of in_feats and out_feats and num_heats
@@ -135,14 +146,14 @@ class NodeAttentionLayer(nn.Module):
         # master node
         master_h = self.feat_drop(master_feats)  # shape(N, in)
         feats = self.fc(master_h).view(
-            -1, self._num_heads, self._out_feats
+            -1, self.num_heads, self.out_feats
         )  # shape(N, H, out)
         er = (feats * self.attn_r).sum(dim=-1).unsqueeze(-1)  # shape(N, H, 1)
         graph.nodes[self.master_node].data.update({"ft": feats, "er": er})
         # attention node
         for node, feats in zip(self.attn_nodes, attn_feats):
             h = self.feat_drop(feats)
-            feats = self.fc(h).view(-1, self._num_heads, self._out_feats)
+            feats = self.fc(h).view(-1, self.num_heads, self.out_feats)
             el = (feats * self.attn_l).sum(dim=-1).unsqueeze(-1)
             graph.nodes[node].data.update({"ft": feats, "el": el})
 
@@ -171,13 +182,132 @@ class NodeAttentionLayer(nn.Module):
 
         # residual
         if self.res_fc is not None:
-            resval = self.res_fc(master_h).view(master_h.shape[0], -1, self._out_feats)
+            resval = self.res_fc(master_h).view(master_h.shape[0], -1, self.out_feats)
             rst = rst + resval
 
         # activation
         if self.activation:
             rst = self.activation(rst)
         return rst
+
+
+class GATConv(nn.Module):
+    """
+    Graph attention convolution layer for heterograph that attends between different
+    (and the same) type of nodes.
+    """
+
+    def __init__(
+        self,
+        in_feats,
+        out_feats,
+        num_heads,
+        master_nodes=["atom", "bond", "global"],
+        attn_nodes=[["bond", "global"], ["atom", "global"], ["atom", "bond"]],
+        attn_edges=[["b2a", "g2a"], ["a2b", "g2b"], ["a2g", "b2g"]],
+        feat_drop=0.0,
+        attn_drop=0.0,
+        negative_slope=0.2,
+        residual=False,
+        unify_size=False,
+    ):
+        """
+        Args:
+            nn ([type]): [description]
+            in_feats (list): list of input feature size for the corresponding (w.r.t.
+                index) node in `master_nodes`
+            out_feats (int): output feature size, the same for all nodes 
+            num_heads (int): number of attnetion heads, the same for all nodes
+            master_nodes (list, optional): type of the nodes whose features will be updated. 
+                Update proceeds in the order of this list. Defaults to ["atom", "bond",
+                "global"].
+            attn_nodes (list, optional): type of the nodes that attend to the corresponding 
+                master node (order matters). Defaults to [["bond", "global"], ["atom",
+                "global"], ["atom", "bond"]].
+            attn_edges (list, optional): type of the edges directs from the attention node
+                to the corresponding master node (order matters). Defaults to [["b2a",
+                "g2a", ["a2b", "g2b"], ["a2g", "b2g"]]].
+            feat_drop (float, optional): [description]. Defaults to 0.0.
+            attn_drop (float, optional): [description]. Defaults to 0.0.
+            negative_slope (float, optional): [description]. Defaults to 0.2.
+            residual (bool, optional): [description]. Defaults to False.
+            unify_size (bool, optional): [description]. Defaults to False.
+        """
+        super(GATConv, self).__init__()
+        self.master_nodes = master_nodes
+        self.attn_mechamism = {
+            master: {"nodes": n, "edges": e}
+            for master, n, e in zip(master_nodes, attn_nodes, attn_edges)
+        }
+
+        self.layers = nn.ModuleDict()
+
+        # unify size layer
+        if unify_size:
+            self.layers["unify_size"] = UnifySize(
+                {n: sz for n, sz in zip(master_nodes, in_feats)}, out_feats
+            )
+            size_first = out_feats
+        else:
+            size_first = list(set(in_feats))
+            msg = (
+                "'in_feats = {}': elements not equal. Either set them to be the same or "
+                "unify_size' to be 'True'".format(in_feats)
+            )
+            assert len(size_first) == 1, msg
+            size_first = size_first[0]
+
+        for i, ntype in enumerate(master_nodes):
+            if i == 0:
+                in_size = size_first
+            else:
+                # in_size = out_feats * num_heads  # output size of the previous layer
+                in_size = out_feats
+
+            # NOTE partial is used as a readout function to reduce the heads dimenstion
+            activation = partial(torch.sum, dim=1)
+            self.layers[ntype] = NodeAttentionLayer(
+                ntype,
+                self.attn_mechamism[ntype]["nodes"],
+                self.attn_mechamism[ntype]["edges"],
+                in_size,
+                out_feats,
+                num_heads,
+                feat_drop,
+                attn_drop,
+                negative_slope,
+                residual,
+                activation,
+            )
+
+    def forward(self, g, feats):
+        """
+        Args:
+            g (dgl heterograph): a heterograph
+            feats (dict): node features with node type as key and the corresponding
+            features as value.
+
+        Returns:
+            dict: updated node features with the same keys in `feats`. Each feature
+            value has a shape of `(N, out_feats*num_heads)`, where `N` is the number of
+            nodes (different for different key) and `out_feats` and `num_heads` are the
+            out feature size and number of heads specified at instantiation (the same
+            for different keys.)
+        """
+        if "unify_size" in self.layers:
+            updated_feats = self.layers["unify_size"](feats)
+        else:
+            updated_feats = {k: v for k, v in feats.items()}
+        for ntype in self.master_nodes:
+            master_feats = updated_feats[ntype]
+            attn_feats = [updated_feats[t] for t in self.attn_mechamism[ntype]["nodes"]]
+            ft = self.layers[ntype](g, master_feats, attn_feats)
+            updated_feats[ntype] = ft.flatten(start_dim=1)  # flatten the head dimension
+        return updated_feats
+
+
+def get_edge_types(master_node, attn_nodes, attn_edges):
+    return [(n, e, master_node) for n, e in zip(attn_nodes, attn_edges)]
 
 
 def heterograph_edge_softmax(graph, master_node, attn_nodes, attn_edges, edge_data):
@@ -237,7 +367,3 @@ def heterograph_edge_softmax(graph, master_node, attn_nodes, attn_edges, edge_da
         g.apply_edges(fn.e_div_v("out", "out_sum", "a"), etype=etype)
         a.append(g.edges[etype].data["a"])
     return a
-
-
-def get_edge_types(master_node, attn_nodes, attn_edges):
-    return [(n, e, master_node) for n, e in zip(attn_nodes, attn_edges)]
