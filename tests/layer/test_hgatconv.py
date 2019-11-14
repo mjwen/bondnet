@@ -3,10 +3,10 @@
 import torch
 import dgl
 import numpy as np
-from gnn.layer.gatconv import (
+from gnn.layer.hgatconv import (
     UnifySize,
     NodeAttentionLayer,
-    GATConv,
+    HGATConv,
     heterograph_edge_softmax,
 )
 
@@ -105,7 +105,7 @@ def test_node_attn_layer():
     assert np.array_equal(out.shape, [natoms, num_heads, out_feats])
 
 
-def test_gat_conv_layer():
+def test_hgat_conv_layer():
 
     in_feats = [2, 3, 4]
     out_feats = 5
@@ -113,7 +113,7 @@ def test_gat_conv_layer():
     master_nodes = ["atom", "bond", "global"]
     attn_nodes = [["bond", "global"], ["atom", "global"], ["atom", "bond"]]
     attn_edges = [["b2a", "g2a"], ["a2b", "g2b"], ["a2g", "b2g"]]
-    gat_layer = GATConv(
+    gat_layer = HGATConv(
         master_nodes,
         attn_nodes,
         attn_edges,

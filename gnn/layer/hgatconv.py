@@ -191,7 +191,7 @@ class NodeAttentionLayer(nn.Module):
         return rst
 
 
-class GATConv(nn.Module):
+class HGATConv(nn.Module):
     """
     Graph attention convolution layer for heterograph that attends between different
     (and the same) type of nodes.
@@ -233,7 +233,7 @@ class GATConv(nn.Module):
             residual (bool, optional): [description]. Defaults to False.
             unify_size (bool, optional): [description]. Defaults to False.
         """
-        super(GATConv, self).__init__()
+        super(HGATConv, self).__init__()
 
         self.master_nodes = master_nodes
         self.attn_mechamism = {
@@ -266,7 +266,7 @@ class GATConv(nn.Module):
                 in_size = out_feats
 
             # NOTE partial is used as a readout function to reduce the heads dimenstion
-            activation = partial(torch.sum, dim=1)
+            activation = partial(torch.mean, dim=1)
             self.layers[ntype] = NodeAttentionLayer(
                 ntype,
                 self.attn_mechamism[ntype]["nodes"],
