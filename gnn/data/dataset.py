@@ -1,12 +1,15 @@
 """
 The Li-EC electorlyte dataset.
 """
+# pylint: disable=not-callable, no-member
+
 import numpy as np
 import torch
 import os
 import pickle
 import logging
 from collections import defaultdict
+import dgl
 from gnn.utils import expand_path, create_directory, pickle_dump, pickle_load
 from gnn.data.featurizer import (
     AtomFeaturizer,
@@ -88,10 +91,10 @@ class ElectrolyteDataset:
 
                 charge = prop[0]
                 nbonds = int((len(prop) - 1) / 2)
-                bonds_energy = torch.tensor(
+                bonds_energy = torch.from_numpy(
                     np.asarray(prop[1 : nbonds + 1], dtype=np.float32)
                 )
-                bonds_indicator = torch.tensor(
+                bonds_indicator = torch.from_numpy(
                     np.asarray(prop[nbonds + 1 :], dtype=np.float32)
                 )
 
@@ -210,3 +213,4 @@ class ElectrolyteDataset:
             Length of Dataset
         """
         return len(self.graphs)
+
