@@ -1,16 +1,13 @@
 """
 The Li-EC electorlyte dataset.
 """
-# pylint: disable=not-callable, no-member
+# pylint: disable=not-callable,no-member
 
 import numpy as np
 import torch
 import os
-import pickle
 import logging
-from collections import defaultdict
-import dgl
-from gnn.utils import expand_path, create_directory, pickle_dump, pickle_load
+from gnn.utils import expand_path, pickle_dump, pickle_load
 from gnn.data.featurizer import (
     AtomFeaturizer,
     BondFeaturizer,
@@ -203,8 +200,8 @@ class ElectrolyteDataset:
             g: DGLHeteroGraph for the ith datapoint
             l (dict): Labels of the datapoint for all tasks
         """
-        g, l = self.graphs[item], self.labels[item]
-        return g, l
+        g, la = self.graphs[item], self.labels[item]
+        return g, la
 
     def __len__(self):
         """Length of the dataset

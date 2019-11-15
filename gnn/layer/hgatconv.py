@@ -4,7 +4,6 @@ from functools import partial
 import torch
 from torch import nn
 from dgl import function as fn
-from dgl.nn.pytorch.softmax import edge_softmax
 
 
 class UnifySize(nn.Module):
@@ -29,8 +28,8 @@ class UnifySize(nn.Module):
     def forward(self, feats):
         """
         Args:
-            feats (dict): features dict with node type as key and feature as value 
-        
+            feats (dict): features dict with node type as key and feature as value
+
         Returns:
             dict: size adjusted features dict
         """
@@ -72,7 +71,7 @@ class NodeAttentionLayer(nn.Module):
             negative_slope (float, optional): [description]. Defaults to 0.2.
             residual (bool, optional): [description]. Defaults to False.
             activation ([type], optional): [description]. Defaults to None.
-        
+
         Returns:
             torch.Tensor: The output feature of shape :matorch:`(N, H, D_{out})` where
                 :matorch:`H` is torche number of heads, and :matorch:`D_{out}` is size of
@@ -126,11 +125,11 @@ class NodeAttentionLayer(nn.Module):
         graph : DGLHeteroGraph
             The graph.
         master_feats : torch.Tensor
-            The input feature of the master node, which attributes will be updated. 
+            The input feature of the master node, which attributes will be updated.
             The input feature of shape :matorch:`(N, D_{in})` where :matorch:`D_{in}`
             is size of input feature, :matorch:`N` is torche number of nodes.
         attn_feats : list of torch.Tensor
-            The input features of the attention nodes. 
+            The input features of the attention nodes.
             The input feature of shape :matorch:`(N, D_{in})` where :matorch:`D_{in}`
             is size of input feature, :matorch:`N` is torche number of nodes.
 
@@ -216,12 +215,12 @@ class HGATConv(nn.Module):
             nn ([type]): [description]
             in_feats (list): list of input feature size for the corresponding (w.r.t.
                 index) node in `master_nodes`
-            out_feats (int): output feature size, the same for all nodes 
+            out_feats (int): output feature size, the same for all nodes
             num_heads (int): number of attnetion heads, the same for all nodes
-            master_nodes (list, optional): type of the nodes whose features will be updated. 
+            master_nodes (list, optional): type of the nodes whose features will be updated.
                 Update proceeds in the order of this list. Defaults to ["atom", "bond",
                 "global"].
-            attn_nodes (list, optional): type of the nodes that attend to the corresponding 
+            attn_nodes (list, optional): type of the nodes that attend to the corresponding
                 master node (order matters). Defaults to [["bond", "global"], ["atom",
                 "global"], ["atom", "bond"]].
             attn_edges (list, optional): type of the edges directs from the attention node
@@ -312,7 +311,7 @@ def get_edge_types(master_node, attn_nodes, attn_edges):
 
 
 def heterograph_edge_softmax(graph, master_node, attn_nodes, attn_edges, edge_data):
-    r"""Edge softmax for heterograph. 
+    r"""Edge softmax for heterograph.
 
      For a node :math:`i`, edge softmax is an operation of computing
 

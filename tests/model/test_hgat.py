@@ -1,8 +1,9 @@
+"""
+Test the Heterograph conv.
+"""
 import torch
 import dgl
 from gnn.model.hgat import HGAT
-
-# pylint: disable=no-member
 
 
 def make_hetero_graph():

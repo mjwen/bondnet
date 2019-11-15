@@ -6,11 +6,9 @@ Featurize a molecule heterograph of atom, bond, and global nodes with RDkit.
 import numpy as np
 import torch
 import os
-import pickle
 import warnings
 from collections import defaultdict
 import dgl
-from dgl.data.chem.utils import mol_to_complete_graph
 
 try:
     from rdkit import Chem
@@ -165,7 +163,7 @@ class BondFeaturizer:
 
 class GlobalStateFeaturizer:
     """
-    Featurization the global state of a molecules.  
+    Featurization the global state of a molecules.
     """
 
     @property
@@ -201,10 +199,10 @@ class HeteroMoleculeGraph:
         """
         Build an a heterograph, with three types of nodes: atom, bond, and glboal
         state, and then featurize the graph.
-        
+
         Args:
             mol (rdkit mol): a rdkit molecule
-        
+
         Returns:
             g: dgl heterograph
             bond_idx_to_atom_idx (dict): mapping between two type bond indices, key is
@@ -269,10 +267,10 @@ class HeteroMoleculeGraph:
     def get_bond_to_atom_map(g):
         """
         Query which atoms are associated with the bonds.
-        
+
         Args:
             g: dgl hetero graph
-        
+
         Returns:
             dict: with bond index as the key and a tuple of atom indices of atoms that
                 form the bond.
@@ -288,10 +286,10 @@ class HeteroMoleculeGraph:
     def get_atom_to_bond_map(g):
         """
         Query which bonds are associated with the atoms.
-        
+
         Args:
             g: dgl hetero graph
-        
+
         Returns:
             dict: with atom index as the key and a list of indices of bonds is
             connected to the atom.

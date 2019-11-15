@@ -1,6 +1,5 @@
 import numpy as np
 import os
-from torch.utils.data import DataLoader
 from gnn.data.dataset import ElectrolyteDataset
 
 test_files = os.path.dirname(__file__)

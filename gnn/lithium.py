@@ -4,7 +4,6 @@ from torch.utils.data import DataLoader
 import dgl
 from dgl.model_zoo.chem import MPNNModel
 import networkx as nx
-import matplotlib.pyplot as plt
 from gnn.data.dataset import ElectrolyteDataset
 
 ##########################################################################################
@@ -29,6 +28,7 @@ for g, label in dataset:
     break
 
 print("feature_size", dataset.feature_size)
+
 
 # batch of data
 def collate(samples):
