@@ -57,6 +57,17 @@ class ElectrolyteDataset:
     def feature_size(self):
         return self._feature_size
 
+    def get_feature_size(self, ntypes):
+        size = []
+        for n in ntypes:
+            for k in self.feature_size:
+                if n in k:
+                    size.append(self.feature_size[k])
+        # TODO more checks needed e.g. one node get more than one size
+        msg = "cannot get feature size for nodes: {}".format(ntypes)
+        assert len(ntypes) == len(size), msg
+        return size
+
     def _load(self):
         logger.info(
             "Start loading dataset from {} and {}...".format(
@@ -72,7 +83,7 @@ class ElectrolyteDataset:
         else:
 
             properties = self._read_label_file()
-            supp = Chem.SDMolSupplier(self.sdf_file)
+            supp = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
             species = self._get_species()
             dataset_size = len(properties)
 
@@ -154,7 +165,7 @@ class ElectrolyteDataset:
         return rslt
 
     def _get_species(self):
-        suppl = Chem.SDMolSupplier(self.sdf_file)
+        suppl = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
         system_species = set()
         for mol in suppl:
             atoms = mol.GetAtoms()

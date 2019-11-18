@@ -1,6 +1,5 @@
 import torch
 import dgl
-import copy
 from collections import defaultdict
 
 # pylint: disable=no-member
@@ -15,6 +14,9 @@ class DataLoader(torch.utils.data.DataLoader):
             )
 
         def collate(samples):
+            if len(samples) == 1:
+                graph, label = samples[0]
+                return graph, label
             graphs, labels = map(list, zip(*samples))
             batched_graph = graph_list_to_batch(graphs)
             energies = torch.cat([la["energies"] for la in labels])
@@ -92,4 +94,3 @@ def batch_to_graph_list(batch_g):
                 g.nodes[t].data.update({a: d})
 
     return graphs
-

@@ -1,10 +1,11 @@
+# pylint: disable=not-callable
 import numpy as np
 import os
 import torch
 from collections import defaultdict
-from gnn.data.featurizer import HeteroMoleculeGraph
 from gnn.data.dataset import ElectrolyteDataset
 from gnn.data.dataloader import DataLoader, graph_list_to_batch, batch_to_graph_list
+from gnn.data.utils import get_atom_to_bond_map, get_bond_to_atom_map
 
 
 a_feat = torch.tensor(
@@ -103,8 +104,8 @@ def assert_graph_struct(g, num_graphs):
     assert num_nodes == ref_num_nodes
     assert num_edges == ref_num_edges
 
-    b2a_map = HeteroMoleculeGraph.get_bond_to_atom_map(g)
-    a2b_map = HeteroMoleculeGraph.get_atom_to_bond_map(g)
+    b2a_map = get_bond_to_atom_map(g)
+    a2b_map = get_atom_to_bond_map(g)
     assert b2a_map == ref_b2a_map
     assert a2b_map == ref_a2b_map
 
