@@ -29,7 +29,7 @@ in_feats = dataset.get_feature_size(attn_order)
 model = HGAT(attn_mechanism, attn_order, in_feats)
 model.train()
 if args.device is not None:
-    model.to(devide=args.device)
+    model.to(device=args.device)
 
 
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -41,8 +41,8 @@ for epoch in range(10):
     for it, (bg, label) in enumerate(data_loader):
         feats = {nt: bg.nodes[nt].data["feat"] for nt in attn_order}
         if args.device is not None:
-            feats = {k: v.to(device=args.devide) for k, v in feats.items()}
-            label = {k: v.to(device=args.devide) for k, v in label.items()}
+            feats = {k: v.to(device=args.device) for k, v in feats.items()}
+            label = {k: v.to(device=args.device) for k, v in label.items()}
         prediction = model(bg, feats)
         loss = loss_func(prediction, label["energies"], label["indicators"])
         optimizer.zero_grad()

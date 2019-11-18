@@ -100,4 +100,6 @@ class HGAT(nn.Module):
         h = h["bond"]
         for layer in self.fc_layers:
             h = layer(h)
+        h = h.view(-1) # reshape to a 1D tensor to make each component a bond energy
+
         return h
