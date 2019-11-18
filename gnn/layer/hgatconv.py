@@ -198,9 +198,8 @@ class HGATConv(nn.Module):
 
     def __init__(
         self,
-        master_nodes,
-        attn_nodes,
-        attn_edges,
+        attn_mechanism,
+        attn_order,
         in_feats,
         out_feats,
         num_heads,
@@ -234,18 +233,15 @@ class HGATConv(nn.Module):
         """
         super(HGATConv, self).__init__()
 
-        self.master_nodes = master_nodes
-        self.attn_mechamism = {
-            master: {"nodes": n, "edges": e}
-            for master, n, e in zip(master_nodes, attn_nodes, attn_edges)
-        }
+        self.attn_mechamism = attn_mechanism
+        self.master_nodes = attn_order
 
         self.layers = nn.ModuleDict()
 
         # unify size layer
         if unify_size:
             self.layers["unify_size"] = UnifySize(
-                {n: sz for n, sz in zip(master_nodes, in_feats)}, out_feats
+                {n: sz for n, sz in zip(self.master_nodes, in_feats)}, out_feats
             )
             size_first = out_feats
         else:
@@ -257,7 +253,7 @@ class HGATConv(nn.Module):
             assert len(size_first) == 1, msg
             size_first = size_first[0]
 
-        for i, ntype in enumerate(master_nodes):
+        for i, ntype in enumerate(self.master_nodes):
             if i == 0:
                 in_size = size_first
             else:

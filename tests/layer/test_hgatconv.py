@@ -1,3 +1,4 @@
+# pylint: disable=no-member
 import torch
 import dgl
 import numpy as np
@@ -117,31 +118,27 @@ def test_node_attn_layer():
 
 def test_hgat_conv_layer():
 
-    master_nodes = ["atom", "bond", "global"]
-    attn_nodes = [["bond", "global"], ["atom", "global"], ["atom", "bond"]]
-    attn_edges = [["b2a", "g2a"], ["a2b", "g2b"], ["a2g", "b2g"]]
+    attn_mechanism = {
+        "atom": {"edges": ["b2a", "g2a"], "nodes": ["bond", "global"]},
+        "bond": {"edges": ["a2b", "g2b"], "nodes": ["atom", "global"]},
+        "global": {"edges": ["a2g", "b2g"], "nodes": ["atom", "bond"]},
+    }
+    attn_order = ["atom", "bond", "global"]
 
     g, feats = make_hetero_graph()
     num_nodes = {}
     in_feats = []
-    for ntype in master_nodes:
+    for ntype in attn_order:
         in_feats.append(feats[ntype].shape[1])
         num_nodes[ntype] = g.number_of_nodes(ntype)
 
     out_feats = 5
     num_heads = 2
     gat_layer = HGATConv(
-        master_nodes,
-        attn_nodes,
-        attn_edges,
-        in_feats,
-        out_feats,
-        num_heads,
-        unify_size=True,
+        attn_mechanism, attn_order, in_feats, out_feats, num_heads, unify_size=True
     )
     out = gat_layer(g, feats)
 
-    assert set(out.keys()) == set(master_nodes)
+    assert set(out.keys()) == set(attn_order)
     for k, v in out.items():
         assert np.array_equal(v.shape, [num_nodes[k], out_feats])
-

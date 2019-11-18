@@ -1,10 +1,8 @@
 """
-Graph Attention Networks for heterograph. 
+Graph Attention Networks for heterograph.
 """
 
-import torch
 import torch.nn as nn
-import dgl.function as fn
 from gnn.layer.hgatconv import HGATConv
 
 
@@ -27,9 +25,11 @@ class HGAT(nn.Module):
 
     def __init__(
         self,
-        g,
-        num_gat_layers=3,
+        attn_mechanism,
+        attn_order,
+        in_feats,
         gat_hidden_size=64,
+        num_gat_layers=3,
         num_heads=8,
         feat_drop=0.0,
         attn_drop=0.0,
@@ -42,25 +42,16 @@ class HGAT(nn.Module):
 
         super(HGAT, self).__init__()
 
-        self.g = g
-
-        master_nodes = ["atom", "bond", "global"]
-        attn_nodes = [["bond", "global"], ["atom", "global"], ["atom", "bond"]]
-        attn_edges = [["b2a", "g2a"], ["a2b", "g2b"], ["a2g", "b2g"]]
-        in_feats = [g.nodes[ntype].data["feat"].shape[1] for ntype in master_nodes]
-        out_feats = gat_hidden_size
-
         self.gat_layers = nn.ModuleList()
         self.fc_layers = nn.ModuleList()
 
         # input projection (no residual, no dropout)
         self.gat_layers.append(
             HGATConv(
-                master_nodes,
-                attn_nodes,
-                attn_edges,
+                attn_mechanism,
+                attn_order,
                 in_feats,
-                out_feats,
+                gat_hidden_size,
                 num_heads,
                 feat_drop=0,
                 attn_drop=0,
@@ -72,14 +63,13 @@ class HGAT(nn.Module):
 
         # hidden gat layers
         for _ in range(1, num_gat_layers):
-            in_size = [out_feats for _ in in_feats]
+            in_size = [gat_hidden_size for _ in in_feats]
             self.gat_layers.append(
                 HGATConv(
-                    master_nodes,
-                    attn_nodes,
-                    attn_edges,
+                    attn_mechanism,
+                    attn_order,
                     in_size,
-                    out_feats,
+                    gat_hidden_size,
                     num_heads,
                     feat_drop=feat_drop,
                     attn_drop=attn_drop,
@@ -90,7 +80,7 @@ class HGAT(nn.Module):
             )
 
         # hidden fc layer
-        h = out_feats
+        h = gat_hidden_size
         for _ in range(num_fc_layers - 1):
             self.fc_layers.append(nn.Linear(h, fc_hidden_size, bias=True))
             self.fc_layers.append(fc_activation)
@@ -99,12 +89,12 @@ class HGAT(nn.Module):
         # outout layer
         self.fc_layers.append(nn.Linear(h, 1, bias=True))
 
-    def forward(self, inputs):
+    def forward(self, g, inputs):
         h = inputs
 
         # hgat layer
         for layer in self.gat_layers:
-            h = layer(self.g, h)
+            h = layer(g, h)
 
         # fc
         h = h["bond"]
