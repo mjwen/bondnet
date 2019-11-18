@@ -3,8 +3,15 @@ from gnn.data.dataset import ElectrolyteDataset
 from gnn.data.dataloader import DataLoader
 from gnn.model.hgat import HGAT
 from gnn.loss import MSELoss
+from gnn.args import create_parser
 
 torch.manual_seed(35)
+
+args = create_parser()
+if args.gpu > 0 and torch.cuda.is_available():
+    args.device = torch.device("cuda")
+else:
+    args.device = None
 
 sdf_file = "/Users/mjwen/Applications/mongo_db_access/extracted_data/sturct_1.sdf"
 label_file = "/Users/mjwen/Applications/mongo_db_access/extracted_data/label_1.txt"
@@ -21,6 +28,8 @@ attn_order = ["atom", "bond", "global"]
 in_feats = dataset.get_feature_size(attn_order)
 model = HGAT(attn_mechanism, attn_order, in_feats)
 model.train()
+if args.device is not None:
+    model.to(devide=args.device)
 
 
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -31,6 +40,9 @@ for epoch in range(10):
     epoch_loss = 0
     for it, (bg, label) in enumerate(data_loader):
         feats = {nt: bg.nodes[nt].data["feat"] for nt in attn_order}
+        if args.device is not None:
+            feats = {k: v.to(device=args.devide) for k, v in feats.items()}
+            label = {k: v.to(device=args.devide) for k, v in label.items()}
         prediction = model(bg, feats)
         loss = loss_func(prediction, label["energies"], label["indicators"])
         optimizer.zero_grad()
