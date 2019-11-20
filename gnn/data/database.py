@@ -25,7 +25,6 @@ except Exception:
 from gnn.utils import create_directory, pickle_dump, pickle_load, yaml_dump, expand_path
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
 class BabelMolAdaptor2(BabelMolAdaptor):
@@ -231,7 +230,7 @@ class MoleculeWrapper:
 
     @property
     def free_energy(self, T=298.0):
-        if self.enthalpy != None and self.entropy != None:
+        if self.enthalpy is not None and self.entropy is not None:
             return (
                 self.energy * 27.21139
                 + self.enthalpy * 0.0433641
@@ -362,10 +361,11 @@ class MoleculeWrapper:
                 sub_mols[edge] = [new_mg]
         return sub_mols
 
-    def write(self, filename=None, file_format="sdf"):
+    def write(self, filename=None, file_format="sdf", mol_id=None):
         if filename is not None:
             create_directory(filename)
-        self.ob_mol.SetTitle(str(self.id))
+        mol_id = self.id if mol_id is None else mol_id
+        self.ob_mol.SetTitle(str(mol_id))
         return self.pybel_mol.write(file_format, filename, overwrite=True)
 
     def draw(self, filename=None, draw_2D=True, show_atom_idx=False):

@@ -54,4 +54,4 @@ def test_hgat():
 
     model = HGAT(attn_mechanism, attn_order, in_feats)
     output = model(g, feats)
-    assert tuple(output.shape) == (3, 1)
+    assert tuple(output.shape) == (3,)

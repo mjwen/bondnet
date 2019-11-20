@@ -62,8 +62,8 @@ class HGAT(nn.Module):
         )
 
         # hidden gat layers
+        in_size = [gat_hidden_size for _ in in_feats]
         for _ in range(1, num_gat_layers):
-            in_size = [gat_hidden_size for _ in in_feats]
             self.gat_layers.append(
                 HGATConv(
                     attn_mechanism,
@@ -80,14 +80,14 @@ class HGAT(nn.Module):
             )
 
         # hidden fc layer
-        h = gat_hidden_size
+        in_size = gat_hidden_size
         for _ in range(num_fc_layers - 1):
-            self.fc_layers.append(nn.Linear(h, fc_hidden_size, bias=True))
+            self.fc_layers.append(nn.Linear(in_size, fc_hidden_size, bias=True))
             self.fc_layers.append(fc_activation)
-            h = fc_hidden_size
+            in_size = fc_hidden_size
 
         # outout layer
-        self.fc_layers.append(nn.Linear(h, 1, bias=True))
+        self.fc_layers.append(nn.Linear(in_size, 1, bias=True))
 
     def forward(self, g, inputs):
         h = inputs
@@ -97,9 +97,11 @@ class HGAT(nn.Module):
             h = layer(g, h)
 
         # fc
-        h = h["bond"]
+        # NOTE we add the 0 * h["atom"] + 0 * h["global"] to prevent GPU memory leak
+        # this is actually should not happen, need carefully debug to figure out why
+        h = h["bond"] + 0 * h["atom"].sum() + 0 * h["global"].sum()
         for layer in self.fc_layers:
             h = layer(h)
-        h = h.view(-1) # reshape to a 1D tensor to make each component a bond energy
+        h = h.view(-1)  # reshape to a 1D tensor to make each component a bond energy
 
         return h

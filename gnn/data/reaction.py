@@ -458,8 +458,8 @@ class ReactionExtractor:
         filename = expand_path(filename)
         create_directory(filename)
         with open(filename, "w") as f:
-            for m in molecules:
-                sdf = m.write(file_format="sdf")
+            for i, m in enumerate(molecules):
+                sdf = m.write(file_format="sdf", mol_id=m.id + " int_id-" + str(i))
                 f.write(sdf)
 
     def create_struct_label_dataset_with_lowest_energy_across_charge(
@@ -483,7 +483,7 @@ class ReactionExtractor:
             f.write(
                 "# Each line lists the molecule charge and bond energies of a molecule. "
                 "The number of items in each line is equal to 1 + 2*N, where N is the "
-                "number bonds. The first item is the moledule charge. The first half "
+                "number bonds. The first item is the molecule charge. The first half "
                 "of the remaining items are bond energies and the next half values are "
                 "indicators (0 or 1) to specify whether the bond energy exist in the "
                 "dataset. A value of 0 means the corresponding bond energy should be "

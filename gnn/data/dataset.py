@@ -94,8 +94,11 @@ class ElectrolyteDataset:
             self.graphs = []
             self.labels = []
             for i, (mol, prop) in enumerate(zip(supp, properties)):
+
                 if i % 100 == 0:
                     logger.info("Processing molecule {}/{}".format(i, dataset_size))
+
+                mol = rdmolops.AddHs(mol, explicitOnly=True)
 
                 charge = prop[0]
                 nbonds = int((len(prop) - 1) / 2)
@@ -105,8 +108,6 @@ class ElectrolyteDataset:
                 bonds_indicator = torch.from_numpy(
                     np.asarray(prop[nbonds + 1 :], dtype=np.float32)
                 )
-
-                mol = rdmolops.AddHs(mol, explicitOnly=True)
 
                 grapher = HeteroMoleculeGraph(
                     atom_featurizer=atom_featurizer,
@@ -167,10 +168,14 @@ class ElectrolyteDataset:
     def _get_species(self):
         suppl = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
         system_species = set()
-        for mol in suppl:
-            atoms = mol.GetAtoms()
-            species = [a.GetSymbol() for a in atoms]
-            system_species.update(species)
+        for i, mol in enumerate(suppl):
+            try:
+                atoms = mol.GetAtoms()
+                species = [a.GetSymbol() for a in atoms]
+                system_species.update(species)
+            except AttributeError:
+                raise RuntimeError("Error reading mol '{}' from sdf file.".format(i))
+
         return list(system_species)
 
     # TODO we may need to implement normalization in featurizer and provide a wrapper
