@@ -1,6 +1,8 @@
 # pylint: disable=no-member
+import sys
 import time
 import torch
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from gnn.data.dataset import ElectrolyteDataset, train_validation_test_split
 from gnn.data.dataloader import DataLoader
 from gnn.model.hgat import HGAT
@@ -35,19 +37,24 @@ print(model)
 if args.device is not None:
     model.to(device=args.device)
 
-# accuracy metric and stopper
-metric = MAELoss()
-stopper = EarlyStopping(patience=100)
-
 # optimizer and loss
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 loss_func = MSELoss()
 
+# accuracy metric, learning rate scheduler, and stopper
+metric = MAELoss()
+patience = 100
+scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.1, patience=patience // 2)
+stopper = EarlyStopping(patience=patience)
 
-for epoch in range(10):
-    t0 = time.time()
+print("\n\n# Epoch     Loss         TrainAcc        ValAcc     Time (s)")
+t0 = time.time()
+
+num_epochs = 10
+for epoch in range(num_epochs):
+    ti = time.time()
+
     model.train()
-
     epoch_loss = 0
     epoch_pred = []
     epoch_energy = []
@@ -79,15 +86,20 @@ for epoch in range(10):
             torch.cat(epoch_pred), torch.cat(epoch_energy), torch.cat(epoch_indicator)
         )
     val_acc = evaluate(model, valset, metric, attn_order, args.device)
-    if stopper.step(val_acc, model):
+    scheduler.step(val_acc)
+    if stopper.step(val_acc, model, msg="epoch " + str(epoch)):
         break
 
-    tt = time.time() - t0
+    tt = time.time() - ti
 
     print(
-        "Epoch {:4d} | Loss {:12.6e} | TrainAcc {:12.6e} | ValAcc {:12.6e} | "
-        "Time (s) {:.4f}".format(epoch, epoch_loss, train_acc, val_acc, tt)
+        "{:5d}   {:12.6e}   {:12.6e}   {:12.6e}   {:.2f}".format(
+            epoch, epoch_loss, train_acc, val_acc, tt
+        )
     )
+    if epoch % (num_epochs // 10) == 0:
+        sys.stdout.flush()
 
 test_acc = evaluate(model, testset, metric, attn_order, args.device)
-print("TestAcc {:12.6e}".format(test_acc))
+tt = time.time() - t0
+print("\n#TestAcc: {:12.6e} | Total time (s): {:.2f}\n".format(test_acc, tt))
