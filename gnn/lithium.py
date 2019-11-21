@@ -4,7 +4,7 @@ import torch
 from gnn.data.dataset import ElectrolyteDataset, train_validation_test_split
 from gnn.data.dataloader import DataLoader
 from gnn.model.hgat import HGAT
-from gnn.metric import MSELoss, MAELoss, evaluate
+from gnn.metric import MSELoss, MAELoss, evaluate, EarlyStopping
 from gnn.args import create_parser
 
 torch.manual_seed(35)
@@ -31,11 +31,13 @@ attn_mechanism = {
 attn_order = ["atom", "bond", "global"]
 in_feats = trainset.get_feature_size(attn_order)
 model = HGAT(attn_mechanism, attn_order, in_feats)
+print(model)
 if args.device is not None:
     model.to(device=args.device)
 
-# accuracy metric
+# accuracy metric and stopper
 metric = MAELoss()
+stopper = EarlyStopping(patience=100)
 
 # optimizer and loss
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -77,6 +79,8 @@ for epoch in range(10):
             torch.cat(epoch_pred), torch.cat(epoch_energy), torch.cat(epoch_indicator)
         )
     val_acc = evaluate(model, valset, metric, attn_order, args.device)
+    if stopper.step(val_acc, model):
+        break
 
     tt = time.time() - t0
 

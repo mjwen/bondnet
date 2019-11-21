@@ -143,8 +143,9 @@ class MAELoss(nn.Module):
 
 
 class EarlyStopping:
-    def __init__(self, patience=500):
+    def __init__(self, patience=200, silent=True):
         self.patience = patience
+        self.silent = silent
         self.counter = 0
         self.best_score = None
         self.early_stop = False
@@ -154,11 +155,10 @@ class EarlyStopping:
         if self.best_score is None:
             self.best_score = score
             self.save_checkpoint(model)
-        elif score < self.best_score:
+        elif score > self.best_score:
             self.counter += 1
-            print(
-                "EarlyStopping counter: {} out of {}".format(self.counter, self.patience)
-            )
+            if not self.silent:
+                print("EarlyStopping counter: {}/{}".format(self.counter, self.patience))
             if self.counter >= self.patience:
                 self.early_stop = True
         else:
