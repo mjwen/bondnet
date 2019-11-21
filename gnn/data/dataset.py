@@ -25,7 +25,61 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-class ElectrolyteDataset:
+class BaseDataset:
+    """
+    Base dataset class.
+    """
+
+    def __init__(self):
+        super(BaseDataset, self).__init__()
+        self.graphs = None
+        self.labels = None
+        self._feature_size = None
+
+    @property
+    def feature_size(self):
+        """
+        Returns a dict of feature size with node type as the key.
+        """
+        return self._feature_size
+
+    def get_feature_size(self, ntypes):
+        """
+        Returns a list of the feature corresponding to the note types `ntypes`.
+        """
+        size = []
+        for n in ntypes:
+            for k in self.feature_size:
+                if n in k:
+                    size.append(self.feature_size[k])
+        # TODO more checks needed e.g. one node get more than one size
+        msg = "cannot get feature size for nodes: {}".format(ntypes)
+        assert len(ntypes) == len(size), msg
+        return size
+
+    def __getitem__(self, item):
+        """Get datapoint with index
+
+        Args:
+            item (int): Datapoint index
+
+        Returns:
+            g: DGLHeteroGraph for the ith datapoint
+            lb (dict): Labels of the datapoint
+        """
+        g, lb = self.graphs[item], self.labels[item]
+        return g, lb
+
+    def __len__(self):
+        """Length of the dataset
+
+        Returns:
+            Length of Dataset
+        """
+        return len(self.graphs)
+
+
+class ElectrolyteDataset(BaseDataset):
     """
     The electrolyte dataset for Li-ion battery.
 
@@ -56,17 +110,6 @@ class ElectrolyteDataset:
     @property
     def feature_size(self):
         return self._feature_size
-
-    def get_feature_size(self, ntypes):
-        size = []
-        for n in ntypes:
-            for k in self.feature_size:
-                if n in k:
-                    size.append(self.feature_size[k])
-        # TODO more checks needed e.g. one node get more than one size
-        msg = "cannot get feature size for nodes: {}".format(ntypes)
-        assert len(ntypes) == len(size), msg
-        return size
 
     def _load(self):
         logger.info(
@@ -206,24 +249,46 @@ class ElectrolyteDataset:
         else:
             return False
 
-    def __getitem__(self, item):
-        """Get datapoint with index
 
-        Args:
-            item (int): Datapoint index
+def train_validation_test_split(dataset, validation=0.1, test=0.1, random_seed=35):
+    size = len(dataset)
+    num_val = int(size * validation)
+    num_test = int(size * test)
+    num_train = size - num_val - num_test
 
-        Returns:
-            g: DGLHeteroGraph for the ith datapoint
-            l (dict): Labels of the datapoint for all tasks
-        """
-        g, la = self.graphs[item], self.labels[item]
-        return g, la
+    np.random.seed(random_seed)
+    idx = np.random.permutation(size)
+    train_idx = idx[:num_train]
+    val_idx = idx[num_train : num_train + num_val]
+    # test_idx = idx[num_train + num_val :]
 
-    def __len__(self):
-        """Length of the dataset
+    train_x, train_y = [], []
+    test_x, test_y = [], []
+    val_x, val_y = [], []
+    for i, (x, y) in enumerate(dataset):
+        if i in train_idx:
+            train_x.append(x)
+            train_y.append(y)
+        elif i in val_idx:
+            val_x.append(x)
+            val_y.append(y)
+        else:
+            test_x.append(x)
+            test_y.append(y)
 
-        Returns:
-            Length of Dataset
-        """
-        return len(self.graphs)
+    train_dataset = BaseDataset()
+    train_dataset.graphs = train_x
+    train_dataset.labels = train_y
+    train_dataset._feature_size = dataset.feature_size
 
+    val_dataset = BaseDataset()
+    val_dataset.graphs = val_x
+    val_dataset.labels = val_y
+    val_dataset._feature_size = dataset.feature_size
+
+    test_dataset = BaseDataset()
+    test_dataset.graphs = test_x
+    test_dataset.labels = test_y
+    test_dataset._feature_size = dataset.feature_size
+
+    return train_dataset, val_dataset, test_dataset
