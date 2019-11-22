@@ -19,12 +19,38 @@ except ImportError:
     pass
 
 
-class AtomFeaturizer:
+class BaseFeaturizer:
+    def __init__(self, dtype="float32"):
+        if dtype not in ["float32", "float64"]:
+            raise ValueError(
+                "`dtype` should be `float32` or `float64`, but got `{}`.".format(dtype)
+            )
+        self.dtype = dtype
+
+    @property
+    def feature_size(self):
+        """
+        Returns:
+            an int of the feature size.
+        """
+        raise NotImplementedError
+
+    def __call__(self, mol):
+        """
+        Returns:
+            A dictionary of the features.
+        """
+        # TODO  we may want to change the return type to be a tensor instead of a dict
+        raise NotImplementedError
+
+
+class AtomFeaturizer(BaseFeaturizer):
     """
     Featurization for all atoms in a molecule. The atom indices will be preserved.
     """
 
-    def __init__(self, species):
+    def __init__(self, species, dtype="float32"):
+        super(AtomFeaturizer, self).__init__(dtype)
         self.species = sorted(species)
 
     @property
@@ -90,11 +116,10 @@ class AtomFeaturizer:
             h_u.append(num_h)
             atom_feats_dict["feat"].append(h_u)
 
-        atom_feats_dict["feat"] = torch.tensor(
-            atom_feats_dict["feat"], dtype=torch.float32
-        )
+        dtype = getattr(torch, self.dtype)
+        atom_feats_dict["feat"] = torch.tensor(atom_feats_dict["feat"], dtype=dtype)
         atom_feats_dict["node_type"] = torch.tensor(
-            atom_feats_dict["node_type"], dtype=torch.int32
+            atom_feats_dict["node_type"], dtype=dtype
         )
 
         self._feature_size = len(atom_feats_dict["feat"][0])
@@ -102,13 +127,13 @@ class AtomFeaturizer:
         return atom_feats_dict
 
 
-class BondFeaturizer:
+class BondFeaturizer(BaseFeaturizer):
     """
     Featurization for all bonds in a molecule. The bond indices will be preserved.
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, dtype="float32"):
+        super(BondFeaturizer, self).__init__(dtype)
 
     @property
     def feature_size(self):
@@ -152,19 +177,21 @@ class BondFeaturizer:
             )
             bond_feats_dict["feat"].append(feature)
 
-        bond_feats_dict["feat"] = torch.tensor(
-            bond_feats_dict["feat"], dtype=torch.float32
-        )
+        dtype = getattr(torch, self.dtype)
+        bond_feats_dict["feat"] = torch.tensor(bond_feats_dict["feat"], dtype=dtype)
 
         self._feature_size = len(bond_feats_dict["feat"][0])
 
         return bond_feats_dict
 
 
-class GlobalStateFeaturizer:
+class GlobalStateFeaturizer(BaseFeaturizer):
     """
     Featurization the global state of a molecules.
     """
+
+    def __init__(self, dtype="float32"):
+        super(GlobalStateFeaturizer, self).__init__(dtype)
 
     @property
     def feature_size(self):
@@ -173,8 +200,10 @@ class GlobalStateFeaturizer:
     def __call__(self, charge):
         global_feats_dict = dict()
         g = one_hot_encoding(charge, [-1, 0, 1])
+        dtype = getattr(torch, self.dtype)
+        global_feats_dict["feat"] = torch.tensor([g], dtype=dtype)
         self._feature_size = len(g)
-        global_feats_dict["feat"] = torch.tensor([g], dtype=torch.float32)
+
         return global_feats_dict
 
 

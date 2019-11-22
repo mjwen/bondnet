@@ -31,17 +31,11 @@ class BaseDataset:
     """
 
     def __init__(self, dtype="float32"):
-        super(BaseDataset, self).__init__()
-        if dtype == "float32":
-            self.np_dtype = np.float32
-            self.th_dtype = torch.float32
-        elif dtype == "float32":
-            self.np_dtype = np.float64
-            self.th_dtype = torch.float64
-        else:
+        if dtype not in ["float32", "float64"]:
             raise ValueError(
-                "`dtype` should be `float32` or `float64`, but get `{}`.".format(dtype)
+                "`dtype` should be `float32` or `float64`, but got `{}`.".format(dtype)
             )
+        self.dtype = dtype
         self.graphs = None
         self.labels = None
         self._feature_size = None
@@ -102,6 +96,7 @@ class ElectrolyteDataset(BaseDataset):
     """
 
     def __init__(self, sdf_file, label_file, pickle_dataset=False):
+        super(ElectrolyteDataset, self).__init__()
         self.sdf_file = sdf_file
         self.label_file = label_file
         self.pickle_dataset = pickle_dataset
@@ -140,9 +135,9 @@ class ElectrolyteDataset(BaseDataset):
             species = self._get_species()
             dataset_size = len(properties)
 
-            atom_featurizer = AtomFeaturizer(species)
-            bond_featurizer = BondFeaturizer()
-            global_featiruzer = GlobalStateFeaturizer()
+            atom_featurizer = AtomFeaturizer(species, dtype=self.dtype)
+            bond_featurizer = BondFeaturizer(dtype=self.dtype)
+            global_featiruzer = GlobalStateFeaturizer(dtype=self.dtype)
 
             self.graphs = []
             self.labels = []
@@ -155,12 +150,9 @@ class ElectrolyteDataset(BaseDataset):
 
                 charge = prop[0]
                 nbonds = int((len(prop) - 1) / 2)
-                bonds_energy = torch.from_numpy(
-                    np.asarray(prop[1 : nbonds + 1], dtype=np.float32)
-                )
-                bonds_indicator = torch.from_numpy(
-                    np.asarray(prop[nbonds + 1 :], dtype=np.float32)
-                )
+                dtype = getattr(torch, self.dtype)
+                bonds_energy = torch.tensor(prop[1 : nbonds + 1], dtype=dtype)
+                bonds_indicator = torch.tensor(prop[nbonds + 1 :], dtype=dtype)
 
                 grapher = HeteroMoleculeGraph(
                     atom_featurizer=atom_featurizer,
