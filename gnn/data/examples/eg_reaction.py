@@ -11,10 +11,10 @@ def test_buckets():
     molecules = db.to_molecules()
 
     extractor = ReactionExtractor(molecules)
-    buckets = extractor.bucket_molecules(keys=["formula", "charge", "spin_multiplicity"])
-    pprint(buckets)
-    buckets = extractor.bucket_molecules(keys=["formula"])
-    pprint(buckets)
+    extractor.bucket_molecules(keys=["formula", "charge", "spin_multiplicity"])
+    pprint(extractor.buckets)
+    extractor.bucket_molecules(keys=["formula"])
+    pprint(extractor.buckets)
 
 
 def test_extract_A_to_B():

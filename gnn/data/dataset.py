@@ -30,8 +30,18 @@ class BaseDataset:
     Base dataset class.
     """
 
-    def __init__(self):
+    def __init__(self, dtype="float32"):
         super(BaseDataset, self).__init__()
+        if dtype == "float32":
+            self.np_dtype = np.float32
+            self.th_dtype = torch.float32
+        elif dtype == "float32":
+            self.np_dtype = np.float64
+            self.th_dtype = torch.float64
+        else:
+            raise ValueError(
+                "`dtype` should be `float32` or `float64`, but get `{}`.".format(dtype)
+            )
         self.graphs = None
         self.labels = None
         self._feature_size = None
@@ -250,7 +260,39 @@ class ElectrolyteDataset(BaseDataset):
             return False
 
 
+class Subset(BaseDataset):
+    def __init__(self, dataset, indices):
+        self.dataset = dataset
+        self.indices = indices
+        self._feature_size = dataset.feature_size
+
+    def __getitem__(self, idx):
+        return self.dataset[self.indices[idx]]
+
+    def __len__(self):
+        return len(self.indices)
+
+
 def train_validation_test_split(dataset, validation=0.1, test=0.1, random_seed=35):
+    """
+    Split a dataset into training, validation, and test set.
+
+    The training set will be automatically determined based on `validation` and `test`,
+    i.e. train = 1 - validation - test.
+
+    Args:
+        dataset: the dataset
+        validation (float, optional): The amount of data (fraction) to be assigned to
+            validation set. Defaults to 0.1.
+        test (float, optional): The amount of data (fraction) to be assigned to test
+            set. Defaults to 0.1.
+        random_seed (int, optional): random seed that determines the permutation of the
+            dataset. Defaults to 35.
+
+    Returns:
+        [train set, validation set, test_set]
+    """
+    assert validation + test < 1.0, "valication + test >= 1"
     size = len(dataset)
     num_val = int(size * validation)
     num_test = int(size * test)
@@ -260,35 +302,9 @@ def train_validation_test_split(dataset, validation=0.1, test=0.1, random_seed=3
     idx = np.random.permutation(size)
     train_idx = idx[:num_train]
     val_idx = idx[num_train : num_train + num_val]
-    # test_idx = idx[num_train + num_val :]
-
-    train_x, train_y = [], []
-    test_x, test_y = [], []
-    val_x, val_y = [], []
-    for i, (x, y) in enumerate(dataset):
-        if i in train_idx:
-            train_x.append(x)
-            train_y.append(y)
-        elif i in val_idx:
-            val_x.append(x)
-            val_y.append(y)
-        else:
-            test_x.append(x)
-            test_y.append(y)
-
-    train_dataset = BaseDataset()
-    train_dataset.graphs = train_x
-    train_dataset.labels = train_y
-    train_dataset._feature_size = dataset.feature_size
-
-    val_dataset = BaseDataset()
-    val_dataset.graphs = val_x
-    val_dataset.labels = val_y
-    val_dataset._feature_size = dataset.feature_size
-
-    test_dataset = BaseDataset()
-    test_dataset.graphs = test_x
-    test_dataset.labels = test_y
-    test_dataset._feature_size = dataset.feature_size
-
-    return train_dataset, val_dataset, test_dataset
+    test_idx = idx[num_train + num_val :]
+    return [
+        Subset(dataset, train_idx),
+        Subset(dataset, val_idx),
+        Subset(dataset, test_idx),
+    ]
