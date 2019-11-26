@@ -11,6 +11,7 @@ dist/
 *.svg
 *.sdf
 *.csv
+*.pdf
 *.log
 *.out
 .idea

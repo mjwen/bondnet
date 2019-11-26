@@ -1,6 +1,6 @@
 import os
 from gnn.data.dataset import ElectrolyteDataset
-from gnn.data.feature_analyzer import VarianceThreshold, PearsonCorrelation, plot_heat_map
+from gnn.data.feature_analyzer import StdevThreshold, PearsonCorrelation, plot_heat_map
 
 
 def get_dataset():
@@ -10,29 +10,26 @@ def get_dataset():
     )
 
 
-def feature_variance():
+def feature_stdev():
     dataset = get_dataset()
-    analyzer = VarianceThreshold(dataset, threshold=0.0)
+    analyzer = StdevThreshold(dataset, threshold=0.0)
+    not_satisfied = {}
     for ntype in ["atom", "bond"]:
-        analyzer.compute(ntype)
+        not_satisfied[ntype] = analyzer.compute(ntype)
+    return not_satisfied
 
 
-def corelation():
+def corelation(excludes):
     dataset = get_dataset()
     analyzer = PearsonCorrelation(dataset)
 
     for ntype in ["atom", "bond"]:
-        if ntype == "atom":
-            exclude = [9]
-        elif ntype == "bond":
-            exclude = [3, 4, 5]
-        else:
-            exclude = None
+        exclude = excludes[ntype]
         corr = analyzer.compute(ntype, exclude)
         filename = os.path.join(os.path.dirname(__file__), "{}_heatmap.pdf".format(ntype))
         plot_heat_map(corr, filename)
 
 
 if __name__ == "__main__":
-    feature_variance()
-    corelation()
+    not_satisfied = feature_stdev()
+    corelation(not_satisfied)
