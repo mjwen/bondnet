@@ -12,7 +12,7 @@ from gnn.args import create_parser
 torch.manual_seed(35)
 
 args = create_parser()
-if args.gpu > 0 and torch.cuda.is_available():
+if args.gpu >= 0 and torch.cuda.is_available():
     args.device = torch.device("cuda")
 else:
     args.device = None
