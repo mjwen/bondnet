@@ -45,7 +45,14 @@ class BaseDataset:
         """
         Returns a dict of feature size with node type as the key.
         """
-        return self._feature_size
+        raise NotImplementedError
+
+    @property
+    def feature_name(self):
+        """
+        Returns a dict of feature name with node type as the key.
+        """
+        raise NotImplementedError
 
     def get_feature_size(self, ntypes):
         """
@@ -108,13 +115,15 @@ class ElectrolyteDataset(BaseDataset):
         else:
             self._pickled = False
 
-        self._feature_size = None
-
         self._load()
 
     @property
     def feature_size(self):
         return self._feature_size
+
+    @property
+    def feature_name(self):
+        return self._feature_name
 
     def _load(self):
         logger.info(
@@ -127,7 +136,9 @@ class ElectrolyteDataset(BaseDataset):
             self.graphs = pickle_load(self.sdf_file)
             self.labels = pickle_load(self.label_file)
             filename = self._default_stat_dict_filename()
-            self._feature_size = self.load_stat_dict(filename)
+            d = self.load_stat_dict(filename)
+            self._feature_size = d["feature_size"]
+            self._feature_name = d["feature_name"]
         else:
 
             properties = self._read_label_file()
@@ -170,10 +181,16 @@ class ElectrolyteDataset(BaseDataset):
                 self.labels.append(label)
 
             self._feature_size = {
-                "atom_featurizer": atom_featurizer.feature_size,
-                "bond_featurizer": bond_featurizer.feature_size,
-                "global_featurizer": global_featiruzer.feature_size,
+                "atom": atom_featurizer.feature_size,
+                "bond": bond_featurizer.feature_size,
+                "global": global_featiruzer.feature_size,
             }
+            self._feature_name = {
+                "atom": atom_featurizer.feature_name,
+                "bond": bond_featurizer.feature_name,
+                "global": global_featiruzer.feature_name,
+            }
+
             if self.pickle_dataset:
                 self.save_dataset()
                 filename = self._default_stat_dict_filename()
@@ -197,7 +214,8 @@ class ElectrolyteDataset(BaseDataset):
         return pickle_load(filename)
 
     def save_stat_dict(self, filename):
-        pickle_dump(self._feature_size, filename)
+        d = {"feature_size": self._feature_size, "feature_name": self._feature_name}
+        pickle_dump(d, filename)
 
     def _read_label_file(self):
         rslt = []

@@ -35,6 +35,15 @@ class BaseFeaturizer:
         """
         raise NotImplementedError
 
+    @property
+    def feature_name(self):
+        """
+        Returns:
+            a list of the names of each feature. Should be of the same length as
+            `feature_size`.
+        """
+        raise NotImplementedError
+
     def __call__(self, mol):
         """
         Returns:
@@ -52,10 +61,16 @@ class AtomFeaturizer(BaseFeaturizer):
     def __init__(self, species, dtype="float32"):
         super(AtomFeaturizer, self).__init__(dtype)
         self.species = sorted(species)
+        self._feature_size = None
+        self._feature_name = None
 
     @property
     def feature_size(self):
         return self._feature_size
+
+    @property
+    def feature_name(self):
+        return self._feature_name
 
     def __call__(self, mol):
         """
@@ -91,33 +106,71 @@ class AtomFeaturizer(BaseFeaturizer):
 
         num_atoms = mol.GetNumAtoms()
         for u in range(num_atoms):
-            atom = mol.GetAtomWithIdx(u)
-            symbol = atom.GetSymbol()
-            atom_type = atom.GetAtomicNum()
-            aromatic = atom.GetIsAromatic()
-            hybridization = atom.GetHybridization()
-            num_h = atom.GetTotalNumHs()
+            feat = []
+            feat.append(is_acceptor[u])
+            feat.append(is_donor[u])
 
-            h_u = []
-            h_u += one_hot_encoding(symbol, self.species)
-            h_u.append(atom_type)
-            h_u.append(is_acceptor[u])
-            h_u.append(is_donor[u])
-            h_u.append(int(aromatic))
-            h_u += one_hot_encoding(
-                hybridization,
+            atom = mol.GetAtomWithIdx(u)
+
+            feat.append(atom.GetDegree())
+            feat.append(atom.GetTotalDegree())
+
+            feat.append(atom.GetExplicitValence())
+            feat.append(atom.GetImplicitValence())
+            feat.append(atom.GetTotalValence())
+
+            feat.append(atom.GetFormalCharge())
+            feat.append(atom.GetNumRadicalElectrons())
+
+            feat.append(int(atom.GetIsAromatic()))
+            feat.append(int(atom.IsInRing()))
+
+            feat.append(atom.GetNumExplicitHs())
+            feat.append(atom.GetNumImplicitHs())
+            feat.append(atom.GetTotalNumHs())
+
+            feat.append(atom.GetAtomicNum())
+            feat += one_hot_encoding(atom.GetSymbol(), self.species)
+
+            feat += one_hot_encoding(
+                atom.GetHybridization(),
                 [
+                    Chem.rdchem.HybridizationType.S,
                     Chem.rdchem.HybridizationType.SP,
                     Chem.rdchem.HybridizationType.SP2,
                     Chem.rdchem.HybridizationType.SP3,
+                    Chem.rdchem.HybridizationType.SP3D,
+                    Chem.rdchem.HybridizationType.SP3D2,
                 ],
             )
-            h_u.append(num_h)
-            atom_feats_dict["feat"].append(h_u)
+
+            atom_feats_dict["feat"].append(feat)
 
         dtype = getattr(torch, self.dtype)
         atom_feats_dict["feat"] = torch.tensor(atom_feats_dict["feat"], dtype=dtype)
+
         self._feature_size = len(atom_feats_dict["feat"][0])
+        self._feature_name = (
+            [
+                "acceptor",
+                "donor",
+                "degree",
+                "total degree",
+                "explicit valence",
+                "implicit valuence",
+                "total valence",
+                "formal charge",
+                "num radical electrons",
+                "is aromatic",
+                "is in ring",
+                "num explicit H",
+                "num implicit H",
+                "num total H",
+                "atomic number",
+            ]
+            + ["chemical symbol"] * len(self.species)
+            + ["hybridization"] * 6
+        )
 
         return atom_feats_dict
 
@@ -133,6 +186,10 @@ class BondFeaturizer(BaseFeaturizer):
     @property
     def feature_size(self):
         return self._feature_size
+
+    @property
+    def feature_name(self):
+        return self._feature_name
 
     def __call__(self, mol, self_loop=False):
         """
@@ -156,26 +213,32 @@ class BondFeaturizer(BaseFeaturizer):
         if num_bonds < 1:
             warnings.warn("molecular has no bonds")
 
-        for i in range(num_bonds):
-            bond = mol.GetBondWithIdx(i)
-            bond_type = bond.GetBondType()
-            feature = one_hot_encoding(
-                bond_type,
+        for u in range(num_bonds):
+            bond = mol.GetBondWithIdx(u)
+
+            feat = []
+
+            feat.append(int(bond.GetIsAromatic()))
+            feat.append(int(bond.IsInRing()))
+            feat.append(int(bond.GetIsConjugated()))
+
+            feat += one_hot_encoding(
+                bond.GetBondType(),
                 [
                     Chem.rdchem.BondType.SINGLE,
                     Chem.rdchem.BondType.DOUBLE,
                     Chem.rdchem.BondType.TRIPLE,
                     Chem.rdchem.BondType.AROMATIC,
                     Chem.rdchem.BondType.IONIC,
-                    None,
                 ],
             )
-            bond_feats_dict["feat"].append(feature)
+            bond_feats_dict["feat"].append(feat)
 
         dtype = getattr(torch, self.dtype)
         bond_feats_dict["feat"] = torch.tensor(bond_feats_dict["feat"], dtype=dtype)
 
         self._feature_size = len(bond_feats_dict["feat"][0])
+        self._feature_name = ["is aromatic", "is in ring", "is conjugated"] + ["type"] * 5
 
         return bond_feats_dict
 
@@ -192,12 +255,18 @@ class GlobalStateFeaturizer(BaseFeaturizer):
     def feature_size(self):
         return self._feature_size
 
+    @property
+    def feature_name(self):
+        return self._feature_name
+
     def __call__(self, charge):
         global_feats_dict = dict()
         g = one_hot_encoding(charge, [-1, 0, 1])
         dtype = getattr(torch, self.dtype)
         global_feats_dict["feat"] = torch.tensor([g], dtype=dtype)
+
         self._feature_size = len(g)
+        self._feature_name = ["charge"] * len(g)
 
         return global_feats_dict
 
@@ -209,10 +278,10 @@ class HeteroMoleculeGraph:
 
     def __init__(
         self,
-        add_self_loop=False,
         atom_featurizer=None,
         bond_featurizer=None,
         global_state_featurizer=None,
+        add_self_loop=False,
     ):
         # TODO due to the way we are constructing the graph, self_loop seems not working
         self.atom_featurizer = atom_featurizer
@@ -302,8 +371,8 @@ def one_hot_encoding(x, allowable_set):
     Returns
     -------
     list
-        List of boolean values where at most one value is True.
-        If the i-th value is True, then we must have
-        x == allowable_set[i].
+        List of int (0 or 1) where at most one value is 1.
+        If the i-th value is 1, then we must have x == allowable_set[i].
     """
-    return list(map(lambda s: x == s, allowable_set))
+    return list(map(int, list(map(lambda s: x == s, allowable_set))))
+

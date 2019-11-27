@@ -47,17 +47,24 @@ class StdevThreshold(BaseAnalyzer):
                 "No feature meets the stdev threshold {:.5f}".format(self.threshold)
             )
 
+        feature_name = self.dataset.feature_name[ntype]
+        max_name_len = max([len(name) for name in feature_name])
         print("=" * 80)
         print("Node type:", ntype)
-        print("feature  stdev      mean   less than threshod({})".format(self.threshold))
+        print(
+            "feature"
+            + " " * max_name_len
+            + "stdev    mean   less than threshlod ({})".format(self.threshold)
+        )
         indices = []
-        for i, (s, m) in enumerate(zip(self.stdevs, self.means)):
+        for i, (name, s, m) in enumerate(zip(feature_name, self.stdevs, self.means)):
             if s <= self.threshold:
                 less_than = "yes"
                 indices.append(i)
             else:
                 less_than = "no"
-            print("{:4d}    {:.5f}   {:.5f}   {}".format(i, s, m, less_than))
+            fmt = "{:2d} ({})" + " " * (max_name_len - len(name)) + " {:.5f}  {:.5f}  {}"
+            print(fmt.format(i, name, s, m, less_than))
         print("=" * 80)
 
         return indices
@@ -93,8 +100,21 @@ class PearsonCorrelation(BaseAnalyzer):
         return corr
 
 
-def plot_heat_map(matrix, filename="heat_map.pdf", cmap=mpl.cm.viridis):
+def plot_heat_map(matrix, labels, filename="heat_map.pdf", cmap=mpl.cm.viridis):
     fig, ax = plt.subplots()
     im = ax.imshow(matrix, cmap=cmap)
     plt.colorbar(im)
+
+    # We want to show all ticks...
+    ax.set_xticks(np.arange(len(labels)), minor=False)
+    ax.set_yticks(np.arange(len(labels)), minor=False)
+    # label them with the respective list entries
+    ax.set_xticklabels(labels, minor=False)
+    ax.set_yticklabels(labels, minor=False)
+    ax.set_xlim(-0.5, len(labels) - 0.5)
+    ax.set_ylim(len(labels) - 0.5, -0.5)
+
+    # Rotate the tick labels and set their alignment.
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+
     fig.savefig(filename, bbox_inches="tight")

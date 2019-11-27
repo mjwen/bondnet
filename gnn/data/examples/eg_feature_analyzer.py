@@ -1,4 +1,5 @@
 import os
+import numpy as np
 from gnn.data.dataset import ElectrolyteDataset
 from gnn.data.feature_analyzer import StdevThreshold, PearsonCorrelation, plot_heat_map
 
@@ -27,7 +28,8 @@ def corelation(excludes):
         exclude = excludes[ntype]
         corr = analyzer.compute(ntype, exclude)
         filename = os.path.join(os.path.dirname(__file__), "{}_heatmap.pdf".format(ntype))
-        plot_heat_map(corr, filename)
+        labels = np.delete(dataset.feature_name[ntype], excludes[ntype])
+        plot_heat_map(corr, labels, filename)
 
 
 if __name__ == "__main__":
