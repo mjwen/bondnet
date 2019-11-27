@@ -90,7 +90,6 @@ def test_atom_featurizer():
     featurizer = AtomFeaturizer(species)
     feat = featurizer(m)
     assert featurizer.feature_size == 12
-    assert np.array_equal(feat["node_type"], node_type)
     assert np.allclose(feat["feat"], a_feat)
 
 

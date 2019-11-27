@@ -97,7 +97,6 @@ class AtomFeaturizer(BaseFeaturizer):
             aromatic = atom.GetIsAromatic()
             hybridization = atom.GetHybridization()
             num_h = atom.GetTotalNumHs()
-            atom_feats_dict["node_type"].append(atom_type)
 
             h_u = []
             h_u += one_hot_encoding(symbol, self.species)
@@ -118,10 +117,6 @@ class AtomFeaturizer(BaseFeaturizer):
 
         dtype = getattr(torch, self.dtype)
         atom_feats_dict["feat"] = torch.tensor(atom_feats_dict["feat"], dtype=dtype)
-        atom_feats_dict["node_type"] = torch.tensor(
-            atom_feats_dict["node_type"], dtype=dtype
-        )
-
         self._feature_size = len(atom_feats_dict["feat"][0])
 
         return atom_feats_dict
