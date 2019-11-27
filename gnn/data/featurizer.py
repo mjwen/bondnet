@@ -112,24 +112,24 @@ class AtomFeaturizer(BaseFeaturizer):
 
             atom = mol.GetAtomWithIdx(u)
 
-            feat.append(atom.GetDegree())
+            # feat.append(atom.GetDegree())
             feat.append(atom.GetTotalDegree())
 
-            feat.append(atom.GetExplicitValence())
-            feat.append(atom.GetImplicitValence())
+            # feat.append(atom.GetExplicitValence())
+            # feat.append(atom.GetImplicitValence())
             feat.append(atom.GetTotalValence())
 
-            feat.append(atom.GetFormalCharge())
+            # feat.append(atom.GetFormalCharge())
             feat.append(atom.GetNumRadicalElectrons())
 
             feat.append(int(atom.GetIsAromatic()))
             feat.append(int(atom.IsInRing()))
 
-            feat.append(atom.GetNumExplicitHs())
-            feat.append(atom.GetNumImplicitHs())
+            # feat.append(atom.GetNumExplicitHs())
+            # feat.append(atom.GetNumImplicitHs())
             feat.append(atom.GetTotalNumHs())
 
-            feat.append(atom.GetAtomicNum())
+            # feat.append(atom.GetAtomicNum())
             feat += one_hot_encoding(atom.GetSymbol(), self.species)
 
             feat += one_hot_encoding(
@@ -154,19 +154,19 @@ class AtomFeaturizer(BaseFeaturizer):
             [
                 "acceptor",
                 "donor",
-                "degree",
+                # "degree",
                 "total degree",
-                "explicit valence",
-                "implicit valuence",
+                # "explicit valence",
+                # "implicit valuence",
                 "total valence",
-                "formal charge",
+                # "formal charge",
                 "num radical electrons",
                 "is aromatic",
                 "is in ring",
-                "num explicit H",
-                "num implicit H",
+                # "num explicit H",
+                # "num implicit H",
                 "num total H",
-                "atomic number",
+                # "atomic number",
             ]
             + ["chemical symbol"] * len(self.species)
             + ["hybridization"] * 6
@@ -228,8 +228,8 @@ class BondFeaturizer(BaseFeaturizer):
                     Chem.rdchem.BondType.SINGLE,
                     Chem.rdchem.BondType.DOUBLE,
                     Chem.rdchem.BondType.TRIPLE,
-                    Chem.rdchem.BondType.AROMATIC,
-                    Chem.rdchem.BondType.IONIC,
+                    # Chem.rdchem.BondType.AROMATIC,
+                    # Chem.rdchem.BondType.IONIC,
                 ],
             )
             bond_feats_dict["feat"].append(feat)
@@ -238,7 +238,7 @@ class BondFeaturizer(BaseFeaturizer):
         bond_feats_dict["feat"] = torch.tensor(bond_feats_dict["feat"], dtype=dtype)
 
         self._feature_size = len(bond_feats_dict["feat"][0])
-        self._feature_name = ["is aromatic", "is in ring", "is conjugated"] + ["type"] * 5
+        self._feature_name = ["is aromatic", "is in ring", "is conjugated"] + ["type"] * 3
 
         return bond_feats_dict
 

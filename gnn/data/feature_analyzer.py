@@ -102,8 +102,7 @@ class PearsonCorrelation(BaseAnalyzer):
 
 def plot_heat_map(matrix, labels, filename="heat_map.pdf", cmap=mpl.cm.viridis):
     fig, ax = plt.subplots()
-    im = ax.imshow(matrix, cmap=cmap)
-    plt.colorbar(im)
+    im = ax.imshow(matrix, cmap=cmap, vmin=-1, vmax=1)
 
     # We want to show all ticks...
     ax.set_xticks(np.arange(len(labels)), minor=False)
@@ -116,5 +115,8 @@ def plot_heat_map(matrix, labels, filename="heat_map.pdf", cmap=mpl.cm.viridis):
 
     # Rotate the tick labels and set their alignment.
     plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+
+    # colorbar
+    plt.colorbar(im)
 
     fig.savefig(filename, bbox_inches="tight")
