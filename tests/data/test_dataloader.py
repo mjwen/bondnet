@@ -110,21 +110,6 @@ def assert_graph_struct(g, num_graphs):
     assert a2b_map == ref_a2b_map
 
 
-def test_batch_unbatch():
-
-    dataset = get_dataset()
-    graph_list = [dataset[i][0] for i in range(len(dataset))]
-    batched_g = graph_list_to_batch(graph_list)
-    unbatch_g = batch_to_graph_list(batched_g)
-
-    assert_graph_struct(batched_g, num_graphs=2)
-    assert_graph_feature(batched_g, num_graphs=2)
-
-    # assert feature only, because we keep a recored of the original struct in batched_g
-    for g in unbatch_g:
-        assert_graph_feature(g, num_graphs=1)
-
-
 def test_dataloader():
     dataset = get_dataset()
 
