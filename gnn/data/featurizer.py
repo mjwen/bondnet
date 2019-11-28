@@ -191,14 +191,12 @@ class BondFeaturizer(BaseFeaturizer):
     def feature_name(self):
         return self._feature_name
 
-    def __call__(self, mol, self_loop=False):
+    def __call__(self, mol):
         """
         Parameters
         ----------
         mol : rdkit.Chem.rdchem.Mol
             RDKit molecule object
-        self_loop : bool
-            Whether to add self loops. Default to be False.
 
         Returns
         -------
@@ -281,12 +279,13 @@ class HeteroMoleculeGraph:
         atom_featurizer=None,
         bond_featurizer=None,
         global_state_featurizer=None,
-        add_self_loop=False,
+        self_loop=True,
     ):
         # TODO due to the way we are constructing the graph, self_loop seems not working
         self.atom_featurizer = atom_featurizer
         self.bond_featurizer = bond_featurizer
         self.global_state_featurizer = global_state_featurizer
+        self.self_loop = self_loop
 
     def build_graph_and_featurize(self, mol, charge):
         """
@@ -333,16 +332,26 @@ class HeteroMoleculeGraph:
         b2g = [(b, 0) for b in range(num_bonds)]
         g2b = [(0, b) for b in range(num_bonds)]
 
-        g = dgl.heterograph(
-            {
-                ("atom", "a2b", "bond"): a2b,
-                ("bond", "b2a", "atom"): b2a,
-                ("atom", "a2g", "global"): a2g,
-                ("global", "g2a", "atom"): g2a,
-                ("bond", "b2g", "global"): b2g,
-                ("global", "g2b", "bond"): g2b,
-            }
-        )
+        edges_dict = {
+            ("atom", "a2b", "bond"): a2b,
+            ("bond", "b2a", "atom"): b2a,
+            ("atom", "a2g", "global"): a2g,
+            ("global", "g2a", "atom"): g2a,
+            ("bond", "b2g", "global"): b2g,
+            ("global", "g2b", "bond"): g2b,
+        }
+        if self.self_loop:
+            a2a = [(i, i) for i in range(num_atoms)]
+            b2b = [(i, i) for i in range(num_bonds)]
+            g2g = [(0, 0)]
+            edges_dict.update(
+                {
+                    ("atom", "a2a", "atom"): a2a,
+                    ("bond", "b2b", "bond"): b2b,
+                    ("global", "g2g", "global"): g2g,
+                }
+            )
+        g = dgl.heterograph(edges_dict)
 
         return g
 

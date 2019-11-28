@@ -26,9 +26,9 @@ train_loader = DataLoader(trainset, batch_size=10, shuffle=True)
 
 # model
 attn_mechanism = {
-    "atom": {"edges": ["b2a", "g2a"], "nodes": ["bond", "global"]},
-    "bond": {"edges": ["a2b", "g2b"], "nodes": ["atom", "global"]},
-    "global": {"edges": ["a2g", "b2g"], "nodes": ["atom", "bond"]},
+    "atom": {"edges": ["b2a", "g2a", "a2a"], "nodes": ["bond", "global", "atom"]},
+    "bond": {"edges": ["a2b", "g2b", "b2b"], "nodes": ["atom", "global", "bond"]},
+    "global": {"edges": ["a2g", "b2g", "g2g"], "nodes": ["atom", "bond", "global"]},
 }
 attn_order = ["atom", "bond", "global"]
 in_feats = trainset.get_feature_size(attn_order)

@@ -39,6 +39,7 @@ def get_dataset():
     dataset = ElectrolyteDataset(
         sdf_file=os.path.join(test_files, "EC_struct.sdf"),
         label_file=os.path.join(test_files, "EC_label.txt"),
+        self_loop=False,
     )
     for g, _ in dataset:
         g.nodes["atom"].data.update({"feat1": a_feat, "feat2": b_feat})

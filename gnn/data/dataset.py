@@ -100,12 +100,17 @@ class ElectrolyteDataset(BaseDataset):
             provided for fast recovery.
         label_file (str): path to the label file. Similar to the sdf_file, pickled file
             can be provided for fast recovery.
+        self_loop (bool): whether to create self loop, i.e. a node is connected to
+            itself through an edge.
     """
 
-    def __init__(self, sdf_file, label_file, pickle_dataset=False):
-        super(ElectrolyteDataset, self).__init__()
+    def __init__(
+        self, sdf_file, label_file, self_loop=True, pickle_dataset=False, dtype="float32"
+    ):
+        super(ElectrolyteDataset, self).__init__(dtype)
         self.sdf_file = sdf_file
         self.label_file = label_file
+        self.self_loop = self_loop
         self.pickle_dataset = pickle_dataset
 
         if self._is_pickled(self.sdf_file) != self._is_pickled(self.label_file):
@@ -119,6 +124,7 @@ class ElectrolyteDataset(BaseDataset):
 
     @property
     def feature_size(self):
+        print("@@@flag1")
         return self._feature_size
 
     @property
@@ -169,6 +175,7 @@ class ElectrolyteDataset(BaseDataset):
                     atom_featurizer=atom_featurizer,
                     bond_featurizer=bond_featurizer,
                     global_state_featurizer=global_featiruzer,
+                    self_loop=self.self_loop,
                 )
                 g = grapher.build_graph_and_featurize(mol, charge)
                 # TODO the smiles can be removed (if we want to attach some thing, we can
@@ -275,6 +282,15 @@ class Subset(BaseDataset):
         self.dataset = dataset
         self.indices = indices
         self._feature_size = dataset.feature_size
+        self._feature_name = dataset.feature_name
+
+    @property
+    def feature_size(self):
+        return self._feature_size
+
+    @property
+    def feature_name(self):
+        return self._feature_name
 
     def __getitem__(self, idx):
         return self.dataset[self.indices[idx]]
