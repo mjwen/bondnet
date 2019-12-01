@@ -1,5 +1,5 @@
 """
-The Li-EC electorlyte dataset.
+The Li-EC electrolyte dataset.
 """
 # pylint: disable=not-callable,no-member
 
@@ -154,7 +154,7 @@ class ElectrolyteDataset(BaseDataset):
 
             atom_featurizer = AtomFeaturizer(species, dtype=self.dtype)
             bond_featurizer = BondFeaturizer(dtype=self.dtype)
-            global_featiruzer = GlobalStateFeaturizer(dtype=self.dtype)
+            global_featurizer = GlobalStateFeaturizer(dtype=self.dtype)
 
             self.graphs = []
             self.labels = []
@@ -174,7 +174,7 @@ class ElectrolyteDataset(BaseDataset):
                 grapher = HeteroMoleculeGraph(
                     atom_featurizer=atom_featurizer,
                     bond_featurizer=bond_featurizer,
-                    global_state_featurizer=global_featiruzer,
+                    global_state_featurizer=global_featurizer,
                     self_loop=self.self_loop,
                 )
                 g = grapher.build_graph_and_featurize(mol, charge)
@@ -190,12 +190,12 @@ class ElectrolyteDataset(BaseDataset):
             self._feature_size = {
                 "atom": atom_featurizer.feature_size,
                 "bond": bond_featurizer.feature_size,
-                "global": global_featiruzer.feature_size,
+                "global": global_featurizer.feature_size,
             }
             self._feature_name = {
                 "atom": atom_featurizer.feature_name,
                 "bond": bond_featurizer.feature_name,
-                "global": global_featiruzer.feature_name,
+                "global": global_featurizer.feature_name,
             }
 
             if self.pickle_dataset:
@@ -318,7 +318,7 @@ def train_validation_test_split(dataset, validation=0.1, test=0.1, random_seed=3
     Returns:
         [train set, validation set, test_set]
     """
-    assert validation + test < 1.0, "valication + test >= 1"
+    assert validation + test < 1.0, "validation + test >= 1"
     size = len(dataset)
     num_val = int(size * validation)
     num_test = int(size * test)

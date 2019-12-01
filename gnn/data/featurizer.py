@@ -3,7 +3,6 @@ Featurize a molecule heterograph of atom, bond, and global nodes with RDkit.
 """
 # pylint: disable=no-member,not-callable
 
-import numpy as np
 import torch
 import os
 import warnings
@@ -55,7 +54,7 @@ class BaseFeaturizer:
 
 class AtomFeaturizer(BaseFeaturizer):
     """
-    Featurization for all atoms in a molecule. The atom indices will be preserved.
+    Featurize atoms in a molecule. The atom indices will be preserved.
     """
 
     def __init__(self, species, dtype="float32"):
@@ -157,7 +156,7 @@ class AtomFeaturizer(BaseFeaturizer):
                 # "degree",
                 "total degree",
                 # "explicit valence",
-                # "implicit valuence",
+                # "implicit valence",
                 "total valence",
                 # "formal charge",
                 "num radical electrons",
@@ -177,7 +176,7 @@ class AtomFeaturizer(BaseFeaturizer):
 
 class BondFeaturizer(BaseFeaturizer):
     """
-    Featurization for all bonds in a molecule. The bond indices will be preserved.
+    Featurize all bonds in a molecule. The bond indices will be preserved.
     """
 
     def __init__(self, dtype="float32"):
@@ -243,7 +242,7 @@ class BondFeaturizer(BaseFeaturizer):
 
 class GlobalStateFeaturizer(BaseFeaturizer):
     """
-    Featurization the global state of a molecules.
+    Featurize the global state of a molecules.
     """
 
     def __init__(self, dtype="float32"):

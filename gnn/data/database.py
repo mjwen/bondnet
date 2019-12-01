@@ -593,7 +593,7 @@ class DatabaseOperation:
                 # coords = m.get_coords()
                 # bond_order = m.get_bond_order()
                 # print('conn', conn)
-                # print('speices', species)
+                # print('species', species)
                 # print('coords', coords)
                 # print('bond_order', bond_order)
 
@@ -601,8 +601,8 @@ class DatabaseOperation:
                 smiles = m.write(file_format="smi")
                 print("id", m.id, "smiles", smiles, "formula", m.formula, "\nsdf", sdf)
 
-                fname = "images/{}_{}.svg".format(m.formula, i)
-                m.draw(fname, show_atom_idx=True)
+                filename = "images/{}_{}.svg".format(m.formula, i)
+                m.draw(filename, show_atom_idx=True)
 
                 fx.write(sdf)
                 fy.write("{},{}\n".format(m.id, m.entropy))

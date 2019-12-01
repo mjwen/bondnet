@@ -178,7 +178,7 @@ class EarlyStopping:
 
 def evaluate(model, dataset, metric_fn, nodes, device=None):
     """
-    Evalute the accuracy of a dataset for a given metric specificed by the metric_fn.
+    Evaluate the accuracy of a dataset for a given metric specified by the metric_fn.
 
     Args:
         model (callable): the model to compute prediction

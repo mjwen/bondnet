@@ -44,7 +44,9 @@ loss_func = MSELoss()
 # accuracy metric, learning rate scheduler, and stopper
 metric = MAELoss()
 patience = 100
-scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.1, patience=patience // 2)
+scheduler = ReduceLROnPlateau(
+    optimizer, mode="min", factor=0.1, patience=patience // 2, verbose=True
+)
 stopper = EarlyStopping(patience=patience)
 
 print("\n\n# Epoch     Loss         TrainAcc        ValAcc     Time (s)")
