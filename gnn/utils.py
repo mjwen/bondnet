@@ -1,4 +1,5 @@
 import os
+import time
 import pickle
 import yaml
 import torch
@@ -49,3 +50,23 @@ def stat_cuda(msg):
         )
     )
 
+
+class Timer:
+    def __init__(self):
+        self.first = None
+        self.latest = None
+
+    def step(self, msg=None):
+        if self.first is None:
+            self.first = self.latest = time.time()
+        current = time.time()
+        if msg is None:
+            m = ""
+        else:
+            m = " User message: {}.".format(msg)
+        print(
+            "{:.2f} | {:.2f}. Time (s) since last called and since first called.{}".format(
+                current - self.latest, current - self.first, m
+            )
+        )
+        self.latest = current

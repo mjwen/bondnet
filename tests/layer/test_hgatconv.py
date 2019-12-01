@@ -23,7 +23,7 @@ def make_hetero_graph():
 
     g = dgl.heterograph(
         {
-            ("atom", "a2b", "bond"): [(0, 0), (1, 0), (1, 1), (1, 2), (2, 1), (3, 1)],
+            ("atom", "a2b", "bond"): [(0, 0), (1, 0), (1, 1), (1, 2), (2, 1), (3, 2)],
             ("bond", "b2a", "atom"): [(0, 0), (0, 1), (1, 1), (1, 2), (2, 1), (2, 3)],
             ("atom", "a2g", "global"): [(i, 0) for i in range(4)],
             ("global", "g2a", "atom"): [(0, i) for i in range(4)],

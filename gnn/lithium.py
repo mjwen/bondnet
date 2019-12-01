@@ -97,7 +97,7 @@ for epoch in range(num_epochs):
             epoch, epoch_loss, train_acc, val_acc, tt
         )
     )
-    if epoch % (num_epochs // 10) == 0:
+    if epoch % (max(num_epochs // 10, 1)) == 0:
         sys.stdout.flush()
 
 test_acc = evaluate(model, testset, metric, attn_order, args.device)

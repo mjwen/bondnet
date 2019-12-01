@@ -276,10 +276,10 @@ class HGATConv(nn.Module):
                 activation,
             )
 
-    def forward(self, g, feats):
+    def forward(self, graph, feats):
         """
         Args:
-            g (dgl heterograph): a heterograph
+            graph (dgl heterograph): a heterograph
             feats (dict): node features with node type as key and the corresponding
             features as value.
 
@@ -297,7 +297,7 @@ class HGATConv(nn.Module):
         for ntype in self.master_nodes:
             master_feats = updated_feats[ntype]
             attn_feats = [updated_feats[t] for t in self.attn_mechamism[ntype]["nodes"]]
-            ft = self.layers[ntype](g, master_feats, attn_feats)
+            ft = self.layers[ntype](graph, master_feats, attn_feats)
             updated_feats[ntype] = ft.flatten(start_dim=1)  # flatten the head dimension
         return updated_feats
 
