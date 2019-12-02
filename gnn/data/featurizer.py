@@ -383,4 +383,3 @@ def one_hot_encoding(x, allowable_set):
         If the i-th value is 1, then we must have x == allowable_set[i].
     """
     return list(map(int, list(map(lambda s: x == s, allowable_set))))
-

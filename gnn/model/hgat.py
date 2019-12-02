@@ -4,7 +4,7 @@ Graph Attention Networks for heterograph.
 
 import torch.nn as nn
 from gnn.layer.hgatconv import HGATConv
-from gnn.layer.pooling import ConcatenatePooling
+from gnn.layer.readout import ConcatenateMeanMax
 
 
 class HGAT(nn.Module):
@@ -82,7 +82,7 @@ class HGAT(nn.Module):
 
         # TODO this should be passed in as arguments
         canonical_etypes = [("atom", "a2b", "bond")]
-        self.polling_layer = ConcatenatePooling(etypes=canonical_etypes)
+        self.polling_layer = ConcatenateMeanMax(etypes=canonical_etypes)
 
         # hidden fc layer
         # 3 because we concatenate atom feats to bond feats in polling_layer
@@ -92,7 +92,7 @@ class HGAT(nn.Module):
             self.fc_layers.append(fc_activation)
             in_size = fc_hidden_size
 
-        # outout layer
+        # output layer
         self.fc_layers.append(nn.Linear(in_size, 1, bias=True))
 
     def forward(self, graph, feats):
