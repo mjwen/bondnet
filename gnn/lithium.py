@@ -8,6 +8,7 @@ from gnn.data.dataloader import DataLoader
 from gnn.model.hgat import HGAT
 from gnn.metric import MSELoss, MAELoss, evaluate, EarlyStopping
 from gnn.args import create_parser
+from gnn.utils import pickle_dump
 
 torch.manual_seed(35)
 
@@ -32,13 +33,26 @@ attn_mechanism = {
 }
 attn_order = ["atom", "bond", "global"]
 in_feats = trainset.get_feature_size(attn_order)
-model = HGAT(attn_mechanism, attn_order, in_feats)
+model = HGAT(
+    attn_mechanism,
+    attn_order,
+    in_feats,
+    gat_hidden_size=args.gat_hidden_size,
+    num_gat_layers=args.num_gat_layers,
+    num_heads=args.num_heads,
+    feat_drop=args.feat_drop,
+    attn_drop=args.attn_drop,
+    negative_slope=args.negative_slope,
+    residual=args.residual,
+    num_fc_layers=args.num_fc_layers,
+    fc_hidden_size=args.fc_hidden_size,
+)
 print(model)
 if args.device is not None:
     model.to(device=args.device)
 
 # optimizer and loss
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 loss_func = MSELoss()
 
 # accuracy metric, learning rate scheduler, and stopper
@@ -52,8 +66,7 @@ stopper = EarlyStopping(patience=patience)
 print("\n\n# Epoch     Loss         TrainAcc        ValAcc     Time (s)")
 t0 = time.time()
 
-num_epochs = 10
-for epoch in range(num_epochs):
+for epoch in range(args.epochs):
     ti = time.time()
 
     model.train()
@@ -90,8 +103,9 @@ for epoch in range(num_epochs):
     val_acc = evaluate(model, valset, metric, attn_order, args.device)
     scheduler.step(val_acc)
     if stopper.step(val_acc, model, msg="epoch " + str(epoch)):
+        # save results for hyperparam tune
+        pickle_dump(float(stopper.best_score), args.output_file)
         break
-
     tt = time.time() - ti
 
     print(
@@ -99,8 +113,11 @@ for epoch in range(num_epochs):
             epoch, epoch_loss, train_acc, val_acc, tt
         )
     )
-    if epoch % (max(num_epochs // 10, 1)) == 0:
+    if epoch % (max(args.epochs // 10, 1)) == 0:
         sys.stdout.flush()
+
+# save results for hyperparam tune
+pickle_dump(float(stopper.best_score), args.output_file)
 
 test_acc = evaluate(model, testset, metric, attn_order, args.device)
 tt = time.time() - t0
