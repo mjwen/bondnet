@@ -46,7 +46,7 @@ class HGAT(nn.Module):
         self.gat_layers = nn.ModuleList()
         self.fc_layers = nn.ModuleList()
 
-        # input projection (no residual, no dropout)
+        # input projection (no dropout)
         self.gat_layers.append(
             HGATConv(
                 attn_mechanism,
@@ -57,7 +57,7 @@ class HGAT(nn.Module):
                 feat_drop=0,
                 attn_drop=0,
                 negative_slope=negative_slope,
-                residual=False,
+                residual=residual,
                 unify_size=True,
             )
         )
@@ -75,7 +75,7 @@ class HGAT(nn.Module):
                     feat_drop=feat_drop,
                     attn_drop=attn_drop,
                     negative_slope=negative_slope,
-                    residual=True,
+                    residual=residual,
                     unify_size=False,
                 )
             )
