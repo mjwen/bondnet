@@ -11,17 +11,26 @@ class HGAT(nn.Module):
     """
     Heterograph attention network.
 
+
     Args:
-        nn ([type]): [description]
-        g ([type]): [description]
-        num_heads (int, optional): [description]. Defaults to 8.
-        hidden_size (int, optional): [description]. Defaults to 64.
-        num_layers (int, optional): [description]. Defaults to 2.
+        attn_mechanism (dict of dict): The attention mechanism, i.e. how the node
+            features will be updated. The outer dict has `node types` as its key,
+            and the inner dict has keys `nodes` and `edges`, where the values (list)
+            of `nodes` are the `node types` that the master node will attend to,
+            and the corresponding `edges` are the `edge types`.
+        attn_order (list): The order to attend the node features. Order matters.
+        in_feats (list): list of input feature size for the corresponding (w.r.t.
+            index) node in `attn_order`.
+        num_gat_layers (int): number of graph attention layer
+        gat_hidden_size (int): hidden size of graph attention layer
+        num_heads (int): number of attention heads, the same for all nodes
         feat_drop (float, optional): [description]. Defaults to 0.0.
         attn_drop (float, optional): [description]. Defaults to 0.0.
         negative_slope (float, optional): [description]. Defaults to 0.2.
         residual (bool, optional): [description]. Defaults to False.
-        activation ([type], optional): [description]. Defaults to None.
+        num_fc_layers (int): number of fc layers
+        fc_hidden_size (int): hidden size of fc layer
+        fc_activation (int): activation fn of fc layer
     """
 
     def __init__(
@@ -29,8 +38,8 @@ class HGAT(nn.Module):
         attn_mechanism,
         attn_order,
         in_feats,
-        gat_hidden_size=64,
         num_gat_layers=3,
+        gat_hidden_size=64,
         num_heads=8,
         feat_drop=0.0,
         attn_drop=0.0,
@@ -44,7 +53,6 @@ class HGAT(nn.Module):
         super(HGAT, self).__init__()
 
         self.gat_layers = nn.ModuleList()
-        self.fc_layers = nn.ModuleList()
 
         # input projection (no dropout)
         self.gat_layers.append(
@@ -82,18 +90,16 @@ class HGAT(nn.Module):
 
         # TODO this should be passed in as arguments
         canonical_etypes = [("atom", "a2b", "bond")]
-        self.polling_layer = ConcatenateMeanMax(etypes=canonical_etypes)
+        self.readout_layer = ConcatenateMeanMax(etypes=canonical_etypes)
 
-        # hidden fc layer
-        # 3 because we concatenate atom feats to bond feats in polling_layer
+        self.fc_layers = nn.ModuleList()
+        # 3 because we concatenate atom feats to bond feats in readout_layer
         in_size = gat_hidden_size * 3
         for _ in range(num_fc_layers - 1):
-            self.fc_layers.append(nn.Linear(in_size, fc_hidden_size, bias=True))
+            self.fc_layers.append(nn.Linear(in_size, fc_hidden_size))
             self.fc_layers.append(fc_activation)
             in_size = fc_hidden_size
-
-        # output layer
-        self.fc_layers.append(nn.Linear(in_size, 1, bias=True))
+        self.fc_layers.append(nn.Linear(in_size, 1))
 
     def forward(self, graph, feats):
         h = feats
@@ -102,8 +108,8 @@ class HGAT(nn.Module):
         for layer in self.gat_layers:
             h = layer(graph, h)
 
-        # pooling layer
-        h = self.polling_layer(graph, h)
+        # readout layer
+        h = self.readout_layer(graph, h)
 
         # fc
         # NOTE we add the 0 * h["atom"] + 0 * h["global"] to prevent GPU memory leak
