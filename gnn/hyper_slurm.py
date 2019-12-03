@@ -19,7 +19,7 @@ domain = ht.Domain(
 )
 
 
-#optimiser = ht.BayesianOptimisation(domain)
+# optimiser = ht.BayesianOptimisation(domain)
 optimiser = ht.GridSearch(domain, sample_continuous=True)
 
 reporter = ht.Table(domain, metrics=["score"])
@@ -38,9 +38,9 @@ with ht.Scheduler(n_parallel=batch_size) as scheduler:
                     "binary": "python",
                     "resources": {"cpu": 1},
                     "extra": [
-                       # "#SBATCH --partition=lr4",
-                       # "#SBATCH --qos=condo_mp_lr2",
-                       # "#SBATCH --account=lr_mp",
+                        # "#SBATCH --partition=lr4",
+                        # "#SBATCH --qos=condo_mp_lr2",
+                        # "#SBATCH --account=lr_mp",
                         "#SBATCH --partition=lr4",
                         "#SBATCH --qos=lr_lowprio",
                         "#SBATCH --account=ac_mp",

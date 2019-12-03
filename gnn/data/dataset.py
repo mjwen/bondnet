@@ -124,7 +124,6 @@ class ElectrolyteDataset(BaseDataset):
 
     @property
     def feature_size(self):
-        print("@@@flag1")
         return self._feature_size
 
     @property

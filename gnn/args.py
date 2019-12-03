@@ -51,9 +51,9 @@ def create_parser():
     parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
     # parser.add_argument("--weight-decay", type=float, default=5e-4, help="weight decay")
 
-    # output file
+    # output file (needed by hypertunity)
     parser.add_argument(
-        "--output_file", type=str, default="output.txt", help="name of output file"
+        "--output_file", type=str, default="results.pkl", help="name of output file"
     )
 
     args = parser.parse_args()
