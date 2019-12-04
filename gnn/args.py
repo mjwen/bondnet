@@ -60,13 +60,19 @@ def create_parser():
 
     args = parser.parse_args()
 
-    assert len(args.gat_hidden_size) == args.num_gat_layers, (
-        "length of `gat-hidden-size` should be equal to `num-gat-layers`, but got {} and "
-        "{}.".format(args.gat_hidden_size, args.num_gat_layers)
-    )
+    if len(args.gat_hidden_size) == 1:
+        args.gat_hidden_size = args.gat_hidden_size * args.num_gat_layers
+    else:
+        assert len(args.gat_hidden_size) == args.num_gat_layers, (
+            "length of `gat-hidden-size` should be equal to `num-gat-layers`, but got "
+            "{} and {}.".format(args.gat_hidden_size, args.num_gat_layers)
+        )
+
+    if len(args.fc_hidden_size) == 1:
+        args.fc_hidden_size = args.fc_hidden_size * args.num_fc_layers
     assert len(args.fc_hidden_size) == args.num_fc_layers, (
-        "length of `fc-hidden-size` should be equal to `num-fc-layers`, but got {} and "
-        "{}.".format(args.fc_hidden_size, args.num_fc_layers)
+        "length of `fc-hidden-size` should be equal to `num-fc-layers`, but got "
+        "{} and {}.".format(args.fc_hidden_size, args.num_fc_layers)
     )
     # for k, v in vars(args).items():
     #     print(k, v)

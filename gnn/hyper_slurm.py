@@ -4,8 +4,8 @@ import hypertunity as ht
 
 domain = ht.Domain(
     {
-        "--gat-hidden-size": {32, 64, 128},
         "--num-gat-layers": {2, 3, 4},
+        "--gat-hidden-size": {32, 64, 128},
         "--num-heads": {4, 8},
         # "--feat-drop":{0.0},
         # "--attn-drop":{0.0},
@@ -14,7 +14,8 @@ domain = ht.Domain(
         "--num-fc-layers": {2, 3, 4},
         "--fc-hidden-size": {32, 64, 128},
         # "--lr": [0.001, 0.01],
-        "--epochs": {1000},
+        "--weight-decay": {0.001, 0.01},
+        "--epochs": {10},
     }
 )
 
