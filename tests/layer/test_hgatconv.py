@@ -105,7 +105,7 @@ def test_node_attn_layer():
         master_node="atom",
         attn_nodes=["bond", "global"],
         attn_edges=["b2a", "g2a"],
-        in_feats=in_feats,
+        in_feats={nt: in_feats for nt in ("atom", "bond", "global")},
         out_feats=out_feats,
         num_heads=num_heads,
         activation=None,
@@ -134,11 +134,9 @@ def test_hgat_conv_layer():
 
     out_feats = 5
     num_heads = 2
-    gat_layer = HGATConv(
-        attn_mechanism, attn_order, in_feats, out_feats, num_heads, unify_size=True
-    )
+    gat_layer = HGATConv(attn_mechanism, attn_order, in_feats, out_feats, num_heads)
     out = gat_layer(g, feats)
 
     assert set(out.keys()) == set(attn_order)
     for k, v in out.items():
-        assert np.array_equal(v.shape, [num_nodes[k], out_feats])
+        assert np.array_equal(v.shape, (num_nodes[k], out_feats * num_heads))

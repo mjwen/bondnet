@@ -40,6 +40,7 @@ class HGAT(nn.Module):
         in_feats,
         num_gat_layers=3,
         gat_hidden_size=64,
+        gat_activation=nn.ELU(),
         num_heads=8,
         feat_drop=0.0,
         attn_drop=0.0,
@@ -47,7 +48,7 @@ class HGAT(nn.Module):
         residual=False,
         num_fc_layers=3,
         fc_hidden_size=64,
-        fc_activation=nn.ReLU(),
+        fc_activation=nn.ELU(),
     ):
 
         super(HGAT, self).__init__()
@@ -66,12 +67,12 @@ class HGAT(nn.Module):
                 attn_drop=0,
                 negative_slope=negative_slope,
                 residual=residual,
-                unify_size=True,
+                activation=gat_activation,
             )
         )
 
         # hidden gat layers
-        in_size = [gat_hidden_size for _ in in_feats]
+        in_size = [gat_hidden_size * num_heads for _ in in_feats]
         for _ in range(1, num_gat_layers):
             self.gat_layers.append(
                 HGATConv(
@@ -84,7 +85,7 @@ class HGAT(nn.Module):
                     attn_drop=attn_drop,
                     negative_slope=negative_slope,
                     residual=residual,
-                    unify_size=False,
+                    activation=gat_activation,
                 )
             )
 
@@ -94,7 +95,7 @@ class HGAT(nn.Module):
 
         self.fc_layers = nn.ModuleList()
         # 3 because we concatenate atom feats to bond feats in readout_layer
-        in_size = gat_hidden_size * 3
+        in_size = gat_hidden_size * num_heads * 3
         for _ in range(num_fc_layers - 1):
             self.fc_layers.append(nn.Linear(in_size, fc_hidden_size))
             self.fc_layers.append(fc_activation)

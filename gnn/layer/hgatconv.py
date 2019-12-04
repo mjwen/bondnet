@@ -1,6 +1,5 @@
 """Torch modules for GAT for heterograph."""
 # pylint: disable=no-member
-from functools import partial
 import torch
 from torch import nn
 from dgl import function as fn
@@ -45,7 +44,7 @@ class NodeAttentionLayer(nn.Module):
         attn_nodes (list of str): node types that the master node attends to
         attn_edges (list of str): the type of the edges that connect attention
             nodes to master node; should be of same size of `attn_nodes`.
-        in_feats (int): [description]
+        in_feats (dict): feature sizes with node type as key
         out_feats (int): [description]
         num_heads (int): [description]
         feat_drop (float, optional): [description]. Defaults to 0.0.
@@ -79,38 +78,47 @@ class NodeAttentionLayer(nn.Module):
         self.master_node = master_node
         self.attn_nodes = attn_nodes
         self.attn_edges = attn_edges
-        self.in_feats = in_feats
-        self.out_feats = out_feats
         self.num_heads = num_heads
+        self.out_feats = out_feats
         self.activation = activation
 
-        # NOTE we may want to combine this fc layer with the UnifySize layer, if we want
-        # to use smaller number of parameters. Of course, this depends on the actual
-        # size of in_feats and out_feats and num_heats.
-        self.fc = nn.Linear(in_feats, out_feats * num_heads, bias=False)
+        self.edge_types = [(n, e, master_node) for n, e in zip(attn_nodes, attn_edges)]
+
+        # linear FC layer to unify size
+        self.fc_layers = nn.ModuleDict(
+            {
+                nt: nn.Linear(sz, out_feats * num_heads, bias=False)
+                for nt, sz in in_feats.items()
+            }
+        )
+
         # TODO here the dtype is hard-coded, should we change it if we want to try double?
         self.attn_l = nn.Parameter(torch.FloatTensor(size=(1, num_heads, out_feats)))
         self.attn_r = nn.Parameter(torch.FloatTensor(size=(1, num_heads, out_feats)))
+
         # NOTE dropout could also be considered separately for different types of nodes
         self.feat_drop = nn.Dropout(feat_drop)
         self.attn_drop = nn.Dropout(attn_drop)
         self.leaky_relu = nn.LeakyReLU(negative_slope)
+
         if residual:
-            if in_feats != out_feats:
-                self.res_fc = nn.Linear(in_feats, num_heads * out_feats, bias=False)
+            if in_feats[self.master_node] != out_feats:
+                self.res_fc = nn.Linear(
+                    in_feats[self.master_node], num_heads * out_feats, bias=False
+                )
             else:
                 self.res_fc = nn.Identity()
         else:
             self.register_buffer("res_fc", None)
+
         self.reset_parameters()
 
-        self.edge_types = [(n, e, master_node) for n, e in zip(attn_nodes, attn_edges)]
-
     def reset_parameters(self):
-        """Reinitialize learnable parameters."""
+        """Reinitialize parameters."""
         # NOTE do we need other type of initialization, e.g. Kaiming?
         gain = nn.init.calculate_gain("relu")
-        nn.init.xavier_normal_(self.fc.weight, gain=gain)
+        for nt, layer in self.fc_layers.items():
+            nn.init.xavier_normal_(layer.weight, gain=gain)
         nn.init.xavier_normal_(self.attn_l, gain=gain)
         nn.init.xavier_normal_(self.attn_r, gain=gain)
         if isinstance(self.res_fc, nn.Linear):
@@ -139,15 +147,17 @@ class NodeAttentionLayer(nn.Module):
         # assign data
         # master node
         master_h = self.feat_drop(master_feats)  # (N, in)
-        feats = self.fc(master_h).view(-1, self.num_heads, self.out_feats)  # (N, H, out)
+        feats = self.fc_layers[self.master_node](master_h).view(
+            -1, self.num_heads, self.out_feats
+        )  # (N, H, out)
         er = (feats * self.attn_r).sum(dim=-1).unsqueeze(-1)  # (N, H, 1)
         graph.nodes[self.master_node].data.update({"ft": feats, "er": er})
         # attention node
-        for node, feats in zip(self.attn_nodes, attn_feats):
+        for ntype, feats in zip(self.attn_nodes, attn_feats):
             h = self.feat_drop(feats)
-            feats = self.fc(h).view(-1, self.num_heads, self.out_feats)
+            feats = self.fc_layers[ntype](h).view(-1, self.num_heads, self.out_feats)
             el = (feats * self.attn_l).sum(dim=-1).unsqueeze(-1)
-            graph.nodes[node].data.update({"ft": feats, "el": el})
+            graph.nodes[ntype].data.update({"ft": feats, "el": el})
 
         # compute edge attention
         e = []  # each component is of shape(Ne, H, 1)
@@ -203,7 +213,6 @@ class HGATConv(nn.Module):
         attn_drop (float, optional): [description]. Defaults to 0.0.
         negative_slope (float, optional): [description]. Defaults to 0.2.
         residual (bool, optional): [description]. Defaults to False.
-        unify_size (bool, optional): [description]. Defaults to False.
     """
 
     def __init__(
@@ -212,12 +221,12 @@ class HGATConv(nn.Module):
         attn_order,
         in_feats,
         out_feats,
-        num_heads,
+        num_heads=4,
         feat_drop=0.0,
         attn_drop=0.0,
         negative_slope=0.2,
         residual=False,
-        unify_size=False,
+        activation=None,
     ):
 
         super(HGATConv, self).__init__()
@@ -225,45 +234,24 @@ class HGATConv(nn.Module):
         self.attn_mechanism = attn_mechanism
         self.master_nodes = attn_order
 
+        in_feats_map = dict(zip(attn_order, in_feats))
+
         self.layers = nn.ModuleDict()
-
-        # unify size layer
-        if unify_size:
-            self.layers["unify_size"] = UnifySize(
-                {n: sz for n, sz in zip(self.master_nodes, in_feats)}, out_feats
-            )
-            size_first = out_feats
-        else:
-            size_first = list(set(in_feats))
-            msg = (
-                "'in_feats = {}': size not equal. Either let them be the same or set "
-                "unify_size' to be 'True'".format(in_feats)
-            )
-            assert len(size_first) == 1, msg
-            size_first = size_first[0]
-
-        for i, ntype in enumerate(self.master_nodes):
-            if i == 0:
-                in_size = size_first
-            else:
-                # in_size = out_feats * num_heads  # output size of the previous layer
-                in_size = out_feats
-
-            # NOTE partial is used as a readout function to reduce the heads dimension
-            activation = partial(torch.mean, dim=1)
+        for ntype in self.master_nodes:
             self.layers[ntype] = NodeAttentionLayer(
-                ntype,
-                self.attn_mechanism[ntype]["nodes"],
-                self.attn_mechanism[ntype]["edges"],
-                in_size,
-                out_feats,
-                num_heads,
-                feat_drop,
-                attn_drop,
-                negative_slope,
-                residual,
-                activation,
+                master_node=ntype,
+                attn_nodes=self.attn_mechanism[ntype]["nodes"],
+                attn_edges=self.attn_mechanism[ntype]["edges"],
+                in_feats=in_feats_map,
+                out_feats=out_feats,
+                num_heads=num_heads,
+                feat_drop=feat_drop,
+                attn_drop=attn_drop,
+                negative_slope=negative_slope,
+                residual=residual,
+                activation=activation,
             )
+            in_feats_map[ntype] = num_heads * out_feats
 
     def forward(self, graph, feats):
         """
@@ -279,10 +267,7 @@ class HGATConv(nn.Module):
             out feature size and number of heads specified at instantiation (the same
             for different keys.)
         """
-        if "unify_size" in self.layers:
-            updated_feats = self.layers["unify_size"](feats)
-        else:
-            updated_feats = {k: v for k, v in feats.items()}
+        updated_feats = {k: v for k, v in feats.items()}
         for ntype in self.master_nodes:
             master_feats = updated_feats[ntype]
             attn_feats = [updated_feats[t] for t in self.attn_mechanism[ntype]["nodes"]]
