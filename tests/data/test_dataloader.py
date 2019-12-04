@@ -3,7 +3,7 @@ import numpy as np
 import os
 import torch
 from collections import defaultdict
-from gnn.data.dataset import ElectrolyteDataset
+from gnn.data.electrolyte import ElectrolyteDataset
 from gnn.data.dataloader import DataLoader
 from gnn.data.utils import get_atom_to_bond_map, get_bond_to_atom_map
 
