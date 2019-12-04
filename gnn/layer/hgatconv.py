@@ -1,6 +1,5 @@
 """Torch modules for GAT for heterograph."""
 # pylint: disable=no-member
-from functools import partial
 import torch
 from torch import nn
 from dgl import function as fn
@@ -226,6 +225,7 @@ class HGATConv(nn.Module):
         self.master_nodes = attn_order
 
         self.layers = nn.ModuleDict()
+        self.resize_layers = nn.ModuleDict()
 
         # unify size layer
         if unify_size:
@@ -250,7 +250,7 @@ class HGATConv(nn.Module):
                 in_size = out_feats
 
             # NOTE partial is used as a readout function to reduce the heads dimension
-            activation = partial(torch.mean, dim=1)
+            activation = nn.ELU()
             self.layers[ntype] = NodeAttentionLayer(
                 ntype,
                 self.attn_mechanism[ntype]["nodes"],
@@ -264,6 +264,7 @@ class HGATConv(nn.Module):
                 residual,
                 activation,
             )
+            self.resize_layers[ntype] = nn.Linear(in_size * num_heads, out_feats)
 
     def forward(self, graph, feats):
         """
@@ -287,7 +288,8 @@ class HGATConv(nn.Module):
             master_feats = updated_feats[ntype]
             attn_feats = [updated_feats[t] for t in self.attn_mechanism[ntype]["nodes"]]
             ft = self.layers[ntype](graph, master_feats, attn_feats)
-            updated_feats[ntype] = ft.flatten(start_dim=1)  # flatten the head dimension
+            # flatten the head dimension
+            updated_feats[ntype] = self.resize_layers[ntype](ft.flatten(start_dim=1))
         return updated_feats
 
 

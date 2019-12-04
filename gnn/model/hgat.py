@@ -47,7 +47,7 @@ class HGAT(nn.Module):
         residual=False,
         num_fc_layers=3,
         fc_hidden_size=64,
-        fc_activation=nn.ReLU(),
+        fc_activation=nn.ELU(),
     ):
 
         super(HGAT, self).__init__()
