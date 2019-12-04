@@ -53,7 +53,9 @@ if args.device is not None:
     model.to(device=args.device)
 
 # optimizer and loss
-optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+optimizer = torch.optim.Adam(
+    model.parameters(), lr=args.lr, weight_decay=args.weight_decay
+)
 loss_func = MSELoss()
 
 # accuracy metric, learning rate scheduler, and stopper

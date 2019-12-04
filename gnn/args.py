@@ -51,7 +51,7 @@ def create_parser():
         "--epochs", type=int, default=100, help="number of training epochs"
     )
     parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
-    # parser.add_argument("--weight-decay", type=float, default=5e-4, help="weight decay")
+    parser.add_argument("--weight-decay", type=float, default=5e-4, help="weight decay")
 
     # output file (needed by hypertunity)
     parser.add_argument(
