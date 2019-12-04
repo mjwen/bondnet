@@ -3,7 +3,8 @@ import sys
 import time
 import torch
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from gnn.data.dataset import ElectrolyteDataset, train_validation_test_split
+from gnn.data.dataset import train_validation_test_split
+from gnn.data.electrolyte import ElectrolyteDataset
 from gnn.data.dataloader import DataLoader
 from gnn.model.hgat import HGAT
 from gnn.metric import MSELoss, MAELoss, evaluate, EarlyStopping
@@ -37,8 +38,8 @@ model = HGAT(
     attn_mechanism,
     attn_order,
     in_feats,
-    gat_hidden_size=args.gat_hidden_size,
     num_gat_layers=args.num_gat_layers,
+    gat_hidden_size=args.gat_hidden_size,
     num_heads=args.num_heads,
     feat_drop=args.feat_drop,
     attn_drop=args.attn_drop,

@@ -11,7 +11,8 @@ def create_parser():
     parser.add_argument(
         "--gat-hidden-size",
         type=int,
-        default=64,
+        nargs="+",
+        default=[32, 32, 32],
         help="number of hidden units of GAT layers",
     )
     parser.add_argument(
@@ -37,7 +38,8 @@ def create_parser():
     parser.add_argument(
         "--fc-hidden-size",
         type=int,
-        default=64,
+        nargs="+",
+        default=[32, 32, 32],
         help="number of hidden units of fc layers",
     )
 
@@ -57,6 +59,15 @@ def create_parser():
     )
 
     args = parser.parse_args()
+
+    assert len(args.gat_hidden_size) == args.num_gat_layers, (
+        "length of `gat-hidden-size` should be equal to `num-gat-layers`, but got {} and "
+        "{}.".format(args.gat_hidden_size, args.num_gat_layers)
+    )
+    assert len(args.fc_hidden_size) == args.num_fc_layers, (
+        "length of `fc-hidden-size` should be equal to `num-fc-layers`, but got {} and "
+        "{}.".format(args.fc_hidden_size, args.num_fc_layers)
+    )
     # for k, v in vars(args).items():
     #     print(k, v)
     return args
