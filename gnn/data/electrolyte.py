@@ -6,6 +6,7 @@ The Li-EC electrolyte dataset.
 import torch
 import os
 import logging
+from rdkit import Chem
 from gnn.utils import expand_path, pickle_dump, pickle_load
 from gnn.data.featurizer import (
     AtomFeaturizer,
@@ -14,12 +15,6 @@ from gnn.data.featurizer import (
     HeteroMoleculeGraph,
 )
 from gnn.data.dataset import BaseDataset
-
-try:
-    from rdkit import Chem
-    from rdkit.Chem import rdmolops
-except ImportError:
-    pass
 
 
 logger = logging.getLogger(__name__)
@@ -73,10 +68,8 @@ class ElectrolyteDataset(BaseDataset):
                 )
             )
 
-            self.graphs = pickle_load(self.sdf_file)
-            self.labels = pickle_load(self.label_file)
-            filename = self._default_state_dict_filename()
-            d = self.load_state_dict(filename)
+            self.graphs, self.labels = self.load_dataset()
+            d = self.load_state_dict(self._default_state_dict_filename())
             self._feature_size = d["feature_size"]
             self._feature_name = d["feature_name"]
 
@@ -87,23 +80,23 @@ class ElectrolyteDataset(BaseDataset):
                 )
             )
 
-            properties = self._read_label_file()
-            supp = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
             species = self._get_species()
-            dataset_size = len(properties)
-
             atom_featurizer = AtomFeaturizer(species, dtype=self.dtype)
             bond_featurizer = BondFeaturizer(dtype=self.dtype)
             global_featurizer = GlobalStateFeaturizer(dtype=self.dtype)
 
+            properties = self._read_label_file()
+
             self.graphs = []
             self.labels = []
+            supp = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
+
             for i, (mol, prop) in enumerate(zip(supp, properties)):
-
                 if i % 100 == 0:
-                    logger.info("Processing molecule {}/{}".format(i, dataset_size))
+                    logger.info("Processing molecule {}/{}".format(i, len(properties)))
 
-                mol = rdmolops.AddHs(mol, explicitOnly=True)
+                if mol is None:  # bad mol
+                    continue
 
                 charge = prop[0]
                 nbonds = int((len(prop) - 1) / 2)
@@ -141,11 +134,54 @@ class ElectrolyteDataset(BaseDataset):
 
         logger.info("Finish loading {} graphs...".format(len(self.labels)))
 
+    # def save_dataset(self):
+    #     filename = os.path.splitext(self.sdf_file)[0] + ".pkl"
+    #     pickle_dump(self.graphs, filename)
+    #     filename = os.path.splitext(self.label_file)[0] + ".pkl"
+    #     pickle_dump(self.labels, filename)
+    #
+    # def load_dataset(self):
+    #     graphs = pickle_load(self.sdf_file)
+    #     labels = pickle_load(self.label_file)
+    #     return graphs, labels
+
+    # NOTE currently, DGLHeterograph does not support pickle, so we pickle the data only
+    # and we can get back to the above two functions once it is supported
     def save_dataset(self):
         filename = os.path.splitext(self.sdf_file)[0] + ".pkl"
-        pickle_dump(self.graphs, filename)
+        data = []
+        for g in self.graphs:
+            ndata = {t: dict(g.nodes[t].data) for t in g.ntypes}
+            edata = {t: dict(g.edges[t].data) for t in g.etypes}
+            data.append([ndata, edata])
+        pickle_dump(data, filename)
         filename = os.path.splitext(self.label_file)[0] + ".pkl"
         pickle_dump(self.labels, filename)
+
+    def load_dataset(self):
+        data = pickle_load(self.sdf_file)
+        fname = self.sdf_file.replace(".pkl", ".sdf")
+        supp = Chem.SDMolSupplier(fname, sanitize=True, removeHs=False)
+
+        graphs = []
+        i = 0
+        for mol in supp:
+            if mol is None:  # bad mol
+                continue
+            entry = data[i]
+            i += 1
+
+            grapher = HeteroMoleculeGraph(self_loop=self.self_loop)
+            g = grapher.build_graph(mol)
+            for t, v in entry[0].items():
+                g.nodes[t].data.update(v)
+            for t, v in entry[1].items():
+                g.edges[t].data.update(v)
+            graphs.append(g)
+
+        labels = pickle_load(self.label_file)
+
+        return graphs, labels
 
     def _default_state_dict_filename(self):
         filename = expand_path(self.sdf_file)
@@ -153,7 +189,8 @@ class ElectrolyteDataset(BaseDataset):
             os.path.dirname(filename), self.__class__.__name__ + "_state_dict.pkl"
         )
 
-    def load_state_dict(self, filename):
+    @staticmethod
+    def load_state_dict(filename):
         return pickle_load(filename)
 
     def save_state_dict(self, filename):
@@ -175,12 +212,12 @@ class ElectrolyteDataset(BaseDataset):
         suppl = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
         system_species = set()
         for i, mol in enumerate(suppl):
-            try:
-                atoms = mol.GetAtoms()
-                species = [a.GetSymbol() for a in atoms]
-                system_species.update(species)
-            except AttributeError:
-                raise RuntimeError("Bad mol '{}' from sdf file.".format(i))
+            if mol is None:
+                logger.info("bad mol {}.".format(i))
+                continue
+            atoms = mol.GetAtoms()
+            species = [a.GetSymbol() for a in atoms]
+            system_species.update(species)
         return list(system_species)
 
     # TODO we may need to implement normalization in featurizer and provide a wrapper

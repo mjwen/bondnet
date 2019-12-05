@@ -178,6 +178,8 @@ class BondFeaturizer(BaseFeaturizer):
 
     def __init__(self, dtype="float32"):
         super(BondFeaturizer, self).__init__(dtype)
+        self._feature_size = None
+        self._feature_name = None
 
     @property
     def feature_size(self):
@@ -242,6 +244,8 @@ class GlobalStateFeaturizer(BaseFeaturizer):
 
     def __init__(self, dtype="float32"):
         super(GlobalStateFeaturizer, self).__init__(dtype)
+        self._feature_size = None
+        self._feature_name = None
 
     @property
     def feature_size(self):
@@ -288,12 +292,12 @@ class HeteroMoleculeGraph:
 
         Args:
             mol (rdkit mol): a rdkit molecule
+            charge (int): total charge of the molecule
 
         Returns:
-            g: dgl heterograph
-            bond_idx_to_atom_idx (dict): mapping between two type bond indices, key is
-                integer bond index, and value is a tuple of atom indices that specify
-                the bond.
+            (dgl heterograph): bond_idx_to_atom_idx (dict): mapping between two type
+                bond indices, key is integer bond index, and value is a tuple of atom
+                indices that specify the bond.
         """
 
         g = self.build_graph(mol)
