@@ -66,20 +66,26 @@ class ElectrolyteDataset(BaseDataset):
         return self._feature_name
 
     def _load(self):
-        logger.info(
-            "Start loading dataset from {} and {}...".format(
-                self.sdf_file, self.label_file
-            )
-        )
-
         if self._pickled:
+            logger.info(
+                "Start loading dataset from picked files {} and {}...".format(
+                    self.sdf_file, self.label_file
+                )
+            )
+
             self.graphs = pickle_load(self.sdf_file)
             self.labels = pickle_load(self.label_file)
-            filename = self._default_stat_dict_filename()
-            d = self.load_stat_dict(filename)
+            filename = self._default_state_dict_filename()
+            d = self.load_state_dict(filename)
             self._feature_size = d["feature_size"]
             self._feature_name = d["feature_name"]
+
         else:
+            logger.info(
+                "Start loading dataset from files {} and {}...".format(
+                    self.sdf_file, self.label_file
+                )
+            )
 
             properties = self._read_label_file()
             supp = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
@@ -130,8 +136,8 @@ class ElectrolyteDataset(BaseDataset):
 
             if self.pickle_dataset:
                 self.save_dataset()
-                filename = self._default_stat_dict_filename()
-                self.save_stat_dict(filename)
+                filename = self._default_state_dict_filename()
+                self.save_state_dict(filename)
 
         logger.info("Finish loading {} graphs...".format(len(self.labels)))
 
@@ -141,16 +147,16 @@ class ElectrolyteDataset(BaseDataset):
         filename = os.path.splitext(self.label_file)[0] + ".pkl"
         pickle_dump(self.labels, filename)
 
-    def _default_stat_dict_filename(self):
+    def _default_state_dict_filename(self):
         filename = expand_path(self.sdf_file)
         return os.path.join(
-            os.path.dirname(filename), self.__class__.__name__ + "_stat_dict.pkl"
+            os.path.dirname(filename), self.__class__.__name__ + "_state_dict.pkl"
         )
 
-    def load_stat_dict(self, filename):
+    def load_state_dict(self, filename):
         return pickle_load(filename)
 
-    def save_stat_dict(self, filename):
+    def save_state_dict(self, filename):
         d = {"feature_size": self._feature_size, "feature_name": self._feature_name}
         pickle_dump(d, filename)
 
@@ -174,8 +180,7 @@ class ElectrolyteDataset(BaseDataset):
                 species = [a.GetSymbol() for a in atoms]
                 system_species.update(species)
             except AttributeError:
-                raise RuntimeError("Error reading mol '{}' from sdf file.".format(i))
-
+                raise RuntimeError("Bad mol '{}' from sdf file.".format(i))
         return list(system_species)
 
     # TODO we may need to implement normalization in featurizer and provide a wrapper
@@ -201,7 +206,7 @@ class ElectrolyteDataset(BaseDataset):
     @staticmethod
     def _is_pickled(filename):
         filename = expand_path(filename)
-        if os.path.splitext(filename)[1] == "pkl":
+        if os.path.splitext(filename)[1] == ".pkl":
             return True
         else:
             return False

@@ -154,26 +154,27 @@ class EarlyStopping:
         score = acc
         if self.best_score is None:
             self.best_score = score
-            self.save_checkpoint(model, msg)
-        elif score > self.best_score:
+            self.save_checkpoint(model, msg, score)
+        elif score < self.best_score:
+            self.best_score = score
+            self.save_checkpoint(model, msg, score)
+            self.counter = 0
+        else:
             self.counter += 1
             if not self.silent:
                 print("EarlyStopping counter: {}/{}".format(self.counter, self.patience))
             if self.counter >= self.patience:
                 self.early_stop = True
-        else:
-            self.best_score = score
-            self.save_checkpoint(model, msg)
-            self.counter = 0
         return self.early_stop
 
-    def save_checkpoint(self, model, msg):
+    @staticmethod
+    def save_checkpoint(model, msg, score):
         """
         Saves model when validation loss decrease.
         """
         torch.save(model.state_dict(), "es_checkpoint.pkl")
         with open("es_message.log", "w") as f:
-            f.write(str(msg))
+            f.write("{}  {}".format(msg, score))
 
 
 def evaluate(model, dataset, metric_fn, nodes, device=None):

@@ -11,7 +11,6 @@ import dgl
 
 try:
     from rdkit import Chem
-    from rdkit.Chem import rdmolops
     from rdkit.Chem import ChemicalFeatures
     from rdkit import RDConfig
 except ImportError:
@@ -83,8 +82,6 @@ class AtomFeaturizer(BaseFeaturizer):
         atom_feats_dict : dict
             Dictionary for atom features
         """
-        mol = rdmolops.AddHs(mol, explicitOnly=True)
-
         atom_feats_dict = defaultdict(list)
         is_donor = defaultdict(int)
         is_acceptor = defaultdict(int)
@@ -202,8 +199,6 @@ class BondFeaturizer(BaseFeaturizer):
         bond_feats_dict : dict
             Dictionary for bond features
         """
-        mol = rdmolops.AddHs(mol, explicitOnly=True)
-
         bond_feats_dict = defaultdict(list)
 
         num_bonds = mol.GetNumBonds()
@@ -306,7 +301,6 @@ class HeteroMoleculeGraph:
         return g
 
     def build_graph(self, mol):
-        mol = rdmolops.AddHs(mol, explicitOnly=True)
         num_atoms = mol.GetNumAtoms()
 
         # bonds

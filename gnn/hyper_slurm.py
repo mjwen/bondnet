@@ -37,7 +37,7 @@ with ht.Scheduler(n_parallel=batch_size) as scheduler:
                 args=s.as_dict(),
                 meta={
                     "binary": "python",
-                    "resources": {"cpu": 1},
+                    "resources": {"cpu": 1, "time": "24:00:00"},
                     "extra": [
                         # "#SBATCH --partition=lr4",
                         # "#SBATCH --qos=condo_mp_lr2",
@@ -45,6 +45,7 @@ with ht.Scheduler(n_parallel=batch_size) as scheduler:
                         "#SBATCH --partition=lr4",
                         "#SBATCH --qos=lr_lowprio",
                         "#SBATCH --account=ac_mp",
+                        "#SBATCH --requeue",
                         "module load cuda",
                         "conda activate dgl",
                     ],

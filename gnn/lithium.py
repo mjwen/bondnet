@@ -116,7 +116,7 @@ for epoch in range(args.epochs):
             epoch, epoch_loss, train_acc, val_acc, tt
         )
     )
-    if epoch % (max(args.epochs // 10, 1)) == 0:
+    if epoch % 10 == 0:
         sys.stdout.flush()
 
 # save results for hyperparam tune
