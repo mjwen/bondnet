@@ -17,7 +17,6 @@ class BaseDataset:
         self.dtype = dtype
         self.graphs = None
         self.labels = None
-        self._feature_size = None
 
     @property
     def feature_size(self):
@@ -72,18 +71,17 @@ class BaseDataset:
 class Subset(BaseDataset):
     def __init__(self, dataset, indices):
         super(Subset, self).__init__()
+        self.dtype = dataset.dtype
         self.dataset = dataset
         self.indices = indices
-        self._feature_size = dataset.feature_size
-        self._feature_name = dataset.feature_name
 
     @property
     def feature_size(self):
-        return self._feature_size
+        return self.dataset.feature_size
 
     @property
     def feature_name(self):
-        return self._feature_name
+        return self.dataset.feature_name
 
     def __getitem__(self, idx):
         return self.dataset[self.indices[idx]]

@@ -15,6 +15,7 @@ from gnn.data.featurizer import (
     HeteroMoleculeGraph,
 )
 from gnn.data.dataset import BaseDataset
+from gnn.utils import expand_path
 
 
 logger = logging.getLogger(__name__)
@@ -38,8 +39,8 @@ class ElectrolyteDataset(BaseDataset):
         self, sdf_file, label_file, self_loop=True, pickle_dataset=False, dtype="float32"
     ):
         super(ElectrolyteDataset, self).__init__(dtype)
-        self.sdf_file = sdf_file
-        self.label_file = label_file
+        self.sdf_file = expand_path(sdf_file)
+        self.label_file = expand_path(label_file)
         self.self_loop = self_loop
         self.pickle_dataset = pickle_dataset
 

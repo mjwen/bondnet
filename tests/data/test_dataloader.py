@@ -4,7 +4,8 @@ import os
 import torch
 from collections import defaultdict
 from gnn.data.electrolyte import ElectrolyteDataset
-from gnn.data.dataloader import DataLoader
+from gnn.data.qm9 import QM9Dataset
+from gnn.data.dataloader import DataLoader, DataLoaderQM9
 from gnn.data.utils import get_atom_to_bond_map, get_bond_to_atom_map
 
 
@@ -30,9 +31,6 @@ b_feat = torch.tensor(
 )
 g_feat = torch.tensor([[0.0, 0.0, 1.0]])
 
-ref_label_energies = [[0, 0.1, 0, 0.2, 0, 0.3], [0.4, 0, 0, 0.5, 0, 0]]
-ref_label_indicators = [[0, 1, 0, 0, 1, 0], [1, 0, 0, 1, 0, 0]]
-
 
 def get_dataset():
     test_files = os.path.dirname(__file__)
@@ -45,6 +43,16 @@ def get_dataset():
         g.nodes["atom"].data.update({"feat1": a_feat, "feat2": b_feat})
         g.nodes["bond"].data.update({"feat1": a_feat, "feat2": b_feat})
         g.nodes["global"].data.update({"feat_g": g_feat})
+    return dataset
+
+
+def get_qm9():
+    test_files = os.path.dirname(__file__)
+    dataset = QM9Dataset(
+        sdf_file=os.path.join(test_files, "gdb9_n2.sdf"),
+        label_file=os.path.join(test_files, "gdb9_n2.sdf.csv"),
+        self_loop=False,
+    )
     return dataset
 
 
@@ -112,14 +120,20 @@ def assert_graph_struct(g, num_graphs):
 
 
 def test_dataloader():
+    # label references
+    ref_label_energies = [[0, 0.1, 0, 0.2, 0, 0.3], [0.4, 0, 0, 0.5, 0, 0]]
+    ref_label_indicators = [[0, 1, 0, 0, 1, 0], [1, 0, 0, 1, 0, 0]]
+
     dataset = get_dataset()
 
     # batch size 1 case
     data_loader = DataLoader(dataset, batch_size=1, shuffle=False)
     for i, (graph, labels) in enumerate(data_loader):
+
         # graph struct and feature
         assert_graph_struct(graph, num_graphs=1)
         assert_graph_feature(graph, num_graphs=1)
+
         # assert label
         assert np.allclose(labels["energies"], ref_label_energies[i])
         assert np.allclose(labels["indicators"], ref_label_indicators[i])
@@ -127,9 +141,32 @@ def test_dataloader():
     # batch size 2 case
     data_loader = DataLoader(dataset, batch_size=2, shuffle=False)
     for graph, labels in data_loader:
+
         # graph struct and feature
         assert_graph_struct(graph, num_graphs=2)
         assert_graph_feature(graph, num_graphs=2)
+
         # assert label
         assert np.allclose(labels["energies"], np.concatenate(ref_label_energies))
         assert np.allclose(labels["indicators"], np.concatenate(ref_label_indicators))
+
+
+def test_qm9():
+    # label references
+    refs = {"A": [157.7118, 293.60975], "h298_atom": [-401.014646522, -280.399259105]}
+
+    dataset = get_qm9()
+
+    # batch size 1 case
+    for prop in ["A", "h298_atom"]:
+        data_loader = DataLoaderQM9(dataset, prop, batch_size=1, shuffle=False)
+        for i, (graph, labels) in enumerate(data_loader):
+            r = np.atleast_2d(refs[prop][i])
+            assert np.allclose(labels, r)
+
+    # batch size 2 case
+    for prop in ["A", "h298_atom"]:
+        data_loader = DataLoaderQM9(dataset, prop, batch_size=2, shuffle=False)
+        for graph, labels in data_loader:
+            r = np.asarray(refs[prop]).reshape(2, 1)
+            assert np.allclose(labels, r)

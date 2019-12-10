@@ -32,7 +32,7 @@ def make_hetero_graph():
     for ntype, size in feats_size.items():
         num_node = g.number_of_nodes(ntype)
         ft = torch.tensor(
-            torch.arange(num_node * size).view(num_node, size), dtype=torch.float32
+            np.arange(num_node * size).reshape(num_node, size), dtype=torch.float32
         )
         g.nodes[ntype].data.update({"feat": ft})
         feats[ntype] = ft

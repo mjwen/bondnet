@@ -26,11 +26,11 @@ def test_electrolyte_label():
 
 def test_qm9_label():
     dataset = QM9Dataset(
-        sdf_file=os.path.join(test_files, "gdb9.sdf_n200"),
-        label_file=os.path.join(test_files, "gdb9.sdf.csv_n200"),
+        sdf_file=os.path.join(test_files, "gdb9_n2.sdf"),
+        label_file=os.path.join(test_files, "gdb9_n2.sdf.csv"),
     )
     size = len(dataset)
-    assert size == 199
+    assert size == 2
     for i in range(size):
         _, label = dataset[i]
         assert np.allclose(
