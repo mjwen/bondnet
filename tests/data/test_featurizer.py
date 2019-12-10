@@ -59,7 +59,7 @@ def test_bond_featurizer():
 
 def test_global_state_featurizer():
     featurizer = GlobalStateFeaturizer()
-    feat = featurizer(charge=1)
+    feat = featurizer(None, charge=1)
     assert featurizer.feature_size == 3
     size = featurizer.feature_size
     assert np.array_equal(feat["feat"].shape, (1, size))
@@ -167,7 +167,7 @@ def test_graph_featurize():
     grapher = HeteroMoleculeGraph(
         atom_featurizer, bond_featurizer, global_state_featurizer
     )
-    g = grapher.build_graph_and_featurize(m, charge)
+    g = grapher.build_graph_and_featurize(m, charge=charge)
     assert np.array_equal(
         g.nodes["atom"].data["feat"].shape,
         (m.GetNumAtoms(), atom_featurizer.feature_size),

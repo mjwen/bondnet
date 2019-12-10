@@ -42,7 +42,7 @@ class BaseFeaturizer:
         """
         raise NotImplementedError
 
-    def __call__(self, mol):
+    def __call__(self, mol, **kwargs):
         """
         Returns:
             A dictionary of the features.
@@ -70,7 +70,7 @@ class AtomFeaturizer(BaseFeaturizer):
     def feature_name(self):
         return self._feature_name
 
-    def __call__(self, mol):
+    def __call__(self, mol, **kwargs):
         """
         Parameters
         ----------
@@ -189,7 +189,7 @@ class BondFeaturizer(BaseFeaturizer):
     def feature_name(self):
         return self._feature_name
 
-    def __call__(self, mol):
+    def __call__(self, mol, **kwargs):
         """
         Parameters
         ----------
@@ -255,7 +255,12 @@ class GlobalStateFeaturizer(BaseFeaturizer):
     def feature_name(self):
         return self._feature_name
 
-    def __call__(self, charge):
+    def __call__(self, mol, **kwargs):
+        try:
+            charge = kwargs["charge"]
+        except KeyError as e:
+            raise KeyError("{} charge needed for {}.".format(e, self.__class__.__name__))
+
         global_feats_dict = dict()
         g = one_hot_encoding(charge, [-1, 0, 1])
         dtype = getattr(torch, self.dtype)
@@ -285,14 +290,14 @@ class HeteroMoleculeGraph:
         self.global_state_featurizer = global_state_featurizer
         self.self_loop = self_loop
 
-    def build_graph_and_featurize(self, mol, charge):
+    def build_graph_and_featurize(self, mol, **kwargs):
         """
         Build an a heterograph, with three types of nodes: atom, bond, and glboal
         state, and then featurize the graph.
 
         Args:
             mol (rdkit mol): a rdkit molecule
-            charge (int): total charge of the molecule
+            kwargs: extra keyword arguments needed by featurizer
 
         Returns:
             (dgl heterograph): bond_idx_to_atom_idx (dict): mapping between two type
@@ -301,7 +306,7 @@ class HeteroMoleculeGraph:
         """
 
         g = self.build_graph(mol)
-        g = self.featurize(g, mol, charge)
+        g = self.featurize(g, mol, **kwargs)
         return g
 
     def build_graph(self, mol):
@@ -352,14 +357,14 @@ class HeteroMoleculeGraph:
 
         return g
 
-    def featurize(self, g, mol, charge):
+    def featurize(self, g, mol, **kwargs):
 
         if self.atom_featurizer is not None:
-            g.nodes["atom"].data.update(self.atom_featurizer(mol))
+            g.nodes["atom"].data.update(self.atom_featurizer(mol, **kwargs))
         if self.bond_featurizer is not None:
-            g.nodes["bond"].data.update(self.bond_featurizer(mol))
+            g.nodes["bond"].data.update(self.bond_featurizer(mol, **kwargs))
         if self.global_state_featurizer is not None:
-            g.nodes["global"].data.update(self.global_state_featurizer(charge))
+            g.nodes["global"].data.update(self.global_state_featurizer(mol, **kwargs))
 
         return g
 

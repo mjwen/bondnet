@@ -118,6 +118,6 @@ for epoch in range(args.epochs):
 # save results for hyperparam tune
 pickle_dump(float(stopper.best_score), args.output_file)
 
-test_acc = evaluate(model, testset, metric, attn_order, args.device)
+test_acc = evaluate_qm9(model, testset, metric, attn_order, args.device)
 tt = time.time() - t0
 print("\n#TestAcc: {:12.6e} | Total time (s): {:.2f}\n".format(test_acc, tt))

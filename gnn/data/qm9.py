@@ -7,10 +7,11 @@ QM9 dataset.
 import torch
 import logging
 from rdkit import Chem
+from rdkit.Chem.rdchem import GetPeriodicTable
 from gnn.data.featurizer import (
+    BaseFeaturizer,
     AtomFeaturizer,
     BondFeaturizer,
-    GlobalStateFeaturizer,
     HeteroMoleculeGraph,
 )
 from gnn.data.electrolyte import ElectrolyteDataset
@@ -19,6 +20,43 @@ import numpy as np
 
 
 logger = logging.getLogger(__name__)
+
+
+class GlobalStateFeaturizer(BaseFeaturizer):
+    """
+    Featurize the global state of a molecules.
+    """
+
+    def __init__(self, dtype="float32"):
+        super(GlobalStateFeaturizer, self).__init__(dtype)
+        self._feature_size = None
+        self._feature_name = None
+
+    @property
+    def feature_size(self):
+        return self._feature_size
+
+    @property
+    def feature_name(self):
+        return self._feature_name
+
+    def __call__(self, mol):
+
+        global_feats_dict = dict()
+        pd = GetPeriodicTable()
+        g = [
+            mol.GetNumAtoms(),
+            mol.GetNumBonds(),
+            sum([pd.GetAtomicWeight(a.GetAtomicNum()) for a in mol.GetAtoms()]),
+        ]
+
+        dtype = getattr(torch, self.dtype)
+        global_feats_dict["feat"] = torch.tensor([g], dtype=dtype)
+
+        self._feature_size = len(g)
+        self._feature_name = ["num atoms", "num bonds", "molecule weight"]
+
+        return global_feats_dict
 
 
 class QM9Dataset(ElectrolyteDataset):
@@ -71,7 +109,7 @@ class QM9Dataset(ElectrolyteDataset):
                     global_state_featurizer=global_featurizer,
                     self_loop=self.self_loop,
                 )
-                g = grapher.build_graph_and_featurize(mol, charge=0)
+                g = grapher.build_graph_and_featurize(mol)
                 self.graphs.append(g)
 
             labels = np.delete(labels, bad_mols, axis=0)

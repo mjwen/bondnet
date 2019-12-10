@@ -111,7 +111,7 @@ class ElectrolyteDataset(BaseDataset):
                     global_state_featurizer=global_featurizer,
                     self_loop=self.self_loop,
                 )
-                g = grapher.build_graph_and_featurize(mol, charge)
+                g = grapher.build_graph_and_featurize(mol, charge=charge)
                 self.graphs.append(g)
 
                 label = {"energies": bonds_energy, "indicators": bonds_indicator}
