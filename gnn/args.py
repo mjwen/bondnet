@@ -43,6 +43,19 @@ def create_parser():
         help="number of hidden units of fc layers",
     )
 
+    parser.add_argument(
+        "--num-lstm-iters",
+        type=int,
+        default=5,
+        help="number of iterations for the LSTM in set2set readout layer",
+    )
+    parser.add_argument(
+        "--num-lstm-layers",
+        type=int,
+        default=3,
+        help="number of layers for the LSTM in set2set readout layer",
+    )
+
     # training
     parser.add_argument(
         "--gpu", type=int, default=-1, help="which GPU to use. Set -1 to use CPU."

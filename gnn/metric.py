@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 import warnings
-from gnn.data.dataloader import DataLoader
+from gnn.data.dataloader import DataLoader, DataLoaderQM9
 
 
 class MSELoss(nn.Module):
@@ -203,4 +203,35 @@ def evaluate(model, dataset, metric_fn, nodes, device=None):
                 label = {k: v.to(device) for k, v in label.items()}
             pred = model(bg, feats)
             accuracy = metric_fn(pred, label["energies"], label["indicators"])
+            return accuracy
+
+
+# TODO this should be combined with the above, 1) passing data loader in; 2) metric_fn
+#  on label only
+def evaluate_qm9(model, dataset, metric_fn, nodes, device=None):
+    """
+    Evaluate the accuracy of a dataset for a given metric specified by the metric_fn.
+
+    Args:
+        model (callable): the model to compute prediction
+        dataset: the dataset
+        metric_fn (callable): a metric function to evaluate the accuracy
+        nodes (list of str): the graph nodes on which feats reside
+        device (str): to device to perform the computation. e.g. `cpu`, `cuda`
+
+    Returns:
+        float: accuracy
+    """
+    model.eval()
+    size = len(dataset)  # whole dataset
+    data_loader = DataLoaderQM9(dataset, "u0", batch_size=size, shuffle=False)
+
+    with torch.no_grad():
+        for bg, label in data_loader:
+            feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
+            if device is not None:
+                feats = {k: v.to(device) for k, v in feats.items()}
+                label = {k: v.to(device) for k, v in label.items()}
+            pred = model(bg, feats)
+            accuracy = metric_fn(pred, label)
             return accuracy

@@ -26,6 +26,7 @@ class DataLoader(torch.utils.data.DataLoader):
         super(DataLoader, self).__init__(dataset, collate_fn=collate, **kwargs)
 
 
+# TODO, could be better to let property be a argument of QM9 dataset, not dataloader
 class DataLoaderQM9(torch.utils.data.DataLoader):
     def __init__(self, dataset, property, **kwargs):
         if "collate_fn" in kwargs:

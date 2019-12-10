@@ -191,6 +191,13 @@ class Set2SetThenCat(nn.Module):
             )
 
     def forward(self, graph, feats):
+        """
+        Args:
+            graph: DGLHeterograph or BatchedDGLHeterograph
+            feats (dict): feature dict
+        Returns:
+            dict: features
+        """
         rst = []
         for nt in self.ntypes:
             ft = self.layers[nt](graph, feats[nt])
