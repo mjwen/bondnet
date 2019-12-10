@@ -149,19 +149,19 @@ class ElectrolyteDataset(BaseDataset):
     # NOTE currently, DGLHeterograph does not support pickle, so we pickle the data only
     # and we can get back to the above two functions once it is supported
     def save_dataset(self):
-        filename = os.path.splitext(self.sdf_file)[0] + ".pkl"
+        filename = self.sdf_file + ".pkl"
         data = []
         for g in self.graphs:
             ndata = {t: dict(g.nodes[t].data) for t in g.ntypes}
             edata = {t: dict(g.edges[t].data) for t in g.etypes}
             data.append([ndata, edata])
         pickle_dump(data, filename)
-        filename = os.path.splitext(self.label_file)[0] + ".pkl"
+        filename = self.label_file + ".pkl"
         pickle_dump(self.labels, filename)
 
     def load_dataset(self):
         data = pickle_load(self.sdf_file)
-        fname = self.sdf_file.replace(".pkl", ".sdf")
+        fname = self.sdf_file.replace(".pkl", "")
         supp = Chem.SDMolSupplier(fname, sanitize=True, removeHs=False)
 
         graphs = []

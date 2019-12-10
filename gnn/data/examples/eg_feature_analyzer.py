@@ -15,8 +15,8 @@ def get_dataset_electrolyte():
 
 def get_pickled_electrolyte():
     return ElectrolyteDataset(
-        sdf_file="/Users/mjwen/Applications/mongo_db_access/extracted_data/sturct_n200.pkl",
-        label_file="/Users/mjwen/Applications/mongo_db_access/extracted_data/label_n200.pkl",
+        sdf_file="/Users/mjwen/Applications/mongo_db_access/extracted_data/sturct_n200.sdf.pkl",
+        label_file="/Users/mjwen/Applications/mongo_db_access/extracted_data/label_n200.txt.pkl",
     )
 
 
@@ -30,8 +30,8 @@ def get_dataset_qm9():
 
 def get_pickled_qm9():
     return QM9Dataset(
-        sdf_file="/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.pkl",
-        label_file="/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf.pkl",
+        sdf_file="/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf.pkl",
+        label_file="/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf.csv.pkl",
     )
 
 
