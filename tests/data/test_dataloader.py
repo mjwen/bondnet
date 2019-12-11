@@ -46,13 +46,14 @@ def get_dataset():
     return dataset
 
 
-def get_qm9(properties):
+def get_qm9(properties, uc):
     test_files = os.path.dirname(__file__)
     dataset = QM9Dataset(
         sdf_file=os.path.join(test_files, "gdb9_n2.sdf"),
         label_file=os.path.join(test_files, "gdb9_n2.sdf.csv"),
         self_loop=False,
         properties=properties,
+        unit_conversion=uc,
     )
     return dataset
 
@@ -159,7 +160,7 @@ def test_dataloader_qm9():
 
     # batch size 1 case
     for prop in properties:
-        dataset = get_qm9([prop])
+        dataset = get_qm9([prop], uc=False)
         data_loader = DataLoaderQM9(dataset, batch_size=1, shuffle=False)
         for i, (graph, labels) in enumerate(data_loader):
             r = np.atleast_2d(refs[prop][i])
@@ -167,7 +168,7 @@ def test_dataloader_qm9():
 
     # batch size 2 case
     for prop in properties:
-        dataset = get_qm9([prop])
+        dataset = get_qm9([prop], uc=False)
         data_loader = DataLoaderQM9(dataset, batch_size=2, shuffle=False)
         for graph, labels in data_loader:
             r = np.asarray(refs[prop]).reshape(2, 1)

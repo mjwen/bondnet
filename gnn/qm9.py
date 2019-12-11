@@ -24,7 +24,7 @@ else:
 # dataset
 sdf_file = "/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf"
 label_file = "/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf.csv"
-dataset = QM9Dataset(sdf_file, label_file, properties=["u0"])
+dataset = QM9Dataset(sdf_file, label_file, properties=["u0_atom"], unit_conversion=True)
 trainset, valset, testset = train_validation_test_split(dataset, validation=0.1, test=0.1)
 train_loader = DataLoaderQM9(trainset, batch_size=10, shuffle=True)
 val_loader = DataLoaderQM9(valset, batch_size=len(valset), shuffle=False)

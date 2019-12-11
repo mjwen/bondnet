@@ -6,6 +6,7 @@ QM9 dataset.
 
 import torch
 import logging
+from _collections import OrderedDict
 from rdkit import Chem
 from rdkit.Chem.rdchem import GetPeriodicTable
 from gnn.data.featurizer import (
@@ -71,10 +72,12 @@ class QM9Dataset(ElectrolyteDataset):
         label_file,
         self_loop=True,
         properties=None,
+        unit_conversion=True,
         pickle_dataset=False,
         dtype="float32",
     ):
         self.properties = properties
+        self.unit_conversion = unit_conversion
         super(QM9Dataset, self).__init__(
             sdf_file, label_file, self_loop, pickle_dataset, dtype
         )
@@ -153,36 +156,48 @@ class QM9Dataset(ElectrolyteDataset):
         rst = pd.read_csv(self.label_file, index_col=0)
         rst = rst.to_numpy()
 
+        h2e = 27.211396132  # Hatree to eV
+        k2e = 0.0433634  # kcal/mol to eV
+
+        # supported property and unit conversion
+        supp_prop = OrderedDict()
+        supp_prop["A"] = 1.0
+        supp_prop["B"] = 1.0
+        supp_prop["C"] = 1.0
+        supp_prop["mu"] = 1.0
+        supp_prop["alpha"] = 1.0
+        supp_prop["homo"] = h2e
+        supp_prop["lumo"] = h2e
+        supp_prop["gap"] = h2e
+        supp_prop["r2"] = 1.0
+        supp_prop["zpve"] = h2e
+        supp_prop["u0"] = h2e
+        supp_prop["u298"] = h2e
+        supp_prop["h298"] = h2e
+        supp_prop["g298"] = h2e
+        supp_prop["cv"] = 1
+        supp_prop["u0_atom"] = k2e
+        supp_prop["u298_atom"] = k2e
+        supp_prop["h298_atom"] = k2e
+        supp_prop["g298_atom"] = k2e
+
         if self.properties is not None:
-            supported_properties = [
-                "A",
-                "B",
-                "C",
-                "mu",
-                "alpha",
-                "homo",
-                "lumo",
-                "gap",
-                "r2",
-                "zpve",
-                "u0",
-                "u298",
-                "h298",
-                "g298",
-                "cv",
-                "u0_atom",
-                "u298_atom",
-                "h298_atom",
-                "g298_atom",
-            ]
+
             for prop in self.properties:
-                if prop not in supported_properties:
+                if prop not in supp_prop:
                     raise ValueError(
                         "Property '{}' not supported. Supported ones are: {}".format(
-                            property, supported_properties
+                            property, supp_prop
                         )
                     )
-            indices = [supported_properties.index(p) for p in self.properties]
+            supp_list = list(supp_prop.keys())
+            indices = [supp_list.index(p) for p in self.properties]
             rst = rst[:, indices]
+            convert = [supp_prop[p] for p in self.properties]
+        else:
+            convert = [v for k, v in supp_prop.items()]
+
+        if self.unit_conversion:
+            rst = np.multiply(rst, convert)
 
         return rst
