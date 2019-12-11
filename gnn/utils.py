@@ -2,6 +2,8 @@ import os
 import time
 import pickle
 import yaml
+import random
+import numpy as np
 import torch
 
 
@@ -49,6 +51,17 @@ def stat_cuda(msg):
             torch.cuda.max_memory_cached() / 1024 / 1024,
         )
     )
+
+
+def seed_torch(seed=35):
+    random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # if using multi-GPU
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
 
 
 class Timer:

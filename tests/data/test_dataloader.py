@@ -135,8 +135,8 @@ def test_dataloader():
         assert_graph_feature(graph, num_graphs=1)
 
         # assert label
-        assert np.allclose(labels["energies"], ref_label_energies[i])
-        assert np.allclose(labels["indicators"], ref_label_indicators[i])
+        assert np.allclose(labels["value"], ref_label_energies[i])
+        assert np.allclose(labels["indicator"], ref_label_indicators[i])
 
     # batch size 2 case
     data_loader = DataLoader(dataset, batch_size=2, shuffle=False)
@@ -147,11 +147,11 @@ def test_dataloader():
         assert_graph_feature(graph, num_graphs=2)
 
         # assert label
-        assert np.allclose(labels["energies"], np.concatenate(ref_label_energies))
-        assert np.allclose(labels["indicators"], np.concatenate(ref_label_indicators))
+        assert np.allclose(labels["value"], np.concatenate(ref_label_energies))
+        assert np.allclose(labels["indicator"], np.concatenate(ref_label_indicators))
 
 
-def test_qm9():
+def test_dataloader_qm9():
     # label references
     refs = {"A": [157.7118, 293.60975], "h298_atom": [-401.014646522, -280.399259105]}
 

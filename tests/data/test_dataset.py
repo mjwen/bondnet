@@ -20,8 +20,8 @@ def test_electrolyte_label():
 
     for i in range(size):
         _, label = dataset[i]
-        assert np.allclose(label["energies"], ref_label_energies[i])
-        assert np.array_equal(label["indicators"], ref_label_indicators[i])
+        assert np.allclose(label["value"], ref_label_energies[i])
+        assert np.array_equal(label["indicator"], ref_label_indicators[i])
 
 
 def test_qm9_label():

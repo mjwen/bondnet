@@ -2,17 +2,18 @@
 import sys
 import time
 import torch
-from torch.nn import MSELoss, L1Loss
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.nn import MSELoss, L1Loss
 from gnn.data.dataset import train_validation_test_split
 from gnn.data.qm9 import QM9Dataset
 from gnn.data.dataloader import DataLoaderQM9
 from gnn.model.hgatmol import HGATMol
-from gnn.metric import evaluate_qm9, EarlyStopping
+from gnn.metric import evaluate, EarlyStopping
 from gnn.args import create_parser
-from gnn.utils import pickle_dump
+from gnn.utils import pickle_dump, seed_torch
 
-torch.manual_seed(35)
+# determistic run
+seed_torch()
 
 args = create_parser()
 if args.gpu >= 0 and torch.cuda.is_available():
@@ -26,6 +27,8 @@ label_file = "/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf.csv"
 dataset = QM9Dataset(sdf_file, label_file)
 trainset, valset, testset = train_validation_test_split(dataset, validation=0.1, test=0.1)
 train_loader = DataLoaderQM9(trainset, "u0", batch_size=10, shuffle=True)
+val_loader = DataLoaderQM9(valset, "u0", batch_size=len(valset), shuffle=False)
+test_loader = DataLoaderQM9(testset, "u0", batch_size=len(testset), shuffle=False)
 
 # model
 attn_mechanism = {
@@ -83,7 +86,7 @@ for epoch in range(args.epochs):
         feats = {nt: bg.nodes[nt].data["feat"] for nt in attn_order}
         if args.device is not None:
             feats = {k: v.to(device=args.device) for k, v in feats.items()}
-            label = {k: v.to(device=args.device) for k, v in label.items()}
+            label = label.to(device=args.device)
         pred = model(bg, feats)
         loss = loss_func(pred, label)
         optimizer.zero_grad()
@@ -91,15 +94,14 @@ for epoch in range(args.epochs):
         optimizer.step()
 
         epoch_loss += loss.detach().item()
-        epoch_pred.append(pred)
-        epoch_label.append(label)
+        epoch_pred.append(pred.detach())
+        epoch_label.append(label.detach())
 
     epoch_loss /= it + 1
 
     # evaluate the accuracy
-    with torch.no_grad():
-        train_acc = metric(torch.cat(epoch_pred), torch.cat(epoch_label))
-    val_acc = evaluate_qm9(model, valset, metric, attn_order, args.device)
+    train_acc = metric(torch.cat(epoch_pred), torch.cat(epoch_label))
+    val_acc = evaluate(model, val_loader, metric, attn_order, args.device)
     scheduler.step(val_acc)
     if stopper.step(val_acc, model, msg="epoch " + str(epoch)):
         # save results for hyperparam tune
@@ -118,6 +120,8 @@ for epoch in range(args.epochs):
 # save results for hyperparam tune
 pickle_dump(float(stopper.best_score), args.output_file)
 
-test_acc = evaluate_qm9(model, testset, metric, attn_order, args.device)
+# load best to calculate test accuracy
+model.load_state_dict(torch.load("es_checkpoint.pkl"))
+test_acc = evaluate(model, test_loader, metric, attn_order, args.device)
 tt = time.time() - t0
 print("\n#TestAcc: {:12.6e} | Total time (s): {:.2f}\n".format(test_acc, tt))

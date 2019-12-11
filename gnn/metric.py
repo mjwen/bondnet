@@ -33,13 +33,6 @@ class MSELoss(nn.Module):
         reduction (str): reduction mechanism
         scale (float): to scale the loss by this constant, merely for numerical stability
 
-    Shapes:
-        input: (N, *)
-        target: (N, *)
-        indicator: (N,)
-
-    Returns:
-        0D tensor of the results
     """
 
     def __init__(self, reduction="mean", scale=1.0):
@@ -47,34 +40,42 @@ class MSELoss(nn.Module):
         self.scale = scale
         super(MSELoss, self).__init__()
 
-    def forward(self, input, target, indicator):
+    def forward(self, input, target):
+        """
+        Args:
+            input (tensor): input of shape (N, *)
+            target(dict): with keys `value` and `indicator`, the value associated with
+                `value` is a tensor of shape (N, *) and `indocator` is a tensor (0 or
+                1) of shape (N,) indicating whether the correspond `input` and `target`
+                entries are used to construct the loss.
 
-        if target.size() != input.size():
+        Returns:
+            Scalar Tensor
+        """
+
+        t_value = target["value"]
+        t_indicator = target["indicator"]
+
+        if t_value.size() != t_indicator.size() != input.size():
             warnings.warn(
-                "Using a target size ({}) that is different to the input size ({}). "
-                "This will likely lead to incorrect results due to broadcasting. "
-                "Please ensure they have the same size.".format(
-                    target.size(), input.size()
+                "Input size ({}) is different to the target value size ({}) or target "
+                "indicator size ({}). This will likely lead to incorrect results due "
+                "to broadcasting. Please ensure they have the same size.".format(
+                    input.size(), t_value.size(), t_indicator.size()
                 )
             )
 
-        if len(target) != len(indicator):
-            raise ValueError(
-                "Using indicator length({}) that is different from target length({}). "
-                "They should of the same length".format(len(indicator), len(target))
-            )
-
-        ret = self.scale * ((input - target) ** 2) * indicator
+        ret = self.scale * ((input - t_value) ** 2) * t_indicator
         if self.reduction != "none":
             if self.reduction == "mean":
-                ret = torch.sum(ret) / torch.sum(indicator)
+                ret = torch.sum(ret) / torch.sum(t_indicator)
             else:
                 ret = torch.sum(ret)
 
         return ret
 
 
-class MAELoss(nn.Module):
+class L1Loss(nn.Module):
     r"""
     Mean absolute error between input and target with an additional binary argument
     `indicator` to ignore some contributions.
@@ -113,29 +114,37 @@ class MAELoss(nn.Module):
 
     def __init__(self, reduction="mean"):
         self.reduction = reduction
-        super(MAELoss, self).__init__()
+        super(L1Loss, self).__init__()
 
-    def forward(self, input, target, indicator):
+    def forward(self, input, target):
+        """
+        Args:
+            input (tensor): input of shape (N, *)
+            target(dict): with keys `value` and `indicator`, the value associated with
+                `value` is a tensor of shape (N, *) and `indocator` is a tensor (0 or
+                1) of shape (N,) indicating whether the correspond `input` and `target`
+                entries are used to construct the loss.
 
-        if target.size() != input.size():
+        Returns:
+            Scalar Tensor
+        """
+
+        t_value = target["value"]
+        t_indicator = target["indicator"]
+
+        if t_value.size() != t_indicator.size() != input.size():
             warnings.warn(
-                "Using a target size ({}) that is different to the input size ({}). "
-                "This will likely lead to incorrect results due to broadcasting. "
-                "Please ensure they have the same size.".format(
-                    target.size(), input.size()
+                "Input size ({}) is different to the target value size ({}) or target "
+                "indicator size ({}). This will likely lead to incorrect results due "
+                "to broadcasting. Please ensure they have the same size.".format(
+                    input.size(), t_value.size(), t_indicator.size()
                 )
             )
 
-        if len(target) != len(indicator):
-            raise ValueError(
-                "Using indicator length({}) that is different from target length({}). "
-                "They should of the same length".format(len(indicator), len(target))
-            )
-
-        ret = torch.abs(input - target) * indicator
+        ret = torch.abs(input - t_value) * t_indicator
         if self.reduction != "none":
             if self.reduction == "mean":
-                ret = torch.sum(ret) / torch.sum(indicator)
+                ret = torch.sum(ret) / torch.sum(t_indicator)
             else:
                 ret = torch.sum(ret)
 
@@ -177,13 +186,15 @@ class EarlyStopping:
             f.write("{}  {}".format(msg, score))
 
 
-def evaluate(model, dataset, metric_fn, nodes, device=None):
+def evaluate(model, data_loader, metric_fn, nodes, device=None):
     """
     Evaluate the accuracy of a dataset for a given metric specified by the metric_fn.
+    Note, the metric should measure the ``mean`` accuracy of a batch of data. This
+    function will measure the mean accuracy across all data points.
 
     Args:
         model (callable): the model to compute prediction
-        dataset: the dataset
+        data_loader (torch.utils.data.DataLoader): loader for the data
         metric_fn (callable): a metric function to evaluate the accuracy
         nodes (list of str): the graph nodes on which feats reside
         device (str): to device to perform the computation. e.g. `cpu`, `cuda`
@@ -192,46 +203,22 @@ def evaluate(model, dataset, metric_fn, nodes, device=None):
         float: accuracy
     """
     model.eval()
-    size = len(dataset)  # whole dataset
-    data_loader = DataLoader(dataset, batch_size=size, shuffle=False)
-
     with torch.no_grad():
+        accuracy = 0.0
+        count = 0
         for bg, label in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
-                label = {k: v.to(device) for k, v in label.items()}
+                if isinstance(label, dict):
+                    label = {k: v.to(device) for k, v in label.items()}
+                else:
+                    label = label.to(device)
             pred = model(bg, feats)
-            accuracy = metric_fn(pred, label["energies"], label["indicators"])
-            return accuracy
-
-
-# TODO this should be combined with the above, 1) passing data loader in; 2) metric_fn
-#  on label only
-def evaluate_qm9(model, dataset, metric_fn, nodes, device=None):
-    """
-    Evaluate the accuracy of a dataset for a given metric specified by the metric_fn.
-
-    Args:
-        model (callable): the model to compute prediction
-        dataset: the dataset
-        metric_fn (callable): a metric function to evaluate the accuracy
-        nodes (list of str): the graph nodes on which feats reside
-        device (str): to device to perform the computation. e.g. `cpu`, `cuda`
-
-    Returns:
-        float: accuracy
-    """
-    model.eval()
-    size = len(dataset)  # whole dataset
-    data_loader = DataLoaderQM9(dataset, "u0", batch_size=size, shuffle=False)
-
-    with torch.no_grad():
-        for bg, label in data_loader:
-            feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-            if device is not None:
-                feats = {k: v.to(device) for k, v in feats.items()}
-                label = {k: v.to(device) for k, v in label.items()}
-            pred = model(bg, feats)
-            accuracy = metric_fn(pred, label)
-            return accuracy
+            if isinstance(label, dict):
+                c = sum(label["indicator"])
+            else:
+                c = len(label)
+            accuracy += metric_fn(pred, label) * c
+            count += c
+        return accuracy / count
