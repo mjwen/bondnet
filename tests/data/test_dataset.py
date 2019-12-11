@@ -58,3 +58,17 @@ def test_qm9_label():
             ],
         )
         break
+
+
+def test_qm9_label_mu_alpha():
+    dataset = QM9Dataset(
+        sdf_file=os.path.join(test_files, "gdb9_n2.sdf"),
+        label_file=os.path.join(test_files, "gdb9_n2.sdf.csv"),
+        properties=["mu", "alpha"],
+    )
+    size = len(dataset)
+    assert size == 2
+    for i in range(size):
+        _, label = dataset[i]
+        assert np.allclose(label, [0, 13.21])
+        break

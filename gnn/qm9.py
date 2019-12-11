@@ -24,11 +24,11 @@ else:
 # dataset
 sdf_file = "/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf"
 label_file = "/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf.csv"
-dataset = QM9Dataset(sdf_file, label_file)
+dataset = QM9Dataset(sdf_file, label_file, properties=["u0"])
 trainset, valset, testset = train_validation_test_split(dataset, validation=0.1, test=0.1)
-train_loader = DataLoaderQM9(trainset, "u0", batch_size=10, shuffle=True)
-val_loader = DataLoaderQM9(valset, "u0", batch_size=len(valset), shuffle=False)
-test_loader = DataLoaderQM9(testset, "u0", batch_size=len(testset), shuffle=False)
+train_loader = DataLoaderQM9(trainset, batch_size=10, shuffle=True)
+val_loader = DataLoaderQM9(valset, batch_size=len(valset), shuffle=False)
+test_loader = DataLoaderQM9(testset, batch_size=len(testset), shuffle=False)
 
 # model
 attn_mechanism = {

@@ -46,12 +46,13 @@ def get_dataset():
     return dataset
 
 
-def get_qm9():
+def get_qm9(properties):
     test_files = os.path.dirname(__file__)
     dataset = QM9Dataset(
         sdf_file=os.path.join(test_files, "gdb9_n2.sdf"),
         label_file=os.path.join(test_files, "gdb9_n2.sdf.csv"),
         self_loop=False,
+        properties=properties,
     )
     return dataset
 
@@ -153,20 +154,21 @@ def test_dataloader():
 
 def test_dataloader_qm9():
     # label references
+    properties = ["A", "h298_atom"]
     refs = {"A": [157.7118, 293.60975], "h298_atom": [-401.014646522, -280.399259105]}
 
-    dataset = get_qm9()
-
     # batch size 1 case
-    for prop in ["A", "h298_atom"]:
-        data_loader = DataLoaderQM9(dataset, prop, batch_size=1, shuffle=False)
+    for prop in properties:
+        dataset = get_qm9([prop])
+        data_loader = DataLoaderQM9(dataset, batch_size=1, shuffle=False)
         for i, (graph, labels) in enumerate(data_loader):
             r = np.atleast_2d(refs[prop][i])
             assert np.allclose(labels, r)
 
     # batch size 2 case
-    for prop in ["A", "h298_atom"]:
-        data_loader = DataLoaderQM9(dataset, prop, batch_size=2, shuffle=False)
+    for prop in properties:
+        dataset = get_qm9([prop])
+        data_loader = DataLoaderQM9(dataset, batch_size=2, shuffle=False)
         for graph, labels in data_loader:
             r = np.asarray(refs[prop]).reshape(2, 1)
             assert np.allclose(labels, r)

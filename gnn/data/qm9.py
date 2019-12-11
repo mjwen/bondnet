@@ -17,6 +17,7 @@ from gnn.data.featurizer import (
 from gnn.data.electrolyte import ElectrolyteDataset
 import pandas as pd
 import numpy as np
+from gnn.utils import expand_path
 
 
 logger = logging.getLogger(__name__)
@@ -63,6 +64,20 @@ class QM9Dataset(ElectrolyteDataset):
     """
     The QM9 dataset.
     """
+
+    def __init__(
+        self,
+        sdf_file,
+        label_file,
+        self_loop=True,
+        properties=None,
+        pickle_dataset=False,
+        dtype="float32",
+    ):
+        self.properties = properties
+        super(QM9Dataset, self).__init__(
+            sdf_file, label_file, self_loop, pickle_dataset, dtype
+        )
 
     def _load(self):
         if self._pickled:
@@ -134,6 +149,40 @@ class QM9Dataset(ElectrolyteDataset):
         logger.info("Finish loading {} graphs...".format(len(self.labels)))
 
     def _read_label_file(self):
+
         rst = pd.read_csv(self.label_file, index_col=0)
         rst = rst.to_numpy()
+
+        if self.properties is not None:
+            supported_properties = [
+                "A",
+                "B",
+                "C",
+                "mu",
+                "alpha",
+                "homo",
+                "lumo",
+                "gap",
+                "r2",
+                "zpve",
+                "u0",
+                "u298",
+                "h298",
+                "g298",
+                "cv",
+                "u0_atom",
+                "u298_atom",
+                "h298_atom",
+                "g298_atom",
+            ]
+            for prop in self.properties:
+                if prop not in supported_properties:
+                    raise ValueError(
+                        "Property '{}' not supported. Supported ones are: {}".format(
+                            property, supported_properties
+                        )
+                    )
+            indices = [supported_properties.index(p) for p in self.properties]
+            rst = rst[:, indices]
+
         return rst
