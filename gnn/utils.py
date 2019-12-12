@@ -5,6 +5,7 @@ import yaml
 import random
 import numpy as np
 import torch
+import dgl
 
 
 def expand_path(path):
@@ -62,6 +63,7 @@ def seed_torch(seed=35):
     torch.cuda.manual_seed_all(seed)  # if using multi-GPU
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
+    dgl.random.seed(seed)
 
 
 class Timer:

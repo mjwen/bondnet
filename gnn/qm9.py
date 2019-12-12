@@ -20,6 +20,7 @@ if args.gpu >= 0 and torch.cuda.is_available():
     args.device = torch.device("cuda")
 else:
     args.device = None
+print(args)
 
 # dataset
 sdf_file = "/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf"
@@ -66,9 +67,9 @@ loss_func = MSELoss()
 
 # accuracy metric, learning rate scheduler, and stopper
 metric = L1Loss()
-patience = 100
+patience = 150
 scheduler = ReduceLROnPlateau(
-    optimizer, mode="min", factor=0.1, patience=patience // 2, verbose=True
+    optimizer, mode="min", factor=0.3, patience=patience // 3, verbose=True
 )
 stopper = EarlyStopping(patience=patience)
 

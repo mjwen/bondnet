@@ -1,4 +1,3 @@
-# pylint: disable=not-callable
 import numpy as np
 import os
 import torch
