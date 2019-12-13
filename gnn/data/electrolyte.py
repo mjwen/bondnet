@@ -8,7 +8,12 @@ import os
 import logging
 from rdkit import Chem
 from gnn.utils import expand_path, pickle_dump, pickle_load
-from gnn.data.featurizer import AtomFeaturizer, BondAsNodeFeaturizer, MolChargeFeaturizer
+from gnn.data.featurizer import (
+    AtomFeaturizer,
+    BondAsNodeFeaturizer,
+    BondAsEdgeFeaturizer,
+    MolChargeFeaturizer,
+)
 from gnn.data.grapher import HomoMoleculeGraph, HeteroMoleculeGraph
 from gnn.data.dataset import BaseDataset
 
@@ -88,9 +93,9 @@ class ElectrolyteDataset(BaseDataset):
 
             species = self._get_species()
             atom_featurizer = AtomFeaturizer(species, dtype=self.dtype)
-            bond_featurizer = BondAsNodeFeaturizer(dtype=self.dtype)
             if self.hetero:
                 global_featurizer = MolChargeFeaturizer(dtype=self.dtype)
+                bond_featurizer = BondAsNodeFeaturizer(dtype=self.dtype)
                 grapher = HeteroMoleculeGraph(
                     atom_featurizer=atom_featurizer,
                     bond_featurizer=bond_featurizer,
@@ -98,6 +103,7 @@ class ElectrolyteDataset(BaseDataset):
                     self_loop=self.self_loop,
                 )
             else:
+                bond_featurizer = BondAsEdgeFeaturizer(dtype=self.dtype)
                 grapher = HomoMoleculeGraph(
                     atom_featurizer=atom_featurizer,
                     bond_featurizer=bond_featurizer,

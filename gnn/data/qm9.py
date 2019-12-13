@@ -4,9 +4,14 @@ QM9 dataset.
 
 import torch
 import logging
-from _collections import OrderedDict
+from collections import OrderedDict
 from rdkit import Chem
-from gnn.data.featurizer import AtomFeaturizer, BondAsNodeFeaturizer, MolWeightFeaturizer
+from gnn.data.featurizer import (
+    AtomFeaturizer,
+    BondAsNodeFeaturizer,
+    BondAsEdgeFeaturizer,
+    MolWeightFeaturizer,
+)
 from gnn.data.grapher import HomoMoleculeGraph, HeteroMoleculeGraph
 from gnn.data.electrolyte import ElectrolyteDataset
 import pandas as pd
@@ -60,8 +65,8 @@ class QM9Dataset(ElectrolyteDataset):
 
             species = self._get_species()
             atom_featurizer = AtomFeaturizer(species, dtype=self.dtype)
-            bond_featurizer = BondAsNodeFeaturizer(dtype=self.dtype)
             if self.hetero:
+                bond_featurizer = BondAsNodeFeaturizer(dtype=self.dtype)
                 global_featurizer = MolWeightFeaturizer(dtype=self.dtype)
                 grapher = HeteroMoleculeGraph(
                     atom_featurizer=atom_featurizer,
@@ -70,6 +75,7 @@ class QM9Dataset(ElectrolyteDataset):
                     self_loop=self.self_loop,
                 )
             else:
+                bond_featurizer = BondAsEdgeFeaturizer(dtype=self.dtype)
                 grapher = HomoMoleculeGraph(
                     atom_featurizer=atom_featurizer,
                     bond_featurizer=bond_featurizer,

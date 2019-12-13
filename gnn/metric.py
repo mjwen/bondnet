@@ -221,4 +221,4 @@ def evaluate(model, data_loader, metric_fn, nodes, device=None):
                 c = len(label)
             accuracy += metric_fn(pred, label) * c
             count += c
-        return accuracy / count
+    return accuracy / count

@@ -5,7 +5,7 @@ import dgl
 
 
 class DataLoader(torch.utils.data.DataLoader):
-    def __init__(self, dataset, **kwargs):
+    def __init__(self, dataset, hetero=True, **kwargs):
         if "collate_fn" in kwargs:
             raise ValueError(
                 "'collate_fn' provided internally by 'gnn.data', you need not to "
@@ -17,7 +17,10 @@ class DataLoader(torch.utils.data.DataLoader):
                 graph, label = samples[0]
                 return graph, label
             graphs, labels = map(list, zip(*samples))
-            batched_graph = dgl.batch_hetero(graphs)
+            if hetero:
+                batched_graph = dgl.batch_hetero(graphs)
+            else:
+                batched_graph = dgl.batch(graphs)
             energies = torch.cat([la["value"] for la in labels])
             indicators = torch.cat([la["indicator"] for la in labels])
             labels = {"value": energies, "indicator": indicators}
@@ -27,7 +30,7 @@ class DataLoader(torch.utils.data.DataLoader):
 
 
 class DataLoaderQM9(torch.utils.data.DataLoader):
-    def __init__(self, dataset, **kwargs):
+    def __init__(self, dataset, hetero=True, **kwargs):
         if "collate_fn" in kwargs:
             raise ValueError(
                 "'collate_fn' provided internally by 'gnn.data', you need not to "
@@ -36,7 +39,10 @@ class DataLoaderQM9(torch.utils.data.DataLoader):
 
         def collate(samples):
             graphs, labels = map(list, zip(*samples))
-            batched_graph = dgl.batch_hetero(graphs)
+            if hetero:
+                batched_graph = dgl.batch_hetero(graphs)
+            else:
+                batched_graph = dgl.batch(graphs)
             labels = torch.stack(labels)
             return batched_graph, labels
 

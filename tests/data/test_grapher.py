@@ -100,29 +100,30 @@ def test_build_hetero_graph_self_loop():
         assert get_self_loop_map(g, nt) == {i: [i] for i in range(n)}
 
 
-def test_hetero_graph_featurize():
-    m = make_EC_mol()
-    species = list(set([a.GetSymbol() for a in m.GetAtoms()]))
-    charge = 1
-
-    atom_featurizer = AtomFeaturizer(species)
-    bond_featurizer = BondAsNodeFeaturizer()
-    global_state_featurizer = MolChargeFeaturizer()
-    grapher = HeteroMoleculeGraph(
-        atom_featurizer, bond_featurizer, global_state_featurizer
-    )
-    g = grapher.build_graph_and_featurize(m, charge=charge)
-    assert np.array_equal(
-        g.nodes["atom"].data["feat"].shape,
-        (m.GetNumAtoms(), atom_featurizer.feature_size),
-    )
-    assert np.array_equal(
-        g.nodes["bond"].data["feat"].shape,
-        (m.GetNumBonds(), bond_featurizer.feature_size),
-    )
-    assert np.array_equal(
-        g.nodes["global"].data["feat"].shape, (1, global_state_featurizer.feature_size)
-    )
+# #  # NOTE similar test s in test_featurizer
+# def test_hetero_graph_featurize():
+#     m = make_EC_mol()
+#     species = list(set([a.GetSymbol() for a in m.GetAtoms()]))
+#     charge = 1
+#
+#     atom_featurizer = AtomFeaturizer(species)
+#     bond_featurizer = BondAsNodeFeaturizer()
+#     global_state_featurizer = MolChargeFeaturizer()
+#     grapher = HeteroMoleculeGraph(
+#         atom_featurizer, bond_featurizer, global_state_featurizer
+#     )
+#     g = grapher.build_graph_and_featurize(m, charge=charge)
+#     assert np.array_equal(
+#         g.nodes["atom"].data["feat"].shape,
+#         (m.GetNumAtoms(), atom_featurizer.feature_size),
+#     )
+#     assert np.array_equal(
+#         g.nodes["bond"].data["feat"].shape,
+#         (m.GetNumBonds(), bond_featurizer.feature_size),
+#     )
+#     assert np.array_equal(
+#         g.nodes["global"].data["feat"].shape, (1, global_state_featurizer.feature_size)
+#     )
 
 
 def test_build_homo_graph():
@@ -160,28 +161,29 @@ def test_build_homo_graph():
     assert_graph(True)
 
 
-def test_homo_graph_featurize():
-    def assert_graph(self_loop):
-        m = make_EC_mol()
-        natoms = m.GetNumAtoms()
-        nbonds = m.GetNumBonds()
-        if self_loop:
-            nedges = 2 * nbonds + natoms
-        else:
-            nedges = 2 * nbonds
-        species = list(set([a.GetSymbol() for a in m.GetAtoms()]))
-
-        atom_featurizer = AtomFeaturizer(species)
-        bond_featurizer = BondAsEdgeFeaturizer(self_loop=self_loop)
-        grapher = HomoMoleculeGraph(atom_featurizer, bond_featurizer, self_loop=self_loop)
-        g = grapher.build_graph_and_featurize(m)
-
-        assert np.array_equal(
-            g.ndata["feat"].shape, (natoms, atom_featurizer.feature_size)
-        )
-        assert np.array_equal(
-            g.edata["feat"].shape, (nedges, bond_featurizer.feature_size)
-        )
-
-    assert_graph(True)
-    assert_graph(False)
+#  # NOTE similar test s in test_featurizer
+# def test_homo_graph_featurize():
+#     def assert_graph(self_loop):
+#         m = make_EC_mol()
+#         natoms = m.GetNumAtoms()
+#         nbonds = m.GetNumBonds()
+#         if self_loop:
+#             nedges = 2 * nbonds + natoms
+#         else:
+#             nedges = 2 * nbonds
+#         species = list(set([a.GetSymbol() for a in m.GetAtoms()]))
+#
+#         atom_featurizer = AtomFeaturizer(species)
+#         bond_featurizer = BondAsEdgeFeaturizer(self_loop=self_loop)
+#         grapher = HomoMoleculeGraph(atom_featurizer, bond_featurizer, self_loop=self_loop)
+#         g = grapher.build_graph_and_featurize(m)
+#
+#         assert np.array_equal(
+#             g.ndata["feat"].shape, (natoms, atom_featurizer.feature_size)
+#         )
+#         assert np.array_equal(
+#             g.edata["feat"].shape, (nedges, bond_featurizer.feature_size)
+#         )
+#
+#     assert_graph(True)
+#     assert_graph(False)

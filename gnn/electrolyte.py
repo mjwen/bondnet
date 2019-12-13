@@ -16,10 +16,6 @@ from gnn.utils import pickle_dump, seed_torch
 seed_torch()
 
 args = create_parser()
-if args.gpu >= 0 and torch.cuda.is_available():
-    args.device = torch.device("cuda")
-else:
-    args.device = None
 print(args)
 
 # dataset

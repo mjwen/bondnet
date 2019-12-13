@@ -1,4 +1,5 @@
 import argparse
+import torch
 
 
 def create_parser():
@@ -87,6 +88,10 @@ def create_parser():
         "length of `fc-hidden-size` should be equal to `num-fc-layers`, but got "
         "{} and {}.".format(args.fc_hidden_size, args.num_fc_layers)
     )
-    # for k, v in vars(args).items():
-    #     print(k, v)
+
+    if args.gpu >= 0 and torch.cuda.is_available():
+        args.device = torch.device("cuda")
+    else:
+        args.device = None
+
     return args
