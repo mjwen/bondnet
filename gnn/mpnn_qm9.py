@@ -23,14 +23,11 @@ def parse_args():
     parser.add_argument("--num-layer-set2set", type=int, default=3, help="")
 
     # training
-    parser.add_argument(
-        "--gpu", type=int, default=-1, help="which GPU to use. Set -1 to use CPU."
-    )
-    parser.add_argument(
-        "--epochs", type=int, default=100, help="number of training epochs"
-    )
+    parser.add_argument("--gpu", type=int, default=-1, help="GPU index. -1 to use CPU.")
+    parser.add_argument("--epochs", type=int, default=100, help="number of epochs")
+    parser.add_argument("--batch-size", type=int, default=100, help="batch size")
     parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
-    parser.add_argument("--weight-decay", type=float, default=5e-4, help="weight decay")
+    parser.add_argument("--weight-decay", type=float, default=0.0, help="weight decay")
 
     # output file (needed by hypertunity)
     parser.add_argument(
@@ -81,7 +78,9 @@ def main(args):
     trainset, valset, testset = train_validation_test_split(
         dataset, validation=0.1, test=0.1
     )
-    train_loader = DataLoaderQM9(trainset, hetero=False, batch_size=10, shuffle=True)
+    train_loader = DataLoaderQM9(
+        trainset, hetero=False, batch_size=args.batch_size, shuffle=True
+    )
     val_loader = DataLoaderQM9(
         valset, hetero=False, batch_size=len(valset), shuffle=False
     )
@@ -176,8 +175,8 @@ def main(args):
     print("\n#TestAcc: {:12.6e} | Total time (s): {:.2f}\n".format(test_acc, tt))
 
 
-if __name__ == "__main__":
-    seed_torch()
-    args = parse_args()
-    print(args)
-    main(args)
+# do not make it make because we need to run hypertunity
+seed_torch()
+args = parse_args()
+print(args)
+main(args)

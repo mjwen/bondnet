@@ -2,7 +2,7 @@ import argparse
 import torch
 
 
-def create_parser():
+def parse_args():
     parser = argparse.ArgumentParser(description="HGAT")
 
     # model
@@ -47,7 +47,7 @@ def create_parser():
     parser.add_argument(
         "--num-lstm-iters",
         type=int,
-        default=5,
+        default=6,
         help="number of iterations for the LSTM in set2set readout layer",
     )
     parser.add_argument(
@@ -58,14 +58,11 @@ def create_parser():
     )
 
     # training
-    parser.add_argument(
-        "--gpu", type=int, default=-1, help="which GPU to use. Set -1 to use CPU."
-    )
-    parser.add_argument(
-        "--epochs", type=int, default=100, help="number of training epochs"
-    )
+    parser.add_argument("--gpu", type=int, default=-1, help="GPU index. -1 to use CPU.")
+    parser.add_argument("--epochs", type=int, default=100, help="number of epochs")
+    parser.add_argument("--batch-size", type=int, default=100, help="batch size")
     parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
-    parser.add_argument("--weight-decay", type=float, default=5e-4, help="weight decay")
+    parser.add_argument("--weight-decay", type=float, default=0.0, help="weight decay")
 
     # output file (needed by hypertunity)
     parser.add_argument(

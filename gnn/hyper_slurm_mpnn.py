@@ -4,17 +4,15 @@ import hypertunity as ht
 
 domain = ht.Domain(
     {
-        "--num-gat-layers": {2, 3, 4},
-        "--gat-hidden-size": {32, 64, 128},
-        "--num-heads": {4, 8},
-        # "--feat-drop":{0.0},
-        # "--attn-drop":{0.0},
-        # "--negative-slope":{0.2},
-        "--residual": {1},
-        "--num-fc-layers": {2, 3, 4},
-        "--fc-hidden-size": {32, 64, 128},
+        # model
+        "--node-hidden-dim": {64},
+        "--edge-hidden-dim": {128},
+        "--num-step-message-passing": {6},
+        "--num-step-set2set": {6},
+        "--num-layer-set2set": {3},
+        # training
         # "--lr": [0.001, 0.01],
-        "--weight-decay": {0.001, 0.01},
+        "--weight-decay": {0.001},
         "--epochs": {10},
     }
 )
@@ -33,7 +31,7 @@ with ht.Scheduler(n_parallel=batch_size) as scheduler:
         samples = optimiser.run_step(batch_size=batch_size, minimise=True)
         jobs = [
             ht.SlurmJob(
-                task=os.path.join(os.getcwd(), "electrolyte.py"),
+                task=os.path.join(os.getcwd(), "hgat_electrolyte.py"),
                 args=s.as_dict(),
                 meta={
                     "binary": "python",
