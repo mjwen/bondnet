@@ -29,20 +29,11 @@ def parse_args():
         default=0.2,
         help="the negative slope of leaky relu",
     )
+
     # parser.add_argument(
     #    "--residual", action="store_true", default=True, help="use residual connection"
     # )
     parser.add_argument("--residual", type=int, default=1, help="use residual connection")
-    parser.add_argument(
-        "--num-fc-layers", type=int, default=3, help="number of feed-forward layers"
-    )
-    parser.add_argument(
-        "--fc-hidden-size",
-        type=int,
-        nargs="+",
-        default=[32, 32, 32],
-        help="number of hidden units of fc layers",
-    )
 
     parser.add_argument(
         "--num-lstm-iters",
@@ -55,6 +46,17 @@ def parse_args():
         type=int,
         default=3,
         help="number of layers for the LSTM in set2set readout layer",
+    )
+
+    parser.add_argument(
+        "--num-fc-layers", type=int, default=3, help="number of feed-forward layers"
+    )
+    parser.add_argument(
+        "--fc-hidden-size",
+        type=int,
+        nargs="+",
+        default=[32, 32, 32],
+        help="number of hidden units of fc layers",
     )
 
     # training

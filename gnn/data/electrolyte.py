@@ -79,7 +79,10 @@ class ElectrolyteDataset(BaseDataset):
                 )
             )
 
-            self.graphs, self.labels = self.load_dataset()
+            if self.hetero:
+                self.graphs, self.labels = self.load_dataset_hetero()
+            else:
+                self.graphs, self.labels = self.load_dataset()
             d = self.load_state_dict(self._default_state_dict_filename())
             self._feature_size = d["feature_size"]
             self._feature_name = d["feature_name"]
@@ -150,26 +153,29 @@ class ElectrolyteDataset(BaseDataset):
                 self._feature_name["global"] = global_featurizer.feature_name
 
             if self.pickle_dataset:
-                self.save_dataset()
+                if self.hetero:
+                    self.save_dataset_hetero()
+                else:
+                    self.save_dataset()
                 filename = self._default_state_dict_filename()
                 self.save_state_dict(filename)
 
         logger.info("Finish loading {} graphs...".format(len(self.labels)))
 
-    # def save_dataset(self):
-    #     filename = os.path.splitext(self.sdf_file)[0] + ".pkl"
-    #     pickle_dump(self.graphs, filename)
-    #     filename = os.path.splitext(self.label_file)[0] + ".pkl"
-    #     pickle_dump(self.labels, filename)
-    #
-    # def load_dataset(self):
-    #     graphs = pickle_load(self.sdf_file)
-    #     labels = pickle_load(self.label_file)
-    #     return graphs, labels
+    def save_dataset(self):
+        filename = self.sdf_file + ".pkl"
+        pickle_dump(self.graphs, filename)
+        filename = self.label_file + ".pkl"
+        pickle_dump(self.labels, filename)
+
+    def load_dataset(self):
+        graphs = pickle_load(self.sdf_file)
+        labels = pickle_load(self.label_file)
+        return graphs, labels
 
     # NOTE currently, DGLHeterograph does not support pickle, so we pickle the data only
     # and we can get back to the above two functions once it is supported
-    def save_dataset(self):
+    def save_dataset_hetero(self):
         filename = self.sdf_file + ".pkl"
         data = []
         for g in self.graphs:
@@ -180,7 +186,7 @@ class ElectrolyteDataset(BaseDataset):
         filename = self.label_file + ".pkl"
         pickle_dump(self.labels, filename)
 
-    def load_dataset(self):
+    def load_dataset_hetero(self):
         data = pickle_load(self.sdf_file)
         fname = self.sdf_file.replace(".pkl", "")
         supp = Chem.SDMolSupplier(fname, sanitize=True, removeHs=False)

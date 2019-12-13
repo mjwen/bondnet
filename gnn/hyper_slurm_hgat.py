@@ -19,9 +19,11 @@ domain = ht.Domain(
         "--num-fc-layers": {2, 3, 4},
         "--fc-hidden-size": {32, 64, 128},
         # training
-        # "--lr": [0.001, 0.01],
+        "--gpu": {-1},
+        "--lr": {0.001},
         "--weight-decay": {0.001, 0.01},
-        "--epochs": {10},
+        "--batch-size": {100},
+        "--epochs": {1000},
     }
 )
 

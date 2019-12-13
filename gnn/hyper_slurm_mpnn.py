@@ -11,9 +11,11 @@ domain = ht.Domain(
         "--num-step-set2set": {6},
         "--num-layer-set2set": {3},
         # training
-        # "--lr": [0.001, 0.01],
-        "--weight-decay": {0.001},
-        "--epochs": {10},
+        "--gpu": {-1},
+        "--lr": {0.01},
+        "--weight-decay": {0.0},
+        "--batch-size": {100},
+        "--epochs": {1000},
     }
 )
 
@@ -31,7 +33,7 @@ with ht.Scheduler(n_parallel=batch_size) as scheduler:
         samples = optimiser.run_step(batch_size=batch_size, minimise=True)
         jobs = [
             ht.SlurmJob(
-                task=os.path.join(os.getcwd(), "hgat_electrolyte.py"),
+                task=os.path.join(os.getcwd(), "mpnn_qm9.py"),
                 args=s.as_dict(),
                 meta={
                     "binary": "python",
