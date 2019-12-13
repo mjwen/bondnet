@@ -8,14 +8,9 @@ import os
 import logging
 from rdkit import Chem
 from gnn.utils import expand_path, pickle_dump, pickle_load
-from gnn.data.featurizer import (
-    AtomFeaturizer,
-    BondFeaturizer,
-    GlobalStateFeaturizer,
-    HeteroMoleculeGraph,
-)
+from gnn.data.featurizer import AtomFeaturizer, BondAsNodeFeaturizer, MolChargeFeaturizer
+from gnn.data.grapher import HomoMoleculeGraph, HeteroMoleculeGraph
 from gnn.data.dataset import BaseDataset
-from gnn.utils import expand_path
 
 
 logger = logging.getLogger(__name__)
@@ -33,15 +28,25 @@ class ElectrolyteDataset(BaseDataset):
             can be provided for fast recovery.
         self_loop (bool): whether to create self loop, i.e. a node is connected to
             itself through an edge.
+        hetero (bool): Whether to build hetero graph, where atom, bond, and global state
+            are all represented as graph nodes). If `False`, build a homo graph, where
+            atoms are represented as node and bond are represented as graphs.
     """
 
     def __init__(
-        self, sdf_file, label_file, self_loop=True, pickle_dataset=False, dtype="float32"
+        self,
+        sdf_file,
+        label_file,
+        self_loop=True,
+        hetero=True,
+        pickle_dataset=False,
+        dtype="float32",
     ):
         super(ElectrolyteDataset, self).__init__(dtype)
         self.sdf_file = expand_path(sdf_file)
         self.label_file = expand_path(label_file)
         self.self_loop = self_loop
+        self.hetero = hetero
         self.pickle_dataset = pickle_dataset
 
         if self._is_pickled(self.sdf_file) != self._is_pickled(self.label_file):
@@ -83,8 +88,21 @@ class ElectrolyteDataset(BaseDataset):
 
             species = self._get_species()
             atom_featurizer = AtomFeaturizer(species, dtype=self.dtype)
-            bond_featurizer = BondFeaturizer(dtype=self.dtype)
-            global_featurizer = GlobalStateFeaturizer(dtype=self.dtype)
+            bond_featurizer = BondAsNodeFeaturizer(dtype=self.dtype)
+            if self.hetero:
+                global_featurizer = MolChargeFeaturizer(dtype=self.dtype)
+                grapher = HeteroMoleculeGraph(
+                    atom_featurizer=atom_featurizer,
+                    bond_featurizer=bond_featurizer,
+                    global_state_featurizer=global_featurizer,
+                    self_loop=self.self_loop,
+                )
+            else:
+                grapher = HomoMoleculeGraph(
+                    atom_featurizer=atom_featurizer,
+                    bond_featurizer=bond_featurizer,
+                    self_loop=self.self_loop,
+                )
 
             properties = self._read_label_file()
 
@@ -99,19 +117,15 @@ class ElectrolyteDataset(BaseDataset):
                 if mol is None:  # bad mol
                     continue
 
-                charge = prop[0]
                 nbonds = int((len(prop) - 1) / 2)
                 dtype = getattr(torch, self.dtype)
                 bonds_energy = torch.tensor(prop[1 : nbonds + 1], dtype=dtype)
                 bonds_indicator = torch.tensor(prop[nbonds + 1 :], dtype=dtype)
 
-                grapher = HeteroMoleculeGraph(
-                    atom_featurizer=atom_featurizer,
-                    bond_featurizer=bond_featurizer,
-                    global_state_featurizer=global_featurizer,
-                    self_loop=self.self_loop,
-                )
-                g = grapher.build_graph_and_featurize(mol, charge=charge)
+                if self.hetero:
+                    g = grapher.build_graph_and_featurize(mol, charge=prop[0])
+                else:
+                    g = grapher.build_graph_and_featurize(mol)
                 self.graphs.append(g)
 
                 label = {"value": bonds_energy, "indicator": bonds_indicator}
@@ -120,13 +134,14 @@ class ElectrolyteDataset(BaseDataset):
             self._feature_size = {
                 "atom": atom_featurizer.feature_size,
                 "bond": bond_featurizer.feature_size,
-                "global": global_featurizer.feature_size,
             }
             self._feature_name = {
                 "atom": atom_featurizer.feature_name,
                 "bond": bond_featurizer.feature_name,
-                "global": global_featurizer.feature_name,
             }
+            if self.hetero:
+                self._feature_size["global"] = global_featurizer.feature_size
+                self._feature_name["global"] = global_featurizer.feature_name
 
             if self.pickle_dataset:
                 self.save_dataset()
@@ -198,17 +213,6 @@ class ElectrolyteDataset(BaseDataset):
         d = {"feature_size": self._feature_size, "feature_name": self._feature_name}
         pickle_dump(d, filename)
 
-    def _read_label_file(self):
-        rslt = []
-        with open(self.label_file, "r") as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("#"):
-                    continue
-                line = [float(i) for i in line.split()]
-                rslt.append(line)
-        return rslt
-
     def _get_species(self):
         suppl = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
         system_species = set()
@@ -248,3 +252,14 @@ class ElectrolyteDataset(BaseDataset):
             return True
         else:
             return False
+
+    def _read_label_file(self):
+        rslt = []
+        with open(self.label_file, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("#"):
+                    continue
+                line = [float(i) for i in line.split()]
+                rslt.append(line)
+        return rslt

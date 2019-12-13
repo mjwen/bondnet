@@ -1,20 +1,15 @@
 """
 Featurize a molecule heterograph of atom, bond, and global nodes with RDkit.
 """
-# pylint: disable=no-member,not-callable
 
 import torch
 import os
 import warnings
 from collections import defaultdict
-import dgl
-
-try:
-    from rdkit import Chem
-    from rdkit.Chem import ChemicalFeatures
-    from rdkit import RDConfig
-except ImportError:
-    pass
+from rdkit import Chem
+from rdkit.Chem import ChemicalFeatures
+from rdkit import RDConfig
+from rdkit.Chem.rdchem import GetPeriodicTable
 
 
 class BaseFeaturizer:
@@ -47,13 +42,13 @@ class BaseFeaturizer:
         Returns:
             A dictionary of the features.
         """
-        # TODO  we may want to change the return type to be a tensor instead of a dict
         raise NotImplementedError
 
 
 class AtomFeaturizer(BaseFeaturizer):
     """
-    Featurize atoms in a molecule. The atom indices will be preserved.
+    Featurize atoms in a molecule.
+    The atom indices will be preserved, i.e. feature i corresponds to atom i.
     """
 
     def __init__(self, species, dtype="float32"):
@@ -79,10 +74,9 @@ class AtomFeaturizer(BaseFeaturizer):
 
         Returns
         -------
-        atom_feats_dict : dict
             Dictionary for atom features
         """
-        atom_feats_dict = defaultdict(list)
+        feats = []
         is_donor = defaultdict(int)
         is_acceptor = defaultdict(int)
 
@@ -102,33 +96,31 @@ class AtomFeaturizer(BaseFeaturizer):
 
         num_atoms = mol.GetNumAtoms()
         for u in range(num_atoms):
-            feat = []
-            feat.append(is_acceptor[u])
-            feat.append(is_donor[u])
+            ft = [is_acceptor[u], is_donor[u]]
 
             atom = mol.GetAtomWithIdx(u)
 
             # feat.append(atom.GetDegree())
-            feat.append(atom.GetTotalDegree())
+            ft.append(atom.GetTotalDegree())
 
             # feat.append(atom.GetExplicitValence())
             # feat.append(atom.GetImplicitValence())
-            feat.append(atom.GetTotalValence())
+            ft.append(atom.GetTotalValence())
 
             # feat.append(atom.GetFormalCharge())
-            feat.append(atom.GetNumRadicalElectrons())
+            ft.append(atom.GetNumRadicalElectrons())
 
-            feat.append(int(atom.GetIsAromatic()))
-            feat.append(int(atom.IsInRing()))
+            ft.append(int(atom.GetIsAromatic()))
+            ft.append(int(atom.IsInRing()))
 
             # feat.append(atom.GetNumExplicitHs())
             # feat.append(atom.GetNumImplicitHs())
-            feat.append(atom.GetTotalNumHs())
+            ft.append(atom.GetTotalNumHs())
 
             # feat.append(atom.GetAtomicNum())
-            feat += one_hot_encoding(atom.GetSymbol(), self.species)
+            ft += one_hot_encoding(atom.GetSymbol(), self.species)
 
-            feat += one_hot_encoding(
+            ft += one_hot_encoding(
                 atom.GetHybridization(),
                 [
                     Chem.rdchem.HybridizationType.S,
@@ -140,12 +132,10 @@ class AtomFeaturizer(BaseFeaturizer):
                 ],
             )
 
-            atom_feats_dict["feat"].append(feat)
+            feats.append(ft)
 
-        dtype = getattr(torch, self.dtype)
-        atom_feats_dict["feat"] = torch.tensor(atom_feats_dict["feat"], dtype=dtype)
-
-        self._feature_size = len(atom_feats_dict["feat"][0])
+        feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
+        self._feature_size = feats.shape[1]
         self._feature_name = (
             [
                 "acceptor",
@@ -168,16 +158,23 @@ class AtomFeaturizer(BaseFeaturizer):
             + ["hybridization"] * 6
         )
 
-        return atom_feats_dict
+        return {"feat": feats}
 
 
-class BondFeaturizer(BaseFeaturizer):
+class BondAsNodeFeaturizer(BaseFeaturizer):
     """
-    Featurize all bonds in a molecule. The bond indices will be preserved.
+    Featurize all bonds in a molecule.
+
+    The bond indices will be preserved, i.e. feature i corresponds to atom i.
+    The number of features will be equal to the number of bonds in the molecule,
+    so this is suitable for the case where we represent bond as graph nodes.
+
+    See Also:
+        BondAsEdgeFeaturizer
     """
 
     def __init__(self, dtype="float32"):
-        super(BondFeaturizer, self).__init__(dtype)
+        super(BondAsNodeFeaturizer, self).__init__(dtype)
         self._feature_size = None
         self._feature_name = None
 
@@ -198,10 +195,9 @@ class BondFeaturizer(BaseFeaturizer):
 
         Returns
         -------
-        bond_feats_dict : dict
             Dictionary for bond features
         """
-        bond_feats_dict = defaultdict(list)
+        feats = []
 
         num_bonds = mol.GetNumBonds()
         if num_bonds < 1:
@@ -210,13 +206,13 @@ class BondFeaturizer(BaseFeaturizer):
         for u in range(num_bonds):
             bond = mol.GetBondWithIdx(u)
 
-            feat = []
+            ft = [
+                int(bond.GetIsAromatic()),
+                int(bond.IsInRing()),
+                int(bond.GetIsConjugated()),
+            ]
 
-            feat.append(int(bond.GetIsAromatic()))
-            feat.append(int(bond.IsInRing()))
-            feat.append(int(bond.GetIsConjugated()))
-
-            feat += one_hot_encoding(
+            ft += one_hot_encoding(
                 bond.GetBondType(),
                 [
                     Chem.rdchem.BondType.SINGLE,
@@ -226,24 +222,118 @@ class BondFeaturizer(BaseFeaturizer):
                     # Chem.rdchem.BondType.IONIC,
                 ],
             )
-            bond_feats_dict["feat"].append(feat)
+            feats.append(ft)
 
-        dtype = getattr(torch, self.dtype)
-        bond_feats_dict["feat"] = torch.tensor(bond_feats_dict["feat"], dtype=dtype)
-
-        self._feature_size = len(bond_feats_dict["feat"][0])
+        feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
+        self._feature_size = feats.shape[1]
         self._feature_name = ["is aromatic", "is in ring", "is conjugated"] + ["type"] * 3
 
-        return bond_feats_dict
+        return {"feat": feats}
 
 
-class GlobalStateFeaturizer(BaseFeaturizer):
+class BondAsEdgeFeaturizer(BaseFeaturizer):
     """
-    Featurize the global state of a molecules.
+    Featurize all bonds in a molecule.
+
+    Feature of bond 0 is assigned to graph edges 0 and 1, feature of bond 1 is assigned
+    to graph edges 2, and 3 ... If `self_loop` is `True`, graph edge 2Nb to 2Nb+Na-1
+    will also have features, but they are not determined from the actual bond in the
+    molecule.
+
+    This is suitable for the case where we represent bond as graph edges. For example,
+    it can be used together :meth:`gnn.data.grapher.HomoMoleculeGraph`.
+
+    See Also:
+        BondAsNodeFeaturizer
+    """
+
+    def __init__(self, self_loop=True, dtype="float32"):
+        super(BondAsEdgeFeaturizer, self).__init__(dtype)
+        self.self_loop = self_loop
+        self._feature_size = None
+        self._feature_name = None
+
+    @property
+    def feature_size(self):
+        return self._feature_size
+
+    @property
+    def feature_name(self):
+        return self._feature_name
+
+    def __call__(self, mol, **kwargs):
+        """
+        Parameters
+        ----------
+        mol : rdkit.Chem.rdchem.Mol
+            RDKit molecule object
+
+        Returns
+        -------
+            Dictionary for bond features
+        """
+        feats = []
+
+        num_bonds = mol.GetNumBonds()
+        if num_bonds < 1:
+            warnings.warn("molecular has no bonds")
+
+        for u in range(num_bonds):
+            bond = mol.GetBondWithIdx(u)
+
+            ft = [
+                int(bond.GetIsAromatic()),
+                int(bond.IsInRing()),
+                int(bond.GetIsConjugated()),
+            ]
+
+            ft += one_hot_encoding(
+                bond.GetBondType(),
+                [
+                    Chem.rdchem.BondType.SINGLE,
+                    Chem.rdchem.BondType.DOUBLE,
+                    Chem.rdchem.BondType.TRIPLE,
+                    # Chem.rdchem.BondType.AROMATIC,
+                    # Chem.rdchem.BondType.IONIC,
+                    None,
+                ],
+            )
+            feats.extend([ft, ft])
+
+        if self.self_loop:
+            for i in range(mol.GetNumAtoms()):
+
+                # use -1 to denote not applicable, not ideal but acceptable
+                ft = [-1, -1, -1]
+
+                # no bond type for self loop
+                ft += one_hot_encoding(
+                    None,
+                    [
+                        Chem.rdchem.BondType.SINGLE,
+                        Chem.rdchem.BondType.DOUBLE,
+                        Chem.rdchem.BondType.TRIPLE,
+                        # Chem.rdchem.BondType.AROMATIC,
+                        # Chem.rdchem.BondType.IONIC,
+                        None,
+                    ],
+                )
+                feats.append(ft)
+
+        feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
+        self._feature_size = feats.shape[1]
+        self._feature_name = ["is aromatic", "is in ring", "is conjugated"] + ["type"] * 4
+
+        return {"feat": feats}
+
+
+class MolChargeFeaturizer(BaseFeaturizer):
+    """
+    Featurize the global state of a molecules using charge.
     """
 
     def __init__(self, dtype="float32"):
-        super(GlobalStateFeaturizer, self).__init__(dtype)
+        super(MolChargeFeaturizer, self).__init__(dtype)
         self._feature_size = None
         self._feature_name = None
 
@@ -261,112 +351,48 @@ class GlobalStateFeaturizer(BaseFeaturizer):
         except KeyError as e:
             raise KeyError("{} charge needed for {}.".format(e, self.__class__.__name__))
 
-        global_feats_dict = dict()
         g = one_hot_encoding(charge, [-1, 0, 1])
-        dtype = getattr(torch, self.dtype)
-        global_feats_dict["feat"] = torch.tensor([g], dtype=dtype)
 
-        self._feature_size = len(g)
-        self._feature_name = ["charge"] * len(g)
+        feats = torch.tensor([g], dtype=getattr(torch, self.dtype))
+        self._feature_size = feats.shape[1]
+        self._feature_name = ["charge"] * feats.shape[1]
 
-        return global_feats_dict
+        return {"feat": feats}
 
 
-class HeteroMoleculeGraph:
+class MolWeightFeaturizer(BaseFeaturizer):
     """
-    Convert a RDKit molecule to a DGLHeteroGraph and featurize for it.
+    Featurize the global state of a molecules using number of atoms, number of bonds,
+    and its weight.
     """
 
-    def __init__(
-        self,
-        atom_featurizer=None,
-        bond_featurizer=None,
-        global_state_featurizer=None,
-        self_loop=True,
-    ):
-        # TODO due to the way we are constructing the graph, self_loop seems not working
-        self.atom_featurizer = atom_featurizer
-        self.bond_featurizer = bond_featurizer
-        self.global_state_featurizer = global_state_featurizer
-        self.self_loop = self_loop
+    def __init__(self, dtype="float32"):
+        super(MolWeightFeaturizer, self).__init__(dtype)
+        self._feature_size = None
+        self._feature_name = None
 
-    def build_graph_and_featurize(self, mol, **kwargs):
-        """
-        Build an a heterograph, with three types of nodes: atom, bond, and glboal
-        state, and then featurize the graph.
+    @property
+    def feature_size(self):
+        return self._feature_size
 
-        Args:
-            mol (rdkit mol): a rdkit molecule
-            kwargs: extra keyword arguments needed by featurizer
+    @property
+    def feature_name(self):
+        return self._feature_name
 
-        Returns:
-            (dgl heterograph): bond_idx_to_atom_idx (dict): mapping between two type
-                bond indices, key is integer bond index, and value is a tuple of atom
-                indices that specify the bond.
-        """
+    def __call__(self, mol, **kwargs):
 
-        g = self.build_graph(mol)
-        g = self.featurize(g, mol, **kwargs)
-        return g
+        pd = GetPeriodicTable()
+        g = [
+            mol.GetNumAtoms(),
+            mol.GetNumBonds(),
+            sum([pd.GetAtomicWeight(a.GetAtomicNum()) for a in mol.GetAtoms()]),
+        ]
 
-    def build_graph(self, mol):
-        num_atoms = mol.GetNumAtoms()
+        feats = torch.tensor([g], dtype=getattr(torch, self.dtype))
+        self._feature_size = feats.shape[1]
+        self._feature_name = ["num atoms", "num bonds", "molecule weight"]
 
-        # bonds
-        num_bonds = mol.GetNumBonds()
-        bond_idx_to_atom_idx = dict()
-        for i in range(num_bonds):
-            bond = mol.GetBondWithIdx(i)
-            u = bond.GetBeginAtomIdx()
-            v = bond.GetEndAtomIdx()
-            bond_idx_to_atom_idx[i] = (u, v)
-
-        a2b = []
-        b2a = []
-        for a in range(num_atoms):
-            for b, bond in bond_idx_to_atom_idx.items():
-                if a in bond:
-                    b2a.append([b, a])
-                    a2b.append([a, b])
-
-        a2g = [(a, 0) for a in range(num_atoms)]
-        g2a = [(0, a) for a in range(num_atoms)]
-        b2g = [(b, 0) for b in range(num_bonds)]
-        g2b = [(0, b) for b in range(num_bonds)]
-
-        edges_dict = {
-            ("atom", "a2b", "bond"): a2b,
-            ("bond", "b2a", "atom"): b2a,
-            ("atom", "a2g", "global"): a2g,
-            ("global", "g2a", "atom"): g2a,
-            ("bond", "b2g", "global"): b2g,
-            ("global", "g2b", "bond"): g2b,
-        }
-        if self.self_loop:
-            a2a = [(i, i) for i in range(num_atoms)]
-            b2b = [(i, i) for i in range(num_bonds)]
-            g2g = [(0, 0)]
-            edges_dict.update(
-                {
-                    ("atom", "a2a", "atom"): a2a,
-                    ("bond", "b2b", "bond"): b2b,
-                    ("global", "g2g", "global"): g2g,
-                }
-            )
-        g = dgl.heterograph(edges_dict)
-
-        return g
-
-    def featurize(self, g, mol, **kwargs):
-
-        if self.atom_featurizer is not None:
-            g.nodes["atom"].data.update(self.atom_featurizer(mol, **kwargs))
-        if self.bond_featurizer is not None:
-            g.nodes["bond"].data.update(self.bond_featurizer(mol, **kwargs))
-        if self.global_state_featurizer is not None:
-            g.nodes["global"].data.update(self.global_state_featurizer(mol, **kwargs))
-
-        return g
+        return {"feat": feats}
 
 
 def one_hot_encoding(x, allowable_set):
