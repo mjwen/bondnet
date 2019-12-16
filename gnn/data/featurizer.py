@@ -6,6 +6,7 @@ import torch
 import os
 import warnings
 from collections import defaultdict
+import numpy as np
 from rdkit import Chem
 from rdkit.Chem import ChemicalFeatures
 from rdkit import RDConfig
@@ -170,7 +171,7 @@ class BondAsNodeFeaturizer(BaseFeaturizer):
     so this is suitable for the case where we represent bond as graph nodes.
 
     See Also:
-        BondAsEdgeFeaturizer
+        BondAsEdgeBidirectedFeaturizer
     """
 
     def __init__(self, dtype="float32"):
@@ -231,7 +232,7 @@ class BondAsNodeFeaturizer(BaseFeaturizer):
         return {"feat": feats}
 
 
-class BondAsEdgeFeaturizer(BaseFeaturizer):
+class BondAsEdgeBidirectedFeaturizer(BaseFeaturizer):
     """
     Featurize all bonds in a molecule.
 
@@ -240,18 +241,24 @@ class BondAsEdgeFeaturizer(BaseFeaturizer):
     will also have features, but they are not determined from the actual bond in the
     molecule.
 
-    This is suitable for the case where we represent bond as graph edges. For example,
-    it can be used together :meth:`gnn.data.grapher.HomoMoleculeGraph`.
+    This is suitable for the case where we represent bond as edges of bidirected graph.
+    For example, it can be used together :meth:`gnn.data.grapher.HomoBidirectedGraph`.
 
     See Also:
         BondAsNodeFeaturizer
+        BondAsEdgeCompleteFeaturizer
     """
 
-    def __init__(self, self_loop=True, dtype="float32"):
-        super(BondAsEdgeFeaturizer, self).__init__(dtype)
+    def __init__(self, self_loop=True, distance_bins=False, dtype="float32"):
+        super(BondAsEdgeBidirectedFeaturizer, self).__init__(dtype)
         self.self_loop = self_loop
         self._feature_size = None
         self._feature_name = None
+
+        if distance_bins:
+            self.dist_b = DistanceBins(low=2.0, high=6.0, num_bins=10)
+        else:
+            self.dist_b = None
 
     @property
     def feature_size(self):
@@ -298,6 +305,14 @@ class BondAsEdgeFeaturizer(BaseFeaturizer):
                     None,
                 ],
             )
+
+            if self.dist_b:
+                at1 = bond.GetBeginAtomIdx()
+                at2 = bond.GetEndAtomIdx()
+                atoms_pos = mol.GetConformer().GetPositions()
+                bond_length = np.linalg.norm(atoms_pos[at1] - atoms_pos[at2])
+                ft += self.dist_b.encode(bond_length)
+
             feats.extend([ft, ft])
 
         if self.self_loop:
@@ -318,11 +333,117 @@ class BondAsEdgeFeaturizer(BaseFeaturizer):
                         None,
                     ],
                 )
+
+                # bond distance
+                if self.dist_b:
+                    bond_length = 0.0
+                    ft += self.dist_b.encode(bond_length)
+
                 feats.append(ft)
 
         feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
         self._feature_size = feats.shape[1]
         self._feature_name = ["is aromatic", "is in ring", "is conjugated"] + ["type"] * 4
+        if self.dist_b:
+            self._feature_name += ["dist bins"] * self.dist_b.num_bins
+
+        return {"feat": feats}
+
+
+class BondAsEdgeCompleteFeaturizer(BaseFeaturizer):
+    """
+    Featurize all bonds in a molecule.
+
+    Create features between atom pairs (0, 0), (0,1), (0,2), ... (1,0), (1,1), (1,2), ...
+    If not `self_loop`, (0,0), (1,1) ... pairs will not be present.
+
+    This is suitable for the case where we represent bond as complete graph edges. For
+    example, it can be used together :meth:`gnn.data.grapher.HomoCompleteGraph`.
+
+    See Also:
+        BondAsNodeFeaturizer
+        BondAsEdgeBidirectedFeaturizer
+    """
+
+    def __init__(self, self_loop=True, distance_bins=False, dtype="float32"):
+        super(BondAsEdgeCompleteFeaturizer, self).__init__(dtype)
+        self.self_loop = self_loop
+        self._feature_size = None
+        self._feature_name = None
+
+        if distance_bins:
+            self.dist_b = DistanceBins(low=2.0, high=6.0, num_bins=10)
+        else:
+            self.dist_b = None
+
+    @property
+    def feature_size(self):
+        return self._feature_size
+
+    @property
+    def feature_name(self):
+        return self._feature_name
+
+    def __call__(self, mol, **kwargs):
+        """
+        Parameters
+        ----------
+        mol : rdkit.Chem.rdchem.Mol
+            RDKit molecule object
+
+        Returns
+        -------
+            Dictionary for bond features
+        """
+        feats = []
+
+        num_atoms = mol.GetNumAtoms()
+        num_bonds = mol.GetNumBonds()
+        if num_bonds < 1:
+            warnings.warn("molecular has no bonds")
+
+        for u in range(num_atoms):
+            for v in range(num_atoms):
+                if u == v and not self.self_loop:
+                    continue
+
+                bond = mol.GetBondBetweenAtoms(u, v)
+                if bond is None:
+                    bond_type = None
+                    ft = [-1, -1, -1]
+                else:
+                    bond_type = bond.GetBondType()
+                    ft = [
+                        int(bond.GetIsAromatic()),
+                        int(bond.IsInRing()),
+                        int(bond.GetIsConjugated()),
+                    ]
+
+                ft += one_hot_encoding(
+                    bond_type,
+                    [
+                        Chem.rdchem.BondType.SINGLE,
+                        Chem.rdchem.BondType.DOUBLE,
+                        Chem.rdchem.BondType.TRIPLE,
+                        # Chem.rdchem.BondType.AROMATIC,
+                        # Chem.rdchem.BondType.IONIC,
+                        None,
+                    ],
+                )
+
+                # bond distance
+                if self.dist_b:
+                    atoms_pos = mol.GetConformer().GetPositions()
+                    bond_length = np.linalg.norm(atoms_pos[u] - atoms_pos[v])
+                    ft += self.dist_b.encode(bond_length)
+
+                feats.append(ft)
+
+        feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
+        self._feature_size = feats.shape[1]
+        self._feature_name = ["is aromatic", "is in ring", "is conjugated"] + ["type"] * 4
+        if self.dist_b:
+            self._feature_name += ["dist bins"] * self.dist_b.num_bins
 
         return {"feat": feats}
 
@@ -412,3 +533,77 @@ def one_hot_encoding(x, allowable_set):
         If the i-th value is 1, then we must have x == allowable_set[i].
     """
     return list(map(int, list(map(lambda s: x == s, allowable_set))))
+
+
+class DistanceBins:
+    """
+    Put the distance into a bins. As used in MPNN.
+
+    Args:
+        low (float): lower bound of bin. Values smaller than this will all be put in
+            the same bin.
+        high (float): upper bound of bin. Values larger than this will all be put in
+            the same bin.
+        num_bins (int): number of bins. Besides two bins (one smaller than `low` and
+            one larger than `high`) a number of `num_bins -2` bins will be evenly
+            created between [low, high).
+
+    """
+
+    def __init__(self, low=2.0, high=6.0, num_bins=10):
+        self.num_bins = num_bins
+        self.bins = np.linspace(low, high, num_bins - 1, endpoint=True)
+        self.bin_indices = np.arange(num_bins)
+
+    def encode(self, distance):
+        v = np.digitize(distance, self.bins)
+        return one_hot_encoding(v, self.bin_indices)
+
+
+# class RBF:
+#     """
+#     Radial basis functions.
+#     e(d) = exp(- gamma * ||d - mu_k||^2)
+#     With the default parameters below, we are using a default settings:
+#     * gamma = 10
+#     * 0 <= mu_k <= 30 for k=1~300
+#     Parameters
+#     ----------
+#     low : int
+#         Smallest value to take for mu_k, default to be 0.
+#     high : int
+#         Largest value to take for mu_k, default to be 30.
+#     gap : float
+#         Difference between two consecutive values for mu_k, default to be 0.1.
+#     dim : int
+#         Output size for each center, default to be 1.
+#     """
+#
+#     def __init__(self, low=0, high=30, gap=0.1, dim=1):
+#         super(RBF, self).__init__()
+#
+#         self._low = low
+#         self._high = high
+#         self._dim = dim
+#
+#         self._n_centers = int(np.ceil((high - low) / gap))
+#         centers = np.linspace(low, high, self._n_centers)
+#         self.centers = torch.tensor(centers, dtype=torch.float, requires_grad=False)
+#         self.centers = nn.Parameter(self.centers, requires_grad=False)
+#         self._fan_out = self._dim * self._n_centers
+#         self._gap = centers[1] - centers[0]
+#
+#     def compute(self, edge_distances):
+#         """
+#         Parameters
+#         ----------
+#         edge_distances : float32 tensor of shape (B, 1)
+#             Edge distances, B for the number of edges.
+#         Returns
+#         -------
+#         float32 tensor of shape (B, self._fan_out)
+#             Computed RBF results
+#         """
+#         radial = edge_distances - self.centers
+#         coef = -1 / self._gap
+#         return torch.exp(coef * (radial ** 2))

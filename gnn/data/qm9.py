@@ -9,10 +9,10 @@ from rdkit import Chem
 from gnn.data.featurizer import (
     AtomFeaturizer,
     BondAsNodeFeaturizer,
-    BondAsEdgeFeaturizer,
+    BondAsEdgeBidirectedFeaturizer,
     MolWeightFeaturizer,
 )
-from gnn.data.grapher import HomoMoleculeGraph, HeteroMoleculeGraph
+from gnn.data.grapher import HomoBidirectedGraph, HeteroMoleculeGraph
 from gnn.data.electrolyte import ElectrolyteDataset
 import pandas as pd
 import numpy as np
@@ -75,8 +75,8 @@ class QM9Dataset(ElectrolyteDataset):
                     self_loop=self.self_loop,
                 )
             else:
-                bond_featurizer = BondAsEdgeFeaturizer(dtype=self.dtype)
-                grapher = HomoMoleculeGraph(
+                bond_featurizer = BondAsEdgeBidirectedFeaturizer(dtype=self.dtype)
+                grapher = HomoBidirectedGraph(
                     atom_featurizer=atom_featurizer,
                     bond_featurizer=bond_featurizer,
                     self_loop=self.self_loop,

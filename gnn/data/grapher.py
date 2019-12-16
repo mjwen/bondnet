@@ -4,9 +4,9 @@ Build molecule graph and then featurize it.
 import dgl
 
 
-class HomoMoleculeGraph:
+class HomoBidirectedGraph:
     """
-    Convert a RDKit molecule to a DGLGraph and featurize for it.
+    Convert a RDKit molecule to a homogeneous bidirected DGLGraph and featurize for it.
 
     This creates a bidirectional graph. Atom i of the molecule is node i of the graph.
     Bond 0 corresponds to graph edges 0 and 1, bond 1 corresponds to graph edges 2,
@@ -63,6 +63,67 @@ class HomoMoleculeGraph:
         if self.self_loop:
             nodes = g.nodes()
             g.add_edges(nodes, nodes)
+
+        return g
+
+    def featurize(self, g, mol, **kwargs):
+        if self.atom_featurizer is not None:
+            g.ndata.update(self.atom_featurizer(mol, **kwargs))
+        if self.bond_featurizer is not None:
+            g.edata.update(self.bond_featurizer(mol, **kwargs))
+        return g
+
+
+class HomoCompleteGraph:
+    """
+    Convert a RDKit molecule to a homogeneous complete DGLGraph and featurize for it.
+
+    This creates a complete graph, i.e. every atom is connected to other atoms in the
+    molecule. If `self_loop` is `True`, each atom is connected to its self.
+
+    The edges are in the order of (0, 0), (0, 1), (0, 1), ... (1, 0), (1, 1), (1, 2),
+     ... If not `self_loop` are not created, we will not have (0, 0), (1, 1), ...
+    """
+
+    def __init__(self, atom_featurizer=None, bond_featurizer=None, self_loop=True):
+        self.atom_featurizer = atom_featurizer
+        self.bond_featurizer = bond_featurizer
+        self.self_loop = self_loop
+
+    def build_graph_and_featurize(self, mol, **kwargs):
+        """
+        Build a graph with atoms as the nodes and bonds as the edges and then featurize
+        the graph.
+
+
+        Args:
+            mol (rdkit mol): a rdkit molecule
+            kwargs: extra keyword arguments needed by featurizer
+
+        Returns:
+            (DGLGraph)
+        """
+
+        g = self.build_graph(mol)
+        g = self.featurize(g, mol, **kwargs)
+        return g
+
+    def build_graph(self, mol):
+
+        g = dgl.DGLGraph()
+        num_atoms = mol.GetNumAtoms()
+        g.add_nodes(num_atoms)
+
+        if self.self_loop:
+            g.add_edges(
+                [i for i in range(num_atoms) for j in range(num_atoms)],
+                [j for i in range(num_atoms) for j in range(num_atoms)],
+            )
+        else:
+            g.add_edges(
+                [i for i in range(num_atoms) for j in range(num_atoms - 1)],
+                [j for i in range(num_atoms) for j in range(num_atoms) if i != j],
+            )
 
         return g
 
