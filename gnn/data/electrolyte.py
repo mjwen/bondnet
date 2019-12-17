@@ -17,6 +17,7 @@ from gnn.data.featurizer import (
 )
 from gnn.data.grapher import HomoBidirectedGraph, HomoCompleteGraph, HeteroMoleculeGraph
 from gnn.data.dataset import BaseDataset
+from gnn.data.utils import StandardScaler
 
 
 logger = logging.getLogger(__name__)
@@ -100,6 +101,7 @@ class ElectrolyteDataset(BaseDataset):
                 )
             )
 
+            # initialize featurizer
             species = self._get_species()
             atom_featurizer = AtomFeaturizer(species, dtype=self.dtype)
             if self.grapher == "hetero":
@@ -139,8 +141,8 @@ class ElectrolyteDataset(BaseDataset):
             else:
                 raise ValueError("Unsupported grapher type '{}".format(self.grapher))
 
+            # read graphs and label
             properties = self._read_label_file()
-
             self.graphs = []
             self.labels = []
             supp = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
@@ -166,6 +168,12 @@ class ElectrolyteDataset(BaseDataset):
                 label = {"value": bonds_energy, "indicator": bonds_indicator}
                 self.labels.append(label)
 
+            # standardize features
+            scaler = StandardScaler()
+            self.graphs = scaler(self.graphs)
+            logger.info("StandardScaler mean: {}".format(scaler.mean))
+            logger.info("StandardScaler std: {}".format(scaler.std))
+
             self._feature_size = {
                 "atom": atom_featurizer.feature_size,
                 "bond": bond_featurizer.feature_size,
@@ -177,6 +185,8 @@ class ElectrolyteDataset(BaseDataset):
             if self.grapher == "hetero":
                 self._feature_size["global"] = global_featurizer.feature_size
                 self._feature_name["global"] = global_featurizer.feature_name
+            logger.info("Feature size: {}".format(self._feature_size))
+            logger.info("Feature name: {}".format(self._feature_name))
 
             if self.pickle_dataset:
                 if self.grapher == "hetero":

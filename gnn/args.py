@@ -17,7 +17,7 @@ def parse_args():
         help="number of hidden units of GAT layers",
     )
     parser.add_argument(
-        "--num-heads", type=int, default=4, help="number of hidden attention heads"
+        "--num-heads", type=int, default=1, help="number of hidden attention heads"
     )
     parser.add_argument(
         "--feat-drop", type=float, default=0.0, help="input feature dropout"
@@ -89,7 +89,7 @@ def parse_args():
     )
 
     if args.gpu >= 0 and torch.cuda.is_available():
-        args.device = torch.device("cuda")
+        args.device = torch.device("cuda:{}".format(args.gpu))
     else:
         args.device = None
 

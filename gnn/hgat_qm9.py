@@ -114,9 +114,9 @@ def main(args):
     )
     # larger val and test set batch_size is faster but needs more memory
     # adjust the batch size of to fit memory
-    bs = len(valset) // 4
+    bs = len(valset) // 10
     val_loader = DataLoaderQM9(valset, hetero=True, batch_size=bs, shuffle=False)
-    bs = len(testset) // 4
+    bs = len(testset) // 10
     test_loader = DataLoaderQM9(testset, hetero=True, batch_size=bs, shuffle=False)
 
     # model

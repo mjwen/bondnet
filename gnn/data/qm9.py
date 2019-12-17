@@ -2,6 +2,8 @@
 QM9 dataset.
 """
 
+import pandas as pd
+import numpy as np
 import torch
 import logging
 from collections import OrderedDict
@@ -15,9 +17,7 @@ from gnn.data.featurizer import (
 )
 from gnn.data.grapher import HomoBidirectedGraph, HomoCompleteGraph, HeteroMoleculeGraph
 from gnn.data.electrolyte import ElectrolyteDataset
-import pandas as pd
-import numpy as np
-
+from gnn.data.utils import StandardScaler
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +89,7 @@ class QM9Dataset(ElectrolyteDataset):
                 )
             )
 
+            # initialize featurizer
             species = self._get_species()
             atom_featurizer = AtomFeaturizer(species, dtype=self.dtype)
             if self.grapher == "hetero":
@@ -128,8 +129,8 @@ class QM9Dataset(ElectrolyteDataset):
             else:
                 raise ValueError("Unsupported grapher type '{}".format(self.grapher))
 
+            # read mol graphs and label
             labels = self._read_label_file()
-
             self.graphs = []
             bad_mols = []
             supp = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
@@ -145,6 +146,12 @@ class QM9Dataset(ElectrolyteDataset):
                 g = grapher.build_graph_and_featurize(mol)
                 self.graphs.append(g)
 
+            # standardize features
+            scaler = StandardScaler()
+            self.graphs = scaler(self.graphs)
+            logger.info("StandardScaler mean: {}".format(scaler.mean))
+            logger.info("StandardScaler std: {}".format(scaler.std))
+
             labels = np.delete(labels, bad_mols, axis=0)
             self.labels = torch.tensor(labels, dtype=getattr(torch, self.dtype))
 
@@ -159,6 +166,8 @@ class QM9Dataset(ElectrolyteDataset):
             if self.grapher == "hetero":
                 self._feature_size["global"] = global_featurizer.feature_size
                 self._feature_name["global"] = global_featurizer.feature_name
+            logger.info("Feature size: {}".format(self._feature_size))
+            logger.info("Feature name: {}".format(self._feature_name))
 
             if self.pickle_dataset:
                 if self.pickle_dataset:

@@ -8,9 +8,41 @@ from gnn.data.dataset import train_validation_test_split
 from gnn.data.electrolyte import ElectrolyteDataset
 from gnn.data.dataloader import DataLoader
 from gnn.model.hgat import HGAT
-from gnn.metric import evaluate, EarlyStopping
+from gnn.metric import EarlyStopping
 from gnn.args import parse_args
 from gnn.utils import pickle_dump, seed_torch
+
+
+def evaluate(model, nodes, data_loader, metric_fn, device=None):
+    """
+    Evaluate the accuracy of an validation set of test set.
+
+    Args:
+        metric_fn (function): the function should be using a `sum` reduction method.
+    """
+    model.eval()
+
+    with torch.no_grad():
+        accuracy = 0.0
+        count = 0
+
+        for bg, label in data_loader:
+            feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
+            if device is not None:
+                feats = {k: v.to(device) for k, v in feats.items()}
+                if isinstance(label, dict):
+                    label = {k: v.to(device) for k, v in label.items()}
+                else:
+                    label = label.to(device)
+
+            pred = model(bg, feats)
+            accuracy += metric_fn(pred, label).detach().item()
+            if isinstance(label, dict):
+                count += sum(label["indicator"])
+            else:
+                count += len(label)
+
+    return accuracy / count
 
 
 def main(args):
@@ -98,7 +130,7 @@ def main(args):
         train_acc = metric(
             torch.cat(epoch_pred), {k: torch.cat(v) for k, v in epoch_label.items()}
         )
-        val_acc = evaluate(model, val_loader, metric, attn_order, args.device)
+        val_acc = evaluate(model, attn_order, val_loader, metric, args.device)
         scheduler.step(val_acc)
         if stopper.step(val_acc, model, msg="epoch " + str(epoch)):
             # save results for hyperparam tune
@@ -119,7 +151,7 @@ def main(args):
 
     # load best to calculate test accuracy
     model.load_state_dict(torch.load("es_checkpoint.pkl"))
-    test_acc = evaluate(model, test_loader, metric, attn_order, args.device)
+    test_acc = evaluate(model, attn_order, test_loader, metric, args.device)
     tt = time.time() - t0
     print("\n#TestAcc: {:12.6e} | Total time (s): {:.2f}\n".format(test_acc, tt))
 

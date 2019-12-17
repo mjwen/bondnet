@@ -128,8 +128,8 @@ class AtomFeaturizer(BaseFeaturizer):
                     Chem.rdchem.HybridizationType.SP,
                     Chem.rdchem.HybridizationType.SP2,
                     Chem.rdchem.HybridizationType.SP3,
-                    Chem.rdchem.HybridizationType.SP3D,
-                    Chem.rdchem.HybridizationType.SP3D2,
+                    #  Chem.rdchem.HybridizationType.SP3D,
+                    #  Chem.rdchem.HybridizationType.SP3D2,
                 ],
             )
 
@@ -156,7 +156,7 @@ class AtomFeaturizer(BaseFeaturizer):
                 # "atomic number",
             ]
             + ["chemical symbol"] * len(self.species)
-            + ["hybridization"] * 6
+            + ["hybridization"] * 4
         )
 
         return {"feat": feats}
