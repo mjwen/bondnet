@@ -10,9 +10,10 @@ from gnn.data.featurizer import (
     AtomFeaturizer,
     BondAsNodeFeaturizer,
     BondAsEdgeBidirectedFeaturizer,
+    BondAsEdgeCompleteFeaturizer,
     MolWeightFeaturizer,
 )
-from gnn.data.grapher import HomoBidirectedGraph, HeteroMoleculeGraph
+from gnn.data.grapher import HomoBidirectedGraph, HomoCompleteGraph, HeteroMoleculeGraph
 from gnn.data.electrolyte import ElectrolyteDataset
 import pandas as pd
 import numpy as np
@@ -24,6 +25,17 @@ logger = logging.getLogger(__name__)
 class QM9Dataset(ElectrolyteDataset):
     """
     The QM9 dataset.
+
+    Args:
+        sdf_file:
+        label_file:
+        self_loop:
+        grapher (str): the type of graph to create, options are: `hetero`,
+            `homo_bidirected` and `homo_complete`.
+        properties (str): the dataset propery to use. If `None`, use all.
+        unit_conversion:
+        pickle_dataset:
+        dtype:
     """
 
     def __init__(
@@ -31,16 +43,17 @@ class QM9Dataset(ElectrolyteDataset):
         sdf_file,
         label_file,
         self_loop=True,
-        hetero=True,
+        grapher="hetero",
         properties=None,
         unit_conversion=True,
         pickle_dataset=False,
         dtype="float32",
     ):
+
         self.properties = properties
         self.unit_conversion = unit_conversion
         super(QM9Dataset, self).__init__(
-            sdf_file, label_file, self_loop, hetero, pickle_dataset, dtype
+            sdf_file, label_file, self_loop, grapher, pickle_dataset, dtype
         )
 
     def _load(self):
@@ -51,7 +64,13 @@ class QM9Dataset(ElectrolyteDataset):
                 )
             )
 
-            self.graphs, self.labels = self.load_dataset()
+            if self.grapher == "hetero":
+                self.graphs, self.labels = self.load_dataset_hetero()
+            elif self.grapher in ["homo_bidirected", "homo_complete"]:
+                self.graphs, self.labels = self.load_dataset()
+            else:
+                raise ValueError("Unsupported grapher type '{}".format(self.grapher))
+
             d = self.load_state_dict(self._default_state_dict_filename())
             self._feature_size = d["feature_size"]
             self._feature_name = d["feature_name"]
@@ -65,7 +84,7 @@ class QM9Dataset(ElectrolyteDataset):
 
             species = self._get_species()
             atom_featurizer = AtomFeaturizer(species, dtype=self.dtype)
-            if self.hetero:
+            if self.grapher == "hetero":
                 bond_featurizer = BondAsNodeFeaturizer(dtype=self.dtype)
                 global_featurizer = MolWeightFeaturizer(dtype=self.dtype)
                 grapher = HeteroMoleculeGraph(
@@ -74,13 +93,27 @@ class QM9Dataset(ElectrolyteDataset):
                     global_state_featurizer=global_featurizer,
                     self_loop=self.self_loop,
                 )
-            else:
-                bond_featurizer = BondAsEdgeBidirectedFeaturizer(dtype=self.dtype)
+            elif self.grapher == "homo_bidirected":
+                bond_featurizer = BondAsEdgeBidirectedFeaturizer(
+                    self_loop=self.self_loop, distance_bins=True, dtype=self.dtype
+                )
                 grapher = HomoBidirectedGraph(
                     atom_featurizer=atom_featurizer,
                     bond_featurizer=bond_featurizer,
                     self_loop=self.self_loop,
                 )
+
+            elif self.grapher == "homo_complete":
+                bond_featurizer = BondAsEdgeCompleteFeaturizer(
+                    self_loop=self.self_loop, distance_bins=True, dtype=self.dtype
+                )
+                grapher = HomoCompleteGraph(
+                    atom_featurizer=atom_featurizer,
+                    bond_featurizer=bond_featurizer,
+                    self_loop=self.self_loop,
+                )
+            else:
+                raise ValueError("Unsupported grapher type '{}".format(self.grapher))
 
             labels = self._read_label_file()
 
@@ -110,12 +143,16 @@ class QM9Dataset(ElectrolyteDataset):
                 "atom": atom_featurizer.feature_name,
                 "bond": bond_featurizer.feature_name,
             }
-            if self.hetero:
+            if self.grapher == "hetero":
                 self._feature_size["global"] = global_featurizer.feature_size
                 self._feature_name["global"] = global_featurizer.feature_name
 
             if self.pickle_dataset:
-                self.save_dataset()
+                if self.pickle_dataset:
+                    if self.grapher == "hetero":
+                        self.save_dataset_hetero()
+                    else:
+                        self.save_dataset()
                 filename = self._default_state_dict_filename()
                 self.save_state_dict(filename)
 

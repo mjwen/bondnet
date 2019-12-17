@@ -106,8 +106,14 @@ def main(args):
     label_file = "/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf.csv"
     props = ["u0_atom"]
     dataset = QM9Dataset(
-        sdf_file, label_file, hetero=False, properties=props, unit_conversion=True
+        sdf_file,
+        label_file,
+        self_loop=False,
+        grapher="homo_complete",
+        properties=props,
+        unit_conversion=True,
     )
+    print(dataset)
     trainset, valset, testset = train_validation_test_split(
         dataset, validation=0.1, test=0.1
     )

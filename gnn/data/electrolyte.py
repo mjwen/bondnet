@@ -12,9 +12,10 @@ from gnn.data.featurizer import (
     AtomFeaturizer,
     BondAsNodeFeaturizer,
     BondAsEdgeBidirectedFeaturizer,
+    BondAsEdgeCompleteFeaturizer,
     MolChargeFeaturizer,
 )
-from gnn.data.grapher import HomoBidirectedGraph, HeteroMoleculeGraph
+from gnn.data.grapher import HomoBidirectedGraph, HomoCompleteGraph, HeteroMoleculeGraph
 from gnn.data.dataset import BaseDataset
 
 
@@ -43,7 +44,7 @@ class ElectrolyteDataset(BaseDataset):
         sdf_file,
         label_file,
         self_loop=True,
-        hetero=True,
+        grapher="hetero",
         pickle_dataset=False,
         dtype="float32",
     ):
@@ -51,7 +52,7 @@ class ElectrolyteDataset(BaseDataset):
         self.sdf_file = expand_path(sdf_file)
         self.label_file = expand_path(label_file)
         self.self_loop = self_loop
-        self.hetero = hetero
+        self.grapher = grapher
         self.pickle_dataset = pickle_dataset
 
         if self._is_pickled(self.sdf_file) != self._is_pickled(self.label_file):
@@ -79,10 +80,13 @@ class ElectrolyteDataset(BaseDataset):
                 )
             )
 
-            if self.hetero:
+            if self.grapher == "hetero":
                 self.graphs, self.labels = self.load_dataset_hetero()
-            else:
+            elif self.grapher in ["homo_bidirected", "homo_complete"]:
                 self.graphs, self.labels = self.load_dataset()
+            else:
+                raise ValueError("Unsupported grapher type '{}".format(self.grapher))
+
             d = self.load_state_dict(self._default_state_dict_filename())
             self._feature_size = d["feature_size"]
             self._feature_name = d["feature_name"]
@@ -96,22 +100,36 @@ class ElectrolyteDataset(BaseDataset):
 
             species = self._get_species()
             atom_featurizer = AtomFeaturizer(species, dtype=self.dtype)
-            if self.hetero:
-                global_featurizer = MolChargeFeaturizer(dtype=self.dtype)
+            if self.grapher == "hetero":
                 bond_featurizer = BondAsNodeFeaturizer(dtype=self.dtype)
+                global_featurizer = MolChargeFeaturizer(dtype=self.dtype)
                 grapher = HeteroMoleculeGraph(
                     atom_featurizer=atom_featurizer,
                     bond_featurizer=bond_featurizer,
                     global_state_featurizer=global_featurizer,
                     self_loop=self.self_loop,
                 )
-            else:
-                bond_featurizer = BondAsEdgeBidirectedFeaturizer(dtype=self.dtype)
+            elif self.grapher == "homo_bidirected":
+                bond_featurizer = BondAsEdgeBidirectedFeaturizer(
+                    self_loop=self.self_loop, distance_bins=True, dtype=self.dtype
+                )
                 grapher = HomoBidirectedGraph(
                     atom_featurizer=atom_featurizer,
                     bond_featurizer=bond_featurizer,
                     self_loop=self.self_loop,
                 )
+
+            elif self.grapher == "homo_complete":
+                bond_featurizer = BondAsEdgeCompleteFeaturizer(
+                    self_loop=self.self_loop, distance_bins=True, dtype=self.dtype
+                )
+                grapher = HomoCompleteGraph(
+                    atom_featurizer=atom_featurizer,
+                    bond_featurizer=bond_featurizer,
+                    self_loop=self.self_loop,
+                )
+            else:
+                raise ValueError("Unsupported grapher type '{}".format(self.grapher))
 
             properties = self._read_label_file()
 
@@ -131,7 +149,7 @@ class ElectrolyteDataset(BaseDataset):
                 bonds_energy = torch.tensor(prop[1 : nbonds + 1], dtype=dtype)
                 bonds_indicator = torch.tensor(prop[nbonds + 1 :], dtype=dtype)
 
-                if self.hetero:
+                if self.grapher == "hetero":
                     g = grapher.build_graph_and_featurize(mol, charge=prop[0])
                 else:
                     g = grapher.build_graph_and_featurize(mol)
@@ -148,12 +166,12 @@ class ElectrolyteDataset(BaseDataset):
                 "atom": atom_featurizer.feature_name,
                 "bond": bond_featurizer.feature_name,
             }
-            if self.hetero:
+            if self.grapher == "hetero":
                 self._feature_size["global"] = global_featurizer.feature_size
                 self._feature_name["global"] = global_featurizer.feature_name
 
             if self.pickle_dataset:
-                if self.hetero:
+                if self.grapher == "hetero":
                     self.save_dataset_hetero()
                 else:
                     self.save_dataset()
@@ -275,3 +293,12 @@ class ElectrolyteDataset(BaseDataset):
                 line = [float(i) for i in line.split()]
                 rslt.append(line)
         return rslt
+
+    def __repr__(self):
+        rst = "Dataset " + self.__class__.__name__ + "\n"
+        rst += "Lengh: {}\n".format(len(self))
+        for ft, sz in self.feature_size.items():
+            rst += "Feature: {}, size: {}\n".format(ft, sz)
+        for ft, nm in self.feature_name.items():
+            rst += "Feature: {}, name: {}\n".format(ft, nm)
+        return rst
