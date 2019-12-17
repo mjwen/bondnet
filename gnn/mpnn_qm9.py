@@ -54,13 +54,16 @@ def train(optimizer, model, data_loader, loss_fn, metric_fn, device=None):
 
     epoch_loss = 0.0
     accuracy = 0.0
+    count = 0
+
     for it, (bg, label) in enumerate(data_loader):
         nf = bg.ndata["feat"]
         ef = bg.edata["feat"]
-        if args.device is not None:
+        if device is not None:
             nf = nf.to(device=device)
             ef = ef.to(device=device)
             label = label.to(device=device)
+
         pred = model(bg, nf, ef)
         loss = loss_fn(pred, label)
         optimizer.zero_grad()
@@ -69,8 +72,10 @@ def train(optimizer, model, data_loader, loss_fn, metric_fn, device=None):
 
         epoch_loss += loss.detach().item()
         accuracy += metric_fn(pred, label).detach().item()
+        count += len(label)
 
     epoch_loss /= it + 1
+    accuracy /= count
 
     return epoch_loss, accuracy
 
@@ -86,17 +91,21 @@ def evaluate(model, data_loader, metric_fn, device=None):
 
     with torch.no_grad():
         accuracy = 0.0
-        for it, (bg, label) in enumerate(data_loader):
+        count = 0
+
+        for bg, label in data_loader:
             nf = bg.ndata["feat"]
             ef = bg.edata["feat"]
             if device is not None:
                 nf = nf.to(device=device)
                 ef = ef.to(device=device)
                 label = label.to(device=device)
+
             pred = model(bg, nf, ef)
             accuracy += metric_fn(pred, label).detach().item()
+            count += len(label)
 
-    return accuracy
+    return accuracy / count
 
 
 def main(args):
@@ -155,7 +164,7 @@ def main(args):
     )
 
     # loss, accuracy metric
-    loss_func = MSELoss()
+    loss_func = MSELoss(reduction="mean")
     metric = L1Loss(reduction="sum")
 
     # learning rate scheduler, and stopper
@@ -175,8 +184,7 @@ def main(args):
         loss, train_acc = train(
             optimizer, model, train_loader, loss_func, metric, args.device
         )
-        train_acc /= len(trainset)
-        val_acc = evaluate(model, val_loader, metric, args.device) / len(valset)
+        val_acc = evaluate(model, val_loader, metric, args.device)
 
         scheduler.step(val_acc)
         if stopper.step(val_acc, model, msg="epoch " + str(epoch)):
@@ -198,7 +206,7 @@ def main(args):
 
     # load best to calculate test accuracy
     model.load_state_dict(torch.load("es_checkpoint.pkl"))
-    test_acc = evaluate(model, test_loader, metric, args.device) / len(testset)
+    test_acc = evaluate(model, test_loader, metric, args.device)
     tt = time.time() - t0
     print("\n#TestAcc: {:12.6e} | Total time (s): {:.2f}\n".format(test_acc, tt))
 

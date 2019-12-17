@@ -32,7 +32,7 @@ class QM9Dataset(ElectrolyteDataset):
         self_loop:
         grapher (str): the type of graph to create, options are: `hetero`,
             `homo_bidirected` and `homo_complete`.
-        properties (str): the dataset propery to use. If `None`, use all.
+        properties (list of str): the dataset propery to use. If `None`, use all.
         unit_conversion:
         pickle_dataset:
         dtype:
