@@ -23,7 +23,7 @@ def test_atom_featurizer():
 
 def test_bond_as_node_featurizer():
     m = make_EC_mol()
-    featurizer = BondAsNodeFeaturizer()
+    featurizer = BondAsNodeFeaturizer(length_featurizer="bin")
     feat = featurizer(m)
     size = featurizer.feature_size
     assert np.array_equal(feat["feat"].shape, (m.GetNumBonds(), size))
@@ -34,7 +34,7 @@ def test_bond_as_edge_bidirected_featurizer():
     def assert_featurizer(self_loop):
         m = make_EC_mol()
         featurizer = BondAsEdgeBidirectedFeaturizer(
-            self_loop=self_loop, distance_bins=True
+            self_loop=self_loop, length_featurizer="bin"
         )
         feat = featurizer(m)
         size = featurizer.feature_size
@@ -56,7 +56,9 @@ def test_bond_as_edge_bidirected_featurizer():
 def test_bond_as_edge_complete_featurizer():
     def assert_featurizer(self_loop):
         m = make_EC_mol()
-        featurizer = BondAsEdgeCompleteFeaturizer(self_loop=self_loop, distance_bins=True)
+        featurizer = BondAsEdgeCompleteFeaturizer(
+            self_loop=self_loop, length_featurizer="bin"
+        )
         feat = featurizer(m)
         size = featurizer.feature_size
 
@@ -98,16 +100,16 @@ def test_dist_bins():
 
     ref = np.zeros(10)
     ref[1] = 1
-    assert np.array_equal(dist_b.encode(2), ref)
+    assert np.array_equal(dist_b(2), ref)
 
     ref = np.zeros(10)
     ref[0] = 1
-    assert np.array_equal(dist_b.encode(1.9999), ref)
+    assert np.array_equal(dist_b(1.9999), ref)
 
     ref = np.zeros(10)
     ref[9] = 1
-    assert np.array_equal(dist_b.encode(6), ref)
+    assert np.array_equal(dist_b(6), ref)
 
     ref = np.zeros(10)
     ref[8] = 1
-    assert np.array_equal(dist_b.encode(5.9999), ref)
+    assert np.array_equal(dist_b(5.9999), ref)

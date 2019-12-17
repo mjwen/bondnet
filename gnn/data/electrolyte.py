@@ -45,6 +45,7 @@ class ElectrolyteDataset(BaseDataset):
         label_file,
         self_loop=True,
         grapher="hetero",
+        bond_length_featurizer=None,
         pickle_dataset=False,
         dtype="float32",
     ):
@@ -53,6 +54,7 @@ class ElectrolyteDataset(BaseDataset):
         self.label_file = expand_path(label_file)
         self.self_loop = self_loop
         self.grapher = grapher
+        self.bond_length_featurizer = bond_length_featurizer
         self.pickle_dataset = pickle_dataset
 
         if self._is_pickled(self.sdf_file) != self._is_pickled(self.label_file):
@@ -101,7 +103,9 @@ class ElectrolyteDataset(BaseDataset):
             species = self._get_species()
             atom_featurizer = AtomFeaturizer(species, dtype=self.dtype)
             if self.grapher == "hetero":
-                bond_featurizer = BondAsNodeFeaturizer(dtype=self.dtype)
+                bond_featurizer = BondAsNodeFeaturizer(
+                    length_featurizer=self.bond_length_featurizer, dtype=self.dtype
+                )
                 global_featurizer = MolChargeFeaturizer(dtype=self.dtype)
                 grapher = HeteroMoleculeGraph(
                     atom_featurizer=atom_featurizer,
@@ -111,7 +115,9 @@ class ElectrolyteDataset(BaseDataset):
                 )
             elif self.grapher == "homo_bidirected":
                 bond_featurizer = BondAsEdgeBidirectedFeaturizer(
-                    self_loop=self.self_loop, distance_bins=True, dtype=self.dtype
+                    self_loop=self.self_loop,
+                    length_featurizer=self.bond_length_featurizer,
+                    dtype=self.dtype,
                 )
                 grapher = HomoBidirectedGraph(
                     atom_featurizer=atom_featurizer,
@@ -121,7 +127,9 @@ class ElectrolyteDataset(BaseDataset):
 
             elif self.grapher == "homo_complete":
                 bond_featurizer = BondAsEdgeCompleteFeaturizer(
-                    self_loop=self.self_loop, distance_bins=True, dtype=self.dtype
+                    self_loop=self.self_loop,
+                    length_featurizer=self.bond_length_featurizer,
+                    dtype=self.dtype,
                 )
                 grapher = HomoCompleteGraph(
                     atom_featurizer=atom_featurizer,

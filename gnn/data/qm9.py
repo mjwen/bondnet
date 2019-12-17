@@ -44,6 +44,7 @@ class QM9Dataset(ElectrolyteDataset):
         label_file,
         self_loop=True,
         grapher="hetero",
+        bond_length_featurizer=None,
         properties=None,
         unit_conversion=True,
         pickle_dataset=False,
@@ -53,7 +54,13 @@ class QM9Dataset(ElectrolyteDataset):
         self.properties = properties
         self.unit_conversion = unit_conversion
         super(QM9Dataset, self).__init__(
-            sdf_file, label_file, self_loop, grapher, pickle_dataset, dtype
+            sdf_file,
+            label_file,
+            self_loop,
+            grapher,
+            bond_length_featurizer,
+            pickle_dataset,
+            dtype,
         )
 
     def _load(self):
@@ -85,7 +92,9 @@ class QM9Dataset(ElectrolyteDataset):
             species = self._get_species()
             atom_featurizer = AtomFeaturizer(species, dtype=self.dtype)
             if self.grapher == "hetero":
-                bond_featurizer = BondAsNodeFeaturizer(dtype=self.dtype)
+                bond_featurizer = BondAsNodeFeaturizer(
+                    length_featurizer=self.bond_length_featurizer, dtype=self.dtype
+                )
                 global_featurizer = MolWeightFeaturizer(dtype=self.dtype)
                 grapher = HeteroMoleculeGraph(
                     atom_featurizer=atom_featurizer,
@@ -95,7 +104,9 @@ class QM9Dataset(ElectrolyteDataset):
                 )
             elif self.grapher == "homo_bidirected":
                 bond_featurizer = BondAsEdgeBidirectedFeaturizer(
-                    self_loop=self.self_loop, distance_bins=True, dtype=self.dtype
+                    self_loop=self.self_loop,
+                    length_featurizer=self.bond_length_featurizer,
+                    dtype=self.dtype,
                 )
                 grapher = HomoBidirectedGraph(
                     atom_featurizer=atom_featurizer,
@@ -105,7 +116,9 @@ class QM9Dataset(ElectrolyteDataset):
 
             elif self.grapher == "homo_complete":
                 bond_featurizer = BondAsEdgeCompleteFeaturizer(
-                    self_loop=self.self_loop, distance_bins=True, dtype=self.dtype
+                    self_loop=self.self_loop,
+                    length_featurizer=self.bond_length_featurizer,
+                    dtype=self.dtype,
                 )
                 grapher = HomoCompleteGraph(
                     atom_featurizer=atom_featurizer,

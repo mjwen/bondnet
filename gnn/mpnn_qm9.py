@@ -119,6 +119,7 @@ def main(args):
         label_file,
         self_loop=False,
         grapher="homo_complete",
+        bond_length_featurizer="bin",
         properties=props,
         unit_conversion=True,
     )
