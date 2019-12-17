@@ -13,11 +13,11 @@ def parse_args():
         "--gat-hidden-size",
         type=int,
         nargs="+",
-        default=[32, 32, 32],
+        default=[24, 32, 64],
         help="number of hidden units of GAT layers",
     )
     parser.add_argument(
-        "--num-heads", type=int, default=8, help="number of hidden attention heads"
+        "--num-heads", type=int, default=4, help="number of hidden attention heads"
     )
     parser.add_argument(
         "--feat-drop", type=float, default=0.0, help="input feature dropout"
@@ -55,13 +55,13 @@ def parse_args():
         "--fc-hidden-size",
         type=int,
         nargs="+",
-        default=[32, 32, 32],
+        default=[128, 64, 32],
         help="number of hidden units of fc layers",
     )
 
     # training
     parser.add_argument("--gpu", type=int, default=-1, help="GPU index. -1 to use CPU.")
-    parser.add_argument("--epochs", type=int, default=100, help="number of epochs")
+    parser.add_argument("--epochs", type=int, default=1000, help="number of epochs")
     parser.add_argument("--batch-size", type=int, default=100, help="batch size")
     parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
     parser.add_argument("--weight-decay", type=float, default=0.0, help="weight decay")
