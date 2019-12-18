@@ -29,6 +29,7 @@ def test_qm9_label():
         sdf_file=os.path.join(test_files, "gdb9_n2.sdf"),
         label_file=os.path.join(test_files, "gdb9_n2.sdf.csv"),
         unit_conversion=False,
+        normalize_extensive=False,
     )
     size = len(dataset)
     assert size == 2
@@ -67,6 +68,7 @@ def test_qm9_label_mu_alpha():
         label_file=os.path.join(test_files, "gdb9_n2.sdf.csv"),
         properties=["mu", "alpha"],
         unit_conversion=False,
+        normalize_extensive=False,
     )
     size = len(dataset)
     assert size == 2

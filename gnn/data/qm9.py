@@ -33,7 +33,8 @@ class QM9Dataset(ElectrolyteDataset):
         grapher (str): the type of graph to create, options are: `hetero`,
             `homo_bidirected` and `homo_complete`.
         properties (list of str): the dataset propery to use. If `None`, use all.
-        unit_conversion:
+        unit_conversion (bool):
+        normalize_extensive (bool):
         pickle_dataset:
         dtype:
     """
@@ -47,12 +48,14 @@ class QM9Dataset(ElectrolyteDataset):
         bond_length_featurizer=None,
         properties=None,
         unit_conversion=True,
+        normalize_extensive=True,
         pickle_dataset=False,
         dtype="float32",
     ):
 
         self.properties = properties
         self.unit_conversion = unit_conversion
+        self.normalize_extensive = normalize_extensive
         super(QM9Dataset, self).__init__(
             sdf_file,
             label_file,
@@ -130,30 +133,36 @@ class QM9Dataset(ElectrolyteDataset):
                 raise ValueError("Unsupported grapher type '{}".format(self.grapher))
 
             # read mol graphs and label
-            labels = self._read_label_file()
+            raw_labels, extensive = self._read_label_file()
             self.graphs = []
-            bad_mols = []
+            self.labels = []
             supp = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
 
             for i, mol in enumerate(supp):
                 if i % 100 == 0:
-                    logger.info("Processing molecule {}/{}".format(i, len(labels)))
+                    logger.info("Processing molecule {}/{}".format(i, len(raw_labels)))
 
                 if mol is None:
-                    bad_mols.append(i)
                     continue
 
                 g = grapher.build_graph_and_featurize(mol)
                 self.graphs.append(g)
+
+                # normalize extensive properties
+                natoms = mol.GetNumAtoms()
+                normalizer = [natoms if t else 1.0 for t in extensive]
+                lb = raw_labels[i]
+                if self.normalize_extensive:
+                    lb = np.divide(lb, normalizer)
+                self.labels.append(lb)
+
+            self.labels = torch.tensor(self.labels, dtype=getattr(torch, self.dtype))
 
             # standardize features
             scaler = StandardScaler()
             self.graphs = scaler(self.graphs)
             logger.info("StandardScaler mean: {}".format(scaler.mean))
             logger.info("StandardScaler std: {}".format(scaler.std))
-
-            labels = np.delete(labels, bad_mols, axis=0)
-            self.labels = torch.tensor(labels, dtype=getattr(torch, self.dtype))
 
             self._feature_size = {
                 "atom": atom_featurizer.feature_size,
@@ -188,27 +197,27 @@ class QM9Dataset(ElectrolyteDataset):
         h2e = 27.211396132  # Hatree to eV
         k2e = 0.0433634  # kcal/mol to eV
 
-        # supported property and unit conversion
+        # supported property
         supp_prop = OrderedDict()
-        supp_prop["A"] = 1.0
-        supp_prop["B"] = 1.0
-        supp_prop["C"] = 1.0
-        supp_prop["mu"] = 1.0
-        supp_prop["alpha"] = 1.0
-        supp_prop["homo"] = h2e
-        supp_prop["lumo"] = h2e
-        supp_prop["gap"] = h2e
-        supp_prop["r2"] = 1.0
-        supp_prop["zpve"] = h2e
-        supp_prop["u0"] = h2e
-        supp_prop["u298"] = h2e
-        supp_prop["h298"] = h2e
-        supp_prop["g298"] = h2e
-        supp_prop["cv"] = 1
-        supp_prop["u0_atom"] = k2e
-        supp_prop["u298_atom"] = k2e
-        supp_prop["h298_atom"] = k2e
-        supp_prop["g298_atom"] = k2e
+        supp_prop["A"] = {"uc": 1.0, "extensive": True}
+        supp_prop["B"] = {"uc": 1.0, "extensive": True}
+        supp_prop["C"] = {"uc": 1.0, "extensive": True}
+        supp_prop["mu"] = {"uc": 1.0, "extensive": True}
+        supp_prop["alpha"] = {"uc": 1.0, "extensive": True}
+        supp_prop["homo"] = {"uc": h2e, "extensive": False}
+        supp_prop["lumo"] = {"uc": h2e, "extensive": False}
+        supp_prop["gap"] = {"uc": h2e, "extensive": False}
+        supp_prop["r2"] = {"uc": 1.0, "extensive": True}
+        supp_prop["zpve"] = {"uc": h2e, "extensive": True}
+        supp_prop["u0"] = {"uc": h2e, "extensive": True}
+        supp_prop["u298"] = {"uc": h2e, "extensive": True}
+        supp_prop["h298"] = {"uc": h2e, "extensive": True}
+        supp_prop["g298"] = {"uc": h2e, "extensive": True}
+        supp_prop["cv"] = {"uc": 1.0, "extensive": True}
+        supp_prop["u0_atom"] = {"uc": k2e, "extensive": True}
+        supp_prop["u298_atom"] = {"uc": k2e, "extensive": True}
+        supp_prop["h298_atom"] = {"uc": k2e, "extensive": True}
+        supp_prop["g298_atom"] = {"uc": k2e, "extensive": True}
 
         if self.properties is not None:
 
@@ -222,11 +231,13 @@ class QM9Dataset(ElectrolyteDataset):
             supp_list = list(supp_prop.keys())
             indices = [supp_list.index(p) for p in self.properties]
             rst = rst[:, indices]
-            convert = [supp_prop[p] for p in self.properties]
+            convert = [supp_prop[p]["uc"] for p in self.properties]
+            extensive = [supp_prop[p]["extensive"] for p in self.properties]
         else:
-            convert = [v for k, v in supp_prop.items()]
+            convert = [v["uc"] for k, v in supp_prop.items()]
+            extensive = [v["extensive"] for k, v in supp_prop.items()]
 
         if self.unit_conversion:
             rst = np.multiply(rst, convert)
 
-        return rst
+        return rst, extensive

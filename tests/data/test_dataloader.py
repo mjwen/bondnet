@@ -53,6 +53,7 @@ def get_qm9(properties, uc):
         self_loop=False,
         properties=properties,
         unit_conversion=uc,
+        normalize_extensive=False,
     )
     return dataset
 
