@@ -3,151 +3,82 @@ from torch import nn
 import warnings
 
 
-class MSELoss(nn.Module):
-    r"""
-    Mean squared loss between input and target with an additional binary argument
-    `indicator` to ignore some contributions.
-
-    The unreduced (with :attr:`reduction` set to ``'none'``) loss can be described as:
-
-    .. math::
-        \ell(x, y) = L = \{l_1,\dots,l_N\}^\top, \quad
-        l_n = \left( x_n - y_n \right)^2 \dot z_n,
-
-    where :math:`N` is the batch size. If :attr:`reduction` is not ``'none'``
-    (default ``'mean'``), then:
-
-    .. math::
-        \ell(x, y) =
-        \begin{cases}
-            \operatorname{sum}(L)/\operatorname{sum}(indicators), &  \text{if reduction} = \text{'mean';}\\
-            \operatorname{sum}(L),  &  \text{if reduction} = \text{'sum'.}
-        \end{cases}
-
-    :math:`x` and :math:`y` are tensors of arbitrary shapes with a total
-    of :math:`n` elements each, and :math:`z` is a 1D tensor that should be of the same
-    length as :math:`y`.
-
-    Args:
-        reduction (str): reduction mechanism
-        scale (float): to scale the loss by this constant, merely for numerical stability
-
+class WeightedMSELoss(nn.Module):
     """
+    Weighted MSE Loss that weighs each element differently.
 
-    def __init__(self, reduction="mean", scale=1.0):
-        self.reduction = reduction
-        self.scale = scale
-        super(MSELoss, self).__init__()
+    Weight will be multiplied to the squares of difference.
+    All settings are the same as the :meth:`torch.nn.MSELoss`, except that if
+    `reduction` is `mean`, the loss will be divided by the sum of `weight`, instead of
+    the batch size.
 
-    def forward(self, input, target):
-        """
-        Args:
-            input (tensor): input of shape (N, *)
-            target(dict): with keys `value` and `indicator`, the value associated with
-                `value` is a tensor of shape (N, *) and `indocator` is a tensor (0 or
-                1) of shape (N,) indicating whether the correspond `input` and `target`
-                entries are used to construct the loss.
-
-        Returns:
-            Scalar Tensor
-        """
-
-        t_value = target["value"]
-        t_indicator = target["indicator"]
-
-        if t_value.size() != t_indicator.size() != input.size():
-            warnings.warn(
-                "Input size ({}) is different to the target value size ({}) or target "
-                "indicator size ({}). This will likely lead to incorrect results due "
-                "to broadcasting. Please ensure they have the same size.".format(
-                    input.size(), t_value.size(), t_indicator.size()
-                )
-            )
-
-        ret = self.scale * ((input - t_value) ** 2) * t_indicator
-        if self.reduction != "none":
-            if self.reduction == "mean":
-                ret = torch.sum(ret) / torch.sum(t_indicator)
-            else:
-                ret = torch.sum(ret)
-
-        return ret
-
-
-class L1Loss(nn.Module):
-    r"""
-    Mean absolute error between input and target with an additional binary argument
-    `indicator` to ignore some contributions.
-
-    The unreduced (with :attr:`reduction` set to ``'none'``) loss can be described as:
-
-    .. math::
-        \ell(x, y) = L = \{l_1,\dots,l_N\}^\top, \quad
-        l_n = \| x_n - y_n \| \dot z_n,
-
-    where :math:`N` is the batch size. If :attr:`reduction` is not ``'none'``
-    (default ``'mean'``), then:
-
-    .. math::
-        \ell(x, y) =
-        \begin{cases}
-            \operatorname{sum}(L)/\operatorname{sum}(indicators), &  \text{if reduction} = \text{'mean';}\\
-            \operatorname{sum}(L),  &  \text{if reduction} = \text{'sum'.}
-        \end{cases}
-
-    :math:`x` and :math:`y` are tensors of arbitrary shapes with a total
-    of :math:`n` elements each, and :math:`z` is a 1D tensor that should be of the same
-    length as :math:`y`.
-
-    Args:
-        reduction (str): reduction mechanism
-
-    Shapes:
-        input: (N, *)
-        target: (N, *)
-        indicator: (N,)
-
-    Returns:
-        0D tensor of the results
+    The weight could be used to ignore some elements in `target` by setting the
+    corresponding elements in weight to 0, and it can also be used to scale the element
+    differently.
     """
 
     def __init__(self, reduction="mean"):
         self.reduction = reduction
-        super(L1Loss, self).__init__()
+        super(WeightedMSELoss, self).__init__()
 
-    def forward(self, input, target):
-        """
-        Args:
-            input (tensor): input of shape (N, *)
-            target(dict): with keys `value` and `indicator`, the value associated with
-                `value` is a tensor of shape (N, *) and `indocator` is a tensor (0 or
-                1) of shape (N,) indicating whether the correspond `input` and `target`
-                entries are used to construct the loss.
+    def forward(self, input, target, weight):
 
-        Returns:
-            Scalar Tensor
-        """
-
-        t_value = target["value"]
-        t_indicator = target["indicator"]
-
-        if t_value.size() != t_indicator.size() != input.size():
+        if input.size() != target.size() != weight.size():
             warnings.warn(
-                "Input size ({}) is different to the target value size ({}) or target "
-                "indicator size ({}). This will likely lead to incorrect results due "
+                "Input size ({}) is different from the target size ({}) or weight "
+                "size ({}). This will likely lead to incorrect results due "
                 "to broadcasting. Please ensure they have the same size.".format(
-                    input.size(), t_value.size(), t_indicator.size()
+                    input.size(), target.size(), weight.size()
                 )
             )
 
-        ret = torch.abs(input - t_value) * t_indicator
+        rst = ((input - target) ** 2) * weight
         if self.reduction != "none":
             if self.reduction == "mean":
-                ret = torch.sum(ret) / torch.sum(t_indicator)
+                rst = torch.sum(rst) / torch.sum(weight)
             else:
-                ret = torch.sum(ret)
+                rst = torch.sum(rst)
 
-        return ret
+        return rst
+
+
+class WeightedL1Loss(nn.Module):
+    """
+    Weighted L1 Loss that weighs each element differently.
+
+    Weight will be multiplied to the squares of difference.
+    All settings are the same as the :meth:`torch.nn.L1Loss`, except that if
+    `reduction` is `mean`, the loss will be divided by the sum of `weight`, instead of
+    the batch size.
+
+    The weight could be used to ignore some elements in `target` by setting the
+    corresponding elements in weight to 0, and it can also be used to scale the element
+    differently.
+    """
+
+    def __init__(self, reduction="mean"):
+        self.reduction = reduction
+        super(WeightedL1Loss, self).__init__()
+
+    def forward(self, input, target, weight):
+
+        if input.size() != target.size() != weight.size():
+            warnings.warn(
+                "Input size ({}) is different from the target size ({}) or weight "
+                "size ({}). This will likely lead to incorrect results due "
+                "to broadcasting. Please ensure they have the same size.".format(
+                    input.size(), target.size(), weight.size()
+                )
+            )
+
+        rst = torch.abs(input - target) * weight
+        if self.reduction != "none":
+            if self.reduction == "mean":
+                rst = torch.sum(rst) / torch.sum(weight)
+            else:
+                rst = torch.sum(rst)
+
+        return rst
 
 
 class EarlyStopping:

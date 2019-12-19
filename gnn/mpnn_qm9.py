@@ -3,12 +3,12 @@ import time
 import argparse
 import torch
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.nn import MSELoss, L1Loss
+from torch.nn import MSELoss
+from gnn.metric import WeightedL1Loss, EarlyStopping
 from dgl.model_zoo.chem.mpnn import MPNNModel
 from gnn.data.dataset import train_validation_test_split
 from gnn.data.qm9 import QM9Dataset
 from gnn.data.dataloader import DataLoaderQM9
-from gnn.metric import EarlyStopping
 from gnn.utils import pickle_dump, seed_torch
 
 
@@ -71,7 +71,7 @@ def train(optimizer, model, data_loader, loss_fn, metric_fn, device=None):
         optimizer.step()
 
         epoch_loss += loss.detach().item()
-        accuracy += metric_fn(pred, label).detach().item()
+        accuracy += metric_fn(pred, label, scale).detach().item()
         count += len(label)
 
     epoch_loss /= it + 1
@@ -102,7 +102,7 @@ def evaluate(model, data_loader, metric_fn, device=None):
                 label = label.to(device=device)
 
             pred = model(bg, nf, ef)
-            accuracy += metric_fn(pred, label).detach().item()
+            accuracy += metric_fn(pred, label, scale).detach().item()
             count += len(label)
 
     return accuracy / count
@@ -166,7 +166,7 @@ def main(args):
 
     # loss, accuracy metric
     loss_func = MSELoss(reduction="mean")
-    metric = L1Loss(reduction="sum")
+    metric = WeightedL1Loss(reduction="sum")
 
     # learning rate scheduler, and stopper
     patience = 150

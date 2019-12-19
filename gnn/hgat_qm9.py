@@ -2,12 +2,12 @@ import sys
 import time
 import torch
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.nn import MSELoss, L1Loss
+from torch.nn import MSELoss
+from gnn.metric import WeightedL1Loss, EarlyStopping
 from gnn.model.hgatmol import HGATMol
 from gnn.data.dataset import train_validation_test_split
 from gnn.data.qm9 import QM9Dataset
 from gnn.data.dataloader import DataLoaderQM9
-from gnn.metric import EarlyStopping
 from gnn.args import parse_args
 from gnn.utils import pickle_dump, seed_torch
 
@@ -22,16 +22,13 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
 
     epoch_loss = 0.0
     accuracy = 0.0
-    count = 0
+    count = 0.0
 
     for it, (bg, label, scale) in enumerate(data_loader):
         feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
         if device is not None:
             feats = {k: v.to(device=device) for k, v in feats.items()}
-            if isinstance(label, dict):
-                label = {k: v.to(device) for k, v in label.items()}
-            else:
-                label = label.to(device=device)
+            label = label.to(device=device)
 
         pred = model(bg, feats)
         loss = loss_fn(pred, label)
@@ -40,11 +37,8 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
         optimizer.step()
 
         epoch_loss += loss.detach().item()
-        accuracy += metric_fn(pred, label).detach().item()
-        if isinstance(label, dict):
-            count += sum(label["indicator"])
-        else:
-            count += len(label)
+        accuracy += metric_fn(pred, label, scale).detach().item()
+        count += len(label)
 
     epoch_loss /= it + 1
     accuracy /= count
@@ -63,23 +57,17 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
 
     with torch.no_grad():
         accuracy = 0.0
-        count = 0
+        count = 0.0
 
         for bg, label, scale in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
-                if isinstance(label, dict):
-                    label = {k: v.to(device) for k, v in label.items()}
-                else:
-                    label = label.to(device)
+                label = label.to(device)
 
             pred = model(bg, feats)
-            accuracy += metric_fn(pred, label).detach().item()
-            if isinstance(label, dict):
-                count += sum(label["indicator"])
-            else:
-                count += len(label)
+            accuracy += metric_fn(pred, label, scale).detach().item()
+            count += len(label)
 
     return accuracy / count
 
@@ -154,7 +142,7 @@ def main(args):
 
     # loss, accuracy metric
     loss_func = MSELoss(reduction="mean")
-    metric = L1Loss(reduction="sum")
+    metric = WeightedL1Loss(reduction="sum")
 
     # learning rate scheduler, and stopper
     patience = 150
