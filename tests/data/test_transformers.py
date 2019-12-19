@@ -1,7 +1,20 @@
 import numpy as np
 from collections import defaultdict
-from gnn.data.utils import StandardScaler
+from gnn.data.transformers import StandardScaler, GraphFeatureStandardScaler
+import torch
 from ..utils import make_homo_graph, make_hetero_graph
+
+
+def test_standard_scaler():
+    scaler = StandardScaler()
+    a = torch.as_tensor(np.arange(6).reshape(2, 3), dtype=torch.float32)
+    scaled_a = scaler(a)
+    a = np.asarray(a)
+    mean = np.mean(a, axis=0)
+    std = np.std(a, axis=0)
+    assert np.allclose(scaled_a, (a - mean) / std)
+    assert np.allclose(scaler.mean, mean)
+    assert np.allclose(scaler.std, std)
 
 
 def test_standard_scaler_hetero_graph():
@@ -9,7 +22,7 @@ def test_standard_scaler_hetero_graph():
     g2, feats2 = make_hetero_graph()
     graphs = [g1, g2]
 
-    ntypes = ["atom", "bond", "global"]
+    # ntypes = ["atom", "bond", "global"]
     ntypes = ["atom", "bond"]
     ref_feats = {nt: np.concatenate([feats1[nt], feats2[nt]]) for nt in ntypes}
 
@@ -20,7 +33,7 @@ def test_standard_scaler_hetero_graph():
         ref_feats[k] = v
 
     # apply standardization
-    scaler = StandardScaler()
+    scaler = GraphFeatureStandardScaler()
     graphs = scaler(graphs)
     feats = defaultdict(list)
     for nt in ntypes:
@@ -49,7 +62,7 @@ def test_standard_scaler_homo_graph():
         ref_feats[k] = v
 
     # apply standardization
-    scaler = StandardScaler()
+    scaler = GraphFeatureStandardScaler()
     graphs = scaler(graphs)
 
     node_feats = []

@@ -31,12 +31,14 @@ b_feat = torch.tensor(
 g_feat = torch.tensor([[0.0, 0.0, 1.0]])
 
 
-def get_dataset():
+def get_electrolyte_dataset():
     test_files = os.path.dirname(__file__)
     dataset = ElectrolyteDataset(
         sdf_file=os.path.join(test_files, "EC_struct.sdf"),
         label_file=os.path.join(test_files, "EC_label.txt"),
         self_loop=False,
+        feature_transformer=False,
+        label_transformer=False,
     )
     for g, _ in dataset:
         g.nodes["atom"].data.update({"feat1": a_feat, "feat2": b_feat})
@@ -53,7 +55,8 @@ def get_qm9(properties, uc):
         self_loop=False,
         properties=properties,
         unit_conversion=uc,
-        normalize_extensive=False,
+        feature_transformer=False,
+        label_transformer=False,
     )
     return dataset
 
@@ -126,7 +129,7 @@ def test_dataloader():
     ref_label_energies = [[0, 0.1, 0, 0.2, 0, 0.3], [0.4, 0, 0, 0.5, 0, 0]]
     ref_label_indicators = [[0, 1, 0, 0, 1, 0], [1, 0, 0, 1, 0, 0]]
 
-    dataset = get_dataset()
+    dataset = get_electrolyte_dataset()
 
     # batch size 1 case
     data_loader = DataLoader(dataset, batch_size=1, shuffle=False)

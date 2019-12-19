@@ -17,6 +17,7 @@ class BaseDataset:
         self.dtype = dtype
         self.graphs = None
         self.labels = None
+        self.transformer_scale = None
 
     @property
     def feature_size(self):
@@ -55,9 +56,22 @@ class BaseDataset:
         Returns:
             g: DGLHeteroGraph for the ith datapoint
             lb (dict): Labels of the datapoint
+            s (float or array): transformer scaler that is supposed to be multiplied by
+                the difference between the label and the model prediction, after which
+                the difference should get back to the original scale of the label.
+                Should have the same shape as `value` of label.
+                For example, suppose labels are standardized by y' = (y - mean(y))/std(y),
+                the model will be trained on this scaled value.
+                However for metric measure (e.g. MAE) we need to convert y' back to y,
+                i.e. y = y' * std(y) + mean(y), the model prediction is then
+                y^ = y'^ *std(y) + mean(y), where ^ means predictions.
+                Then MAE is |y^-y| = |y'^ - y'| *std(y), i.e. we just need to multiple
+                standard deviation to get back to the original scale. Similar analysis
+                applies to RMSE.
         """
-        g, lb = self.graphs[item], self.labels[item]
-        return g, lb
+        g, lb, = self.graphs[item], self.labels[item]
+        s = None if self.transformer_scale is None else self.transformer_scale[item]
+        return g, lb, s
 
     def __len__(self):
         """Length of the dataset

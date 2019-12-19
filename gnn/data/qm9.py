@@ -17,7 +17,7 @@ from gnn.data.featurizer import (
 )
 from gnn.data.grapher import HomoBidirectedGraph, HomoCompleteGraph, HeteroMoleculeGraph
 from gnn.data.electrolyte import ElectrolyteDataset
-from gnn.data.utils import StandardScaler
+from gnn.data.transformers import StandardScaler, GraphFeatureStandardScaler
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +34,8 @@ class QM9Dataset(ElectrolyteDataset):
             `homo_bidirected` and `homo_complete`.
         properties (list of str): the dataset propery to use. If `None`, use all.
         unit_conversion (bool):
-        normalize_extensive (bool):
-        pickle_dataset:
-        dtype:
+        feature_transformer (bool):
+        label_transformer (bool):
     """
 
     def __init__(
@@ -46,22 +45,24 @@ class QM9Dataset(ElectrolyteDataset):
         self_loop=True,
         grapher="hetero",
         bond_length_featurizer=None,
+        feature_transformer=True,
+        label_transformer=True,
         properties=None,
         unit_conversion=True,
-        normalize_extensive=True,
         pickle_dataset=False,
         dtype="float32",
     ):
 
         self.properties = properties
         self.unit_conversion = unit_conversion
-        self.normalize_extensive = normalize_extensive
         super(QM9Dataset, self).__init__(
             sdf_file,
             label_file,
             self_loop,
             grapher,
             bond_length_featurizer,
+            feature_transformer,
+            label_transformer,
             pickle_dataset,
             dtype,
         )
@@ -81,9 +82,7 @@ class QM9Dataset(ElectrolyteDataset):
             else:
                 raise ValueError("Unsupported grapher type '{}".format(self.grapher))
 
-            d = self.load_state_dict(self._default_state_dict_filename())
-            self._feature_size = d["feature_size"]
-            self._feature_name = d["feature_name"]
+            self.load_state_dict(self._default_state_dict_filename())
 
         else:
             logger.info(
@@ -135,9 +134,10 @@ class QM9Dataset(ElectrolyteDataset):
             # read mol graphs and label
             raw_labels, extensive = self._read_label_file()
             self.graphs = []
-            self.labels = []
+            labels = []
             supp = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
 
+            natoms = []
             for i, mol in enumerate(supp):
                 if i % 100 == 0:
                     logger.info("Processing molecule {}/{}".format(i, len(raw_labels)))
@@ -147,22 +147,81 @@ class QM9Dataset(ElectrolyteDataset):
 
                 g = grapher.build_graph_and_featurize(mol)
                 self.graphs.append(g)
+                labels.append(raw_labels[i])
+                natoms.append(mol.GetNumAtoms())
 
-                # normalize extensive properties
-                natoms = mol.GetNumAtoms()
-                normalizer = [natoms if t else 1.0 for t in extensive]
-                lb = raw_labels[i]
-                if self.normalize_extensive:
-                    lb = np.divide(lb, normalizer)
-                self.labels.append(lb)
+            # feature and lable transformer
+            if self.feature_transformer:
+                feature_scaler = GraphFeatureStandardScaler()
+                self.graphs = feature_scaler(self.graphs)
+                logger.info("Feature scaler mean: {}".format(feature_scaler.mean))
+                logger.info("Feature scaler std: {}".format(feature_scaler.std))
 
-            self.labels = torch.tensor(self.labels, dtype=getattr(torch, self.dtype))
+            if self.label_transformer:
+                labels = np.asarray(labels)
+                natoms = np.asarray(natoms, dtype=np.float32)
 
-            # standardize features
-            scaler = StandardScaler()
-            self.graphs = scaler(self.graphs)
-            logger.info("StandardScaler mean: {}".format(scaler.mean))
-            logger.info("StandardScaler std: {}".format(scaler.std))
+                # # intensive labels standardized by y' = (y - mean(y))/std(y)
+                # int_indices = [i for i, t in enumerate(extensive) if not t]
+                # int_labels = labels[:, int_indices]
+                # int_scaler = GraphFeatureStandardScaler()
+                # int_labels = int_scaler(int_labels)
+                # int_ts = np.repeat([int_scaler.std], len(labels), axis=0)
+                #
+                # # extensive labels standardized by the number of atoms in the molecule
+                # # i.e. y' = y/natoms, i.e. by
+                # ext_indices = [i for i, t in enumerate(extensive) if t]
+                # ext_labels = labels[:, ext_indices]
+                # ext_ts = np.repeat([natoms], len(ext_indices), axis=0).T
+                # ext_labels /= ext_ts
+                #
+                # # combine scaled labels and create transformer scaler
+                # ii = 0
+                # ei = 0
+                # labels = []
+                # transformer_scale = []
+                # for ci in range(len(extensive)):
+                #     if ci in int_indices:
+                #         labels.append(int_labels[:, ii])
+                #         transformer_scale.append(int_ts[:, ii])
+                #         ii += 1
+                #     if ci in ext_indices:
+                #         labels.append(ext_labels[:, ei])
+                #         transformer_scale.append(ext_ts[:, ei])
+                #         ei += 1
+                #     else:
+                #         raise RuntimeError("indices not found. this should never happen")
+                # labels = np.asarray(labels).T
+                # self.transformer_scale = torch.tensor(
+                #     np.asarray(transformer_scale).T, dtype=getattr(torch, self.dtype)
+                # )
+
+                # this is equivalent to the above one, but simpler
+
+                scaled_labels = []
+                transformer_scale = []
+                for i, is_ext in enumerate(extensive):
+                    if is_ext:
+                        # extensive labels standardized by the number of atoms in the
+                        # molecules, i.e. y' = y/natoms
+                        lb = labels[:, i]
+                        lb /= natoms
+                        ts = natoms
+                    else:
+                        # intensive labels standardized by y' = (y - mean(y))/std(y)
+                        scaler = StandardScaler()
+                        lb = torch.from_numpy(labels[:, [i]])  # 2D array of shape (N, 1)
+                        lb = scaler(lb)
+                        lb = lb.numpy().ravel()
+                        ts = np.repeat(scaler.std.numpy(), len(lb))
+                    scaled_labels.append(lb)
+                    transformer_scale.append(ts)
+                labels = np.asarray(scaled_labels).T
+                self.transformer_scale = torch.tensor(
+                    np.asarray(transformer_scale).T, dtype=getattr(torch, self.dtype)
+                )
+
+            self.labels = torch.tensor(labels, dtype=getattr(torch, self.dtype))
 
             self._feature_size = {
                 "atom": atom_featurizer.feature_size,
@@ -184,8 +243,7 @@ class QM9Dataset(ElectrolyteDataset):
                         self.save_dataset_hetero()
                     else:
                         self.save_dataset()
-                filename = self._default_state_dict_filename()
-                self.save_state_dict(filename)
+                self.save_state_dict(self._default_state_dict_filename())
 
         logger.info("Finish loading {} graphs...".format(len(self.labels)))
 

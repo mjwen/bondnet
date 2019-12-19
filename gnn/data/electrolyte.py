@@ -17,7 +17,7 @@ from gnn.data.featurizer import (
 )
 from gnn.data.grapher import HomoBidirectedGraph, HomoCompleteGraph, HeteroMoleculeGraph
 from gnn.data.dataset import BaseDataset
-from gnn.data.utils import StandardScaler
+from gnn.data.transformers import StandardScaler, GraphFeatureStandardScaler
 
 
 logger = logging.getLogger(__name__)
@@ -47,6 +47,8 @@ class ElectrolyteDataset(BaseDataset):
         self_loop=True,
         grapher="hetero",
         bond_length_featurizer=None,
+        feature_transformer=True,
+        label_transformer=True,
         pickle_dataset=False,
         dtype="float32",
     ):
@@ -56,6 +58,8 @@ class ElectrolyteDataset(BaseDataset):
         self.self_loop = self_loop
         self.grapher = grapher
         self.bond_length_featurizer = bond_length_featurizer
+        self.feature_transformer = feature_transformer
+        self.label_transformer = label_transformer
         self.pickle_dataset = pickle_dataset
 
         if self._is_pickled(self.sdf_file) != self._is_pickled(self.label_file):
@@ -90,9 +94,7 @@ class ElectrolyteDataset(BaseDataset):
             else:
                 raise ValueError("Unsupported grapher type '{}".format(self.grapher))
 
-            d = self.load_state_dict(self._default_state_dict_filename())
-            self._feature_size = d["feature_size"]
-            self._feature_name = d["feature_name"]
+            self.load_state_dict(self._default_state_dict_filename())
 
         else:
             logger.info(
@@ -168,11 +170,41 @@ class ElectrolyteDataset(BaseDataset):
                 label = {"value": bonds_energy, "indicator": bonds_indicator}
                 self.labels.append(label)
 
-            # standardize features
-            scaler = StandardScaler()
-            self.graphs = scaler(self.graphs)
-            logger.info("StandardScaler mean: {}".format(scaler.mean))
-            logger.info("StandardScaler std: {}".format(scaler.std))
+            # transformers
+            if self.feature_transformer:
+                feature_scaler = GraphFeatureStandardScaler()
+                self.graphs = feature_scaler(self.graphs)
+                logger.info("Feature scaler mean: {}".format(feature_scaler.mean))
+                logger.info("Feature scaler std: {}".format(feature_scaler.std))
+
+            # labels are standardized by y' = (y - mean(y))/std(y), the model will be
+            # trained on this scaled value. However for metric measure (e.g. MAE) we need
+            # to convert y' back to y, i.e. y = y' * std(y) + mean(y), the model
+            # predition is then y^ = y'^ *std(y) + mean(y), where ^ means predictions.
+            # Then MAE is |y^-y| = |y'^ - y'| *std(y), i.e. we just need to multiple
+            # standard deviation to get back to the original scale. Similar analysis
+            # applies to RMSE.
+            if self.label_transformer:
+                labels = [lb["value"] for lb in self.labels]  # list of 1D tensor
+                labels = torch.cat(labels)  # 1D tensor
+                labels = labels.view(len(labels), 1)  # 2D tensor of shape (N, 1)
+
+                label_scaler = StandardScaler()
+                labels = label_scaler(labels)
+
+                sizes = [len(lb["value"]) for lb in self.labels]
+                labels = torch.split(labels, sizes)  # list of 2D tensor of shape (Nb, 1)
+                labels = [torch.flatten(lb) for lb in labels]
+
+                std = label_scaler.std[0]
+                self.transformer_scale = []
+                for i, lb in enumerate(labels):
+                    self.labels[i]["value"] = lb
+                    sca = torch.tensor([std] * len(lb), dtype=getattr(torch, self.dtype))
+                    self.transformer_scale.append(sca)
+
+                logger.info("Label scaler mean: {}".format(label_scaler.mean))
+                logger.info("Label scaler std: {}".format(label_scaler.std))
 
             self._feature_size = {
                 "atom": atom_featurizer.feature_size,
@@ -193,8 +225,7 @@ class ElectrolyteDataset(BaseDataset):
                     self.save_dataset_hetero()
                 else:
                     self.save_dataset()
-                filename = self._default_state_dict_filename()
-                self.save_state_dict(filename)
+                self.save_state_dict(self._default_state_dict_filename())
 
         logger.info("Finish loading {} graphs...".format(len(self.labels)))
 
@@ -253,12 +284,18 @@ class ElectrolyteDataset(BaseDataset):
             os.path.dirname(filename), self.__class__.__name__ + "_state_dict.pkl"
         )
 
-    @staticmethod
-    def load_state_dict(filename):
-        return pickle_load(filename)
+    def load_state_dict(self, filename):
+        d = pickle_load(filename)
+        self._feature_size = d["feature_size"]
+        self._feature_name = d["feature_name"]
+        self.transformer_scale = d["transformer_scale"]
 
     def save_state_dict(self, filename):
-        d = {"feature_size": self._feature_size, "feature_name": self._feature_name}
+        d = {
+            "feature_size": self._feature_size,
+            "feature_name": self._feature_name,
+            "transformer_scale": self.transformer_scale,
+        }
         pickle_dump(d, filename)
 
     def _get_species(self):
