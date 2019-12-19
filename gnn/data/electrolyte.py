@@ -191,6 +191,7 @@ class ElectrolyteDataset(BaseDataset):
 
                 label_scaler = StandardScaler()
                 labels = label_scaler(labels)
+                labels = torch.tensor(labels, dtype=getattr(torch, self.dtype))
 
                 sizes = [len(lb["value"]) for lb in self.labels]
                 labels = torch.split(labels, sizes)  # list of 2D tensor of shape (Nb, 1)

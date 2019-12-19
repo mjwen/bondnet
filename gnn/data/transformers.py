@@ -11,20 +11,16 @@ def _transform(X, copy, with_mean, with_std, threshold=1.0e-3):
     Args:
         X: a list of 1D tensor or a 2D tensor
     Returns:
-        rst: 2D tensor
-        mean: 1D tensor
-        std: 1D tensor
+        rst: 2D array
+        mean: 1D array
+        std: 1D array
     """
     if isinstance(X, list):
-        dtype = X[0].dtype
         X = torch.stack(X)
-    else:
-        dtype = X.dtype
     scaler = sk_StandardScaler(copy, with_mean, with_std)
     rst = scaler.fit_transform(X)
-    rst = torch.as_tensor(rst, dtype=dtype)
-    mean = torch.as_tensor(scaler.mean_, dtype=dtype)
-    std = torch.as_tensor(np.sqrt(scaler.var_), dtype=dtype)
+    mean = scaler.mean_
+    std = np.sqrt(scaler.var_)
     for i, v in enumerate(std):
         if v <= threshold:
             warnings.warn(
@@ -40,10 +36,10 @@ class StandardScaler:
     Standardize features using `sklearn.preprocessing.StandardScaler`.
 
     Args:
-        X (2D tensor): input array
+        X (2D array): input array
 
     Returns:
-        2D tensor with each column standardized.
+        2D array with each column standardized.
     """
 
     def __init__(self, copy=True, with_mean=True, with_std=True):
@@ -116,23 +112,32 @@ class GraphFeatureStandardScaler:
             edge_feats.append(data)
             edge_feats_size.append(len(data))
 
+        dtype = node_feats[0].dtype
+
         # standardize
         self._std = {}
         self._mean = {}
         node_feats, mean, std = _transform(
             torch.cat(node_feats), self.copy, self.with_mean, self.with_std
         )
+        node_feats = torch.tensor(node_feats, dtype=dtype)
+        mean = torch.tensor(mean, dtype=dtype)
+        std = torch.tensor(std, dtype=dtype)
         self._mean["node"] = mean
         self.std["node"] = std
+
         edge_feats, mean, std = _transform(
             torch.cat(edge_feats), self.copy, self.with_mean, self.with_std
         )
+        edge_feats = torch.tensor(edge_feats, dtype=dtype)
+        mean = torch.tensor(mean, dtype=dtype)
+        std = torch.tensor(std, dtype=dtype)
         self._mean["edge"] = mean
         self._std["edge"] = std
-        node_feats = torch.split(node_feats, node_feats_size)
-        edge_feats = torch.split(edge_feats, edge_feats_size)
 
         # assign data back
+        node_feats = torch.split(node_feats, node_feats_size)
+        edge_feats = torch.split(edge_feats, edge_feats_size)
         for g, n, e in zip(graphs, node_feats, edge_feats):
             g.ndata["feat"] = n
             g.edata["feat"] = e
@@ -151,13 +156,19 @@ class GraphFeatureStandardScaler:
                 node_feats[nt].append(data)
                 node_feats_size[nt].append(len(data))
 
+        dtype = node_feats[node_types[0]][0].dtype
+
         # standardize and update
         self._std = {}
         self._mean = {}
-        for nt in node_feats:
+        for nt in node_types:
             feats, mean, std = _transform(
                 torch.cat(node_feats[nt]), self.copy, self.with_mean, self.with_std
             )
+            feats = torch.tensor(feats, dtype=dtype)
+            mean = torch.tensor(mean, dtype=dtype)
+            std = torch.tensor(std, dtype=dtype)
+
             self._mean[nt] = mean
             self._std[nt] = std
             feats = torch.split(feats, node_feats_size[nt])

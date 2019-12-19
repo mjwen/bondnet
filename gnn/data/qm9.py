@@ -150,7 +150,7 @@ class QM9Dataset(ElectrolyteDataset):
                 labels.append(raw_labels[i])
                 natoms.append(mol.GetNumAtoms())
 
-            # feature and lable transformer
+            # feature and label transformer
             if self.feature_transformer:
                 feature_scaler = GraphFeatureStandardScaler()
                 self.graphs = feature_scaler(self.graphs)
@@ -200,26 +200,32 @@ class QM9Dataset(ElectrolyteDataset):
 
                 scaled_labels = []
                 transformer_scale = []
+                label_scaler_mean = []
+                label_scaler_std = []
                 for i, is_ext in enumerate(extensive):
                     if is_ext:
                         # extensive labels standardized by the number of atoms in the
                         # molecules, i.e. y' = y/natoms
-                        lb = labels[:, i]
-                        lb /= natoms
+                        lb = labels[:, i] / natoms
                         ts = natoms
                     else:
                         # intensive labels standardized by y' = (y - mean(y))/std(y)
                         scaler = StandardScaler()
-                        lb = torch.from_numpy(labels[:, [i]])  # 2D array of shape (N, 1)
+                        lb = labels[:, [i]]  # 2D array of shape (N, 1)
                         lb = scaler(lb)
-                        lb = lb.numpy().ravel()
-                        ts = np.repeat(scaler.std.numpy(), len(lb))
+                        lb = lb.ravel()
+                        ts = np.repeat(scaler.std, len(lb))
+                        label_scaler_mean.append(scaler.mean)
+                        label_scaler_std.append(scaler.std)
                     scaled_labels.append(lb)
                     transformer_scale.append(ts)
+
                 labels = np.asarray(scaled_labels).T
                 self.transformer_scale = torch.tensor(
                     np.asarray(transformer_scale).T, dtype=getattr(torch, self.dtype)
                 )
+                logger.info("Label scaler mean: {}".format(label_scaler_mean))
+                logger.info("Label scaler std: {}".format(label_scaler_std))
 
             self.labels = torch.tensor(labels, dtype=getattr(torch, self.dtype))
 
