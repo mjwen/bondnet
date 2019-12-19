@@ -6,6 +6,9 @@ import random
 import numpy as np
 import torch
 import dgl
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def expand_path(path):
@@ -64,6 +67,43 @@ def seed_torch(seed=35):
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
     dgl.random.seed(seed)
+
+
+def save_checkpoints(objects, msg=None):
+    """
+    Save checkpoints for all objects for later recovery.
+
+    Args:
+        objects (dict): A dictionary of objects to save. The keys are identifier to the
+            objects.
+        msg (str): a message to log.
+
+    """
+
+    m = "Save checkpoints: "
+    for k, obj in objects.items():
+        filename = "{}_checkpoint.pkl".format(k)
+        torch.save(obj.state_dict(), filename)
+        m += "{}, ".format(filename)
+    if msg is not None:
+        m += msg
+    logger.info(m)
+
+
+def load_checkpoints(objects):
+    """
+    Load checkpoints for all objects for later recovery.
+
+    Args:
+        objects (dict): A dictionary of objects to save. The keys are identifier to the
+        objects.
+    """
+    for k, obj in objects.items():
+        filename = "{}_checkpoint.pkl".format(k)
+        if not os.path.exists(filename):
+            raise RuntimeError("Check point file `{}` not found.".format(filename))
+        obj.load_state_dict(torch.load(filename))
+        logger.info("Load checkpoints {}".format(filename))
 
 
 class Timer:

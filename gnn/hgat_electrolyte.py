@@ -1,16 +1,14 @@
-# pylint: disable=no-member
 import sys
 import time
 import torch
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from gnn.metric import WeightedMSELoss, WeightedL1Loss
+from gnn.metric import WeightedMSELoss, WeightedL1Loss, EarlyStopping
+from gnn.model.hgat import HGAT
 from gnn.data.dataset import train_validation_test_split
 from gnn.data.electrolyte import ElectrolyteDataset
 from gnn.data.dataloader import DataLoaderElectrolyte
-from gnn.model.hgat import HGAT
-from gnn.metric import EarlyStopping
 from gnn.args import parse_args
-from gnn.utils import pickle_dump, seed_torch
+from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
 
 def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None):
@@ -81,7 +79,8 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
 
 
 def main(args):
-    # dataset
+
+    ### dataset
     sdf_file = "/Users/mjwen/Applications/mongo_db_access/extracted_data/sturct_n200.sdf"
     label_file = "/Users/mjwen/Applications/mongo_db_access/extracted_data/label_n200.txt"
     dataset = ElectrolyteDataset(
@@ -94,15 +93,23 @@ def main(args):
     trainset, valset, testset = train_validation_test_split(
         dataset, validation=0.1, test=0.1
     )
+    print(
+        "Trainset size: {}, valset size: {}: testset size: {}.".format(
+            len(trainset), len(valset), len(testset)
+        )
+    )
+
     train_loader = DataLoaderElectrolyte(
         trainset, batch_size=args.batch_size, shuffle=True
     )
+    # larger val and test set batch_size is faster but needs more memory
+    # adjust the batch size of to fit memory
     bs = max(len(valset) // 10, 1)
     val_loader = DataLoaderElectrolyte(valset, batch_size=bs, shuffle=False)
     bs = max(len(testset) // 10, 1)
     test_loader = DataLoaderElectrolyte(testset, batch_size=bs, shuffle=False)
 
-    # model
+    ### model
     attn_mechanism = {
         "atom": {"edges": ["b2a", "g2a", "a2a"], "nodes": ["bond", "global", "atom"]},
         "bond": {"edges": ["a2b", "g2b", "b2b"], "nodes": ["atom", "global", "bond"]},
@@ -128,19 +135,20 @@ def main(args):
     if args.device is not None:
         model.to(device=args.device)
 
-    # optimizer and loss
+    ### optimizer, loss, and metric
     optimizer = torch.optim.Adam(
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
     loss_func = WeightedMSELoss(reduction="mean")
     metric = WeightedL1Loss(reduction="sum")
 
-    # learning rate scheduler and stopper
-    patience = 150
+    ### learning rate scheduler and stopper
     scheduler = ReduceLROnPlateau(
-        optimizer, mode="min", factor=0.3, patience=patience // 3, verbose=True
+        optimizer, mode="min", factor=0.4, patience=50, verbose=True
     )
-    stopper = EarlyStopping(patience=patience)
+    stopper = EarlyStopping(patience=150)
+
+    checkpoints_objs = {"model": model, "optimizer": optimizer, "scheduler": scheduler}
 
     print("\n\n# Epoch     Loss         TrainAcc        ValAcc     Time (s)")
     t0 = time.time()
@@ -154,11 +162,13 @@ def main(args):
         )
         val_acc = evaluate(model, attn_order, val_loader, metric, args.device)
 
-        scheduler.step(val_acc)
-        if stopper.step(val_acc, model, msg="epoch " + str(epoch)):
+        if stopper.step(val_acc, checkpoints_objs, msg="epoch " + str(epoch)):
             # save results for hyperparam tune
             pickle_dump(float(stopper.best_score), args.output_file)
             break
+
+        scheduler.step(val_acc)
+
         tt = time.time() - ti
 
         print(
@@ -169,17 +179,15 @@ def main(args):
         if epoch % 10 == 0:
             sys.stdout.flush()
 
-    # save results for hyperparam tune
-    pickle_dump(float(stopper.best_score), args.output_file)
-
     # load best to calculate test accuracy
-    model.load_state_dict(torch.load("es_checkpoint.pkl"))
+    load_checkpoints(checkpoints_objs)
     test_acc = evaluate(model, attn_order, test_loader, metric, args.device)
+
     tt = time.time() - t0
     print("\n#TestAcc: {:12.6e} | Total time (s): {:.2f}\n".format(test_acc, tt))
 
 
-# do not make it make because we need to run hypertunity
+# do not make it main because we need to run hypertunity
 seed_torch()
 args = parse_args()
 print(args)

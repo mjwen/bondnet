@@ -1,7 +1,8 @@
+import warnings
 import torch
 from torch import nn
 from torch.nn import functional as F
-import warnings
+from gnn.utils import save_checkpoints
 
 
 class WeightedMSELoss(nn.Module):
@@ -104,14 +105,13 @@ class EarlyStopping:
         self.best_score = None
         self.early_stop = False
 
-    def step(self, acc, model, msg=None):
-        score = acc
+    def step(self, score, objs, msg=None):
         if self.best_score is None:
             self.best_score = score
-            self.save_checkpoint(model, msg, score)
+            save_checkpoints(objs, "{}  {}".format(msg, score))
         elif score < self.best_score:
             self.best_score = score
-            self.save_checkpoint(model, msg, score)
+            save_checkpoints(objs, "{}  {}".format(msg, score))
             self.counter = 0
         else:
             self.counter += 1
@@ -120,12 +120,3 @@ class EarlyStopping:
             if self.counter >= self.patience:
                 self.early_stop = True
         return self.early_stop
-
-    @staticmethod
-    def save_checkpoint(model, msg, score):
-        """
-        Saves model when validation loss decrease.
-        """
-        torch.save(model.state_dict(), "es_checkpoint.pkl")
-        with open("es_message.log", "w") as f:
-            f.write("{}  {}".format(msg, score))

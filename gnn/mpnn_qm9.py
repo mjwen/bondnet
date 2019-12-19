@@ -9,7 +9,7 @@ from dgl.model_zoo.chem.mpnn import MPNNModel
 from gnn.data.dataset import train_validation_test_split
 from gnn.data.qm9 import QM9Dataset
 from gnn.data.dataloader import DataLoaderQM9
-from gnn.utils import pickle_dump, seed_torch
+from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
 
 def parse_args():
@@ -54,7 +54,7 @@ def train(optimizer, model, data_loader, loss_fn, metric_fn, device=None):
 
     epoch_loss = 0.0
     accuracy = 0.0
-    count = 0
+    count = 0.0
 
     for it, (bg, label, scale) in enumerate(data_loader):
         nf = bg.ndata["feat"]
@@ -110,7 +110,7 @@ def evaluate(model, data_loader, metric_fn, device=None):
 
 def main(args):
 
-    # dataset
+    ### dataset
     sdf_file = "/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf"
     label_file = "/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf.csv"
     props = ["u0_atom"]
@@ -143,7 +143,7 @@ def main(args):
     bs = len(testset) // 10
     test_loader = DataLoaderQM9(testset, hetero=False, batch_size=bs, shuffle=False)
 
-    # model
+    ### model
     in_feats = trainset.get_feature_size(["atom", "bond"])
     model = MPNNModel(
         node_input_dim=in_feats[0],
@@ -159,21 +159,20 @@ def main(args):
     if args.device is not None:
         model.to(device=args.device)
 
-    # optimizer and loss
+    ### optimizer, loss, and metric
     optimizer = torch.optim.Adam(
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
-
-    # loss, accuracy metric
     loss_func = MSELoss(reduction="mean")
     metric = WeightedL1Loss(reduction="sum")
 
-    # learning rate scheduler, and stopper
-    patience = 150
+    ### learning rate scheduler and stopper
     scheduler = ReduceLROnPlateau(
-        optimizer, mode="min", factor=0.3, patience=patience // 3, verbose=True
+        optimizer, mode="min", factor=0.4, patience=50, verbose=True
     )
-    stopper = EarlyStopping(patience=patience)
+    stopper = EarlyStopping(patience=150)
+
+    checkpoints_objs = {"model": model, "optimizer": optimizer, "scheduler": scheduler}
 
     print("\n\n# Epoch     Loss         TrainAcc        ValAcc     Time (s)")
     t0 = time.time()
@@ -187,11 +186,13 @@ def main(args):
         )
         val_acc = evaluate(model, val_loader, metric, args.device)
 
-        scheduler.step(val_acc)
-        if stopper.step(val_acc, model, msg="epoch " + str(epoch)):
+        if stopper.step(val_acc, checkpoints_objs, msg="epoch " + str(epoch)):
             # save results for hyperparam tune
             pickle_dump(float(stopper.best_score), args.output_file)
             break
+
+        scheduler.step(val_acc)
+
         tt = time.time() - ti
 
         print(
@@ -202,17 +203,15 @@ def main(args):
         if epoch % 10 == 0:
             sys.stdout.flush()
 
-    # save results for hyperparam tune
-    pickle_dump(float(stopper.best_score), args.output_file)
-
     # load best to calculate test accuracy
-    model.load_state_dict(torch.load("es_checkpoint.pkl"))
+    load_checkpoints(checkpoints_objs)
     test_acc = evaluate(model, test_loader, metric, args.device)
+
     tt = time.time() - t0
     print("\n#TestAcc: {:12.6e} | Total time (s): {:.2f}\n".format(test_acc, tt))
 
 
-# do not make it make because we need to run hypertunity
+# do not make it main because we need to run hypertunity
 seed_torch()
 args = parse_args()
 print(args)
