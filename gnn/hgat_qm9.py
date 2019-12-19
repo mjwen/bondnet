@@ -1,5 +1,6 @@
 import sys
 import time
+import warnings
 import torch
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.nn import MSELoss
@@ -150,7 +151,12 @@ def main(args):
 
     checkpoints_objs = {"model": model, "optimizer": optimizer, "scheduler": scheduler}
     if args.restore:
-        load_checkpoints(checkpoints_objs)
+        try:
+            load_checkpoints(checkpoints_objs)
+            print("Successfully load checkpoints")
+        except FileNotFoundError as e:
+            warnings.warn(str(e) + " Continue without loading checkpoints.")
+            pass
 
     print("\n\n# Epoch     Loss         TrainAcc        ValAcc     Time (s)")
     t0 = time.time()

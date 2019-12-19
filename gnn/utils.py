@@ -100,8 +100,6 @@ def load_checkpoints(objects):
     """
     for k, obj in objects.items():
         filename = "{}_checkpoint.pkl".format(k)
-        if not os.path.exists(filename):
-            raise RuntimeError("Check point file `{}` not found.".format(filename))
         obj.load_state_dict(torch.load(filename))
         logger.info("Load checkpoints {}".format(filename))
 

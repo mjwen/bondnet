@@ -1,5 +1,6 @@
 import sys
 import time
+import warnings
 import argparse
 import torch
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -28,7 +29,7 @@ def parse_args():
     parser.add_argument("--batch-size", type=int, default=100, help="batch size")
     parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
     parser.add_argument("--weight-decay", type=float, default=0.0, help="weight decay")
-    parser.add_argument("--restore", type=int, default=0, help="read checkpoints")
+    parser.add_argument("--restore", type=int, default=1, help="read checkpoints")
 
     # output file (needed by hypertunity)
     parser.add_argument(
@@ -175,12 +176,18 @@ def main(args):
 
     checkpoints_objs = {"model": model, "optimizer": optimizer, "scheduler": scheduler}
     if args.restore:
-        load_checkpoints(checkpoints_objs)
+        try:
+            load_checkpoints(checkpoints_objs)
+            print("Successfully load checkpoints")
+        except FileNotFoundError as e:
+            warnings.warn(str(e) + " Continue without loading checkpoints.")
+            pass
 
     print("\n\n# Epoch     Loss         TrainAcc        ValAcc     Time (s)")
     t0 = time.time()
 
-    for epoch in range(args.epochs):
+    # for epoch in range(args.epochs):
+    for epoch in range(2):
         ti = time.time()
 
         # train and evaluate accuracy
