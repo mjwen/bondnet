@@ -83,7 +83,7 @@ def main(args):
         label_file,
         self_loop=True,
         grapher="hetero",
-        bond_length_featurizer="bin",
+        bond_length_featurizer="rbf",
         properties=props,
         unit_conversion=True,
     )

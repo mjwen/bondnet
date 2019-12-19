@@ -46,6 +46,298 @@ class BaseFeaturizer:
         raise NotImplementedError
 
 
+class BondFeaturizer(BaseFeaturizer):
+    """
+    Base featurize all bonds in a molecule.
+
+    The bond indices will be preserved, i.e. feature i corresponds to atom i.
+    The number of features will be equal to the number of bonds in the molecule,
+    so this is suitable for the case where we represent bond as graph nodes.
+
+    """
+
+    def __init__(self, length_featurizer=None, dtype="float32"):
+        super(BondFeaturizer, self).__init__(dtype)
+        self._feature_size = None
+        self._feature_name = None
+
+        if length_featurizer == "bin":
+            self.length_featurizer = DistanceBins(low=2.0, high=6.0, num_bins=10)
+        elif length_featurizer == "rbf":
+            self.length_featurizer = RBF(low=0.0, high=4.0, num_centers=20)
+        elif length_featurizer is None:
+            self.length_featurizer = None
+        else:
+            raise ValueError(
+                "Unsupported bond length featurizer: {}".format(length_featurizer)
+            )
+
+    @property
+    def feature_size(self):
+        return self._feature_size
+
+    @property
+    def feature_name(self):
+        return self._feature_name
+
+
+class BondAsNodeFeaturizer(BondFeaturizer):
+    """
+    Featurize all bonds in a molecule.
+
+    The bond indices will be preserved, i.e. feature i corresponds to atom i.
+    The number of features will be equal to the number of bonds in the molecule,
+    so this is suitable for the case where we represent bond as graph nodes.
+
+    See Also:
+        BondAsEdgeBidirectedFeaturizer
+    """
+
+    def __call__(self, mol, **kwargs):
+        """
+        Parameters
+        ----------
+        mol : rdkit.Chem.rdchem.Mol
+            RDKit molecule object
+
+        Returns
+        -------
+            Dictionary for bond features
+        """
+        feats = []
+
+        num_bonds = mol.GetNumBonds()
+        if num_bonds < 1:
+            warnings.warn("molecular has no bonds")
+
+        for u in range(num_bonds):
+            bond = mol.GetBondWithIdx(u)
+
+            ft = [
+                int(bond.GetIsAromatic()),
+                int(bond.IsInRing()),
+                int(bond.GetIsConjugated()),
+            ]
+
+            ft += one_hot_encoding(
+                bond.GetBondType(),
+                [
+                    Chem.rdchem.BondType.SINGLE,
+                    Chem.rdchem.BondType.DOUBLE,
+                    Chem.rdchem.BondType.TRIPLE,
+                    # Chem.rdchem.BondType.AROMATIC,
+                    # Chem.rdchem.BondType.IONIC,
+                ],
+            )
+
+            if self.length_featurizer:
+                at1 = bond.GetBeginAtomIdx()
+                at2 = bond.GetEndAtomIdx()
+                atoms_pos = mol.GetConformer().GetPositions()
+                bond_length = np.linalg.norm(atoms_pos[at1] - atoms_pos[at2])
+                ft += self.length_featurizer(bond_length)
+
+            feats.append(ft)
+
+        feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
+        self._feature_size = feats.shape[1]
+        self._feature_name = ["is aromatic", "is in ring", "is conjugated"] + ["type"] * 3
+        if self.length_featurizer:
+            self._feature_name += self.length_featurizer.feature_name
+
+        return {"feat": feats}
+
+
+class BondAsEdgeBidirectedFeaturizer(BondFeaturizer):
+    """
+    Featurize all bonds in a molecule.
+
+    Feature of bond 0 is assigned to graph edges 0 and 1, feature of bond 1 is assigned
+    to graph edges 2, and 3 ... If `self_loop` is `True`, graph edge 2Nb to 2Nb+Na-1
+    will also have features, but they are not determined from the actual bond in the
+    molecule.
+
+    This is suitable for the case where we represent bond as edges of bidirected graph.
+    For example, it can be used together :meth:`gnn.data.grapher.HomoBidirectedGraph`.
+
+    Args:
+        self_loop (bool): whether to let the each node connect to itself
+        length_featurizer (str): method to featurize bond length, options are `bin` and
+        `rbf`, if `None` bond length feature is not used._
+
+    See Also:
+        BondAsNodeFeaturizer
+        BondAsEdgeCompleteFeaturizer
+    """
+
+    def __init__(self, self_loop=True, length_featurizer=None, dtype="float32"):
+        self.self_loop = self_loop
+        super(BondAsEdgeBidirectedFeaturizer, self).__init__(length_featurizer, dtype)
+
+    def __call__(self, mol, **kwargs):
+        """
+        Parameters
+        ----------
+        mol : rdkit.Chem.rdchem.Mol
+            RDKit molecule object
+
+        Returns
+        -------
+            Dictionary for bond features
+        """
+        feats = []
+        num_bonds = mol.GetNumBonds()
+        if num_bonds < 1:
+            warnings.warn("molecular has no bonds")
+
+        for u in range(num_bonds):
+            bond = mol.GetBondWithIdx(u)
+
+            ft = [
+                int(bond.GetIsAromatic()),
+                int(bond.IsInRing()),
+                int(bond.GetIsConjugated()),
+            ]
+
+            ft += one_hot_encoding(
+                bond.GetBondType(),
+                [
+                    Chem.rdchem.BondType.SINGLE,
+                    Chem.rdchem.BondType.DOUBLE,
+                    Chem.rdchem.BondType.TRIPLE,
+                    # Chem.rdchem.BondType.AROMATIC,
+                    # Chem.rdchem.BondType.IONIC,
+                    None,
+                ],
+            )
+
+            if self.length_featurizer:
+                at1 = bond.GetBeginAtomIdx()
+                at2 = bond.GetEndAtomIdx()
+                atoms_pos = mol.GetConformer().GetPositions()
+                bond_length = np.linalg.norm(atoms_pos[at1] - atoms_pos[at2])
+                ft += self.length_featurizer(bond_length)
+
+            feats.extend([ft, ft])
+
+        if self.self_loop:
+            for i in range(mol.GetNumAtoms()):
+
+                # use -1 to denote not applicable, not ideal but acceptable
+                ft = [-1, -1, -1]
+
+                # no bond type for self loop
+                ft += one_hot_encoding(
+                    None,
+                    [
+                        Chem.rdchem.BondType.SINGLE,
+                        Chem.rdchem.BondType.DOUBLE,
+                        Chem.rdchem.BondType.TRIPLE,
+                        # Chem.rdchem.BondType.AROMATIC,
+                        # Chem.rdchem.BondType.IONIC,
+                        None,
+                    ],
+                )
+
+                # bond distance
+                if self.length_featurizer:
+                    bond_length = 0.0
+                    ft += self.length_featurizer(bond_length)
+
+                feats.append(ft)
+
+        feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
+        self._feature_size = feats.shape[1]
+        self._feature_name = ["is aromatic", "is in ring", "is conjugated"] + ["type"] * 4
+        if self.length_featurizer:
+            self._feature_name += self.length_featurizer.feature_name
+
+        return {"feat": feats}
+
+
+class BondAsEdgeCompleteFeaturizer(BondFeaturizer):
+    """
+    Featurize all bonds in a molecule.
+
+    Create features between atom pairs (0, 0), (0,1), (0,2), ... (1,0), (1,1), (1,2), ...
+    If not `self_loop`, (0,0), (1,1) ... pairs will not be present.
+
+    This is suitable for the case where we represent bond as complete graph edges. For
+    example, it can be used together :meth:`gnn.data.grapher.HomoCompleteGraph`.
+
+    See Also:
+        BondAsNodeFeaturizer
+        BondAsEdgeBidirectedFeaturizer
+    """
+
+    def __init__(self, self_loop=True, length_featurizer=None, dtype="float32"):
+        self.self_loop = self_loop
+        super(BondAsEdgeCompleteFeaturizer, self).__init__(length_featurizer, dtype)
+
+    def __call__(self, mol, **kwargs):
+        """
+        Parameters
+        ----------
+        mol : rdkit.Chem.rdchem.Mol
+            RDKit molecule object
+
+        Returns
+        -------
+            Dictionary for bond features
+        """
+        feats = []
+
+        num_atoms = mol.GetNumAtoms()
+        num_bonds = mol.GetNumBonds()
+        if num_bonds < 1:
+            warnings.warn("molecular has no bonds")
+
+        for u in range(num_atoms):
+            for v in range(num_atoms):
+                if u == v and not self.self_loop:
+                    continue
+
+                bond = mol.GetBondBetweenAtoms(u, v)
+                if bond is None:
+                    bond_type = None
+                    ft = [-1, -1, -1]
+                else:
+                    bond_type = bond.GetBondType()
+                    ft = [
+                        int(bond.GetIsAromatic()),
+                        int(bond.IsInRing()),
+                        int(bond.GetIsConjugated()),
+                    ]
+
+                ft += one_hot_encoding(
+                    bond_type,
+                    [
+                        Chem.rdchem.BondType.SINGLE,
+                        Chem.rdchem.BondType.DOUBLE,
+                        Chem.rdchem.BondType.TRIPLE,
+                        # Chem.rdchem.BondType.AROMATIC,
+                        # Chem.rdchem.BondType.IONIC,
+                        None,
+                    ],
+                )
+
+                # bond distance
+                if self.length_featurizer:
+                    atoms_pos = mol.GetConformer().GetPositions()
+                    bond_length = np.linalg.norm(atoms_pos[u] - atoms_pos[v])
+                    ft += self.length_featurizer(bond_length)
+
+                feats.append(ft)
+
+        feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
+        self._feature_size = feats.shape[1]
+        self._feature_name = ["is aromatic", "is in ring", "is conjugated"] + ["type"] * 4
+        if self.length_featurizer:
+            self._feature_name += self.length_featurizer.feature_name
+
+        return {"feat": feats}
+
+
 class AtomFeaturizer(BaseFeaturizer):
     """
     Featurize atoms in a molecule.
@@ -162,317 +454,6 @@ class AtomFeaturizer(BaseFeaturizer):
         return {"feat": feats}
 
 
-class BondAsNodeFeaturizer(BaseFeaturizer):
-    """
-    Featurize all bonds in a molecule.
-
-    The bond indices will be preserved, i.e. feature i corresponds to atom i.
-    The number of features will be equal to the number of bonds in the molecule,
-    so this is suitable for the case where we represent bond as graph nodes.
-
-    See Also:
-        BondAsEdgeBidirectedFeaturizer
-    """
-
-    def __init__(self, length_featurizer=None, dtype="float32"):
-        super(BondAsNodeFeaturizer, self).__init__(dtype)
-        self._feature_size = None
-        self._feature_name = None
-
-        if length_featurizer == "bin":
-            self.length_featurizer = DistanceBins(low=2.0, high=6.0, num_bins=10)
-        elif length_featurizer == "rfb":
-            self.length_featurizer = RBF(low=2.0, high=6.0, gap=0.1, dim=1)
-        else:
-            self.length_featurizer = None
-
-    @property
-    def feature_size(self):
-        return self._feature_size
-
-    @property
-    def feature_name(self):
-        return self._feature_name
-
-    def __call__(self, mol, **kwargs):
-        """
-        Parameters
-        ----------
-        mol : rdkit.Chem.rdchem.Mol
-            RDKit molecule object
-
-        Returns
-        -------
-            Dictionary for bond features
-        """
-        feats = []
-
-        num_bonds = mol.GetNumBonds()
-        if num_bonds < 1:
-            warnings.warn("molecular has no bonds")
-
-        for u in range(num_bonds):
-            bond = mol.GetBondWithIdx(u)
-
-            ft = [
-                int(bond.GetIsAromatic()),
-                int(bond.IsInRing()),
-                int(bond.GetIsConjugated()),
-            ]
-
-            ft += one_hot_encoding(
-                bond.GetBondType(),
-                [
-                    Chem.rdchem.BondType.SINGLE,
-                    Chem.rdchem.BondType.DOUBLE,
-                    Chem.rdchem.BondType.TRIPLE,
-                    # Chem.rdchem.BondType.AROMATIC,
-                    # Chem.rdchem.BondType.IONIC,
-                ],
-            )
-
-            if self.length_featurizer:
-                at1 = bond.GetBeginAtomIdx()
-                at2 = bond.GetEndAtomIdx()
-                atoms_pos = mol.GetConformer().GetPositions()
-                bond_length = np.linalg.norm(atoms_pos[at1] - atoms_pos[at2])
-                ft += self.length_featurizer(bond_length)
-
-            feats.append(ft)
-
-        feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
-        self._feature_size = feats.shape[1]
-        self._feature_name = ["is aromatic", "is in ring", "is conjugated"] + ["type"] * 3
-        if self.length_featurizer:
-            self._feature_name += self.length_featurizer.feature_name
-
-        return {"feat": feats}
-
-
-class BondAsEdgeBidirectedFeaturizer(BaseFeaturizer):
-    """
-    Featurize all bonds in a molecule.
-
-    Feature of bond 0 is assigned to graph edges 0 and 1, feature of bond 1 is assigned
-    to graph edges 2, and 3 ... If `self_loop` is `True`, graph edge 2Nb to 2Nb+Na-1
-    will also have features, but they are not determined from the actual bond in the
-    molecule.
-
-    This is suitable for the case where we represent bond as edges of bidirected graph.
-    For example, it can be used together :meth:`gnn.data.grapher.HomoBidirectedGraph`.
-
-    Args:
-        self_loop (bool): whether to let the each node connect to itself
-        length_featurizer (str): method to featurize bond length, options are `bin` and
-        `rbf`, if `None` bond length feature is not used._
-
-    See Also:
-        BondAsNodeFeaturizer
-        BondAsEdgeCompleteFeaturizer
-    """
-
-    def __init__(self, self_loop=True, length_featurizer=None, dtype="float32"):
-        super(BondAsEdgeBidirectedFeaturizer, self).__init__(dtype)
-        self.self_loop = self_loop
-        self._feature_size = None
-        self._feature_name = None
-
-        if length_featurizer == "bin":
-            self.length_featurizer = DistanceBins(low=2.0, high=6.0, num_bins=10)
-        elif length_featurizer == "rfb":
-            self.length_featurizer = RBF(low=2.0, high=6.0, gap=0.1, dim=1)
-        else:
-            self.length_featurizer = None
-
-    @property
-    def feature_size(self):
-        return self._feature_size
-
-    @property
-    def feature_name(self):
-        return self._feature_name
-
-    def __call__(self, mol, **kwargs):
-        """
-        Parameters
-        ----------
-        mol : rdkit.Chem.rdchem.Mol
-            RDKit molecule object
-
-        Returns
-        -------
-            Dictionary for bond features
-        """
-        feats = []
-        num_bonds = mol.GetNumBonds()
-        if num_bonds < 1:
-            warnings.warn("molecular has no bonds")
-
-        for u in range(num_bonds):
-            bond = mol.GetBondWithIdx(u)
-
-            ft = [
-                int(bond.GetIsAromatic()),
-                int(bond.IsInRing()),
-                int(bond.GetIsConjugated()),
-            ]
-
-            ft += one_hot_encoding(
-                bond.GetBondType(),
-                [
-                    Chem.rdchem.BondType.SINGLE,
-                    Chem.rdchem.BondType.DOUBLE,
-                    Chem.rdchem.BondType.TRIPLE,
-                    # Chem.rdchem.BondType.AROMATIC,
-                    # Chem.rdchem.BondType.IONIC,
-                    None,
-                ],
-            )
-
-            if self.length_featurizer:
-                at1 = bond.GetBeginAtomIdx()
-                at2 = bond.GetEndAtomIdx()
-                atoms_pos = mol.GetConformer().GetPositions()
-                bond_length = np.linalg.norm(atoms_pos[at1] - atoms_pos[at2])
-                ft += self.length_featurizer(bond_length)
-
-            feats.extend([ft, ft])
-
-        if self.self_loop:
-            for i in range(mol.GetNumAtoms()):
-
-                # use -1 to denote not applicable, not ideal but acceptable
-                ft = [-1, -1, -1]
-
-                # no bond type for self loop
-                ft += one_hot_encoding(
-                    None,
-                    [
-                        Chem.rdchem.BondType.SINGLE,
-                        Chem.rdchem.BondType.DOUBLE,
-                        Chem.rdchem.BondType.TRIPLE,
-                        # Chem.rdchem.BondType.AROMATIC,
-                        # Chem.rdchem.BondType.IONIC,
-                        None,
-                    ],
-                )
-
-                # bond distance
-                if self.length_featurizer:
-                    bond_length = 0.0
-                    ft += self.length_featurizer(bond_length)
-
-                feats.append(ft)
-
-        feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
-        self._feature_size = feats.shape[1]
-        self._feature_name = ["is aromatic", "is in ring", "is conjugated"] + ["type"] * 4
-        if self.length_featurizer:
-            self._feature_name += self.length_featurizer.feature_name
-
-        return {"feat": feats}
-
-
-class BondAsEdgeCompleteFeaturizer(BaseFeaturizer):
-    """
-    Featurize all bonds in a molecule.
-
-    Create features between atom pairs (0, 0), (0,1), (0,2), ... (1,0), (1,1), (1,2), ...
-    If not `self_loop`, (0,0), (1,1) ... pairs will not be present.
-
-    This is suitable for the case where we represent bond as complete graph edges. For
-    example, it can be used together :meth:`gnn.data.grapher.HomoCompleteGraph`.
-
-    See Also:
-        BondAsNodeFeaturizer
-        BondAsEdgeBidirectedFeaturizer
-    """
-
-    def __init__(self, self_loop=True, length_featurizer=None, dtype="float32"):
-        super(BondAsEdgeCompleteFeaturizer, self).__init__(dtype)
-        self.self_loop = self_loop
-        self._feature_size = None
-        self._feature_name = None
-
-        if length_featurizer == "bin":
-            self.length_featurizer = DistanceBins(low=2.0, high=6.0, num_bins=10)
-        elif length_featurizer == "rfb":
-            self.length_featurizer = RBF(low=2.0, high=6.0, gap=0.1, dim=1)
-        else:
-            self.length_featurizer = None
-
-    @property
-    def feature_size(self):
-        return self._feature_size
-
-    @property
-    def feature_name(self):
-        return self._feature_name
-
-    def __call__(self, mol, **kwargs):
-        """
-        Parameters
-        ----------
-        mol : rdkit.Chem.rdchem.Mol
-            RDKit molecule object
-
-        Returns
-        -------
-            Dictionary for bond features
-        """
-        feats = []
-
-        num_atoms = mol.GetNumAtoms()
-        num_bonds = mol.GetNumBonds()
-        if num_bonds < 1:
-            warnings.warn("molecular has no bonds")
-
-        for u in range(num_atoms):
-            for v in range(num_atoms):
-                if u == v and not self.self_loop:
-                    continue
-
-                bond = mol.GetBondBetweenAtoms(u, v)
-                if bond is None:
-                    bond_type = None
-                    ft = [-1, -1, -1]
-                else:
-                    bond_type = bond.GetBondType()
-                    ft = [
-                        int(bond.GetIsAromatic()),
-                        int(bond.IsInRing()),
-                        int(bond.GetIsConjugated()),
-                    ]
-
-                ft += one_hot_encoding(
-                    bond_type,
-                    [
-                        Chem.rdchem.BondType.SINGLE,
-                        Chem.rdchem.BondType.DOUBLE,
-                        Chem.rdchem.BondType.TRIPLE,
-                        # Chem.rdchem.BondType.AROMATIC,
-                        # Chem.rdchem.BondType.IONIC,
-                        None,
-                    ],
-                )
-
-                # bond distance
-                if self.length_featurizer:
-                    atoms_pos = mol.GetConformer().GetPositions()
-                    bond_length = np.linalg.norm(atoms_pos[u] - atoms_pos[v])
-                    ft += self.length_featurizer(bond_length)
-
-                feats.append(ft)
-
-        feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
-        self._feature_size = feats.shape[1]
-        self._feature_name = ["is aromatic", "is in ring", "is conjugated"] + ["type"] * 4
-        if self.length_featurizer:
-            self._feature_name += self.length_featurizer.feature_name
-
-        return {"feat": feats}
-
-
 class MolChargeFeaturizer(BaseFeaturizer):
     """
     Featurize the global state of a molecules using charge.
@@ -576,6 +557,7 @@ class DistanceBins(BaseFeaturizer):
     """
 
     def __init__(self, low=2.0, high=6.0, num_bins=10):
+        super(DistanceBins, self).__init__()
         self.num_bins = num_bins
         self.bins = np.linspace(low, high, num_bins - 1, endpoint=True)
         self.bin_indices = np.arange(num_bins)
@@ -596,48 +578,42 @@ class DistanceBins(BaseFeaturizer):
 class RBF(BaseFeaturizer):
     """
     Radial basis functions.
-    e(d) = exp(- gamma * ||d - mu_k||^2)
-    With the default parameters below, we are using a default settings:
-    * gamma = 10
-    * 0 <= mu_k <= 30 for k=1~300
+    e(d) = exp(- gamma * ||d - mu_k||^2), where gamma = 1/delta
+
     Parameters
     ----------
     low : float
         Smallest value to take for mu_k, default to be 0.
     high : float
-        Largest value to take for mu_k, default to be 30.
-    gap : float
-        Difference between two consecutive values for mu_k, default to be 0.1.
-    dim : int
-        Output size for each center, default to be 1.
+        Largest value to take for mu_k, default to be 4.
+    num_centers : float
+        Number of centers
     """
 
-    # TODO to really implement this
-    def __init__(self, low=0.0, high=30.0, gap=0.1, dim=1):
+    def __init__(self, low=0.0, high=4.0, num_centers=20):
         super(RBF, self).__init__()
+        self.num_centers = num_centers
+        self.centers = np.linspace(low, high, num_centers)
+        self.gap = self.centers[1] - self.centers[0]
 
-        self._low = low
-        self._high = high
-        self._dim = dim
+    @property
+    def feature_size(self):
+        return self.num_centers
 
-        self._n_centers = int(np.ceil((high - low) / gap))
-        centers = np.linspace(low, high, self._n_centers)
-        self.centers = torch.tensor(centers, dtype=torch.float, requires_grad=False)
-        # self.centers = nn.Parameter(self.centers, requires_grad=False)
-        self._fan_out = self._dim * self._n_centers
-        self._gap = centers[1] - centers[0]
+    @property
+    def feature_name(self):
+        return ["rbf"] * self.feature_size
 
-    def __call__(self, edge_distances):
+    def __call__(self, edge_distance):
         """
         Parameters
         ----------
-        edge_distances : float32 tensor of shape (B, 1)
-            Edge distances, B for the number of edges.
+        edge_distance : float
+            Edge distance
         Returns
         -------
-        float32 tensor of shape (B, self._fan_out)
-            Computed RBF results
+        a list of RBF values of size `num_centers`
         """
-        radial = edge_distances - self.centers
-        coef = -1 / self._gap
-        return torch.exp(coef * (radial ** 2))
+        radial = edge_distance - self.centers
+        coef = -1 / self.gap
+        return list(np.exp(coef * (radial ** 2)))

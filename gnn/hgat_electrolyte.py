@@ -84,7 +84,13 @@ def main(args):
     # dataset
     sdf_file = "/Users/mjwen/Applications/mongo_db_access/extracted_data/sturct_n200.sdf"
     label_file = "/Users/mjwen/Applications/mongo_db_access/extracted_data/label_n200.txt"
-    dataset = ElectrolyteDataset(sdf_file, label_file)
+    dataset = ElectrolyteDataset(
+        sdf_file,
+        label_file,
+        self_loop=True,
+        grapher="hetero",
+        bond_length_featurizer="rbf",
+    )
     trainset, valset, testset = train_validation_test_split(
         dataset, validation=0.1, test=0.1
     )

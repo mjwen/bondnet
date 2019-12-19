@@ -7,6 +7,7 @@ from gnn.data.featurizer import (
     MolChargeFeaturizer,
     MolWeightFeaturizer,
     DistanceBins,
+    RBF,
 )
 from .utils import make_EC_mol
 
@@ -113,3 +114,17 @@ def test_dist_bins():
     ref = np.zeros(10)
     ref[8] = 1
     assert np.array_equal(dist_b(5.9999), ref)
+
+
+def test_rbf():
+    low = 0.0
+    high = 4.0
+    num_centers = 20
+    delta = (high - low) / (num_centers - 1)
+
+    rbf = RBF(low, high, num_centers)
+    d = 1.42
+    val = rbf(d)
+
+    assert val[0] == np.exp(-1 / delta * (d - low) ** 2)
+    assert val[-1] == np.exp(-1 / delta * (d - high) ** 2)
