@@ -91,8 +91,10 @@ def main(args):
     train_loader = DataLoaderElectrolyte(
         trainset, batch_size=args.batch_size, shuffle=True
     )
-    val_loader = DataLoaderElectrolyte(valset, batch_size=len(valset), shuffle=False)
-    test_loader = DataLoaderElectrolyte(testset, batch_size=len(testset), shuffle=False)
+    bs = max(len(valset) // 10, 1)
+    val_loader = DataLoaderElectrolyte(valset, batch_size=bs, shuffle=False)
+    bs = max(len(testset) // 10, 1)
+    test_loader = DataLoaderElectrolyte(testset, batch_size=bs, shuffle=False)
 
     # model
     attn_mechanism = {

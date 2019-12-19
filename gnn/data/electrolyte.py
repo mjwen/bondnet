@@ -311,26 +311,6 @@ class ElectrolyteDataset(BaseDataset):
             system_species.update(species)
         return list(system_species)
 
-    # TODO we may need to implement normalization in featurizer and provide a wrapper
-    # here. But it seems we do not need to normalize label
-    # def set_mean_and_std(self, mean=None, std=None):
-    #     """Set mean and std or compute from labels for future normalization.
-
-    #     Parameters
-    #     ----------
-    #     mean : int or float
-    #         Default to be None.
-    #     std : int or float
-    #         Default to be None.
-    #     """
-    #     labels = np.array([i.numpy() for i in self.labels])
-    #     if mean is None:
-    #         mean = np.mean(labels, axis=0)
-    #     if std is None:
-    #         std = np.std(labels, axis=0)
-    #     self.mean = mean
-    #     self.std = std
-
     @staticmethod
     def _is_pickled(filename):
         filename = expand_path(filename)

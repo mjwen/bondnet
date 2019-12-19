@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+from torch.nn import functional as F
 import warnings
 
 
@@ -15,6 +16,10 @@ class WeightedMSELoss(nn.Module):
     The weight could be used to ignore some elements in `target` by setting the
     corresponding elements in weight to 0, and it can also be used to scale the element
     differently.
+
+    Args:
+        weight (Tensor): is weight is `None` this behaves exactly the same as
+        :meth:`torch.nn.MSELoss`.
     """
 
     def __init__(self, reduction="mean"):
@@ -23,23 +28,26 @@ class WeightedMSELoss(nn.Module):
 
     def forward(self, input, target, weight):
 
-        if input.size() != target.size() != weight.size():
-            warnings.warn(
-                "Input size ({}) is different from the target size ({}) or weight "
-                "size ({}). This will likely lead to incorrect results due "
-                "to broadcasting. Please ensure they have the same size.".format(
-                    input.size(), target.size(), weight.size()
+        if weight is None:
+            return F.l1_loss(input, target, reduction=self.reduction)
+        else:
+            if input.size() != target.size() != weight.size():
+                warnings.warn(
+                    "Input size ({}) is different from the target size ({}) or weight "
+                    "size ({}). This will likely lead to incorrect results due "
+                    "to broadcasting. Please ensure they have the same size.".format(
+                        input.size(), target.size(), weight.size()
+                    )
                 )
-            )
 
-        rst = ((input - target) ** 2) * weight
-        if self.reduction != "none":
-            if self.reduction == "mean":
-                rst = torch.sum(rst) / torch.sum(weight)
-            else:
-                rst = torch.sum(rst)
+            rst = ((input - target) ** 2) * weight
+            if self.reduction != "none":
+                if self.reduction == "mean":
+                    rst = torch.sum(rst) / torch.sum(weight)
+                else:
+                    rst = torch.sum(rst)
 
-        return rst
+            return rst
 
 
 class WeightedL1Loss(nn.Module):
@@ -54,6 +62,10 @@ class WeightedL1Loss(nn.Module):
     The weight could be used to ignore some elements in `target` by setting the
     corresponding elements in weight to 0, and it can also be used to scale the element
     differently.
+
+    Args:
+        weight (Tensor): is weight is `None` this behaves exactly the same as
+        :meth:`torch.nn.L1Loss`.
     """
 
     def __init__(self, reduction="mean"):
@@ -62,23 +74,26 @@ class WeightedL1Loss(nn.Module):
 
     def forward(self, input, target, weight):
 
-        if input.size() != target.size() != weight.size():
-            warnings.warn(
-                "Input size ({}) is different from the target size ({}) or weight "
-                "size ({}). This will likely lead to incorrect results due "
-                "to broadcasting. Please ensure they have the same size.".format(
-                    input.size(), target.size(), weight.size()
+        if weight is None:
+            return F.l1_loss(input, target, reduction=self.reduction)
+        else:
+            if input.size() != target.size() != weight.size():
+                warnings.warn(
+                    "Input size ({}) is different from the target size ({}) or weight "
+                    "size ({}). This will likely lead to incorrect results due "
+                    "to broadcasting. Please ensure they have the same size.".format(
+                        input.size(), target.size(), weight.size()
+                    )
                 )
-            )
 
-        rst = torch.abs(input - target) * weight
-        if self.reduction != "none":
-            if self.reduction == "mean":
-                rst = torch.sum(rst) / torch.sum(weight)
-            else:
-                rst = torch.sum(rst)
+            rst = torch.abs(input - target) * weight
+            if self.reduction != "none":
+                if self.reduction == "mean":
+                    rst = torch.sum(rst) / torch.sum(weight)
+                else:
+                    rst = torch.sum(rst)
 
-        return rst
+            return rst
 
 
 class EarlyStopping:
