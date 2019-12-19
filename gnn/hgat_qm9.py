@@ -24,7 +24,7 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
     accuracy = 0.0
     count = 0
 
-    for it, (bg, label) in enumerate(data_loader):
+    for it, (bg, label, scale) in enumerate(data_loader):
         feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
         if device is not None:
             feats = {k: v.to(device=device) for k, v in feats.items()}
@@ -65,7 +65,7 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
         accuracy = 0.0
         count = 0
 
-        for bg, label in data_loader:
+        for bg, label, scale in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}

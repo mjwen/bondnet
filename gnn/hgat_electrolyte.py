@@ -6,7 +6,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from gnn.metric import MSELoss, L1Loss
 from gnn.data.dataset import train_validation_test_split
 from gnn.data.electrolyte import ElectrolyteDataset
-from gnn.data.dataloader import DataLoader
+from gnn.data.dataloader import DataLoaderElectrolyte
 from gnn.model.hgat import HGAT
 from gnn.metric import EarlyStopping
 from gnn.args import parse_args
@@ -26,7 +26,7 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
         accuracy = 0.0
         count = 0
 
-        for bg, label in data_loader:
+        for bg, label, scale in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
@@ -53,9 +53,11 @@ def main(args):
     trainset, valset, testset = train_validation_test_split(
         dataset, validation=0.1, test=0.1
     )
-    train_loader = DataLoader(trainset, batch_size=args.batch_size, shuffle=True)
-    val_loader = DataLoader(valset, batch_size=len(valset), shuffle=False)
-    test_loader = DataLoader(testset, batch_size=len(testset), shuffle=False)
+    train_loader = DataLoaderElectrolyte(
+        trainset, batch_size=args.batch_size, shuffle=True
+    )
+    val_loader = DataLoaderElectrolyte(valset, batch_size=len(valset), shuffle=False)
+    test_loader = DataLoaderElectrolyte(testset, batch_size=len(testset), shuffle=False)
 
     # model
     attn_mechanism = {
@@ -108,7 +110,7 @@ def main(args):
         epoch_pred = []
         epoch_label = {"value": [], "indicator": []}
         count = 0
-        for it, (bg, label) in enumerate(train_loader):
+        for it, (bg, label, scale) in enumerate(train_loader):
             feats = {nt: bg.nodes[nt].data["feat"] for nt in attn_order}
             if args.device is not None:
                 feats = {k: v.to(device=args.device) for k, v in feats.items()}

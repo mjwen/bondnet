@@ -1,7 +1,6 @@
 import torch
 from torch import nn
 import warnings
-from gnn.data.dataloader import DataLoader, DataLoaderQM9
 
 
 class MSELoss(nn.Module):
