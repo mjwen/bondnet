@@ -24,10 +24,11 @@ def parse_args():
 
     # training
     parser.add_argument("--gpu", type=int, default=-1, help="GPU index. -1 to use CPU.")
-    parser.add_argument("--epochs", type=int, default=100, help="number of epochs")
+    parser.add_argument("--epochs", type=int, default=1000, help="number of epochs")
     parser.add_argument("--batch-size", type=int, default=100, help="batch size")
     parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
     parser.add_argument("--weight-decay", type=float, default=0.0, help="weight decay")
+    parser.add_argument("--restore", type=int, default=0, help="read checkpoints")
 
     # output file (needed by hypertunity)
     parser.add_argument(
@@ -173,6 +174,8 @@ def main(args):
     stopper = EarlyStopping(patience=150)
 
     checkpoints_objs = {"model": model, "optimizer": optimizer, "scheduler": scheduler}
+    if args.restore:
+        load_checkpoints(checkpoints_objs)
 
     print("\n\n# Epoch     Loss         TrainAcc        ValAcc     Time (s)")
     t0 = time.time()

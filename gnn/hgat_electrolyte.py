@@ -149,6 +149,8 @@ def main(args):
     stopper = EarlyStopping(patience=150)
 
     checkpoints_objs = {"model": model, "optimizer": optimizer, "scheduler": scheduler}
+    if args.restore:
+        load_checkpoints(checkpoints_objs)
 
     print("\n\n# Epoch     Loss         TrainAcc        ValAcc     Time (s)")
     t0 = time.time()

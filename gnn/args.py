@@ -71,6 +71,8 @@ def parse_args():
         "--output_file", type=str, default="results.pkl", help="name of output file"
     )
 
+    parser.add_argument("--restore", type=int, default=0, help="read checkpoints")
+
     args = parser.parse_args()
 
     if len(args.gat_hidden_size) == 1:
