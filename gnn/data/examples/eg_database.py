@@ -1,7 +1,7 @@
 from gnn.data.database import DatabaseOperation
 
 
-def test_query_database():
+def eg_query_database():
     db = DatabaseOperation.from_query()
     db.to_file("~/Applications/mongo_db_access/extracted_data/database.pkl")
 
@@ -30,20 +30,6 @@ def test_filter():
     db.to_file(filename="~/Applications/mongo_db_access/extracted_data/database_H.pkl")
 
 
-def test_create_dataset():
-
-    db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
-    db = DatabaseOperation.from_file(db_path)
-    mols = db.to_molecules(purify=True)
-    # mols = mols[:6]
-    db.create_sdf_csv_dataset(
-        mols,
-        "~/Applications/mongo_db_access/extracted_data/electrolyte_LiEC.sdf",
-        "~/Applications/mongo_db_access/extracted_data/electrolyte_LiEC.csv",
-    )
-    print("entries saved:", len(mols))
-
-
 def test_molecules():
     # db_path = "~/Applications/mongo_db_access/extracted_data/database_LiEC.pkl"
     db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
@@ -61,6 +47,20 @@ def test_molecules():
         m.write(fname, file_format="pdb")
 
 
+def eg_plot_charge_0():
+    # db_path = "~/Applications/mongo_db_access/extracted_data/database_LiEC.pkl"
+    db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
+    db = DatabaseOperation.from_file(db_path)
+    mols = db.to_molecules(optimized=True)
+    for m in mols:
+        if m.charge == 0:
+
+            fname = "~/Applications/mongo_db_access/extracted_data/mol_svg/{}_{}.svg".format(
+                m.formula, m.id
+            )
+            m.draw(fname, show_atom_idx=False)
+
+
 def test_write_group_isomorphic_to_file():
     db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
     # db_path = "~/Applications/mongo_db_access/extracted_data/database_n200.pkl"
@@ -71,10 +71,12 @@ def test_write_group_isomorphic_to_file():
 
 
 if __name__ == "__main__":
-    # test_query_database()
+    # eg_query_database()
     # test_select()
     # test_get_job_types()
     # test_filter()
     # test_create_dataset()
-    test_molecules()
-    test_write_group_isomorphic_to_file()
+    # test_molecules()
+    # test_write_group_isomorphic_to_file()
+
+    eg_plot_charge_0()

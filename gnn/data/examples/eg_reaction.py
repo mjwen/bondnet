@@ -53,7 +53,7 @@ def test_extract_A_to_B_C():
     )
 
 
-def test_extract_one_bond_break():
+def eg_extract_one_bond_break():
     db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
     # db_path = "~/Applications/mongo_db_access/extracted_data/database_n200.pkl"
     # db_path = "~/Applications/mongo_db_access/extracted_data/database_H.pkl"
@@ -66,9 +66,14 @@ def test_extract_one_bond_break():
     print("number of buckets", len(extractor.buckets))
 
     extractor.extract_one_bond_break()
-    filename = "~/Applications/mongo_db_access/extracted_data/reactions.pkl"
+
+    # extract reactant charge = 0
+    extractor.filter_reactions_by_reactant_charge(charge=0)
+
+    # filename = "~/Applications/mongo_db_access/extracted_data/reactions.pkl"
     # filename = "~/Applications/mongo_db_access/extracted_data/reactions_n200.pkl"
     # filename = "~/Applications/mongo_db_access/extracted_data/reactions_H.pkl"
+    filename = "~/Applications/mongo_db_access/extracted_data/reactions_charge0.pkl"
     extractor.to_file(filename)
 
 
@@ -94,12 +99,30 @@ def test_create_struct_label_dataset():
     )
 
 
-def test_create_struct_label_dataset_with_lowest_energy_across_charge():
+def eg_create_struct_label_dataset_with_lowest_energy_across_charge():
     filename = "~/Applications/mongo_db_access/extracted_data/reactions_n200.pkl"
+    # filename = "~/Applications/mongo_db_access/extracted_data/reactions_charge0.pkl"
     extractor = ReactionExtractor.from_file(filename)
     extractor.create_struct_label_dataset_with_lowest_energy_across_charge(
         struct_name="~/Applications/mongo_db_access/extracted_data/sturct_n200.sdf",
         label_name="~/Applications/mongo_db_access/extracted_data/label_n200.txt",
+        # struct_name="~/Applications/mongo_db_access/extracted_data/sturct_charge0.sdf",
+        # label_name="~/Applications/mongo_db_access/extracted_data/label_charge0.txt",
+    )
+
+
+def eg_create_struct_label_dataset_with_lowest_energy_across_charge_bond_based():
+    # filename = "~/Applications/mongo_db_access/extracted_data/reactions.pkl"
+    filename = "~/Applications/mongo_db_access/extracted_data/reactions_n200.pkl"
+    # filename = "~/Applications/mongo_db_access/extracted_data/reactions_charge0.pkl"
+    extractor = ReactionExtractor.from_file(filename)
+    extractor.create_struct_label_dataset_with_lowest_energy_across_charge_bond_based(
+        # struct_name="~/Applications/mongo_db_access/extracted_data/sturct.sdf",
+        # label_name="~/Applications/mongo_db_access/extracted_data/label.txt",
+        struct_name="~/Applications/mongo_db_access/extracted_data/sturct_n200.sdf",
+        label_name="~/Applications/mongo_db_access/extracted_data/label_n200.txt",
+        # struct_name="~/Applications/mongo_db_access/extracted_data/sturct_charge0.sdf",
+        # label_name="~/Applications/mongo_db_access/extracted_data/label_charge0.txt",
     )
 
 
@@ -107,8 +130,9 @@ if __name__ == "__main__":
     # test_buckets()
     # test_extract_A_to_B()
     # test_extract_A_to_B_C()
-    # test_extract_one_bond_break()
+    # eg_extract_one_bond_break()
     # test_reactants_bond_energies()
     # test_reactants_bond_energies_to_file()
     # test_create_struct_label_dataset()
-    test_create_struct_label_dataset_with_lowest_energy_across_charge()
+    # eg_create_struct_label_dataset_with_lowest_energy_across_charge()
+    eg_create_struct_label_dataset_with_lowest_energy_across_charge_bond_based()

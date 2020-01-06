@@ -1,6 +1,3 @@
-"""
-The Li-EC electrolyte dataset.
-"""
 import numpy as np
 
 

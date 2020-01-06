@@ -1,7 +1,6 @@
 """
 The Li-EC electrolyte dataset.
 """
-# pylint: disable=not-callable,no-member
 
 import torch
 import os
