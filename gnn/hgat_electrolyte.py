@@ -121,6 +121,13 @@ def main(args):
         "global": {"edges": ["a2g", "b2g", "g2g"], "nodes": ["atom", "bond", "global"]},
     }
     attn_order = ["atom", "bond", "global"]
+
+    # attn_mechanism = {
+    #     "atom": {"edges": ["b2a", "a2a"], "nodes": ["bond", "atom"]},
+    #     "bond": {"edges": ["a2b", "b2b"], "nodes": ["atom", "bond"]},
+    # }
+    # attn_order = ["atom", "bond"]
+
     in_feats = trainset.get_feature_size(attn_order)
     model = HGAT(
         attn_mechanism,

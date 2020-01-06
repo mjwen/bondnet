@@ -116,9 +116,7 @@ class HGAT(nn.Module):
         h = self.readout_layer(graph, h)
 
         # fc
-        # NOTE we add the 0 * h["atom"] + 0 * h["global"] to prevent GPU memory leak
-        # this is actually should not happen, need carefully debug to figure out why
-        h = h["bond"] + 0 * h["atom"].sum() + 0 * h["global"].sum()
+        h = h["bond"]
         for layer in self.fc_layers:
             h = layer(h)
         h = h.view(-1)  # reshape to a 1D tensor to make each component a bond energy
