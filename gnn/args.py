@@ -13,7 +13,7 @@ def parse_args():
         "--gat-hidden-size",
         type=int,
         nargs="+",
-        default=[24, 32, 64],
+        default=[32, 32, 64],
         help="number of hidden units of GAT layers",
     )
     parser.add_argument(
@@ -71,12 +71,33 @@ def parse_args():
         "--output_file", type=str, default="results.pkl", help="name of output file"
     )
 
-    parser.add_argument("--restore", type=int, default=1, help="read checkpoints")
+    parser.add_argument("--restore", type=int, default=0, help="read checkpoints")
 
     args = parser.parse_args()
 
+    if args.gpu >= 0 and torch.cuda.is_available():
+        args.device = torch.device("cuda:{}".format(args.gpu))
+    else:
+        args.device = None
+
+    # if len(args.gat_hidden_size) == 1:
+    #     args.gat_hidden_size = args.gat_hidden_size * args.num_gat_layers
+    # else:
+    #     assert len(args.gat_hidden_size) == args.num_gat_layers, (
+    #         "length of `gat-hidden-size` should be equal to `num-gat-layers`, but got "
+    #         "{} and {}.".format(args.gat_hidden_size, args.num_gat_layers)
+    #     )
+    #
+    # if len(args.fc_hidden_size) == 1:
+    #     args.fc_hidden_size = args.fc_hidden_size * args.num_fc_layers
+    # assert len(args.fc_hidden_size) == args.num_fc_layers, (
+    #     "length of `fc-hidden-size` should be equal to `num-fc-layers`, but got "
+    #     "{} and {}.".format(args.fc_hidden_size, args.num_fc_layers)
+    # )
+
     if len(args.gat_hidden_size) == 1:
-        args.gat_hidden_size = args.gat_hidden_size * args.num_gat_layers
+        val = args.gat_hidden_size[0]
+        args.gat_hidden_size = [val * 2 ** i for i in range(args.num_gat_layers)]
     else:
         assert len(args.gat_hidden_size) == args.num_gat_layers, (
             "length of `gat-hidden-size` should be equal to `num-gat-layers`, but got "
@@ -84,15 +105,11 @@ def parse_args():
         )
 
     if len(args.fc_hidden_size) == 1:
-        args.fc_hidden_size = args.fc_hidden_size * args.num_fc_layers
+        val = args.fc_hidden_size[0]
+        args.fc_hidden_size = [val // 2 ** i for i in range(args.num_fc_layers)]
     assert len(args.fc_hidden_size) == args.num_fc_layers, (
         "length of `fc-hidden-size` should be equal to `num-fc-layers`, but got "
         "{} and {}.".format(args.fc_hidden_size, args.num_fc_layers)
     )
-
-    if args.gpu >= 0 and torch.cuda.is_available():
-        args.device = torch.device("cuda:{}".format(args.gpu))
-    else:
-        args.device = None
 
     return args

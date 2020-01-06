@@ -208,6 +208,8 @@ class QM9Dataset(ElectrolyteDataset):
                         # molecules, i.e. y' = y/natoms
                         lb = labels[:, i] / natoms
                         ts = natoms
+                        label_scaler_mean.append(None)
+                        label_scaler_std.append("num atoms")
                     else:
                         # intensive labels standardized by y' = (y - mean(y))/std(y)
                         scaler = StandardScaler()

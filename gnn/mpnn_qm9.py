@@ -29,7 +29,7 @@ def parse_args():
     parser.add_argument("--batch-size", type=int, default=100, help="batch size")
     parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
     parser.add_argument("--weight-decay", type=float, default=0.0, help="weight decay")
-    parser.add_argument("--restore", type=int, default=1, help="read checkpoints")
+    parser.add_argument("--restore", type=int, default=0, help="read checkpoints")
 
     # output file (needed by hypertunity)
     parser.add_argument(
@@ -65,6 +65,8 @@ def train(optimizer, model, data_loader, loss_fn, metric_fn, device=None):
             nf = nf.to(device=device)
             ef = ef.to(device=device)
             label = label.to(device=device)
+            if scale is not None:
+                scale = scale.to(device=device)
 
         pred = model(bg, nf, ef)
         loss = loss_fn(pred, label)
@@ -102,6 +104,8 @@ def evaluate(model, data_loader, metric_fn, device=None):
                 nf = nf.to(device=device)
                 ef = ef.to(device=device)
                 label = label.to(device=device)
+                if scale is not None:
+                    scale = scale.to(device=device)
 
             pred = model(bg, nf, ef)
             accuracy += metric_fn(pred, label, scale).detach().item()
@@ -212,6 +216,9 @@ def main(args):
         )
         if epoch % 10 == 0:
             sys.stdout.flush()
+
+    # save results for hyperparam tune
+    pickle_dump(float(stopper.best_score), args.output_file)
 
     # load best to calculate test accuracy
     load_checkpoints(checkpoints_objs)

@@ -29,6 +29,8 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
         if device is not None:
             feats = {k: v.to(device=device) for k, v in feats.items()}
             label = {k: v.to(device=device) for k, v in label.items()}
+            if scale is not None:
+                scale = scale.to(device=device)
         label_val = label["value"]
         label_ind = label["indicator"]
 
@@ -39,7 +41,7 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
         optimizer.step()
 
         epoch_loss += loss.detach().item()
-        weight = label_ind * scale
+        weight = None if scale is None else label_ind * scale
         accuracy += metric_fn(pred, label_val, weight).detach().item()
         count += sum(label_ind).item()
 
@@ -67,12 +69,14 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
                 label = {k: v.to(device) for k, v in label.items()}
+                if scale is not None:
+                    scale = scale.to(device=device)
             label_val = label["value"]
             label_ind = label["indicator"]
 
             pred = model(bg, feats)
 
-            weight = label_ind * scale
+            weight = None if scale is None else label_ind * scale
             accuracy += metric_fn(pred, label_val, weight).detach().item()
             count += sum(label_ind).item()
 
@@ -186,6 +190,9 @@ def main(args):
         )
         if epoch % 10 == 0:
             sys.stdout.flush()
+
+    # save results for hyperparam tune
+    pickle_dump(float(stopper.best_score), args.output_file)
 
     # load best to calculate test accuracy
     load_checkpoints(checkpoints_objs)

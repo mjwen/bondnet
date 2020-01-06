@@ -30,6 +30,8 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
         if device is not None:
             feats = {k: v.to(device=device) for k, v in feats.items()}
             label = label.to(device=device)
+            if scale is not None:
+                scale = scale.to(device=device)
 
         pred = model(bg, feats)
         loss = loss_fn(pred, label)
@@ -65,6 +67,8 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
                 label = label.to(device=device)
+                if scale is not None:
+                    scale = scale.to(device=device)
 
             pred = model(bg, feats)
             accuracy += metric_fn(pred, label, scale).detach().item()
@@ -186,6 +190,9 @@ def main(args):
         )
         if epoch % 10 == 0:
             sys.stdout.flush()
+
+    # save results for hyperparam tune
+    pickle_dump(float(stopper.best_score), args.output_file)
 
     # load best to calculate test accuracy
     load_checkpoints(checkpoints_objs)
