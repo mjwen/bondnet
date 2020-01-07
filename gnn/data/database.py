@@ -351,7 +351,7 @@ class MoleculeWrapper:
         for edge in self.graph.edges():
             try:
                 new_mgs = self.mol_graph.split_molecule_subgraphs(
-                    [edge], allow_reverse=False, alterations=None
+                    [edge], allow_reverse=True, alterations=None
                 )
                 sub_mols[edge] = new_mgs
             except MolGraphSplitError:  # cannot split, i.e. open ring

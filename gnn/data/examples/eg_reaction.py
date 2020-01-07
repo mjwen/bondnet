@@ -54,8 +54,8 @@ def test_extract_A_to_B_C():
 
 
 def eg_extract_one_bond_break():
-    db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
-    # db_path = "~/Applications/mongo_db_access/extracted_data/database_n200.pkl"
+    # db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
+    db_path = "~/Applications/mongo_db_access/extracted_data/database_n200.pkl"
     # db_path = "~/Applications/mongo_db_access/extracted_data/database_H.pkl"
     db = DatabaseOperation.from_file(db_path)
     molecules = db.to_molecules()
@@ -68,22 +68,22 @@ def eg_extract_one_bond_break():
     extractor.extract_one_bond_break()
 
     # extract reactant charge = 0
-    extractor.filter_reactions_by_reactant_charge(charge=0)
+    # extractor.filter_reactions_by_reactant_charge(charge=0)
 
     # filename = "~/Applications/mongo_db_access/extracted_data/reactions.pkl"
-    # filename = "~/Applications/mongo_db_access/extracted_data/reactions_n200.pkl"
+    filename = "~/Applications/mongo_db_access/extracted_data/reactions_n200.pkl"
     # filename = "~/Applications/mongo_db_access/extracted_data/reactions_H.pkl"
-    filename = "~/Applications/mongo_db_access/extracted_data/reactions_charge0.pkl"
+    # filename = "~/Applications/mongo_db_access/extracted_data/reactions_charge0.pkl"
     extractor.to_file(filename)
 
 
-def test_reactants_bond_energies_to_file():
+def eg_reactants_bond_energies_to_file():
     # filename = "~/Applications/mongo_db_access/extracted_data/reactions.pkl"
     filename = "~/Applications/mongo_db_access/extracted_data/reactions_n200.pkl"
     # filename = "~/Applications/mongo_db_access/extracted_data/reactions_H.pkl"
     extractor = ReactionExtractor.from_file(filename)
-    filename = "~/Applications/mongo_db_access/extracted_data/bond_energies_H.yml"
-    filename = "~/Applications/mongo_db_access/extracted_data/bond_energies_n200.yml"
+    filename = "~/Applications/mongo_db_access/extracted_data/bond_energies_H.yaml"
+    filename = "~/Applications/mongo_db_access/extracted_data/bond_energies_n200.yaml"
     extractor.bond_energies_to_file(filename)
 
 
@@ -130,9 +130,8 @@ if __name__ == "__main__":
     # test_buckets()
     # test_extract_A_to_B()
     # test_extract_A_to_B_C()
-    # eg_extract_one_bond_break()
-    # test_reactants_bond_energies()
-    # test_reactants_bond_energies_to_file()
+    eg_extract_one_bond_break()
+    # eg_reactants_bond_energies_to_file()
     # test_create_struct_label_dataset()
     # eg_create_struct_label_dataset_with_lowest_energy_across_charge()
     eg_create_struct_label_dataset_with_lowest_energy_across_charge_bond_based()

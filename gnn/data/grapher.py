@@ -81,7 +81,7 @@ class HomoCompleteGraph:
     This creates a complete graph, i.e. every atom is connected to other atoms in the
     molecule. If `self_loop` is `True`, each atom is connected to its self.
 
-    The edges are in the order of (0, 0), (0, 1), (0, 1), ... (1, 0), (1, 1), (1, 2),
+    The edges are in the order of (0, 0), (0, 1), (0, 2), ... (1, 0), (1, 1), (1, 2),
      ... If not `self_loop` are not created, we will not have (0, 0), (1, 1), ...
     """
 
