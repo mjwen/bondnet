@@ -125,28 +125,37 @@ class PCABondFeature:
 
         features = np.concatenate(features)
         labels = np.concatenate(labels)
+        self._pca(features, labels)
 
+    @staticmethod
+    def _pca(
+        features,
+        labels,
+        text_filename="PCA_electrolyte.txt",
+        plot_filename="PCA_electrolyte.pdf",
+    ):
         pca = PCA(n_components=2)
         features = pca.fit_transform(features)
 
-        with open("PCA_electrolyte.txt", "w") as f:
+        # write to file
+        with open(text_filename, "w") as f:
             f.write("# PCA components...   label\n")
             for i, j in zip(features, labels):
                 for k in i:
                     f.write("{:14.6e}".format(k))
                 f.write("   {:14.6e}\n".format(j))
 
-        self._plot(features, labels)
-
-    @staticmethod
-    def _plot(data, color, filename="PCA_electrolyte.pdf"):
+        # plot
+        data = features
+        color = labels
         print("Number of data points", len(data))
+
         X = data[:, 0]
         Y = data[:, 1]
         fig, ax = plt.subplots()
         sc = ax.scatter(X, Y, c=color, cmap=mpl.cm.viridis, ec=None)
         plt.colorbar(sc)
-        fig.savefig(filename, bbox_inches="tight")
+        fig.savefig(plot_filename, bbox_inches="tight")
 
 
 def plot_heat_map(matrix, labels, filename="heat_map.pdf", cmap=mpl.cm.viridis):

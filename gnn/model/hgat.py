@@ -122,3 +122,17 @@ class HGAT(nn.Module):
         h = h.view(-1)  # reshape to a 1D tensor to make each component a bond energy
 
         return h
+
+    def feature_before_fc(self, graph, feats):
+
+        h = feats
+
+        # hgat layer
+        for layer in self.gat_layers:
+            h = layer(graph, h)
+
+        # readout layer
+        h = self.readout_layer(graph, h)
+        h = h["bond"]
+
+        return h
