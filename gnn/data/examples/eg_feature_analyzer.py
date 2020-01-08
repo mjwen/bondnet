@@ -6,16 +6,17 @@ from gnn.data.feature_analyzer import (
     StdevThreshold,
     PearsonCorrelation,
     plot_heat_map,
-    PCABondFeature,
+    PCAAnalyzer,
+    TSNEAnalyzer,
 )
 
 
 def get_dataset_electrolyte():
     return ElectrolyteDataset(
-        # sdf_file="~/Applications/mongo_db_access/extracted_data/struct_n200.sdf",
-        # label_file="~/Applications/mongo_db_access/extracted_data/label_n200.txt",
-        sdf_file="~/Applications/mongo_db_access/extracted_data/struct_charge0.sdf",
-        label_file="~/Applications/mongo_db_access/extracted_data/label_charge0.txt",
+        sdf_file="~/Applications/mongo_db_access/extracted_data/struct_n200.sdf",
+        label_file="~/Applications/mongo_db_access/extracted_data/label_n200.txt",
+        # sdf_file="~/Applications/mongo_db_access/extracted_data/struct_charge0.sdf",
+        # label_file="~/Applications/mongo_db_access/extracted_data/label_charge0.txt",
         pickle_dataset=False,
     )
 
@@ -43,10 +44,10 @@ def get_pickled_qm9():
 
 
 def feature_stdev(dataset):
-    analyzer = StdevThreshold(dataset, threshold=1e-8)
+    analyzer = StdevThreshold(dataset)
     not_satisfied = {}
     for ntype in ["atom", "bond"]:
-        not_satisfied[ntype] = analyzer.compute(ntype)
+        not_satisfied[ntype] = analyzer.compute(ntype, threshold=1e-8)
     return not_satisfied
 
 
@@ -62,19 +63,23 @@ def corelation(dataset, excludes):
 
 
 def pca_analysis(dataset):
-    pca = PCABondFeature(dataset)
-    pca.compute()
+    analyzer = PCAAnalyzer(dataset)
+    analyzer.compute()
+
+
+def tsne_analysis(dataset):
+    analyzer = TSNEAnalyzer(dataset)
+    analyzer.compute()
 
 
 if __name__ == "__main__":
     # dataset = get_dataset_electrolyte()
-    # dataset = get_pickled_electrolyte()
-
-    # dataset = get_dataset_qm9()
-    # dataset = get_pickled_qm9()
-
+    # # dataset = get_dataset_qm9()
     # not_satisfied = feature_stdev(dataset)
     # corelation(dataset, not_satisfied)
 
+    # dataset = get_dataset_electrolyte()
+    # pca_analysis(dataset)
+
     dataset = get_dataset_electrolyte()
-    pca_analysis(dataset)
+    tsne_analysis(dataset)

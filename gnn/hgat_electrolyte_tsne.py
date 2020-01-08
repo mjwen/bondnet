@@ -6,7 +6,7 @@ from gnn.data.dataset import train_validation_test_split
 from gnn.data.electrolyte import ElectrolyteDataset
 from gnn.data.dataloader import DataLoaderElectrolyte
 from gnn.utils import seed_torch, load_checkpoints
-from gnn.data.feature_analyzer import PCABondFeature
+from gnn.data.feature_analyzer import TSNEAnalyzer
 
 
 def parse_args():
@@ -130,7 +130,7 @@ def pca(model, nodes, data_loader, text_filename, plot_filename, device=None):
 
     feature_data = np.concatenate(feature_data)
     label_data = np.concatenate(label_data)
-    PCABondFeature._pca(feature_data, label_data, text_filename, plot_filename)
+    TSNEAnalyzer._tsne(feature_data, label_data, text_filename, plot_filename)
 
 
 def main(args):
@@ -202,8 +202,8 @@ def main(args):
     load_checkpoints(checkpoints_objs)
 
     # pca analysis
-    pca(model, attn_order, train_loader, "pca_train.txt", "pca_train.pdf", args.device)
-    pca(model, attn_order, val_loader, "pca_val.txt", "pca_val.pdf", args.device)
+    pca(model, attn_order, train_loader, "tsne_train.txt", "tsne_train.pdf", args.device)
+    pca(model, attn_order, val_loader, "tsne_val.txt", "tsne_val.pdf", args.device)
 
 
 # do not make it main because we need to run hypertunity

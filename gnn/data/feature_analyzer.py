@@ -1,5 +1,6 @@
 import numpy as np
 from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
@@ -14,6 +15,24 @@ class BaseAnalyzer:
             feature.append(g.nodes[ntype].data["feat"])
         return np.concatenate(feature)
 
+    def _stack_feature_and_label(self, ntype="bond"):
+        """
+        Stack feature and label whose corresponding label indicator is True, i.e. we
+        have energy for the label.
+        """
+        features = []
+        labels = []
+        for g, lb, _ in self.dataset:
+            # indices of bond that has energy
+            indices = [int(i) for i, v in enumerate(lb["indicator"]) if v == 1]
+            labels.append(lb["value"][indices])
+            features.append(g.nodes[ntype].data["feat"][indices])
+
+        features = np.concatenate(features)
+        labels = np.concatenate(labels)
+
+        return features, labels
+
 
 class StdevThreshold(BaseAnalyzer):
     """
@@ -23,11 +42,7 @@ class StdevThreshold(BaseAnalyzer):
         dataset: a :class:`gnn.data.dataset.ElectrolyteData` dataset.
     """
 
-    def __init__(self, dataset, threshold=1e-8):
-        super(StdevThreshold, self).__init__(dataset)
-        self.threshold = threshold
-
-    def compute(self, ntype):
+    def compute(self, ntype, threshold=1e-8):
         """
         Compute the stdandard deviation of each feature and print a report.
 
@@ -43,9 +58,9 @@ class StdevThreshold(BaseAnalyzer):
         self.stdevs = np.std(data, axis=0)
         self.means = np.mean(data, axis=0)
 
-        if np.all(self.stdevs <= self.threshold):
+        if np.all(self.stdevs <= threshold):
             raise ValueError(
-                "No feature meets the stdev threshold {:.5f}".format(self.threshold)
+                "No feature meets the stdev threshold {:.5f}".format(threshold)
             )
 
         feature_name = self.dataset.feature_name[ntype]
@@ -55,11 +70,11 @@ class StdevThreshold(BaseAnalyzer):
         print(
             "feature"
             + " " * max_name_len
-            + "stdev    mean   less than threshlod ({})".format(self.threshold)
+            + "stdev    mean   less than threshlod ({})".format(threshold)
         )
         indices = []
         for i, (name, s, m) in enumerate(zip(feature_name, self.stdevs, self.means)):
-            if s <= self.threshold:
+            if s <= threshold:
                 less_than = "yes"
                 indices.append(i)
             else:
@@ -77,9 +92,6 @@ class PearsonCorrelation(BaseAnalyzer):
     Args:
         dataset: a :class:`gnn.data.dataset.ElectrolyteData` dataset.
     """
-
-    def __init__(self, dataset):
-        super(PearsonCorrelation, self).__init__(dataset)
 
     def compute(self, ntype, exclude=None):
         """
@@ -101,30 +113,15 @@ class PearsonCorrelation(BaseAnalyzer):
         return corr
 
 
-class PCABondFeature:
+class PCAAnalyzer(BaseAnalyzer):
     """
     PCA analysis of the bond descriptor and bond energy.
 
     This only works for the electrolyte dataset.
     """
 
-    def __init__(self, dataset):
-        self.dataset = dataset
-
     def compute(self):
-        ntype = "bond"
-
-        features = []
-        labels = []
-        for g, lb, _ in self.dataset:
-            # indices of bond that has energy
-            indices = [int(i) for i, v in enumerate(lb["indicator"]) if v == 1]
-
-            labels.append(lb["value"][indices])
-            features.append(g.nodes[ntype].data["feat"][indices])
-
-        features = np.concatenate(features)
-        labels = np.concatenate(labels)
+        features, labels = self._stack_feature_and_label(ntype="bond")
         self._pca(features, labels)
 
     @staticmethod
@@ -134,12 +131,54 @@ class PCABondFeature:
         text_filename="PCA_electrolyte.txt",
         plot_filename="PCA_electrolyte.pdf",
     ):
-        pca = PCA(n_components=2)
-        features = pca.fit_transform(features)
+        model = PCA(n_components=2)
+        features = model.fit_transform(features)
 
         # write to file
         with open(text_filename, "w") as f:
             f.write("# PCA components...   label\n")
+            for i, j in zip(features, labels):
+                for k in i:
+                    f.write("{:14.6e}".format(k))
+                f.write("   {:14.6e}\n".format(j))
+
+        # plot
+        data = features
+        color = labels
+        print("Number of data points", len(data))
+
+        X = data[:, 0]
+        Y = data[:, 1]
+        fig, ax = plt.subplots()
+        sc = ax.scatter(X, Y, c=color, cmap=mpl.cm.viridis, ec=None)
+        plt.colorbar(sc)
+        fig.savefig(plot_filename, bbox_inches="tight")
+
+
+class TSNEAnalyzer(BaseAnalyzer):
+    """
+    PCA analysis of the bond descriptor and bond energy.
+
+    This only works for the electrolyte dataset.
+    """
+
+    def compute(self):
+        features, labels = self._stack_feature_and_label(ntype="bond")
+        self._tsne(features, labels)
+
+    @staticmethod
+    def _tsne(
+        features,
+        labels,
+        text_filename="TSNE_electrolyte.txt",
+        plot_filename="TSNE_electrolyte.pdf",
+    ):
+        model = TSNE(n_components=2)
+        features = model.fit_transform(features)
+
+        # write to file
+        with open(text_filename, "w") as f:
+            f.write("#TSNE  components...   label\n")
             for i, j in zip(features, labels):
                 for k in i:
                     f.write("{:14.6e}".format(k))
