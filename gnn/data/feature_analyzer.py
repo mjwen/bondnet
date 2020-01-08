@@ -1,4 +1,5 @@
 import numpy as np
+from sklearn.decomposition import PCA
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
@@ -9,7 +10,7 @@ class BaseAnalyzer:
 
     def _stack_feature(self, ntype):
         feature = []
-        for g, _ in self.dataset:
+        for g, _, _ in self.dataset:
             feature.append(g.nodes[ntype].data["feat"])
         return np.concatenate(feature)
 
@@ -22,7 +23,7 @@ class StdevThreshold(BaseAnalyzer):
         dataset: a :class:`gnn.data.dataset.ElectrolyteData` dataset.
     """
 
-    def __init__(self, dataset, threshold=0.0):
+    def __init__(self, dataset, threshold=1e-8):
         super(StdevThreshold, self).__init__(dataset)
         self.threshold = threshold
 
@@ -98,6 +99,54 @@ class PearsonCorrelation(BaseAnalyzer):
             data = np.delete(data, exclude, axis=1)
         corr = np.corrcoef(data, rowvar=False)
         return corr
+
+
+class PCABondFeature:
+    """
+    PCA analysis of the bond descriptor and bond energy.
+
+    This only works for the electrolyte dataset.
+    """
+
+    def __init__(self, dataset):
+        self.dataset = dataset
+
+    def compute(self):
+        ntype = "bond"
+
+        features = []
+        labels = []
+        for g, lb, _ in self.dataset:
+            # indices of bond that has energy
+            indices = [int(i) for i, v in enumerate(lb["indicator"]) if v == 1]
+
+            labels.append(lb["value"][indices])
+            features.append(g.nodes[ntype].data["feat"][indices])
+
+        features = np.concatenate(features)
+        labels = np.concatenate(labels)
+
+        pca = PCA(n_components=2)
+        features = pca.fit_transform(features)
+
+        with open("PCA_electrolyte.txt", "w") as f:
+            f.write("# PCA components...   label\n")
+            for i, j in zip(features, labels):
+                for k in i:
+                    f.write("{:14.6e}".format(k))
+                f.write("   {:14.6e}\n".format(j))
+
+        self._plot(features, labels)
+
+    @staticmethod
+    def _plot(data, color, filename="PCA_electrolyte.pdf"):
+        print("Number of data points", len(data))
+        X = data[:, 0]
+        Y = data[:, 1]
+        fig, ax = plt.subplots()
+        sc = ax.scatter(X, Y, c=color, cmap=mpl.cm.viridis, ec=None)
+        plt.colorbar(sc)
+        fig.savefig(filename, bbox_inches="tight")
 
 
 def plot_heat_map(matrix, labels, filename="heat_map.pdf", cmap=mpl.cm.viridis):

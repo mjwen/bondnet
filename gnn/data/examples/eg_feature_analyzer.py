@@ -2,41 +2,48 @@ import os
 import numpy as np
 from gnn.data.electrolyte import ElectrolyteDataset
 from gnn.data.qm9 import QM9Dataset
-from gnn.data.feature_analyzer import StdevThreshold, PearsonCorrelation, plot_heat_map
+from gnn.data.feature_analyzer import (
+    StdevThreshold,
+    PearsonCorrelation,
+    plot_heat_map,
+    PCABondFeature,
+)
 
 
 def get_dataset_electrolyte():
     return ElectrolyteDataset(
-        sdf_file="/Users/mjwen/Applications/mongo_db_access/extracted_data/sturct_n200.sdf",
-        label_file="/Users/mjwen/Applications/mongo_db_access/extracted_data/label_n200.txt",
-        pickle_dataset=True,
+        # sdf_file="~/Applications/mongo_db_access/extracted_data/struct_n200.sdf",
+        # label_file="~/Applications/mongo_db_access/extracted_data/label_n200.txt",
+        sdf_file="~/Applications/mongo_db_access/extracted_data/struct_charge0.sdf",
+        label_file="~/Applications/mongo_db_access/extracted_data/label_charge0.txt",
+        pickle_dataset=False,
     )
 
 
 def get_pickled_electrolyte():
     return ElectrolyteDataset(
-        sdf_file="/Users/mjwen/Applications/mongo_db_access/extracted_data/sturct_n200.sdf.pkl",
-        label_file="/Users/mjwen/Applications/mongo_db_access/extracted_data/label_n200.txt.pkl",
+        sdf_file="~/Applications/mongo_db_access/extracted_data/struct_n200.sdf.pkl",
+        label_file="~/Applications/mongo_db_access/extracted_data/label_n200.txt.pkl",
     )
 
 
 def get_dataset_qm9():
     return QM9Dataset(
-        sdf_file="/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf",
-        label_file="/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf.csv",
+        sdf_file="~/Documents/Dataset/qm9/gdb9_n200.sdf",
+        label_file="~/Documents/Dataset/qm9/gdb9_n200.sdf.csv",
         pickle_dataset=True,
     )
 
 
 def get_pickled_qm9():
     return QM9Dataset(
-        sdf_file="/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf.pkl",
-        label_file="/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf.csv.pkl",
+        sdf_file="~/Documents/Dataset/qm9/gdb9_n200.sdf.pkl",
+        label_file="~/Documents/Dataset/qm9/gdb9_n200.sdf.csv.pkl",
     )
 
 
 def feature_stdev(dataset):
-    analyzer = StdevThreshold(dataset, threshold=0.0)
+    analyzer = StdevThreshold(dataset, threshold=1e-8)
     not_satisfied = {}
     for ntype in ["atom", "bond"]:
         not_satisfied[ntype] = analyzer.compute(ntype)
@@ -54,12 +61,20 @@ def corelation(dataset, excludes):
         plot_heat_map(corr, labels, filename)
 
 
+def pca_analysis(dataset):
+    pca = PCABondFeature(dataset)
+    pca.compute()
+
+
 if __name__ == "__main__":
     # dataset = get_dataset_electrolyte()
     # dataset = get_pickled_electrolyte()
 
-    dataset = get_dataset_qm9()
+    # dataset = get_dataset_qm9()
     # dataset = get_pickled_qm9()
 
-    not_satisfied = feature_stdev(dataset)
-    corelation(dataset, not_satisfied)
+    # not_satisfied = feature_stdev(dataset)
+    # corelation(dataset, not_satisfied)
+
+    dataset = get_dataset_electrolyte()
+    pca_analysis(dataset)
