@@ -6,21 +6,21 @@ def eg_query_database():
     db.to_file("~/Applications/mongo_db_access/extracted_data/database.pkl")
 
 
-def test_get_job_types():
+def eg_get_job_types():
     db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
     db = DatabaseOperation.from_file(db_path)
     filename = "~/Applications/mongo_db_access/extracted_data/job_types.yml"
     db.get_job_types(filename)
 
 
-def test_select(n=200):
+def eg_select(n=200):
     db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
     db = DatabaseOperation.from_file(db_path)
     filename = "~/Applications/mongo_db_access/extracted_data/database_n{}.pkl".format(n)
     db.to_file(filename, size=n)
 
 
-def test_filter():
+def eg_filter():
     db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
     db = DatabaseOperation.from_file(db_path)
     # db.filter(keys=["formula_pretty"], value="LiH4(CO)3")
@@ -30,7 +30,7 @@ def test_filter():
     db.to_file(filename="~/Applications/mongo_db_access/extracted_data/database_H.pkl")
 
 
-def test_molecules():
+def eg_molecules():
     # db_path = "~/Applications/mongo_db_access/extracted_data/database_LiEC.pkl"
     db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
     db = DatabaseOperation.from_file(db_path)
@@ -61,7 +61,7 @@ def eg_plot_charge_0():
             m.draw(fname, show_atom_idx=False)
 
 
-def test_write_group_isomorphic_to_file():
+def eg_write_group_isomorphic_to_file():
     db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
     # db_path = "~/Applications/mongo_db_access/extracted_data/database_n200.pkl"
     db = DatabaseOperation.from_file(db_path)
@@ -72,11 +72,11 @@ def test_write_group_isomorphic_to_file():
 
 if __name__ == "__main__":
     # eg_query_database()
-    # test_select()
-    # test_get_job_types()
-    # test_filter()
-    # test_create_dataset()
-    # test_molecules()
-    # test_write_group_isomorphic_to_file()
+    # eg_select()
+    # eg_get_job_types()
+    # eg_filter()
+    # eg_create_dataset()
+    # eg_molecules()
+    # eg_write_group_isomorphic_to_file()
 
     eg_plot_charge_0()

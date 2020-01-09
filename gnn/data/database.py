@@ -608,47 +608,6 @@ class DatabaseOperation:
                 fy.write("{},{}\n".format(m.id, m.entropy))
 
 
-def is_valid_A_to_B_reaction(reactant, product):
-    """
-    A -> B
-    Args:
-        reactant: mol
-        product: mol
-
-    Returns:
-        A tuple of the bond indices, if this is valid reaction;
-        None, otherwise.
-    """
-    for edge, mgs in reactant.fragments.items():
-        if len(mgs) == 1 and mgs[0].isomorphic_to(product.mol_graph):
-            return edge
-    return None
-
-
-def is_valid_A_to_B_C_reaction(reactant, products):
-    """
-    A -> B + C
-    Args:
-        reactant: mol
-        products: list of mols
-
-    Returns:
-        A tuple of the bond indices, if this is valid reaction;
-        None, otherwise.
-    """
-    for edge, mgs in reactant.fragments.items():
-        if len(mgs) == 2:
-            if (
-                mgs[0].isomorphic_to(products[0].mol_graph)
-                and mgs[1].isomorphic_to(products[1].mol_graph)
-            ) or (
-                mgs[0].isomorphic_to(products[1].mol_graph)
-                and mgs[1].isomorphic_to(products[0].mol_graph)
-            ):
-                return edge
-    return None
-
-
 class UnsuccessfulEntryError(Exception):
     def __init__(self):
         pass

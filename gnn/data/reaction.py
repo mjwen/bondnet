@@ -343,6 +343,22 @@ class ReactionExtractor:
                 reactions.append(rxn)
         self.reactions = reactions
 
+    def filter_reactions_by_bond_type(self, bond_type):
+        """
+        Filter the reactions by the type of the breaking bond, and only reactions with the
+        specified bond_type will be retained.
+
+        Args:
+            bond_type (tuple of string): species of the two atoms the bond connecting to
+        """
+        reactions = []
+        for rxn in self.reactions:
+            attr = rxn.get_broken_bond_attr()
+            species = set(attr["species"])
+            if set(species) == set(bond_type):
+                reactions.append(rxn)
+        self.reactions = reactions
+
     def group_by_reactant(self, string_reactant_index=False):
         """
         Group reactions to dict with reactant as the key and list of reactions as the

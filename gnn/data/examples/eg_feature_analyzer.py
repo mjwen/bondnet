@@ -13,10 +13,12 @@ from gnn.data.feature_analyzer import (
 
 def get_dataset_electrolyte():
     return ElectrolyteDataset(
-        sdf_file="~/Applications/mongo_db_access/extracted_data/struct_n200.sdf",
-        label_file="~/Applications/mongo_db_access/extracted_data/label_n200.txt",
+        # sdf_file="~/Applications/mongo_db_access/extracted_data/struct_n200.sdf",
+        # label_file="~/Applications/mongo_db_access/extracted_data/label_n200.txt",
         # sdf_file="~/Applications/mongo_db_access/extracted_data/struct_charge0.sdf",
         # label_file="~/Applications/mongo_db_access/extracted_data/label_charge0.txt",
+        sdf_file="~/Applications/mongo_db_access/extracted_data/struct_charge0_CC.sdf",
+        label_file="~/Applications/mongo_db_access/extracted_data/label_charge0_CC.txt",
         pickle_dataset=False,
     )
 
@@ -78,8 +80,6 @@ if __name__ == "__main__":
     # not_satisfied = feature_stdev(dataset)
     # corelation(dataset, not_satisfied)
 
-    # dataset = get_dataset_electrolyte()
-    # pca_analysis(dataset)
-
     dataset = get_dataset_electrolyte()
+    pca_analysis(dataset)
     tsne_analysis(dataset)
