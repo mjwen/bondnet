@@ -1,3 +1,4 @@
+import os
 import numpy as np
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
@@ -122,37 +123,30 @@ class PCAAnalyzer(BaseAnalyzer):
 
     def compute(self):
         features, labels = self._stack_feature_and_label(ntype="bond")
-        self._pca(features, labels)
+        self.embedding([features], [labels])
 
     @staticmethod
-    def _pca(
+    def embedding(
         features,
         labels,
         text_filename="PCA_electrolyte.txt",
         plot_filename="PCA_electrolyte.pdf",
     ):
+        """
+        Args:
+            features (list of 2D array): all data will be used for training the model,
+                and each array will be evaluated separately.
+            labels: (list of 1D array): labels for the features.
+        """
         model = PCA(n_components=2)
-        features = model.fit_transform(features)
+        model.fit(np.concatenate(features))
+        embeddings = model.fit_transform(np.concatenate(features))
+        sizes = [len(d) for d in features]
+        indices = [sum(sizes[:i]) for i in range(1, len(sizes))]
+        embeddings = np.split(embeddings, indices)
 
-        # write to file
-        with open(text_filename, "w") as f:
-            f.write("# PCA components...   label\n")
-            for i, j in zip(features, labels):
-                for k in i:
-                    f.write("{:14.6e}".format(k))
-                f.write("   {:14.6e}\n".format(j))
-
-        # plot
-        data = features
-        color = labels
-        print("Number of data points", len(data))
-
-        X = data[:, 0]
-        Y = data[:, 1]
-        fig, ax = plt.subplots()
-        sc = ax.scatter(X, Y, c=color, cmap=mpl.cm.viridis, ec=None)
-        plt.colorbar(sc)
-        fig.savefig(plot_filename, bbox_inches="tight")
+        write_embeddings(embeddings, labels, text_filename)
+        plot_scatter(embeddings, labels, plot_filename)
 
 
 class TSNEAnalyzer(BaseAnalyzer):
@@ -164,37 +158,87 @@ class TSNEAnalyzer(BaseAnalyzer):
 
     def compute(self):
         features, labels = self._stack_feature_and_label(ntype="bond")
-        self._tsne(features, labels)
+        self.embedding([features], [labels])
 
     @staticmethod
-    def _tsne(
+    def embedding(
         features,
         labels,
         text_filename="TSNE_electrolyte.txt",
         plot_filename="TSNE_electrolyte.pdf",
     ):
         model = TSNE(n_components=2)
-        features = model.fit_transform(features)
+        embeddings = model.fit_transform(np.concatenate(features))
+        sizes = [len(d) for d in features]
+        indices = [sum(sizes[:i]) for i in range(1, len(sizes))]
+        embeddings = np.split(embeddings, indices)
 
-        # write to file
-        with open(text_filename, "w") as f:
-            f.write("#TSNE  components...   label\n")
-            for i, j in zip(features, labels):
+        write_embeddings(embeddings, labels, text_filename)
+        plot_scatter(embeddings, labels, plot_filename)
+
+
+def write_embeddings(features, labels, filename):
+    with open(filename, "w") as f:
+        f.write("# components...   label\n")
+        for idx, (emb, lb) in enumerate(zip(features, labels)):
+            f.write("\n\n# {}\n".format(idx))
+            for i, j in zip(emb, lb):
                 for k in i:
                     f.write("{:14.6e}".format(k))
                 f.write("   {:14.6e}\n".format(j))
 
-        # plot
-        data = features
-        color = labels
-        print("Number of data points", len(data))
 
+def plot_scatter(features, labels, filename):
+    """
+    Scatter plot for features and use labels as color.
+
+    Args:
+        features (list of 2D array)
+        labels (list of 1D array)
+        filename (str)
+    """
+    # plot
+    all_marker = ["o", "D", "x", "<", "+"]
+
+    # x and y range
+    xmin = min([min(d[:, 0]) for d in features])
+    xmax = max([max(d[:, 0]) for d in features])
+    ymin = min([min(d[:, 1]) for d in features])
+    ymax = max([max(d[:, 1]) for d in features])
+    del_x = 0.1 * (xmax - xmin)
+    del_y = 0.1 * (ymax - ymin)
+    xmin -= del_x
+    xmax += del_x
+    ymin -= del_y
+    ymax += del_y
+
+    # ensure different class has the same color range
+    cmin = min([min(i) for i in labels])
+    cmax = max([max(i) for i in labels])
+
+    for i, (data, color) in enumerate(zip(features, labels)):
+        fig, ax = plt.subplots()
+        print("Feature array {} num data points {}".format(i, len(data)))
         X = data[:, 0]
         Y = data[:, 1]
-        fig, ax = plt.subplots()
-        sc = ax.scatter(X, Y, c=color, cmap=mpl.cm.viridis, ec=None)
-        plt.colorbar(sc)
-        fig.savefig(plot_filename, bbox_inches="tight")
+        sc = ax.scatter(
+            X,
+            Y,
+            marker=all_marker[i],
+            c=color,
+            vmin=cmin,
+            vmax=cmax,
+            cmap=mpl.cm.viridis,
+            ec=None,
+        )
+        fig.colorbar(sc)
+
+        ax.set_xlim(xmin, xmax)
+        ax.set_ylim(ymin, ymax)
+
+        fm = os.path.splitext(filename)
+        fm = fm[0] + "_" + str(i) + fm[1]
+        fig.savefig(fm, bbox_inches="tight")
 
 
 def plot_heat_map(matrix, labels, filename="heat_map.pdf", cmap=mpl.cm.viridis):

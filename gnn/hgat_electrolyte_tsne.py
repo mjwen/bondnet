@@ -111,26 +111,29 @@ def parse_args():
     return args
 
 
-def pca(model, nodes, data_loader, text_filename, plot_filename, device=None):
+def embedding(model, nodes, all_data_loader, text_filename, plot_filename, device=None):
     model.eval()
 
-    feature_data = []
-    label_data = []
+    all_feature = []
+    all_label = []
     with torch.no_grad():
+        for data_loader in all_data_loader:
+            feature_data = []
+            label_data = []
+            for bg, label, scale in data_loader:
+                feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
+                if device is not None:
+                    feats = {k: v.to(device) for k, v in feats.items()}
+                feats = model.feature_before_fc(bg, feats)
 
-        for bg, label, scale in data_loader:
-            feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-            if device is not None:
-                feats = {k: v.to(device) for k, v in feats.items()}
-            feats = model.feature_before_fc(bg, feats)
+                indices = [int(i) for i, v in enumerate(label["indicator"]) if v == 1]
+                feature_data.append(feats[indices])
+                label_data.append(label["value"][indices])
 
-            indices = [int(i) for i, v in enumerate(label["indicator"]) if v == 1]
-            feature_data.append(feats[indices])
-            label_data.append(label["value"][indices])
+            all_feature.append(np.concatenate(feature_data))
+            all_label.append(np.concatenate(label_data))
 
-    feature_data = np.concatenate(feature_data)
-    label_data = np.concatenate(label_data)
-    TSNEAnalyzer._tsne(feature_data, label_data, text_filename, plot_filename)
+    TSNEAnalyzer.embedding(all_feature, all_label, text_filename, plot_filename)
 
 
 def main(args):
@@ -201,9 +204,19 @@ def main(args):
     checkpoints_objs = {"model": model}
     load_checkpoints(checkpoints_objs)
 
-    # pca analysis
-    pca(model, attn_order, train_loader, "tsne_train.txt", "tsne_train.pdf", args.device)
-    pca(model, attn_order, val_loader, "tsne_val.txt", "tsne_val.pdf", args.device)
+    # tsne analysis
+    # embedding(
+    #     model, attn_order, [train_loader], "tsne_tr.txt", "tsne_tr.pdf", args.device
+    # )
+    # embedding(model, attn_order, [val_loader], "tsne_va.txt", "tsne_va.pdf", args.device)
+    embedding(
+        model,
+        attn_order,
+        [train_loader, val_loader],
+        "tsne_tr_va.txt",
+        "tnse_tr_va.pdf",
+        args.device,
+    )
 
 
 # do not make it main because we need to run hypertunity
