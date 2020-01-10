@@ -1,5 +1,5 @@
 """
-QM9 dataset.
+The Li-Ec dataset by using molecule level energy, instead of bond energy.
 """
 
 import pandas as pd
@@ -22,7 +22,7 @@ from gnn.data.transformers import StandardScaler, GraphFeatureStandardScaler
 logger = logging.getLogger(__name__)
 
 
-class QM9Dataset(ElectrolyteDataset):
+class ElectrolyteMoleculeDataset(ElectrolyteDataset):
     """
     The QM9 dataset.
 
@@ -47,7 +47,7 @@ class QM9Dataset(ElectrolyteDataset):
         bond_length_featurizer=None,
         feature_transformer=True,
         label_transformer=True,
-        properties=None,
+        properties=["atomization_energy"],
         unit_conversion=True,
         pickle_dataset=False,
         dtype="float32",
@@ -55,7 +55,7 @@ class QM9Dataset(ElectrolyteDataset):
 
         self.properties = properties
         self.unit_conversion = unit_conversion
-        super(QM9Dataset, self).__init__(
+        super(ElectrolyteMoleculeDataset, self).__init__(
             sdf_file,
             label_file,
             self_loop,
@@ -221,8 +221,8 @@ class QM9Dataset(ElectrolyteDataset):
                         label_scaler_std.append(scaler.std)
                     scaled_labels.append(lb)
                     transformer_scale.append(ts)
-
                 labels = np.asarray(scaled_labels).T
+
                 self.transformer_scale = torch.tensor(
                     np.asarray(transformer_scale).T, dtype=getattr(torch, self.dtype)
                 )
@@ -260,30 +260,9 @@ class QM9Dataset(ElectrolyteDataset):
         rst = pd.read_csv(self.label_file, index_col=0)
         rst = rst.to_numpy()
 
-        h2e = 27.211396132  # Hatree to eV
-        k2e = 0.0433634  # kcal/mol to eV
-
         # supported property
         supp_prop = OrderedDict()
-        supp_prop["A"] = {"uc": 1.0, "extensive": True}
-        supp_prop["B"] = {"uc": 1.0, "extensive": True}
-        supp_prop["C"] = {"uc": 1.0, "extensive": True}
-        supp_prop["mu"] = {"uc": 1.0, "extensive": True}
-        supp_prop["alpha"] = {"uc": 1.0, "extensive": True}
-        supp_prop["homo"] = {"uc": h2e, "extensive": False}
-        supp_prop["lumo"] = {"uc": h2e, "extensive": False}
-        supp_prop["gap"] = {"uc": h2e, "extensive": False}
-        supp_prop["r2"] = {"uc": 1.0, "extensive": True}
-        supp_prop["zpve"] = {"uc": h2e, "extensive": True}
-        supp_prop["u0"] = {"uc": h2e, "extensive": True}
-        supp_prop["u298"] = {"uc": h2e, "extensive": True}
-        supp_prop["h298"] = {"uc": h2e, "extensive": True}
-        supp_prop["g298"] = {"uc": h2e, "extensive": True}
-        supp_prop["cv"] = {"uc": 1.0, "extensive": True}
-        supp_prop["u0_atom"] = {"uc": k2e, "extensive": True}
-        supp_prop["u298_atom"] = {"uc": k2e, "extensive": True}
-        supp_prop["h298_atom"] = {"uc": k2e, "extensive": True}
-        supp_prop["g298_atom"] = {"uc": k2e, "extensive": True}
+        supp_prop["atomization_energy"] = {"uc": 1.0, "extensive": True}
 
         if self.properties is not None:
 

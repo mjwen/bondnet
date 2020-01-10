@@ -14,14 +14,8 @@ from pymatgen.analysis.fragmenter import metal_edge_extender
 from pymatgen.io.babel import BabelMolAdaptor
 from rdkit import Chem
 from rdkit.Chem import Draw, AllChem
-
-
-try:
-    import openbabel as ob
-    import pybel as pb
-except Exception:
-    pb = None
-    ob = None
+import openbabel as ob
+import pybel as pb
 from gnn.utils import create_directory, pickle_dump, pickle_load, yaml_dump, expand_path
 
 logger = logging.getLogger(__name__)
@@ -238,6 +232,22 @@ class MoleculeWrapper:
             )
         else:
             return None
+
+    @property
+    def atomization_free_energy(self):
+        charge0_atom_energy = {
+            "H": -13.899716296436546,
+            "Li": -203.8840240968338,
+            "C": -1028.6825101424483,
+            "O": -2040.4807693439561,
+            "F": -2714.237000742088,
+            "P": -9283.226337212582,
+        }
+
+        e = self.free_energy
+        for spec, num in self.composition_dict.items():
+            e -= charge0_atom_energy[spec] * num
+        return e
 
     @property
     def charge(self):
@@ -574,9 +584,15 @@ class DatabaseOperation:
                 f.write("\n")
 
     @staticmethod
-    def create_sdf_csv_dataset(
-        molecules, structure_name="electrolyte.sdf", label_name="electrolyte.csv"
+    def write_sdf_csv_dataset(
+        molecules,
+        structure_name="electrolyte.sdf",
+        label_name="electrolyte.csv",
+        exclude_single_atom=True,
     ):
+        structure_name = expand_path(structure_name)
+        label_name = expand_path(label_name)
+
         logger.info(
             "Start writing dataset to files: {} and {}".format(structure_name, label_name)
         )
@@ -585,9 +601,14 @@ class DatabaseOperation:
 
             fy.write("mol,property_1\n")
 
-            for i, m in enumerate(molecules):
-                entry = m.db_entry
+            i = 0
+            for m in molecules:
 
+                if exclude_single_atom and len(m.atoms) == 1:
+                    logger.info("Excluding single atom molecule {}".format(m.formula))
+                    continue
+
+                # entry = m.db_entry
                 # conn = m.get_connectivity()
                 # species = m.get_species()
                 # coords = m.get_coords()
@@ -597,15 +618,17 @@ class DatabaseOperation:
                 # print('coords', coords)
                 # print('bond_order', bond_order)
 
-                sdf = m.write(file_format="sdf")
-                smiles = m.write(file_format="smi")
-                print("id", m.id, "smiles", smiles, "formula", m.formula, "\nsdf", sdf)
+                # smiles = m.write(file_format="smi")
+                # print("id", m.id, "smiles", smiles, "formula", m.formula)
+                #
+                # filename = "images/{}_{}.svg".format(m.formula, i)
+                # m.draw(filename, show_atom_idx=True)
 
-                filename = "images/{}_{}.svg".format(m.formula, i)
-                m.draw(filename, show_atom_idx=True)
-
+                sdf = m.write(file_format="sdf", mol_id=m.id + " int_id-" + str(i))
                 fx.write(sdf)
-                fy.write("{},{}\n".format(m.id, m.entropy))
+                fy.write("{},{:.15g}\n".format(m.id, m.atomization_free_energy))
+
+                i += 1
 
 
 class UnsuccessfulEntryError(Exception):

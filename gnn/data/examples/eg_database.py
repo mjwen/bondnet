@@ -1,4 +1,16 @@
 from gnn.data.database import DatabaseOperation
+from gnn.utils import pickle_dump, pickle_load
+
+
+def pickle_molecules():
+    db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
+    # db_path = "~/Applications/mongo_db_access/extracted_data/database_n200.pkl"
+    db = DatabaseOperation.from_file(db_path)
+    mols = db.to_molecules(optimized=True)
+
+    filename = "~/Applications/mongo_db_access/extracted_data/molecules.pkl"
+    # filename = "~/Applications/mongo_db_access/extracted_data/molecules_n200.pkl"
+    pickle_dump(mols, filename)
 
 
 def eg_query_database():
@@ -70,6 +82,28 @@ def eg_write_group_isomorphic_to_file():
     db.write_group_isomorphic_to_file(mols, filename)
 
 
+def write_dataset():
+    filename = "~/Applications/mongo_db_access/extracted_data/molecules.pkl"
+    # filename = "~/Applications/mongo_db_access/extracted_data/molecules_n200.pkl"
+    mols = pickle_load(filename)
+
+    structure_name = "~/Applications/mongo_db_access/extracted_data/struct_mols.sdf"
+    label_name = "~/Applications/mongo_db_access/extracted_data/label_mols.csv"
+    DatabaseOperation.write_sdf_csv_dataset(mols, structure_name, label_name)
+
+
+def get_single_atom_energy():
+    filename = "~/Applications/mongo_db_access/extracted_data/molecules.pkl"
+    # filename = "~/Applications/mongo_db_access/extracted_data/molecules_n200.pkl"
+    mols = pickle_load(filename)
+
+    formula = ["H1", "Li1", "C1", "O1", "F1", "P1"]
+    print("# formula    free energy    charge")
+    for m in mols:
+        if m.formula in formula:
+            print(m.formula, m.free_energy, m.charge)
+
+
 if __name__ == "__main__":
     # eg_query_database()
     # eg_select()
@@ -78,5 +112,10 @@ if __name__ == "__main__":
     # eg_create_dataset()
     # eg_molecules()
     # eg_write_group_isomorphic_to_file()
+    # eg_plot_charge_0()
 
-    eg_plot_charge_0()
+    # pickle_molecules()
+
+    write_dataset()
+
+    # get_single_atom_energy()

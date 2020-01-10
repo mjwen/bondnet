@@ -2,6 +2,7 @@ import numpy as np
 import os
 from gnn.data.electrolyte import ElectrolyteDataset
 from gnn.data.qm9 import QM9Dataset
+from gnn.data.electrolyte_mols import ElectrolyteMoleculeDataset
 
 
 test_files = os.path.dirname(__file__)
@@ -62,6 +63,40 @@ def test_qm9_label():
             sdf_file=os.path.join(test_files, "gdb9_n2.sdf"),
             label_file=os.path.join(test_files, "gdb9_n2.sdf.csv"),
             properties=["homo", "u0"],  # homo is intensive and u0 is extensive
+            unit_conversion=False,
+            feature_transformer=True,
+            label_transformer=lt,
+        )
+
+        size = len(dataset)
+        assert size == 2
+
+        for i in range(size):
+            _, label, ts = dataset[i]
+            assert np.allclose(label, ref_labels[i])
+
+            if lt:
+                assert np.allclose(ts, ref_ts[i])
+            else:
+                assert ts is None
+
+    assert_label(False)
+    assert_label(True)
+
+
+def test_electrolyte_molecule_label():
+    def assert_label(lt):
+        ref_labels = np.asarray([[-0.941530613939904], [-8.91357537335352]])
+        natoms = np.asarray([[2], [5]])
+
+        if lt:
+            ref_labels /= natoms
+            ref_ts = natoms
+
+        dataset = ElectrolyteMoleculeDataset(
+            sdf_file=os.path.join(test_files, "electrolyte_mols_struct.sdf"),
+            label_file=os.path.join(test_files, "electrolyte_mols_label.csv"),
+            properties=["atomization_energy"],
             unit_conversion=False,
             feature_transformer=True,
             label_transformer=lt,
