@@ -2,7 +2,7 @@ import torch
 import dgl
 
 
-class DataLoaderElectrolyte(torch.utils.data.DataLoader):
+class DataLoaderBond(torch.utils.data.DataLoader):
     def __init__(self, dataset, hetero=True, **kwargs):
         if "collate_fn" in kwargs:
             raise ValueError(
@@ -25,10 +25,10 @@ class DataLoaderElectrolyte(torch.utils.data.DataLoader):
             scales = None if scales[0] is None else torch.cat(scales)
             return batched_graph, labels, scales
 
-        super(DataLoaderElectrolyte, self).__init__(dataset, collate_fn=collate, **kwargs)
+        super(DataLoaderBond, self).__init__(dataset, collate_fn=collate, **kwargs)
 
 
-class DataLoaderQM9(torch.utils.data.DataLoader):
+class DataLoaderMolecule(torch.utils.data.DataLoader):
     def __init__(self, dataset, hetero=True, **kwargs):
         if "collate_fn" in kwargs:
             raise ValueError(
@@ -46,4 +46,4 @@ class DataLoaderQM9(torch.utils.data.DataLoader):
             scales = None if scales[0] is None else torch.stack(scales)
             return batched_graph, labels, scales
 
-        super(DataLoaderQM9, self).__init__(dataset, collate_fn=collate, **kwargs)
+        super(DataLoaderMolecule, self).__init__(dataset, collate_fn=collate, **kwargs)

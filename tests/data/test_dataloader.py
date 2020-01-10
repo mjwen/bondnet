@@ -2,7 +2,7 @@ import numpy as np
 import os
 from gnn.data.electrolyte import ElectrolyteDataset
 from gnn.data.qm9 import QM9Dataset
-from gnn.data.dataloader import DataLoaderElectrolyte, DataLoaderQM9
+from gnn.data.dataloader import DataLoaderBond, DataLoaderMolecule
 
 test_files = os.path.dirname(__file__)
 
@@ -30,7 +30,7 @@ def test_dataloader_electrolyte():
         )
 
         # batch size 1 case (exactly the same as test_dataset)
-        data_loader = DataLoaderElectrolyte(dataset, batch_size=1, shuffle=False)
+        data_loader = DataLoaderBond(dataset, batch_size=1, shuffle=False)
         for i, (graph, labels, scales) in enumerate(data_loader):
             assert np.allclose(labels["value"], ref_label_energies[i])
             assert np.allclose(labels["indicator"], ref_label_indicators[i])
@@ -40,7 +40,7 @@ def test_dataloader_electrolyte():
                 assert scales is None
 
         # batch size 2 case
-        data_loader = DataLoaderElectrolyte(dataset, batch_size=2, shuffle=False)
+        data_loader = DataLoaderBond(dataset, batch_size=2, shuffle=False)
         for graph, labels, scales in data_loader:
             assert np.allclose(labels["value"], np.concatenate(ref_label_energies))
             assert np.allclose(labels["indicator"], np.concatenate(ref_label_indicators))
@@ -79,7 +79,7 @@ def test_dataloader_qm9():
         )
 
         # batch size 1 case (exactly the same as test_dataset)
-        data_loader = DataLoaderQM9(dataset, batch_size=1, shuffle=False)
+        data_loader = DataLoaderMolecule(dataset, batch_size=1, shuffle=False)
         for i, (graph, labels, scales) in enumerate(data_loader):
             assert np.allclose(labels, [ref_labels[i]])
             if lt:
@@ -88,7 +88,7 @@ def test_dataloader_qm9():
                 assert scales is None
 
         # batch size 2 case
-        data_loader = DataLoaderQM9(dataset, batch_size=2, shuffle=False)
+        data_loader = DataLoaderMolecule(dataset, batch_size=2, shuffle=False)
         for graph, labels, scales in data_loader:
             assert np.allclose(labels, ref_labels)
             if lt:

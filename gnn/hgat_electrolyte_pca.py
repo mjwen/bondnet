@@ -4,7 +4,7 @@ import argparse
 from gnn.model.hgat import HGAT
 from gnn.data.dataset import train_validation_test_split
 from gnn.data.electrolyte import ElectrolyteDataset
-from gnn.data.dataloader import DataLoaderElectrolyte
+from gnn.data.dataloader import DataLoaderBond
 from gnn.utils import seed_torch, load_checkpoints
 from gnn.data.feature_analyzer import PCAAnalyzer
 
@@ -157,15 +157,13 @@ def main(args):
         )
     )
 
-    train_loader = DataLoaderElectrolyte(
-        trainset, batch_size=args.batch_size, shuffle=True
-    )
+    train_loader = DataLoaderBond(trainset, batch_size=args.batch_size, shuffle=True)
     # larger val and test set batch_size is faster but needs more memory
     # adjust the batch size of to fit memory
     bs = max(len(valset) // 10, 1)
-    val_loader = DataLoaderElectrolyte(valset, batch_size=bs, shuffle=False)
+    val_loader = DataLoaderBond(valset, batch_size=bs, shuffle=False)
     bs = max(len(testset) // 10, 1)
-    test_loader = DataLoaderElectrolyte(testset, batch_size=bs, shuffle=False)
+    test_loader = DataLoaderBond(testset, batch_size=bs, shuffle=False)
 
     ### model
     attn_mechanism = {

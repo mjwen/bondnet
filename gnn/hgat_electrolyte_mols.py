@@ -9,7 +9,7 @@ from gnn.metric import WeightedL1Loss, EarlyStopping
 from gnn.model.hgatmol import HGATMol
 from gnn.data.dataset import train_validation_test_split
 from gnn.data.electrolyte_mols import ElectrolyteMoleculeDataset
-from gnn.data.dataloader import DataLoaderQM9
+from gnn.data.dataloader import DataLoaderMolecule
 from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
 
@@ -219,15 +219,15 @@ def main(args):
     )
 
     # we use the QM9 dataloader, they as the same type of data
-    train_loader = DataLoaderQM9(
+    train_loader = DataLoaderMolecule(
         trainset, hetero=True, batch_size=args.batch_size, shuffle=True
     )
     # larger val and test set batch_size is faster but needs more memory
     # adjust the batch size of to fit memory
     bs = len(valset) // 10
-    val_loader = DataLoaderQM9(valset, hetero=True, batch_size=bs, shuffle=False)
+    val_loader = DataLoaderMolecule(valset, hetero=True, batch_size=bs, shuffle=False)
     bs = len(testset) // 10
-    test_loader = DataLoaderQM9(testset, hetero=True, batch_size=bs, shuffle=False)
+    test_loader = DataLoaderMolecule(testset, hetero=True, batch_size=bs, shuffle=False)
 
     ### model
     attn_mechanism = {

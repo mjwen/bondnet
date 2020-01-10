@@ -8,7 +8,7 @@ from torch.nn import MSELoss
 from gnn.metric import WeightedL1Loss, EarlyStopping
 from dgl.model_zoo.chem.mpnn import MPNNModel
 from gnn.data.dataset import train_validation_test_split
-from gnn.data.qm9 import QM9Dataset
+from gnn.data.electrolyte_mols import ElectrolyteMoleculeDataset
 from gnn.data.dataloader import DataLoaderMolecule
 from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
@@ -117,10 +117,11 @@ def evaluate(model, data_loader, metric_fn, device=None):
 def main(args):
 
     ### dataset
-    sdf_file = "/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf"
-    label_file = "/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf.csv"
-    props = ["u0_atom"]
-    dataset = QM9Dataset(
+    sdf_file = "~/Applications/mongo_db_access/extracted_data/struct_mols_n200.sdf"
+    label_file = "~/Applications/mongo_db_access/extracted_data/label_mols_n200.csv"
+
+    props = ["atomization_energy"]
+    dataset = ElectrolyteMoleculeDataset(
         sdf_file,
         label_file,
         self_loop=False,
@@ -190,8 +191,7 @@ def main(args):
     print("\n\n# Epoch     Loss         TrainAcc        ValAcc     Time (s)")
     t0 = time.time()
 
-    # for epoch in range(args.epochs):
-    for epoch in range(2):
+    for epoch in range(args.epochs):
         ti = time.time()
 
         # train and evaluate accuracy
