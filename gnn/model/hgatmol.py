@@ -52,6 +52,7 @@ class HGATMol(nn.Module):
         fc_activation=nn.ELU(),
         num_lstm_iters=5,
         num_lstm_layers=3,
+        set2set_ntypes_direct="global",
     ):
         super(HGATMol, self).__init__()
 
@@ -91,9 +92,7 @@ class HGATMol(nn.Module):
                 )
             )
 
-        # TODO this should be passed in as arguments
         ntypes = ["atom", "bond"]
-        ntypes_direct = ["global"]
         in_size = [gat_hidden_size[-1] * num_heads for _ in attn_order]
 
         self.readout_layer = Set2SetThenCat(
@@ -101,16 +100,19 @@ class HGATMol(nn.Module):
             n_layer=num_lstm_layers,
             ntypes=ntypes,
             in_feats=in_size,
-            ntypes_direct_cat=ntypes_direct,
+            ntypes_direct_cat=[set2set_ntypes_direct],
         )
 
         self.fc_layers = nn.ModuleList()
-        # TODO this is hard coded, better to pass in as args
+
+        # for atom and bond feat (# *2 because Set2Set used in Set2SetThenCat has out
+        # feature twice the the size  of in feature)
         in_size = (
-            gat_hidden_size[-1] * num_heads * 2
-            + gat_hidden_size[-1] * num_heads * 2
-            + gat_hidden_size[-1] * num_heads
+            gat_hidden_size[-1] * num_heads * 2 + gat_hidden_size[-1] * num_heads * 2
         )
+        # for global feat
+        if set2set_ntypes_direct is not None:
+            in_size += gat_hidden_size[-1] * num_heads
 
         for i in range(num_fc_layers):
             self.fc_layers.append(nn.Linear(in_size, fc_hidden_size[i]))

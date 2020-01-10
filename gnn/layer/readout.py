@@ -179,7 +179,7 @@ class Set2SetThenCat(nn.Module):
             need to concatenate their feature directly.
     """
 
-    def __init__(self, n_iters, n_layer, ntypes, in_feats, ntypes_direct_cat):
+    def __init__(self, n_iters, n_layer, ntypes, in_feats, ntypes_direct_cat=None):
         super(Set2SetThenCat, self).__init__()
         self.ntypes = ntypes
         self.ntypes_direct_cat = ntypes_direct_cat
@@ -202,7 +202,8 @@ class Set2SetThenCat(nn.Module):
         for nt in self.ntypes:
             ft = self.layers[nt](graph, feats[nt])
             rst.append(ft)
-        for nt in self.ntypes_direct_cat:
-            ft = feats[nt]
-            rst.append(ft)
+        if self.ntypes_direct_cat is not None:
+            for nt in self.ntypes_direct_cat:
+                ft = feats[nt]
+                rst.append(ft)
         return torch.cat(rst, dim=-1)  # dim=-1 to deal with batched graph

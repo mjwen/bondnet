@@ -87,8 +87,22 @@ def write_dataset():
     # filename = "~/Applications/mongo_db_access/extracted_data/molecules_n200.pkl"
     mols = pickle_load(filename)
 
-    structure_name = "~/Applications/mongo_db_access/extracted_data/struct_mols.sdf"
-    label_name = "~/Applications/mongo_db_access/extracted_data/label_mols.csv"
+    #######################
+    # filter charge 0 mols
+    #######################
+    new_mols = []
+    for m in mols:
+        if m.charge == 0:
+            new_mols.append(m)
+    mols = new_mols
+
+    # structure_name = "~/Applications/mongo_db_access/extracted_data/struct_mols.sdf"
+    # label_name = "~/Applications/mongo_db_access/extracted_data/label_mols.csv"
+    structure_name = (
+        "~/Applications/mongo_db_access/extracted_data/struct_mols_charge0.sdf"
+    )
+    label_name = "~/Applications/mongo_db_access/extracted_data/label_mols_charge0.csv"
+    DatabaseOperation.write_sdf_csv_dataset(mols, structure_name, label_name)
     DatabaseOperation.write_sdf_csv_dataset(mols, structure_name, label_name)
 
 

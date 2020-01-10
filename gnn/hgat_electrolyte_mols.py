@@ -236,6 +236,15 @@ def main(args):
         "global": {"edges": ["a2g", "b2g", "g2g"], "nodes": ["atom", "bond", "global"]},
     }
     attn_order = ["atom", "bond", "global"]
+    set2set_ntypes_direct = "global"
+
+    # attn_mechanism = {
+    #     "atom": {"edges": ["b2a", "a2a"], "nodes": ["bond", "atom"]},
+    #     "bond": {"edges": ["a2b", "b2b"], "nodes": ["atom", "bond"]},
+    # }
+    # attn_order = ["atom", "bond"]
+    # set2set_ntypes_direct = None
+
     in_feats = trainset.get_feature_size(attn_order)
     model = HGATMol(
         attn_mechanism,
@@ -252,6 +261,7 @@ def main(args):
         fc_hidden_size=args.fc_hidden_size,
         num_lstm_iters=args.num_lstm_iters,
         num_lstm_layers=args.num_lstm_layers,
+        set2set_ntypes_direct=set2set_ntypes_direct,
     )
     print(model)
     if args.device is not None:
