@@ -13,7 +13,7 @@ from gnn.data.featurizer import (
     BondAsNodeFeaturizer,
     BondAsEdgeBidirectedFeaturizer,
     BondAsEdgeCompleteFeaturizer,
-    MolWeightFeaturizer,
+    MolChargeFeaturizer,
 )
 from gnn.data.grapher import HomoBidirectedGraph, HomoCompleteGraph, HeteroMoleculeGraph
 from gnn.data.electrolyte import ElectrolyteDataset
@@ -23,21 +23,6 @@ logger = logging.getLogger(__name__)
 
 
 class ElectrolyteMoleculeDataset(ElectrolyteDataset):
-    """
-    The QM9 dataset.
-
-    Args:
-        sdf_file:
-        label_file:
-        self_loop:
-        grapher (str): the type of graph to create, options are: `hetero`,
-            `homo_bidirected` and `homo_complete`.
-        properties (list of str): the dataset propery to use. If `None`, use all.
-        unit_conversion (bool):
-        feature_transformer (bool):
-        label_transformer (bool):
-    """
-
     def __init__(
         self,
         sdf_file,
@@ -98,7 +83,7 @@ class ElectrolyteMoleculeDataset(ElectrolyteDataset):
                 bond_featurizer = BondAsNodeFeaturizer(
                     length_featurizer=self.bond_length_featurizer, dtype=self.dtype
                 )
-                global_featurizer = MolWeightFeaturizer(dtype=self.dtype)
+                global_featurizer = MolChargeFeaturizer(dtype=self.dtype)
                 grapher = HeteroMoleculeGraph(
                     atom_featurizer=atom_featurizer,
                     bond_featurizer=bond_featurizer,
@@ -133,6 +118,8 @@ class ElectrolyteMoleculeDataset(ElectrolyteDataset):
 
             # read mol graphs and label
             raw_labels, extensive = self._read_label_file()
+            charges = self._read_charge()
+
             self.graphs = []
             labels = []
             supp = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
@@ -145,7 +132,10 @@ class ElectrolyteMoleculeDataset(ElectrolyteDataset):
                 if mol is None:
                     continue
 
-                g = grapher.build_graph_and_featurize(mol)
+                if self.grapher == "hetero":
+                    g = grapher.build_graph_and_featurize(mol, charge=charges[i])
+                else:
+                    g = grapher.build_graph_and_featurize(mol)
                 self.graphs.append(g)
                 labels.append(raw_labels[i])
                 natoms.append(mol.GetNumAtoms())
@@ -262,6 +252,7 @@ class ElectrolyteMoleculeDataset(ElectrolyteDataset):
 
         # supported property
         supp_prop = OrderedDict()
+        supp_prop["charge"] = {"uc": 1.0, "extensive": False}
         supp_prop["atomization_energy"] = {"uc": 1.0, "extensive": True}
 
         if self.properties is not None:
@@ -286,3 +277,9 @@ class ElectrolyteMoleculeDataset(ElectrolyteDataset):
             rst = np.multiply(rst, convert)
 
         return rst, extensive
+
+    def _read_charge(self):
+        rst = pd.read_csv(self.label_file, index_col=0)
+        rst = rst.to_numpy()
+        charge = rst[:, 0]
+        return charge

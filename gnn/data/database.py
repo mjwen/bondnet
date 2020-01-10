@@ -586,8 +586,8 @@ class DatabaseOperation:
     @staticmethod
     def write_sdf_csv_dataset(
         molecules,
-        structure_name="electrolyte.sdf",
-        label_name="electrolyte.csv",
+        structure_name="electrolyte_struct.sdf",
+        label_name="electrolyte_label.csv",
         exclude_single_atom=True,
     ):
         structure_name = expand_path(structure_name)
@@ -599,7 +599,7 @@ class DatabaseOperation:
 
         with open(structure_name, "w") as fx, open(label_name, "w") as fy:
 
-            fy.write("mol,property_1\n")
+            fy.write("mol_id,charge,atomization_energy\n")
 
             i = 0
             for m in molecules:
@@ -626,7 +626,9 @@ class DatabaseOperation:
 
                 sdf = m.write(file_format="sdf", mol_id=m.id + " int_id-" + str(i))
                 fx.write(sdf)
-                fy.write("{},{:.15g}\n".format(m.id, m.atomization_free_energy))
+                fy.write(
+                    "{},{},{:.15g}\n".format(m.id, m.charge, m.atomization_free_energy)
+                )
 
                 i += 1
 
