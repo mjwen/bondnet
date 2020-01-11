@@ -52,7 +52,7 @@ class HGATMol(nn.Module):
         fc_activation=nn.ELU(),
         num_lstm_iters=5,
         num_lstm_layers=3,
-        set2set_ntypes_direct="global",
+        set2set_ntypes_direct=["global"],
     ):
         super(HGATMol, self).__init__()
 
@@ -100,7 +100,7 @@ class HGATMol(nn.Module):
             n_layer=num_lstm_layers,
             ntypes=ntypes,
             in_feats=in_size,
-            ntypes_direct_cat=[set2set_ntypes_direct],
+            ntypes_direct_cat=set2set_ntypes_direct,
         )
 
         self.fc_layers = nn.ModuleList()

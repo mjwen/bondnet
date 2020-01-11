@@ -236,7 +236,7 @@ def main(args):
         "global": {"edges": ["a2g", "b2g", "g2g"], "nodes": ["atom", "bond", "global"]},
     }
     attn_order = ["atom", "bond", "global"]
-    set2set_ntypes_direct = "global"
+    set2set_ntypes_direct = ["global"]
 
     # attn_mechanism = {
     #     "atom": {"edges": ["b2a", "a2a"], "nodes": ["bond", "atom"]},
