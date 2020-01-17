@@ -43,18 +43,22 @@ def eg_filter():
 
 
 def eg_molecules():
-    # db_path = "~/Applications/mongo_db_access/extracted_data/database_LiEC.pkl"
-    db_path = "~/Applications/mongo_db_access/extracted_data/database.pkl"
-    db = DatabaseOperation.from_file(db_path)
-    mols = db.to_molecules(optimized=True)
+    filename = "~/Applications/mongo_db_access/extracted_data/molecules.pkl"
+    # filename = "~/Applications/mongo_db_access/extracted_data/molecules_n200.pkl"
+    mols = pickle_load(filename)
+
     for m in mols:
-        fname = "~/Applications/mongo_db_access/extracted_data/mol_svg/{}_{}.svg".format(
-            m.formula, m.id
+        # fname = "~/Applications/mongo_db_access/extracted_data/mol_svg/{}_{}.svg".format(
+        #     m.formula, m.id
+        # )
+        fname = "~/Applications/mongo_db_access/extracted_data/mol_png/{}_{}_{}_{}.png".format(
+            m.formula, m.charge, m.id, str(m.free_energy).replace(".", "dot")
         )
+
         m.draw(fname, show_atom_idx=True)
 
-        fname = "/Users/mjwen/Applications/mongo_db_access/extracted_data/pdb/{}_{}.pdb".format(
-            m.formula, m.id
+        fname = "/Users/mjwen/Applications/mongo_db_access/extracted_data/pdb/{}_{}_{}_{}.pdb".format(
+            m.formula, m.charge, m.id, str(m.free_energy).replace(".", "dot")
         )
         m.write(fname, file_format="pdb")
 
@@ -124,12 +128,12 @@ if __name__ == "__main__":
     # eg_get_job_types()
     # eg_filter()
     # eg_create_dataset()
-    # eg_molecules()
+    eg_molecules()
     # eg_write_group_isomorphic_to_file()
     # eg_plot_charge_0()
 
     # pickle_molecules()
 
-    write_dataset()
+    # write_dataset()
 
     # get_single_atom_energy()

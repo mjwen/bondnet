@@ -74,12 +74,22 @@ def eg_extract_one_bond_break():
 
 
 def eg_reactants_bond_energies_to_file():
-    # filename = "~/Applications/mongo_db_access/extracted_data/reactions.pkl"
-    filename = "~/Applications/mongo_db_access/extracted_data/reactions_n200.pkl"
-    # filename = "~/Applications/mongo_db_access/extracted_data/reactions_H.pkl"
+    filename = "~/Applications/mongo_db_access/extracted_data/reactions.pkl"
+    # filename = "~/Applications/mongo_db_access/extracted_data/reactions_n200.pkl"
     extractor = ReactionExtractor.from_file(filename)
-    filename = "~/Applications/mongo_db_access/extracted_data/bond_energies_H.yaml"
-    filename = "~/Applications/mongo_db_access/extracted_data/bond_energies_n200.yaml"
+
+    ##############
+    # filter reactant charge = 0
+    ##############
+    extractor.filter_reactions_by_reactant_charge(charge=0)
+
+    ##############
+    # filter C-C bond and order
+    ##############
+    extractor.filter_reactions_by_bond_type_and_order(bond_type=("C", "C"), bond_order=1)
+
+    filename = "~/Applications/mongo_db_access/extracted_data/bond_energies.yaml"
+    # filename = "~/Applications/mongo_db_access/extracted_data/bond_energies_n200.yaml"
     extractor.bond_energies_to_file(filename)
 
 
@@ -120,9 +130,10 @@ def eg_create_struct_label_dataset_with_lowest_energy_across_charge_bond_based()
     ##############
     # filter C-C bond
     ##############
-    extractor.filter_reactions_by_bond_type(bond_type=("C", "C"))
+    extractor.filter_reactions_by_bond_type_and_order(bond_type=("C", "C"), bond_order=1)
 
-    extractor.create_struct_label_dataset_with_lowest_energy_across_charge_bond_based(
+    # extractor.create_struct_label_dataset_with_lowest_energy_across_charge_bond_based(
+    extractor.create_struct_label_dataset_with_lowest_energy_across_charge_bond_based_and_bond_info(
         # struct_name="~/Applications/mongo_db_access/extracted_data/struct.sdf",
         # label_name="~/Applications/mongo_db_access/extracted_data/label.txt",
         # struct_name="~/Applications/mongo_db_access/extracted_data/struct_n200.sdf",

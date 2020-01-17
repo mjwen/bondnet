@@ -371,11 +371,11 @@ class MoleculeWrapper:
                 sub_mols[edge] = [new_mg]
         return sub_mols
 
-    def write(self, filename=None, file_format="sdf", mol_id=None):
+    def write(self, filename=None, file_format="sdf", message=None):
         if filename is not None:
             create_directory(filename)
-        mol_id = self.id if mol_id is None else mol_id
-        self.ob_mol.SetTitle(str(mol_id))
+        message = str(self.id) if message is None else message
+        self.ob_mol.SetTitle(message)
         return self.pybel_mol.write(file_format, filename, overwrite=True)
 
     def draw(self, filename=None, draw_2D=True, show_atom_idx=False):
@@ -518,9 +518,9 @@ class DatabaseOperation:
                     for i_p_m, p_m in enumerate(mols):
                         # TODO check whether spin_multiplicity is needed
                         if (
-                            m.mol_graph.isomorphic_to(p_m.mol_graph)
-                            and m.charge == p_m.charge
+                            m.charge == p_m.charge
                             and m.spin_multiplicity == p_m.spin_multiplicity
+                            and m.mol_graph.isomorphic_to(p_m.mol_graph)
                         ):
                             n_not_unique_mol += 1
                             idx = i_p_m
