@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from collections import defaultdict
 from gnn.data.electrolyte import ElectrolyteDataset
 from gnn.data.qm9 import QM9Dataset
 from gnn.data.feature_analyzer import (
@@ -8,17 +9,20 @@ from gnn.data.feature_analyzer import (
     plot_heat_map,
     PCAAnalyzer,
     TSNEAnalyzer,
+    KMeansAnalyzer,
+    read_label,
+    read_sdf,
 )
 
 
 def get_dataset_electrolyte():
     return ElectrolyteDataset(
-        # sdf_file="~/Applications/mongo_db_access/extracted_data/struct_n200.sdf",
-        # label_file="~/Applications/mongo_db_access/extracted_data/label_n200.txt",
+        sdf_file="~/Applications/mongo_db_access/extracted_data/struct_n200.sdf",
+        label_file="~/Applications/mongo_db_access/extracted_data/label_n200.txt",
         # sdf_file="~/Applications/mongo_db_access/extracted_data/struct_charge0.sdf",
         # label_file="~/Applications/mongo_db_access/extracted_data/label_charge0.txt",
-        sdf_file="~/Applications/mongo_db_access/extracted_data/struct_charge0_CC.sdf",
-        label_file="~/Applications/mongo_db_access/extracted_data/label_charge0_CC.txt",
+        # sdf_file="~/Applications/mongo_db_access/extracted_data/struct_charge0_CC.sdf",
+        # label_file="~/Applications/mongo_db_access/extracted_data/label_charge0_CC.txt",
         pickle_dataset=False,
     )
 
@@ -74,12 +78,54 @@ def tsne_analysis(dataset):
     analyzer.compute()
 
 
+def kmeans_analysis(cluster_info_file="cluster_info.txt"):
+    # sdf_file = "~/Applications/mongo_db_access/extracted_data/struct_n200.sdf"
+    # label_file = "~/Applications/mongo_db_access/extracted_data/label_n200.txt"
+    # sdf_file="~/Applications/mongo_db_access/extracted_data/struct_charge0.sdf"
+    # label_file="~/Applications/mongo_db_access/extracted_data/label_charge0.txt"
+    sdf_file = "~/Applications/mongo_db_access/extracted_data/struct_charge0_CC.sdf"
+    label_file = "~/Applications/mongo_db_access/extracted_data/label_charge0_CC.txt"
+
+    # kmeans analysis
+    dataset = ElectrolyteDataset(sdf_file, label_file, label_transformer=False)
+    analyzer = KMeansAnalyzer(dataset)
+    features, clusters, centers, energies = analyzer.compute()
+
+    # data and label
+    # structs = read_sdf(sdf_file)
+    labels = read_label(label_file, sort_by_formula=False)
+
+    # output file 1, cluster info, i.e. which bond are classified to the bond
+    classes = defaultdict(list)
+    for i, c in enumerate(clusters):
+        classes[c].append(i)
+
+    with open(cluster_info_file, "w") as f:
+        f.write("# bonds     energy     raw\n")
+        for c, cen in enumerate(centers):
+            f.write("center: ")
+            for j in cen:
+                f.write("{:12.5e} ".format(j))
+            f.write("\n")
+
+            cls = classes[c]
+            for j in cls:
+                f.write(
+                    "{:<4d}     {:12.5e}     {}\n".format(
+                        j, energies[j], labels[j]["raw"]
+                    )
+                )
+            f.write("\n" * 3)
+
+
 if __name__ == "__main__":
     # dataset = get_dataset_electrolyte()
     # # dataset = get_dataset_qm9()
     # not_satisfied = feature_stdev(dataset)
     # corelation(dataset, not_satisfied)
 
-    dataset = get_dataset_electrolyte()
-    pca_analysis(dataset)
-    tsne_analysis(dataset)
+    # dataset = get_dataset_electrolyte()
+    # pca_analysis(dataset)
+    # tsne_analysis(dataset)
+
+    kmeans_analysis()

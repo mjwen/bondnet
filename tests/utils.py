@@ -12,6 +12,20 @@ def make_hetero_graph():
         /(1)  \ (2)
         H (2)  H (3)
     A global node u is attached to all atoms and bonds.
+
+    atom features:
+    [[0,1],
+     [2,3],
+     [4,5],
+     [6,7],]
+
+    bond features:
+    [[0,1,2],
+     [3,4,5],
+     [6,7,8]]
+
+    global features:
+    [[0,1,2,3]]
     """
 
     g = dgl.heterograph(

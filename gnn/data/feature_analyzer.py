@@ -1,9 +1,97 @@
 import os
 import numpy as np
+import re
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
+from sklearn.cluster import KMeans
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from gnn.layer.readout import ConcatenateMeanMax
+from gnn.utils import expand_path
+
+
+def get_id(s):
+    """
+    Get the id from a string `aaa_bbb_id_ccc`.
+
+    Returns:
+        str: id
+    """
+    return s.split("_")[2]
+
+
+def read_sdf(filename):
+    """
+    Read sdf file.
+
+    Returns:
+        dict: with mol id as key and the sdf struct body as val.
+    """
+    structs = dict()
+
+    filename = expand_path(filename)
+    with open(filename, "r") as f:
+        for line in f:
+            if "int_id" in line:
+                key = get_id(line.split()[0])
+                body = line
+            elif "$$$$" in line:
+                structs[key] = body
+            else:
+                body += line
+
+    return structs
+
+
+def read_label(filename, sort_by_formula=True):
+    """
+    Read label file.
+
+    Args:
+        sort_by_formula (bool): sort the returned list by formula or not.
+
+    Returns:
+        list of dict: dict has keys `raw`, `formula`, `reactants`, `products`, and the
+        keys corresponds to they are str, str, str, and list of str.
+
+        for reactants and products, mol id will be the values.
+    """
+    labels = []
+
+    filename = expand_path(filename)
+    with open(filename, "r") as f:
+        for line in f:
+            line = line.strip()
+            if line[0] == "#":
+                continue
+
+            pattern = "\[(.*?)\]"
+            result = re.findall(pattern, line)
+
+            tmp = result[0].strip(" '")
+            reactants = get_id(tmp)
+            formula = tmp.split("_")[0]
+
+            products = result[1]
+            if "," in products:  # two or more products
+                products = products.split(",")
+            else:  # one products
+                products = [products]
+            products = [get_id(p.strip(" '")) for p in products]
+
+            d = {
+                "raw": line,
+                "reactants": reactants,
+                "products": products,
+                "formula": formula,
+            }
+            labels.append(d)
+
+        # sort by formula
+        if sort_by_formula:
+            labels = sorted(labels, key=lambda d: d["formula"])
+
+    return labels
 
 
 class BaseAnalyzer:
@@ -18,8 +106,9 @@ class BaseAnalyzer:
 
     def _stack_feature_and_label(self, ntype="bond"):
         """
-        Stack feature and label whose corresponding label indicator is True, i.e. we
-        have energy for the label.
+        Stack feature (each feature is the bond feature and concatenated with the mean
+        and max of the features of the atoms constituting the bond) and label whose
+        corresponding label indicator is True, i.e. we have energy for the label.
         """
         features = []
         labels = []
@@ -28,6 +117,37 @@ class BaseAnalyzer:
             indices = [int(i) for i, v in enumerate(lb["indicator"]) if v == 1]
             labels.append(lb["value"][indices])
             features.append(g.nodes[ntype].data["feat"][indices])
+
+        features = np.concatenate(features)
+        labels = np.concatenate(labels)
+
+        return features, labels
+
+    def _stack_bond_feature_plus_atom_feature_and_label(self):
+        """
+        Stack feature and label whose corresponding label indicator is True, i.e. we
+        have energy for the label.
+        """
+        features = []
+        labels = []
+
+        for g, lb, _ in self.dataset:
+
+            # indices of bond that has energy
+            indices = [int(i) for i, v in enumerate(lb["indicator"]) if v == 1]
+            labels.append(lb["value"][indices])
+
+            all_feats = {
+                "atom": g.nodes["atom"].data["feat"],
+                "bond": g.nodes["bond"].data["feat"],
+                "global": g.nodes["global"].data["feat"],
+            }
+
+            etypes = [("atom", "a2b", "bond")]
+            layer = ConcatenateMeanMax(etypes)
+            rst = layer(g, all_feats)
+            bond_feats = rst["bond"][indices]
+            features.append(bond_feats)
 
         features = np.concatenate(features)
         labels = np.concatenate(labels)
@@ -114,6 +234,32 @@ class PearsonCorrelation(BaseAnalyzer):
         return corr
 
 
+class KMeansAnalyzer(BaseAnalyzer):
+    """
+    KMeans analysis to cluster the features (bond + mean(atom) + max(atom)).
+
+    This only works for the electrolyte dataset.
+    """
+
+    def compute(self):
+        features, labels = self._stack_bond_feature_plus_atom_feature_and_label()
+        return self.embedding(features, labels)
+
+    @staticmethod
+    def embedding(features, labels, text_filename="kmeans_electrolyte.txt"):
+        """
+        Args:
+            features (2D array)
+            labels: (1D array)
+        """
+        model = KMeans(n_clusters=10, random_state=35)
+        kmeans = model.fit(features)
+        clusters = kmeans.predict(features)
+        centers = kmeans.cluster_centers_
+
+        return features, clusters, centers, labels
+
+
 class PCAAnalyzer(BaseAnalyzer):
     """
     PCA analysis of the bond descriptor and bond energy.
@@ -123,7 +269,7 @@ class PCAAnalyzer(BaseAnalyzer):
 
     def compute(self):
         features, labels = self._stack_feature_and_label(ntype="bond")
-        self.embedding([features], [labels])
+        return self.embedding([features], [labels])
 
     @staticmethod
     def embedding(
@@ -139,7 +285,6 @@ class PCAAnalyzer(BaseAnalyzer):
             labels: (list of 1D array): labels for the features.
         """
         model = PCA(n_components=2)
-        model.fit(np.concatenate(features))
         embeddings = model.fit_transform(np.concatenate(features))
         sizes = [len(d) for d in features]
         indices = [sum(sizes[:i]) for i in range(1, len(sizes))]
@@ -151,14 +296,14 @@ class PCAAnalyzer(BaseAnalyzer):
 
 class TSNEAnalyzer(BaseAnalyzer):
     """
-    PCA analysis of the bond descriptor and bond energy.
+    TSNE analysis of the bond descriptor and bond energy.
 
     This only works for the electrolyte dataset.
     """
 
     def compute(self):
         features, labels = self._stack_feature_and_label(ntype="bond")
-        self.embedding([features], [labels])
+        return self.embedding([features], [labels])
 
     @staticmethod
     def embedding(
@@ -167,6 +312,13 @@ class TSNEAnalyzer(BaseAnalyzer):
         text_filename="TSNE_electrolyte.txt",
         plot_filename="TSNE_electrolyte.pdf",
     ):
+        """
+        Args:
+            features (list of 2D array): all data will be used for training the model,
+                and each array will be evaluated separately.
+            labels: (list of 1D array): labels for the features.
+        """
+
         model = TSNE(n_components=2)
         embeddings = model.fit_transform(np.concatenate(features))
         sizes = [len(d) for d in features]

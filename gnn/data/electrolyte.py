@@ -325,6 +325,11 @@ class ElectrolyteDataset(BaseDataset):
                 line = line.strip()
                 if line.startswith("#"):
                     continue
+
+                # remove inline comments
+                if "#" in line:
+                    line = line[: line.index("#")]
+
                 line = [float(i) for i in line.split()]
                 rslt.append(line)
         return rslt

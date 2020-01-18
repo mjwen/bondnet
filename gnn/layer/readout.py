@@ -53,6 +53,7 @@ class ConcatenateMeanMax(nn.Module):
     def _concatenate_mean_max(nodes):
         message = nodes.mailbox["m"]
         mean_v = torch.mean(message, dim=1)
+        # torch.max returns a named  tuple; check the doc
         max_v = torch.max(message, dim=1).values
         data = nodes.data["ft"]
         concatenated = torch.cat((data, mean_v, max_v), dim=1)
