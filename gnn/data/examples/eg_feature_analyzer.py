@@ -82,8 +82,10 @@ def tsne_analysis(dataset):
 
 
 def write_features(
-    sdf_file="~/Applications/mongo_db_access/extracted_data/struct_n200.sdf",
-    label_file="~/Applications/mongo_db_access/extracted_data/label_n200.txt",
+    sdf_file="~/Applications/mongo_db_access/extracted_data/struct.sdf",
+    label_file="~/Applications/mongo_db_access/extracted_data/label.txt",
+    # sdf_file="~/Applications/mongo_db_access/extracted_data/struct_n200.sdf",
+    # label_file="~/Applications/mongo_db_access/extracted_data/label_n200.txt",
     # sdf_file="~/Applications/mongo_db_access/extracted_data/struct_charge0.sdf",
     # label_file="~/Applications/mongo_db_access/extracted_data/label_charge0.txt",
     # sdf_file="~/Applications/mongo_db_access/extracted_data/struct_charge0_CC.sdf",
@@ -116,6 +118,10 @@ def write_features(
 
         first_column: 1D array
         first_column_header: str
+        num_tabels: number of tables to split the array (along column)
+
+        Returns:
+            a list of beautiful tabels
         """
         array = np.asarray(array)
 
@@ -211,7 +217,8 @@ def write_features(
 
             # atom feature
             f.write("atom feature:\n")
-            ft = g.nodes["atom"].data["feat"].numpy()
+            ft = g.nodes["atom"].data["feat"]
+            ft = np.asarray(ft, dtype=np.int32)  # they are actually int feature
             header = dataset.feature_name["atom"]
             tables = two_d_array_to_beautifultable(
                 ft,
@@ -227,7 +234,8 @@ def write_features(
 
             # bond feature
             f.write("\n\nbond feature:\n")
-            ft = g.nodes["bond"].data["feat"].numpy()
+            ft = g.nodes["bond"].data["feat"]
+            ft = np.asarray(ft, dtype=np.int32)  # they are actually int feature
             header = dataset.feature_name["bond"]
             tables = two_d_array_to_beautifultable(
                 ft,

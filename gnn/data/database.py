@@ -120,7 +120,8 @@ class BabelMolAdaptor2(BabelMolAdaptor):
             if graph_idx not in idx_map:
                 raise Exception("atom not found in obmol.")
 
-        # graph bonds
+        # graph bonds (note that although MoleculeGraph uses multigrpah, but duplicate
+        # bonds are removed when calling in MoleculeGraph.with_local_env_strategy
         graph_bonds = []
         for i, j, _ in mol_graph.graph.edges.data():
             graph_bonds.append(sorted([idx_map[i], idx_map[j]]))
@@ -185,6 +186,7 @@ class MoleculeWrapper:
             )
             if self.use_metal_edge_extender:
                 self._mol_graph = metal_edge_extender(self.mol_graph)
+
         return self._mol_graph
 
     @property
