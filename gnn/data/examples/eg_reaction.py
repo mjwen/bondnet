@@ -132,8 +132,7 @@ def eg_create_struct_label_dataset_with_lowest_energy_across_charge_bond_based()
     ##############
     extractor.filter_reactions_by_bond_type_and_order(bond_type=("C", "C"), bond_order=1)
 
-    # extractor.create_struct_label_dataset_with_lowest_energy_across_charge_bond_based(
-    extractor.create_struct_label_dataset_with_lowest_energy_across_charge_bond_based_and_bond_info(
+    extractor.create_struct_label_dataset_with_lowest_energy_across_charge_bond_based(
         # struct_name="~/Applications/mongo_db_access/extracted_data/struct.sdf",
         # label_name="~/Applications/mongo_db_access/extracted_data/label.txt",
         struct_name="~/Applications/mongo_db_access/extracted_data/struct_n200.sdf",

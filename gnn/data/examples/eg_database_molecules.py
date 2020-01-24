@@ -1,13 +1,12 @@
-import json
 from gnn.data.database_molecules import DatabaseOperation
-from gnn.utils import pickle_dump, pickle_load, expand_path
+from gnn.utils import pickle_dump, pickle_load, yaml_dump, expand_path
 
 
 def eg_query_database():
-    db = DatabaseOperation.from_query()
-    db.to_file("~/Applications/mongo_db_access/extracted_mols/database.pkl")
-    # db = DatabaseOperation.from_query(num_entries=200)
-    # db.to_file("~/Applications/mongo_db_access/extracted_mols/database_n200.pkl")
+    # db = DatabaseOperation.from_query()
+    # db.to_file("~/Applications/mongo_db_access/extracted_mols/database.pkl")
+    db = DatabaseOperation.from_query(num_entries=200)
+    db.to_file("~/Applications/mongo_db_access/extracted_mols/database_n200.pkl")
 
 
 def eg_select(n=200):
@@ -58,10 +57,8 @@ def write_features():
         feat = m.pack_features(use_obabel_idx=True)
         all_feats[feat["id"]] = feat
 
-    filename = "~/Applications/mongo_db_access/extracted_mols/features.json"
-    filename = expand_path(filename)
-    with open(filename, "w") as f:
-        json.dump(all_feats, f)
+    filename = "~/Applications/mongo_db_access/extracted_mols/features_n200.yaml"
+    yaml_dump(all_feats, filename)
 
 
 def eg_write_group_isomorphic_to_file():
@@ -110,9 +107,9 @@ def get_single_atom_energy():
 
 
 if __name__ == "__main__":
-    # eg_query_database()
+    eg_query_database()
     # eg_select()
-    # pickle_molecules()
+    pickle_molecules()
     # eg_molecules()
     write_features()
 

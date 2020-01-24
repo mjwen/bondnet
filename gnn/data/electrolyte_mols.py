@@ -13,7 +13,7 @@ from gnn.data.featurizer import (
     BondAsNodeFeaturizer,
     BondAsEdgeBidirectedFeaturizer,
     BondAsEdgeCompleteFeaturizer,
-    MolChargeFeaturizer,
+    GlobalFeaturizerWithExtraInfo,
 )
 from gnn.data.grapher import HomoBidirectedGraph, HomoCompleteGraph, HeteroMoleculeGraph
 from gnn.data.electrolyte import ElectrolyteDataset
@@ -27,6 +27,7 @@ class ElectrolyteMoleculeDataset(ElectrolyteDataset):
         self,
         sdf_file,
         label_file,
+        feature_file=None,
         self_loop=True,
         grapher="hetero",
         bond_length_featurizer=None,
@@ -43,6 +44,7 @@ class ElectrolyteMoleculeDataset(ElectrolyteDataset):
         super(ElectrolyteMoleculeDataset, self).__init__(
             sdf_file,
             label_file,
+            feature_file,
             self_loop,
             grapher,
             bond_length_featurizer,
@@ -83,7 +85,7 @@ class ElectrolyteMoleculeDataset(ElectrolyteDataset):
                 bond_featurizer = BondAsNodeFeaturizer(
                     length_featurizer=self.bond_length_featurizer, dtype=self.dtype
                 )
-                global_featurizer = MolChargeFeaturizer(dtype=self.dtype)
+                global_featurizer = GlobalFeaturizerWithExtraInfo(dtype=self.dtype)
                 grapher = HeteroMoleculeGraph(
                     atom_featurizer=atom_featurizer,
                     bond_featurizer=bond_featurizer,

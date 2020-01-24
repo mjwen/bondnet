@@ -135,7 +135,7 @@ def eg_create_struct_label_dataset_with_lowest_energy_across_charge_bond_based()
         # label_name="~/Applications/mongo_db_access/extracted_mols/label.txt",
         struct_name="~/Applications/mongo_db_access/extracted_mols/struct_n200.sdf",
         label_name="~/Applications/mongo_db_access/extracted_mols/label_n200.txt",
-        feature_name="~/Applications/mongo_db_access/extracted_mols/feature_n200.json",
+        feature_name="~/Applications/mongo_db_access/extracted_mols/feature_n200.yaml",
         # struct_name="~/Applications/mongo_db_access/extracted_mols/struct_charge0.sdf",
         # label_name="~/Applications/mongo_db_access/extracted_mols/label_charge0.txt",
         # struct_name="~/Applications/mongo_db_access/extracted_mols/struct_charge0_CC.sdf",

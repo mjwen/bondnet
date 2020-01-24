@@ -56,15 +56,15 @@ class QM9Dataset(ElectrolyteDataset):
         self.properties = properties
         self.unit_conversion = unit_conversion
         super(QM9Dataset, self).__init__(
-            sdf_file,
-            label_file,
-            self_loop,
-            grapher,
-            bond_length_featurizer,
-            feature_transformer,
-            label_transformer,
-            pickle_dataset,
-            dtype,
+            sdf_file=sdf_file,
+            label_file=label_file,
+            self_loop=self_loop,
+            grapher=grapher,
+            bond_length_featurizer=bond_length_featurizer,
+            feature_transformer=feature_transformer,
+            label_transformer=label_transformer,
+            pickle_dataset=pickle_dataset,
+            dtype=dtype,
         )
 
     def _load(self):

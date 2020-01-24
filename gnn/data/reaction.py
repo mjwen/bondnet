@@ -1,7 +1,5 @@
 import itertools
 import logging
-import json
-import networkx as nx
 from tqdm import tqdm
 from collections import defaultdict, OrderedDict
 from gnn.data.database import DatabaseOperation
@@ -519,7 +517,7 @@ class ReactionExtractor:
                 f.write(sdf)
 
     @staticmethod
-    def write_feature(molecules, filename="features.json"):
+    def write_feature(molecules, filename="features.yaml"):
         """
         Write molecules features to file.
 
@@ -533,11 +531,7 @@ class ReactionExtractor:
         for m in molecules:
             feat = m.pack_features(use_obabel_idx=True)
             all_feats.append(feat)
-
-        filename = expand_path(filename)
-        create_directory(filename)
-        with open(filename, "w") as f:
-            json.dump(all_feats, f)
+        yaml_dump(all_feats, filename)
 
         logger.info("Finish writing feature file: {}".format(filename))
 

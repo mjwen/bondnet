@@ -148,6 +148,61 @@ class BondAsNodeFeaturizer(BondFeaturizer):
         return {"feat": feats}
 
 
+class BondAsNodeFeaturizerMinimum(BondFeaturizer):
+    """
+    Featurize all bonds in a molecule.
+
+    The bond indices will be preserved, i.e. feature i corresponds to atom i.
+    The number of features will be equal to the number of bonds in the molecule,
+    so this is suitable for the case where we represent bond as graph nodes.
+    """
+
+    def __call__(self, mol, **kwargs):
+        """
+        Parameters
+        ----------
+        mol : rdkit.Chem.rdchem.Mol
+            RDKit molecule object
+
+        Returns
+        -------
+            Dictionary for bond features
+        """
+        feats = []
+
+        num_bonds = mol.GetNumBonds()
+        if num_bonds < 1:
+            warnings.warn("molecular has no bonds")
+
+        for u in range(num_bonds):
+            bond = mol.GetBondWithIdx(u)
+
+            ft = [
+                # int(bond.GetIsAromatic()),
+                int(bond.IsInRing()),
+                # int(bond.GetIsConjugated()),
+            ]
+
+            at1 = bond.GetBeginAtomIdx()
+            at2 = bond.GetEndAtomIdx()
+            atoms_pos = mol.GetConformer().GetPositions()
+            bond_length = np.linalg.norm(atoms_pos[at1] - atoms_pos[at2])
+            ft += [bond_length]
+
+            if self.length_featurizer:
+                ft += self.length_featurizer(bond_length)
+
+            feats.append(ft)
+
+        feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
+        self._feature_size = feats.shape[1]
+        self._feature_name = ["is in ring", "length"]
+        if self.length_featurizer:
+            self._feature_name += self.length_featurizer.feature_name
+
+        return {"feat": feats}
+
+
 class BondAsEdgeBidirectedFeaturizer(BondFeaturizer):
     """
     Featurize all bonds in a molecule.
@@ -393,24 +448,24 @@ class AtomFeaturizer(BaseFeaturizer):
 
             atom = mol.GetAtomWithIdx(u)
 
-            # feat.append(atom.GetDegree())
+            ft.append(atom.GetDegree())
             ft.append(atom.GetTotalDegree())
 
-            # feat.append(atom.GetExplicitValence())
-            # feat.append(atom.GetImplicitValence())
+            ft.append(atom.GetExplicitValence())
+            ft.append(atom.GetImplicitValence())
             ft.append(atom.GetTotalValence())
 
-            # feat.append(atom.GetFormalCharge())
+            ft.append(atom.GetFormalCharge())
             ft.append(atom.GetNumRadicalElectrons())
 
             ft.append(int(atom.GetIsAromatic()))
             ft.append(int(atom.IsInRing()))
 
-            # feat.append(atom.GetNumExplicitHs())
-            # feat.append(atom.GetNumImplicitHs())
+            ft.append(atom.GetNumExplicitHs())
+            ft.append(atom.GetNumImplicitHs())
             ft.append(atom.GetTotalNumHs())
 
-            # feat.append(atom.GetAtomicNum())
+            ft.append(atom.GetAtomicNum())
             ft += one_hot_encoding(atom.GetSymbol(), self.species)
 
             ft += one_hot_encoding(
@@ -420,8 +475,8 @@ class AtomFeaturizer(BaseFeaturizer):
                     Chem.rdchem.HybridizationType.SP,
                     Chem.rdchem.HybridizationType.SP2,
                     Chem.rdchem.HybridizationType.SP3,
-                    #  Chem.rdchem.HybridizationType.SP3D,
-                    #  Chem.rdchem.HybridizationType.SP3D2,
+                    Chem.rdchem.HybridizationType.SP3D,
+                    Chem.rdchem.HybridizationType.SP3D2,
                 ],
             )
 
@@ -433,34 +488,40 @@ class AtomFeaturizer(BaseFeaturizer):
             [
                 "acceptor",
                 "donor",
-                # "degree",
+                "degree",
                 "total degree",
-                # "explicit valence",
-                # "implicit valence",
+                "explicit valence",
+                "implicit valence",
                 "total valence",
-                # "formal charge",
+                "formal charge",
                 "num radical electrons",
                 "is aromatic",
                 "is in ring",
-                # "num explicit H",
-                # "num implicit H",
+                "num explicit H",
+                "num implicit H",
                 "num total H",
-                # "atomic number",
+                "atomic number",
             ]
             + ["chemical symbol"] * len(self.species)
-            + ["hybridization"] * 4
+            + ["hybridization"] * 6
         )
 
         return {"feat": feats}
 
 
-class MolChargeFeaturizer(BaseFeaturizer):
+class AtomFeaturizerWithExtraInfo(BaseFeaturizer):
     """
-    Featurize the global state of a molecules using charge.
+    Featurize atoms in a molecule.
+
+    The extra feature info should be provided as a dict to kwargs of __call__,
+    with `extra_feats_info` as the key.
+
+    The atom indices will be preserved, i.e. feature i corresponds to atom i.
     """
 
-    def __init__(self, dtype="float32"):
-        super(MolChargeFeaturizer, self).__init__(dtype)
+    def __init__(self, species, dtype="float32"):
+        super(AtomFeaturizerWithExtraInfo, self).__init__(dtype)
+        self.species = sorted(species)
         self._feature_size = None
         self._feature_name = None
 
@@ -473,16 +534,90 @@ class MolChargeFeaturizer(BaseFeaturizer):
         return self._feature_name
 
     def __call__(self, mol, **kwargs):
-        try:
-            charge = kwargs["charge"]
-        except KeyError as e:
-            raise KeyError("{} charge needed for {}.".format(e, self.__class__.__name__))
+        """
+        Args:
+            mol (rdkit.Chem.rdchem.Mol): RDKit molecule object
 
-        g = one_hot_encoding(charge, [-1, 0, 1])
+            Also `extra_feats_info` should be provided as `kwargs` as additional info.
+
+        Returns:
+            Dictionary of atom features
+        """
+
+        try:
+            feats_info = kwargs["extra_feats_info"]
+        except KeyError as e:
+            raise KeyError(
+                "{} `extra_feats_info` needed for {}.".format(e, self.__class__.__name__)
+            )
+
+        feats = []
+
+        num_atoms = mol.GetNumAtoms()
+        for i in range(num_atoms):
+            ft = []
+            atom = mol.GetAtomWithIdx(i)
+
+            # from rdkit
+            ft.append(atom.GetTotalDegree())
+            ft.append(int(atom.GetIsAromatic()))
+            ft.append(int(atom.IsInRing()))
+            # atomic number of symbols are redudant
+            ft.append(atom.GetAtomicNum())
+            ft += one_hot_encoding(atom.GetSymbol(), self.species)
+
+            # from extra info
+            ft.append(feats_info["resp"][i])
+            ft.append(feats_info["mulliken"][i])
+            ft.append(feats_info["atom_spin_multiplicity"][i])
+
+            feats.append(ft)
+
+        feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
+        self._feature_size = feats.shape[1]
+        self._feature_name = (
+            ["total degree", "is aromatic", "is in ring", "atomic number"]
+            + ["chemical symbol"] * len(self.species)
+            + ["resp", "mulliken", "spin"]
+        )
+
+        return {"feat": feats}
+
+
+class GlobalFeaturizerWithExtraInfo(BaseFeaturizer):
+    """
+    Featurize the global state of a molecules using charge and spin multiplicity.
+    """
+
+    def __init__(self, dtype="float32"):
+        super(GlobalFeaturizerWithExtraInfo, self).__init__(dtype)
+        self._feature_size = None
+        self._feature_name = None
+
+    @property
+    def feature_size(self):
+        return self._feature_size
+
+    @property
+    def feature_name(self):
+        return self._feature_name
+
+    def __call__(self, mol, **kwargs):
+
+        try:
+            feats_info = kwargs["extra_feats_info"]
+        except KeyError as e:
+            raise KeyError(
+                "{} `extra_feats_info` needed for {}.".format(e, self.__class__.__name__)
+            )
+
+        # TODO, multiplicity chould also be one hot encoding
+        g = [feats_info["spin_multiplicity"]]
+        g += one_hot_encoding(feats_info["charge"], [-1, 0, 1])
 
         feats = torch.tensor([g], dtype=getattr(torch, self.dtype))
         self._feature_size = feats.shape[1]
-        self._feature_name = ["charge"] * feats.shape[1]
+        self._feature_name = ["spin"] + ["charge"] * 3
 
         return {"feat": feats}
 

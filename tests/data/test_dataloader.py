@@ -25,6 +25,7 @@ def test_dataloader_electrolyte():
         dataset = ElectrolyteDataset(
             sdf_file=os.path.join(test_files, "EC_struct.sdf"),
             label_file=os.path.join(test_files, "EC_label.txt"),
+            feature_file=os.path.join(test_files, "EC_feature.yaml"),
             feature_transformer=False,
             label_transformer=lt,
         )

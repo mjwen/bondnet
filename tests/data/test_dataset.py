@@ -24,6 +24,7 @@ def test_electrolyte_label():
         dataset = ElectrolyteDataset(
             sdf_file=os.path.join(test_files, "EC_struct.sdf"),
             label_file=os.path.join(test_files, "EC_label.txt"),
+            feature_file=os.path.join(test_files, "EC_feature.yaml"),
             feature_transformer=False,
             label_transformer=lt,
         )
@@ -96,6 +97,7 @@ def test_electrolyte_molecule_label():
         dataset = ElectrolyteMoleculeDataset(
             sdf_file=os.path.join(test_files, "electrolyte_mols_struct.sdf"),
             label_file=os.path.join(test_files, "electrolyte_mols_label.csv"),
+            grapher="homo_bidirected",  # avoid providing feature_file needed by `hetero`
             properties=["atomization_energy"],
             unit_conversion=False,
             feature_transformer=True,

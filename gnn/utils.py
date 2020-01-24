@@ -32,7 +32,6 @@ def pickle_dump(obj, filename):
 
 def pickle_load(filename):
     filename = expand_path(filename)
-    create_directory(filename)
     with open(filename, "rb") as f:
         obj = pickle.load(f)
     return obj
@@ -43,6 +42,13 @@ def yaml_dump(obj, filename):
     create_directory(filename)
     with open(filename, "w") as f:
         yaml.dump(obj, f, default_flow_style=False)
+
+
+def yaml_load(filename):
+    filename = expand_path(filename)
+    with open(filename, "r") as f:
+        obj = yaml.load(f)
+    return obj
 
 
 def stat_cuda(msg):

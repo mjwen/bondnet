@@ -214,18 +214,27 @@ class MoleculeWrapper:
 
         # atom level
         resp = [i for i in self.resp]
-        # mulliken = [i[0] for i in self.mulliken]
-        # atom_spin_multiplicity = [i[1] for i in self.mulliken]
+        if len(np.asarray(self.mulliken).shape) == 1:  # partial spin is 0
+            mulliken = [i for i in self.mulliken]
+            atom_spin_multiplicity = [0 for i in self.mulliken]
+        else:
+            mulliken = [i[0] for i in self.mulliken]
+            atom_spin_multiplicity = [i[1] for i in self.mulliken]
+
         if use_obabel_idx:
+            resp_old = copy.deepcopy(resp)
+            mulliken_old = copy.deepcopy(mulliken)
+            asm_old = copy.deepcopy(atom_spin_multiplicity)
             for graph_idx in range(len(self.atoms)):
                 ob_idx = self.graph_idx_to_ob_idx_map[graph_idx]
                 # -1 because ob index starts from 1
-                resp[ob_idx - 1] = self.resp[graph_idx]
-                # mulliken[ob_idx - 1] = self.mulliken[graph_idx][0]
-                # atom_spin_multiplicity[ob_idx - 1] = self.mulliken[graph_idx][1]
+                resp[ob_idx - 1] = resp_old[graph_idx]
+                mulliken[ob_idx - 1] = mulliken_old[graph_idx]
+                atom_spin_multiplicity[ob_idx - 1] = asm_old[graph_idx]
+
         feats["resp"] = resp
-        # feats["mulliken"] = mulliken
-        # feats["atom_spin_multiplicity"] = atom_spin_multiplicity
+        feats["mulliken"] = mulliken
+        feats["atom_spin_multiplicity"] = atom_spin_multiplicity
 
         return feats
 

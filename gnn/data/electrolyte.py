@@ -9,14 +9,16 @@ from rdkit import Chem
 from gnn.utils import expand_path, pickle_dump, pickle_load
 from gnn.data.featurizer import (
     AtomFeaturizer,
+    AtomFeaturizerWithExtraInfo,
     BondAsNodeFeaturizer,
     BondAsEdgeBidirectedFeaturizer,
     BondAsEdgeCompleteFeaturizer,
-    MolChargeFeaturizer,
+    GlobalFeaturizerWithExtraInfo,
 )
 from gnn.data.grapher import HomoBidirectedGraph, HomoCompleteGraph, HeteroMoleculeGraph
 from gnn.data.dataset import BaseDataset
 from gnn.data.transformers import StandardScaler, GraphFeatureStandardScaler
+from gnn.utils import yaml_load
 
 
 logger = logging.getLogger(__name__)
@@ -32,6 +34,9 @@ class ElectrolyteDataset(BaseDataset):
             provided for fast recovery.
         label_file (str): path to the label file. Similar to the sdf_file, pickled file
             can be provided for fast recovery.
+        feature_file (str): path to the feature file. If `None` features will be
+            calculated only using rdkit. Otherwise, features can be provided through this
+            file.
         self_loop (bool): whether to create self loop, i.e. a node is connected to
             itself through an edge.
         hetero (bool): Whether to build hetero graph, where atom, bond, and global state
@@ -43,6 +48,7 @@ class ElectrolyteDataset(BaseDataset):
         self,
         sdf_file,
         label_file,
+        feature_file=None,
         self_loop=True,
         grapher="hetero",
         bond_length_featurizer=None,
@@ -54,6 +60,11 @@ class ElectrolyteDataset(BaseDataset):
         super(ElectrolyteDataset, self).__init__(dtype)
         self.sdf_file = expand_path(sdf_file)
         self.label_file = expand_path(label_file)
+        if feature_file is None:
+            self.feature_file = None
+        else:
+            self.feature_file = expand_path(feature_file)
+
         self.self_loop = self_loop
         self.grapher = grapher
         self.bond_length_featurizer = bond_length_featurizer
@@ -104,12 +115,16 @@ class ElectrolyteDataset(BaseDataset):
 
             # initialize featurizer
             species = self._get_species()
-            atom_featurizer = AtomFeaturizer(species, dtype=self.dtype)
+
+            if self.feature_file is not None:
+                atom_featurizer = AtomFeaturizerWithExtraInfo(species, dtype=self.dtype)
+            else:
+                atom_featurizer = AtomFeaturizer(species, dtype=self.dtype)
             if self.grapher == "hetero":
                 bond_featurizer = BondAsNodeFeaturizer(
                     length_featurizer=self.bond_length_featurizer, dtype=self.dtype
                 )
-                global_featurizer = MolChargeFeaturizer(dtype=self.dtype)
+                global_featurizer = GlobalFeaturizerWithExtraInfo(dtype=self.dtype)
                 grapher = HeteroMoleculeGraph(
                     atom_featurizer=atom_featurizer,
                     bond_featurizer=bond_featurizer,
@@ -144,11 +159,18 @@ class ElectrolyteDataset(BaseDataset):
 
             # read graphs and label
             properties = self._read_label_file()
+
+            # additional features from file
+            if self.feature_file is not None:
+                features = self._read_feature_file()
+            else:
+                features = [None] * len(properties)
+
             self.graphs = []
             self.labels = []
             supp = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
 
-            for i, (mol, prop) in enumerate(zip(supp, properties)):
+            for i, (mol, feats, prop) in enumerate(zip(supp, features, properties)):
                 if i % 100 == 0:
                     logger.info("Processing molecule {}/{}".format(i, len(properties)))
 
@@ -160,10 +182,11 @@ class ElectrolyteDataset(BaseDataset):
                 bonds_energy = torch.tensor(prop[1 : nbonds + 1], dtype=dtype)
                 bonds_indicator = torch.tensor(prop[nbonds + 1 :], dtype=dtype)
 
-                if self.grapher == "hetero":
-                    g = grapher.build_graph_and_featurize(mol, charge=prop[0])
+                if feats is not None:
+                    g = grapher.build_graph_and_featurize(mol, extra_feats_info=feats)
                 else:
                     g = grapher.build_graph_and_featurize(mol)
+
                 self.graphs.append(g)
 
                 label = {"value": bonds_energy, "indicator": bonds_indicator}
@@ -334,9 +357,12 @@ class ElectrolyteDataset(BaseDataset):
                 rslt.append(line)
         return rslt
 
+    def _read_feature_file(self):
+        return yaml_load(self.feature_file)
+
     def __repr__(self):
         rst = "Dataset " + self.__class__.__name__ + "\n"
-        rst += "Lengh: {}\n".format(len(self))
+        rst += "Length: {}\n".format(len(self))
         for ft, sz in self.feature_size.items():
             rst += "Feature: {}, size: {}\n".format(ft, sz)
         for ft, nm in self.feature_name.items():
