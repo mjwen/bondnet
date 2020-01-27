@@ -1,14 +1,14 @@
 from gnn.data.database_molecules import DatabaseOperation
 from gnn.data.reaction import ReactionExtractor
 from pprint import pprint
+from gnn.utils import pickle_load
 
 
 def eg_buckets():
-
-    # test get isomer
-    db_path = "~/Applications/mongo_db_access/extracted_mols/database_LiEC.pkl"
-    db = DatabaseOperation.from_file(db_path)
-    molecules = db.to_molecules()
+    # filename = "~/Applications/mongo_db_access/extracted_mols/molecules.pkl"
+    filename = "~/Applications/mongo_db_access/extracted_mols/molecules_n200.pkl"
+    molecules = pickle_load(filename)
+    print("number of moles:", len(molecules))
 
     extractor = ReactionExtractor(molecules)
     extractor.bucket_molecules(keys=["formula", "charge", "spin_multiplicity"])
@@ -18,12 +18,10 @@ def eg_buckets():
 
 
 def eg_extract_A_to_B():
-    # db_path = '~/Applications/mongo_db_access/extracted_mols/database_LiEC.pkl'
-    # db_path = "~/Applications/mongo_db_access/extracted_mols/database.pkl"
-    db_path = "~/Applications/mongo_db_access/extracted_mols/database_n200.pkl"
-    db = DatabaseOperation.from_file(db_path)
-    molecules = db.to_molecules()
-    print("db recovered, number of mols:", len(molecules))
+    # filename = "~/Applications/mongo_db_access/extracted_mols/molecules.pkl"
+    filename = "~/Applications/mongo_db_access/extracted_mols/molecules_n200.pkl"
+    molecules = pickle_load(filename)
+    print("number of moles:", len(molecules))
 
     extractor = ReactionExtractor(molecules)
     extractor.bucket_molecules(keys=["formula", "charge"])
@@ -36,12 +34,10 @@ def eg_extract_A_to_B():
 
 
 def eg_extract_A_to_B_C():
-    # db_path = '~/Applications/mongo_db_access/extracted_mols/database_LiEC.pkl'
-    # db_path = "~/Applications/mongo_db_access/extracted_mols/database.pkl"
-    db_path = "~/Applications/mongo_db_access/extracted_mols/database_n200.pkl"
-    db = DatabaseOperation.from_file(db_path)
-    molecules = db.to_molecules()
-    print("db recovered, number of moles:", len(molecules))
+    # filename = "~/Applications/mongo_db_access/extracted_mols/molecules.pkl"
+    filename = "~/Applications/mongo_db_access/extracted_mols/molecules_n200.pkl"
+    molecules = pickle_load(filename)
+    print("number of moles:", len(molecules))
 
     extractor = ReactionExtractor(molecules)
     extractor.bucket_molecules(keys=["formula", "charge"])
@@ -54,20 +50,19 @@ def eg_extract_A_to_B_C():
 
 
 def eg_extract_one_bond_break():
-    # db_path = "~/Applications/mongo_db_access/extracted_mols/database.pkl"
-    db_path = "~/Applications/mongo_db_access/extracted_mols/database_n200.pkl"
-    db = DatabaseOperation.from_file(db_path)
-    molecules = db.to_molecules()
-    print("db recovered, number of moles:", len(molecules))
+    filename = "~/Applications/mongo_db_access/extracted_mols/molecules.pkl"
+    # filename = "~/Applications/mongo_db_access/extracted_mols/molecules_n200.pkl"
+    molecules = pickle_load(filename)
+    print("number of moles:", len(molecules))
 
     extractor = ReactionExtractor(molecules)
     extractor.bucket_molecules(keys=["formula", "charge"])
-    print("number of buckets", len(extractor.buckets))
+    print("number of buckets:", len(extractor.buckets))
 
     extractor.extract_one_bond_break()
 
-    # filename = "~/Applications/mongo_db_access/extracted_mols/reactions.pkl"
-    filename = "~/Applications/mongo_db_access/extracted_mols/reactions_n200.pkl"
+    filename = "~/Applications/mongo_db_access/extracted_mols/reactions.pkl"
+    # filename = "~/Applications/mongo_db_access/extracted_mols/reactions_n200.pkl"
     extractor.to_file(filename)
 
 
@@ -147,8 +142,8 @@ if __name__ == "__main__":
     # eg_buckets()
     # eg_extract_A_to_B()
     # eg_extract_A_to_B_C()
-    # eg_extract_one_bond_break()
+    eg_extract_one_bond_break()
     # eg_reactants_bond_energies_to_file()
     # eg_create_struct_label_dataset()
     # eg_create_struct_label_dataset_with_lowest_energy_across_charge()
-    eg_create_struct_label_dataset_with_lowest_energy_across_charge_bond_based()
+    # eg_create_struct_label_dataset_with_lowest_energy_across_charge_bond_based()

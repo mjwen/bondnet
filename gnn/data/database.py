@@ -140,6 +140,75 @@ class BabelMolAdaptor2(BabelMolAdaptor):
                 self.remove_bond(*bond)
 
 
+class BabelMolAdaptor3(BabelMolAdaptor2):
+    """
+    Compared to BabelMolAdaptor2, this corrects the bonds and then do other stuff like
+    PerceiveBondOrders.
+    NOTE: this seems create problems that OpenBabel cannot satisfy valence rule.
+
+    Fix to BabelMolAdaptor (see FIX below):
+    1. Set spin_multiplicity and charge after EndModify, otherwise, it does not take
+    effect.
+    2. Add and remove bonds between mol graph and obmol, since the connectivity of mol
+    graph can be edited and different from the underlying pymatgen mol.
+    """
+
+    @requires(
+        pb and ob,
+        "BabelMolAdaptor requires openbabel to be installed with "
+        "Python bindings. Please get it at http://openbabel.org.",
+    )
+    def __init__(self, mol_graph):
+        """
+        Initializes with pymatgen Molecule or OpenBabel"s OBMol.
+
+        """
+        mol = mol_graph.molecule
+        if isinstance(mol, Molecule):
+            if not mol.is_ordered:
+                raise ValueError("OpenBabel Molecule only supports ordered molecules.")
+
+            # For some reason, manually adding atoms does not seem to create
+            # the correct OBMol representation to do things like force field
+            # optimization. So we go through the indirect route of creating
+            # an XYZ file and reading in that file.
+            obmol = ob.OBMol()
+            obmol.BeginModify()
+            for site in mol:
+                coords = [c for c in site.coords]
+                atomno = site.specie.Z
+                obatom = ob.OBAtom()
+                obatom.thisown = 0
+                obatom.SetAtomicNum(atomno)
+                obatom.SetVector(*coords)
+                obmol.AddAtom(obatom)
+                del obatom
+            obmol.ConnectTheDots()
+
+            self._obmol = obmol
+
+            # FIX 2
+            self._add_and_remove_bond(mol_graph)
+
+            obmol.PerceiveBondOrders()
+            obmol.Center()
+            obmol.Kekulize()
+            obmol.EndModify()
+
+            # FIX 1
+            obmol.SetTotalSpinMultiplicity(mol.spin_multiplicity)
+            obmol.SetTotalCharge(mol.charge)
+
+        elif isinstance(mol, ob.OBMol):
+            self._obmol = mol
+
+    @staticmethod
+    def from_molecule_graph(mol_graph):
+        if not isinstance(mol_graph, MoleculeGraph):
+            raise ValueError("not get mol graph")
+        return BabelMolAdaptor3(mol_graph)
+
+
 # TODO should let Molecule not dependent on db_entry. The needed property from db_entry
 #  should be passed in at init
 class MoleculeWrapper:
@@ -304,6 +373,14 @@ class MoleculeWrapper:
                 if graph_idx not in self._graph_idx_to_ob_idx_map:
                     raise Exception("atom not found.")
         return self._graph_idx_to_ob_idx_map
+
+    def graph_bond_idx_to_ob_bond_idx(self, bond):
+        """
+        Convert mol_graph bond indices to babel bond indices.
+        """
+        idx0 = self.graph_idx_to_ob_idx_map[bond[0]]
+        idx1 = self.graph_idx_to_ob_idx_map[bond[1]]
+        return (idx0, idx1)
 
     def get_sdf_bond_indices(self, sdf=None):
         sdf = sdf or self.write(file_format="sdf")

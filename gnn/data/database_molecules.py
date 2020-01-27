@@ -6,15 +6,18 @@ import copy
 import logging
 import warnings
 import numpy as np
+import itertools
+from collections import defaultdict
 import networkx as nx
 from atomate.qchem.database import QChemCalcDb
 import pymatgen
 from pymatgen.analysis.graphs import MoleculeGraph, MolGraphSplitError
+from pymatgen.analysis.local_env import OpenBabelNN
 from rdkit import Chem
 from rdkit.Chem import Draw, AllChem
 import openbabel as ob
 from gnn.utils import create_directory, pickle_dump, pickle_load, expand_path
-from gnn.data.database import BabelMolAdaptor2
+from gnn.data.database import BabelMolAdaptor2 as BabelMolAdaptor
 
 logger = logging.getLogger(__name__)
 
@@ -22,12 +25,45 @@ logger = logging.getLogger(__name__)
 class MoleculeWrapper:
     def __init__(self, db_entry):
         # property from db entry
-        self.pymatgen_mol = pymatgen.Molecule.from_dict(db_entry["molecule"])
-        self.mol_graph = MoleculeGraph.from_dict(db_entry["mol_graph"])
         self.id = str(db_entry["_id"])
-        self.free_energy = db_entry["free_energy"]
-        self.resp = db_entry["resp"]
-        self.mulliken = db_entry["mulliken"]
+        try:
+            self.free_energy = db_entry["free_energy"]
+        except KeyError as e:
+            print(self.__class__.__name__, e, "free energy", self.id)
+            raise UnsuccessfulEntryError
+
+        try:
+            self.resp = db_entry["resp"]
+        except KeyError as e:
+            print(self.__class__.__name__, e, "resp", self.id)
+            raise UnsuccessfulEntryError
+
+        try:
+            self.mulliken = db_entry["mulliken"]
+        except KeyError as e:
+            print(self.__class__.__name__, e, "mulliken", self.id)
+            raise UnsuccessfulEntryError
+
+        try:
+            self.pymatgen_mol = pymatgen.Molecule.from_dict(db_entry["molecule"])
+        except KeyError as e:
+            print(self.__class__.__name__, e, "molecule", self.id)
+            raise UnsuccessfulEntryError
+
+        try:
+            self.mol_graph = MoleculeGraph.from_dict(db_entry["mol_graph"])
+        except KeyError as e:
+            # NOTE it would be better that we can get MoleculeGraph from database
+            if db_entry["nsites"] == 1:  # single atom molecule
+                self.mol_graph = MoleculeGraph.with_local_env_strategy(
+                    self.pymatgen_mol,
+                    OpenBabelNN(order=True),
+                    reorder=False,
+                    extend_structure=False,
+                )
+            else:
+                print(self.__class__.__name__, e, "free energy", self.id)
+                raise UnsuccessfulEntryError
 
         # other properties
         self._ob_adaptor = None
@@ -53,7 +89,7 @@ class MoleculeWrapper:
     @property
     def ob_adaptor(self):
         if self._ob_adaptor is None:
-            self._ob_adaptor = BabelMolAdaptor2.from_molecule_graph(self.mol_graph)
+            self._ob_adaptor = BabelMolAdaptor.from_molecule_graph(self.mol_graph)
         return self._ob_adaptor
 
     @property
@@ -122,6 +158,14 @@ class MoleculeWrapper:
                 if graph_idx not in self._graph_idx_to_ob_idx_map:
                     raise Exception("atom not found.")
         return self._graph_idx_to_ob_idx_map
+
+    def graph_bond_idx_to_ob_bond_idx(self, bond):
+        """
+        Convert mol_graph bond indices to babel bond indices.
+        """
+        idx0 = self.graph_idx_to_ob_idx_map[bond[0]]
+        idx1 = self.graph_idx_to_ob_idx_map[bond[1]]
+        return (idx0, idx1)
 
     def get_sdf_bond_indices(self, sdf=None):
         sdf = sdf or self.write(file_format="sdf")
@@ -290,14 +334,11 @@ class DatabaseOperation:
         entries = self.entries[:size]
         pickle_dump(entries, filename)
 
-    def to_molecules(self, purify=True, sort=True):
+    def to_molecules(self, sort=True):
         """
         Convert data entries to molecules.
 
         Args:
-            purify (bool): If True, return unique ones, i.e. remove ones that have higher
-                free energy. Uniqueness is determined isomorphism, charge, and spin
-                multiplicity.
             sort (bool): If True, sort molecules by their formula.
 
         Returns:
@@ -306,50 +347,23 @@ class DatabaseOperation:
 
         logger.info("Start converting DB entries to molecules...")
 
-        n_unsuccessful_entry = 0
-        n_unconnected_mol = 0
-        n_not_unique_mol = 0
+        unsuccessful = 0
 
         mols = []
-        for entry in self.entries:
+        for i, entry in enumerate(self.entries):
+            if i // 100 == 0:
+                logger.info(
+                    "Converted {}/{} entries to molecules.".format(i, len(self.entries))
+                )
             try:
                 m = MoleculeWrapper(entry)
-                if purify:
-
-                    # check for connectivity
-                    if not nx.is_weakly_connected(m.graph):
-                        n_unconnected_mol += 1
-                        continue
-
-                    # check for isomorphism
-                    idx = -1
-                    for i_p_m, p_m in enumerate(mols):
-                        if (
-                            m.charge == p_m.charge
-                            and m.spin_multiplicity == p_m.spin_multiplicity
-                            and m.mol_graph.isomorphic_to(p_m.mol_graph)
-                        ):
-                            n_not_unique_mol += 1
-                            idx = i_p_m
-                            break
-                    if idx >= 0:
-                        if m.free_energy < mols[idx].free_energy:
-                            mols[idx] = m
-                    else:
-                        mols.append(m)
-                else:
-                    mols.append(m)
-            except Exception:
-                n_unsuccessful_entry += 1
+                mols.append(m)
+            except UnsuccessfulEntryError:
+                unsuccessful += 1
 
         logger.info(
-            "DB entry size: {}; Unsuccessful entries {}; Isomorphic entries: {}; "
-            "Unconnected molecules: {}; Entries converted to molecules: {}.".format(
-                len(self.entries),
-                n_unsuccessful_entry,
-                n_not_unique_mol,
-                n_unconnected_mol,
-                len(mols),
+            "Total entries: {}, unsuccessful: {}, successful: {} to molecules.".format(
+                len(self.entries), unsuccessful, len(self.entries) - unsuccessful
             )
         )
 
@@ -358,34 +372,123 @@ class DatabaseOperation:
 
         return mols
 
-    def group_isomorphic(self, molecules):
+    @staticmethod
+    def filter_molecules(molecules, connectivity=True, isomorphism=True):
         """
-        Group molecules
+        Filter out some molecules.
+
         Args:
-            molecules: a list of Molecules.
+            molecules (list of MoleculeWrapper): molecules
+            connectivity (bool): whether to filter on connectivity
+            isomorphism (bool): if `True`, filter on `charge`, `spin`, and `isomorphism`.
+                The one with the lowest free energy will remain.
 
         Returns:
-            A list of list, with inner list of isomorphic molecules.
-
+            A list of MoleculeWrapper objects.
         """
-        groups = []
-        for m in molecules:
-            find_iso = False
-            for g in groups:
-                iso_m = g[0]
-                if m.mol_graph.isomorphic_to(iso_m.mol_graph):
-                    g.append(m)
-                    find_iso = True
-                    break
-            if not find_iso:
-                groups.append([m])
-        return groups
+        n_unconnected_mol = 0
+        n_not_unique_mol = 0
 
-    def write_group_isomorphic_to_file(self, molecules, filename):
-        groups = self.group_isomorphic(molecules)
+        filtered = []
+        for i, m in enumerate(molecules):
+
+            # check on connectivity
+            if connectivity and not nx.is_weakly_connected(m.graph):
+                n_unconnected_mol += 1
+                continue
+
+            # check for isomorphism
+            if isomorphism:
+                idx = -1
+                for i_p_m, p_m in enumerate(filtered):
+                    if (
+                        m.charge == p_m.charge
+                        and m.spin_multiplicity == p_m.spin_multiplicity
+                        and m.mol_graph.isomorphic_to(p_m.mol_graph)
+                    ):
+                        n_not_unique_mol += 1
+                        idx = i_p_m
+                        break
+                if idx >= 0:
+                    if m.free_energy < filtered[idx].free_energy:
+                        filtered[idx] = m
+                else:
+                    filtered.append(m)
+
+        print(
+            "Num molecules: {}; unconnected: {}; isomorphic: {}; remaining: {}".format(
+                len(molecules), n_unconnected_mol, n_not_unique_mol, len(filtered)
+            )
+        )
+
+        return filtered
+
+    @staticmethod
+    def write_group_isomorphic_to_file(molecules, filename):
+        def group_isomorphic(molecules):
+            """
+            Group molecules
+            Args:
+                molecules: a list of Molecules.
+
+            Returns:
+                A list of list, with inner list of isomorphic molecules.
+            """
+            groups = []
+            for m in molecules:
+                find_iso = False
+                for g in groups:
+                    iso_m = g[0]
+                    if m.mol_graph.isomorphic_to(iso_m.mol_graph):
+                        g.append(m)
+                        find_iso = True
+                        break
+                if not find_iso:
+                    groups.append([m])
+            return groups
+
+        groups = group_isomorphic(molecules)
+
+        # statistics or charges of mols
+        charges = defaultdict(int)
+        for m in molecules:
+            charges[m.charge] += 1
+
+        # statistics of isomorphic mols
+        sizes = defaultdict(int)
+        for g in groups:
+            sizes[len(g)] += 1
+
+        # statistics of charge combinations
+        charge_combinations = defaultdict(int)
+        for g in groups:
+            chg = [m.charge for m in g]
+            for ij in itertools.combinations(chg, 2):
+                ij = tuple(sorted(ij))
+                charge_combinations[ij] += 1
+
         filename = expand_path(filename)
         create_directory(filename)
         with open(filename, "w") as f:
+            f.write("Number of molecules: {}\n\n".format(len(molecules)))
+            f.write("Molecule charge state statistics.\n")
+            f.write("# charge state     number of molecules:\n")
+            for k, v in charges.items():
+                f.write("{}    {}\n".format(k, v))
+
+            f.write("Number of isomorphic groups: {}\n\n".format(len(groups)))
+            f.write(
+                "Molecule isomorphic group size statistics. (i.e. the number of "
+                "isomorphic molecules that have a specific number of charge state\n"
+            )
+            f.write("# size     number of molecules:\n")
+            for k, v in sizes.items():
+                f.write("{}    {}\n".format(k, v))
+
+            f.write("# charge combinations     number:\n")
+            for k, v in charge_combinations.items():
+                f.write("{}    {}\n".format(k, v))
+
             for g in groups:
                 for m in g:
                     f.write("{}_{}_{}    ".format(m.formula, m.id, m.charge))
@@ -416,10 +519,15 @@ class DatabaseOperation:
                     logger.info("Excluding single atom molecule {}".format(m.formula))
                     continue
 
-                sdf = m.write(file_format="sdf", mol_id=m.id + " int_id-" + str(i))
+                sdf = m.write(file_format="sdf", message=m.id + " int_id-" + str(i))
                 fx.write(sdf)
                 fy.write(
                     "{},{},{:.15g}\n".format(m.id, m.charge, m.atomization_free_energy)
                 )
 
                 i += 1
+
+
+class UnsuccessfulEntryError(Exception):
+    def __init__(self):
+        pass

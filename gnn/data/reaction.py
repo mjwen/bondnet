@@ -3,7 +3,14 @@ import logging
 from tqdm import tqdm
 from collections import defaultdict, OrderedDict
 from gnn.data.database import DatabaseOperation
-from gnn.utils import create_directory, pickle_dump, pickle_load, yaml_dump, expand_path
+from gnn.utils import (
+    create_directory,
+    pickle_dump,
+    pickle_load,
+    yaml_dump,
+    yaml_load,
+    expand_path,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +75,40 @@ class Reaction:
         for mol in self.products:
             energy += mol.free_energy
         return energy
+
+    def as_dict(self):
+        d = {
+            "reactants": [
+                "{}_{}_{}_{}".format(m.formula, m.charge, m.id, m.free_energy)
+                for m in self.reactants
+            ],
+            "products": [
+                "{}_{}_{}_{}".format(m.formula, m.charge, m.id, m.free_energy)
+                for m in self.products
+            ],
+            "charge": [m.charge for m in self.reactants + self.products],
+            "broken_bond": self.get_broken_bond(),
+            "bond_energy": self.get_reaction_free_energy(),
+        }
+        return d
+
+    def to_file(self, filename):
+        mols = self.reactants + self.products
+        for m in mols:
+            m.make_picklable()
+        d = {
+            "@module": self.__class__.__module__,
+            "@class": self.__class__.__name__,
+            "reactants": self.reactants,
+            "products": self.products,
+            "broken_bond": self.broken_bond,
+        }
+        pickle_dump(d, filename)
+
+    @classmethod
+    def from_file(cls, filename):
+        d = pickle_load(filename)
+        return cls(d["reactants"], d["products"], d["broken_bond"])
 
     # @staticmethod
     # def _order_molecules(mols):
@@ -158,40 +199,6 @@ class Reaction:
     #             return mols  # two exactly the same molecules
     #     raise RuntimeError("Cannot order molecules")
 
-    def as_dict(self):
-        d = {
-            "reactants": [
-                "{}_{}_{}_{}".format(m.formula, m.charge, m.id, m.free_energy)
-                for m in self.reactants
-            ],
-            "products": [
-                "{}_{}_{}_{}".format(m.formula, m.charge, m.id, m.free_energy)
-                for m in self.products
-            ],
-            "charge": [m.charge for m in self.reactants + self.products],
-            "broken_bond": self.get_broken_bond(),
-            "bond_energy": self.get_reaction_free_energy(),
-        }
-        return d
-
-    def to_file(self, filename):
-        mols = self.reactants + self.products
-        for m in mols:
-            m.make_picklable()
-        d = {
-            "@module": self.__class__.__module__,
-            "@class": self.__class__.__name__,
-            "reactants": self.reactants,
-            "products": self.products,
-            "broken_bond": self.broken_bond,
-        }
-        pickle_dump(d, filename)
-
-    @classmethod
-    def from_file(cls, filename):
-        d = pickle_load(filename)
-        return cls(d["reactants"], d["products"], d["broken_bond"])
-
 
 class ReactionExtractor:
     def __init__(self, molecules, reactions=None):
@@ -201,12 +208,12 @@ class ReactionExtractor:
         self.buckets = None
         self.bucket_keys = None
 
-    def get_molecule_properties(self, keys):
-        values = defaultdict(list)
-        for m in self.molecules:
-            for k in keys:
-                values[k].append(getattr(m, k))
-        return values
+    # def get_molecule_properties(self, keys):
+    #     values = defaultdict(list)
+    #     for m in self.molecules:
+    #         for k in keys:
+    #             values[k].append(getattr(m, k))
+    #     return values
 
     def bucket_molecules(self, keys=["formula", "charge"]):
         """
@@ -370,123 +377,88 @@ class ReactionExtractor:
 
         self.reactions = reactions
 
-    def group_by_reactant(self, string_reactant_index=False):
+    def group_by_reactant(self):
         """
-        Group reactions to dict with reactant as the key and list of reactions as the
-        value.
+        Return: a dict with reactant as the key and list of reactions as the value.
         """
         grouped_reactions = defaultdict(list)
         for rxn in self.reactions:
             reactant = rxn.reactants[0]
-            reactant_idx = self._get_reactant_index(reactant, string_reactant_index)
-            grouped_reactions[reactant_idx].append(rxn)
+            grouped_reactions[reactant].append(rxn)
         return grouped_reactions
 
-    def group_by_reactant_charge_and_bond(
-        self, string_reactant_index=False, babel_bond_indices=True
-    ):
-        """
-        Group all the reactions according to the reactant and the charge of the
-        reactant and products.
+    # def group_by_reactant_charge_and_bond(self):
+    #     """
+    #     Group all the reactions according to the reactant and the charge of the
+    #     reactant and products.
+    #
+    #     Returns:
+    #         A dict of dict of dict. The outer dict has reactant as the key, the middle
+    #         dict has charges (a tuple) as the key and the inner dict has bond
+    #         indices (a tuple) as the key and bond attributes (a dict of energy,
+    #         bond order, ect.).
+    #     """
+    #     grouped_reactions = self.group_by_reactant()
+    #
+    #     groups = OrderedDict()
+    #     for reactant, reactions in grouped_reactions.items():
+    #         groups[reactant] = dict()
+    #
+    #         for rxn in reactions:
+    #             charge = tuple([m.charge for m in rxn.reactants + rxn.products])
+    #             groups[reactant][charge] = OrderedDict()
+    #             for bond in reactant.graph.edges():
+    #                 groups[reactant][charge][bond] = None
+    #
+    #             bond = rxn.get_broken_bond()
+    #             groups[reactant][charge][bond] = rxn.as_dict()
+    #
+    #     return groups
 
-        Args:
-            string_reactant_index: If True, the reactant id (a string) is used as the
-                key for the outer dict, otherwise, the reactant instance is used.
-            babel_bond_indices: If True, babel atoms (indices) will be used as the key
-                to denote broken bond for the inner dict, otherwise, mol_graph nodes
-                will be used.
-
-        Returns:
-            A dict of dict of dict. The outer dict has reactant index as the key,
-            the middle dict has charges (a tuple) as the key and the inner dict has bond
-            indices (a tuple) as the key and bond attributes (a dict of energy,
-            bond order, ect.).
-        """
-        grouped_reactions = self.group_by_reactant(string_reactant_index=False)
-
-        groups = OrderedDict()
-        for reactant, reactions in grouped_reactions.items():
-            reactant_idx = self._get_reactant_index(reactant, string_reactant_index)
-            groups[reactant_idx] = dict()
-
-            for rxn in reactions:
-                charge = tuple([m.charge for m in (rxn.reactants + rxn.products)])
-                groups[reactant_idx][charge] = OrderedDict()
-                for bond in reactant.graph.edges():
-                    bond_indices = self._get_bond_indices(
-                        bond, reactant, babel_bond_indices
-                    )
-                    groups[reactant_idx][charge][bond_indices] = None
-
-            for rxn in reactions:
-                charge = tuple([m.charge for m in (rxn.reactants + rxn.products)])
-                bond_indices = self._get_bond_indices(
-                    rxn.get_broken_bond(), reactant, babel_bond_indices
-                )
-                groups[reactant_idx][charge][bond_indices] = rxn.as_dict()
-
-        return groups
-
-    def group_by_reactant_bond_and_charge(
-        self, string_reactant_index=False, babel_bond_indices=True
-    ):
+    def group_by_reactant_bond_and_charge(self):
         """
         Group all the reactions to nested dicts according to the reactant, bond, and
         charge.
 
-        Args:
-            string_reactant_index: If True, the reactant id (a string) is used as the
-                key for the outer dict, otherwise, the reactant instance is used.
-            babel_bond_indices: If True, babel atoms (indices) will be used as the key
-                to denote broken bond for the inner dict, otherwise, mol_graph nodes
-                will be used.
-
         Returns:
             A dict of dict of dict. The outer dict has reactant index as the key,
             the middle dict has charges (a tuple) as the key and the inner dict has bond
             indices (a tuple) as the key and bond attributes (a dict of energy,
             bond order, ect.).
         """
-        grouped_reactions = self.group_by_reactant(string_reactant_index=False)
+        grouped_reactions = self.group_by_reactant()
 
         groups = OrderedDict()
         for reactant, reactions in grouped_reactions.items():
-            reactant_idx = self._get_reactant_index(reactant, string_reactant_index)
-            groups[reactant_idx] = OrderedDict()
+            groups[reactant] = OrderedDict()
 
             for bond in reactant.graph.edges():
-                bond_indices = self._get_bond_indices(bond, reactant, babel_bond_indices)
-                groups[reactant_idx][bond_indices] = dict()
+                groups[reactant][bond] = dict()
 
             for rxn in reactions:
-                charge = tuple([m.charge for m in (rxn.reactants + rxn.products)])
-                bond_indices = self._get_bond_indices(
-                    rxn.get_broken_bond(), reactant, babel_bond_indices
-                )
-                groups[reactant_idx][bond_indices][charge] = rxn.as_dict()
+                charge = tuple([m.charge for m in rxn.reactants + rxn.products])
+                bond = rxn.get_broken_bond()
+                groups[reactant][bond][charge] = rxn.as_dict()
 
         return groups
 
-    def bond_energies_to_file(
-        self,
-        filename,
-        mode="reactant_bond_and_charge",
-        string_reactant_index=True,
-        babel_bond_indices=True,
-    ):
-        if mode == "reactant_bond_and_charge":
-            groups = self.group_by_reactant_bond_and_charge(
-                string_reactant_index, babel_bond_indices
-            )
-        elif mode == "reactant_charge_and_bond":
-            groups = self.group_by_reactant_charge_and_bond(
-                string_reactant_index, babel_bond_indices
-            )
+    def bond_energies_to_file(self, filename, mode="reactant_bond_charge"):
+        if mode == "reactant_bond_charge":
+            groups = self.group_by_reactant_bond_and_charge()
+        elif mode == "reactant_charge_bond":
+            groups = self.group_by_reactant_charge_and_bond()
         else:
             raise RuntimeError("mode unsupported")
         for m in self.molecules:
             m.make_picklable()
-        yaml_dump(groups, filename)
+
+        # change reactant (which is the key of the outer dict) to string
+        new_groups = OrderedDict()
+        for m, v in groups.items():
+            idx = "{}_{}_{}_{}".format(m.formula, m.charge, m.id, m.free_energy)
+            new_groups[idx] = v
+
+        yaml_dump(new_groups, filename)
 
     @staticmethod
     def write_sdf(molecules, filename="molecules.sdf"):
@@ -502,16 +474,8 @@ class ReactionExtractor:
         create_directory(filename)
         with open(filename, "w") as f:
             for i, m in enumerate(molecules):
-                msg = (
-                    m.formula
-                    + "_"
-                    + str(m.charge)
-                    + "_"
-                    + str(m.id)
-                    + "_"
-                    + str(m.free_energy)
-                    + " int_id:"
-                    + str(i)
+                msg = "{}_{}_{}_{} int_id: {}".format(
+                    m.formula, m.charge, m.id, m.free_energy, i
                 )
                 sdf = m.write(file_format="sdf", message=msg)
                 f.write(sdf)
@@ -550,8 +514,9 @@ class ReactionExtractor:
         args:
             struct_name (str): filename of the sdf structure file
             label_name (str): filename of the label
+            feature_name (str): filename for the feature file, if `None`, do not write it
         """
-        grouped_reactions = self.group_by_reactant_bond_and_charge(False, True)
+        grouped_reactions = self.group_by_reactant_bond_and_charge()
 
         # write label
         mols = []
@@ -572,10 +537,12 @@ class ReactionExtractor:
                 bonds_energy = dict()
                 other_attr = dict()
                 for bond, rxns in reactions.items():
+                    bond = tuple(sorted(reactant.graph_bond_idx_to_ob_bond_idx(bond)))
                     bonds_energy[bond] = None
                     other_attr[bond] = None
                     for charge, attr in rxns.items():
                         if attr:
+                            # find the min energy across charge
                             if bonds_energy[bond] is not None:
                                 if attr["bond_energy"] < bonds_energy[bond]:
                                     bonds_energy[bond] = attr["bond_energy"]
@@ -619,8 +586,8 @@ class ReactionExtractor:
                             "    # {} {} {} {}\n".format(
                                 attr["reactants"],
                                 attr["products"],
-                                self._get_bond_indices(
-                                    attr["broken_bond"], reactant, True
+                                reactant.graph_bond_idx_to_ob_bond_idx(
+                                    attr["broken_bond"]
                                 ),
                                 attr["bond_energy"],
                             )
@@ -645,6 +612,7 @@ class ReactionExtractor:
         args:
             struct_name (str): filename of the sdf structure file
             label_name (str): filename of the laels
+            feature_name (str): filename for the feature file, if `None`, do not write it
         """
         grouped_reactions = self.group_by_reactant_bond_and_charge(False, True)
 
@@ -665,6 +633,7 @@ class ReactionExtractor:
 
                 bonds_energy = dict()
                 for bond, rxns in reactions.items():
+                    bond = tuple(sorted(reactant.graph_bond_idx_to_ob_bond_idx(bond)))
                     bonds_energy[bond] = None
                     for charge, attr in rxns.items():
                         if attr:
@@ -704,74 +673,6 @@ class ReactionExtractor:
         if feature_name is not None:
             self.write_feature(grouped_reactions, feature_name)
 
-    def create_struct_label_dataset(
-        self, struct_name="sturct.sdf", label_name="label.txt"
-    ):
-        """
-        Write the reactions to files.
-
-        Each reactant may have multiple products corresponding to various charge
-        combinations. Here, we write all of them.
-        """
-        grouped_reactions = self.group_by_reactant_charge_and_bond(False, True)
-
-        molecules = []
-
-        label_name = expand_path(label_name)
-        create_directory(label_name)
-        with open(label_name, "w") as f:
-            f.write(
-                "# Each line lists the bond energies of a molecule. "
-                "It contains four parts: "
-                "1) the number of substances N (i.e. number of reactants and products) "
-                "2) N numbers of the charge of the substances "
-                "3) the remaining part is equal to 2 times the number of bonds, "
-                "where the first half values are bond energies and "
-                "4) the next half values are indicators "
-                " (0 or 1) to specify whether the bond energy exist in the dataset. a "
-                "value of 0 means the corresponding bond energy will be ignored, "
-                "no matter what its value is.\n"
-            )
-            for reactant, reactions in grouped_reactions.items():
-                sdf_bonds = reactant.get_sdf_bond_indices()
-
-                for charge, rxns in reactions.items():
-                    molecules.append(reactant)
-
-                    # number of substance and substance charges
-                    f.write("{} ".format(len(charge)))
-                    for c in charge:
-                        f.write("{} ".format(c))
-                    f.write("   ")
-
-                    bonds_energy = dict()
-                    for bond, attr in rxns.items():
-                        if attr is not None:
-                            bonds_energy[bond] = attr["bond_energy"]
-                        else:
-                            bonds_energy[bond] = None
-
-                    # write bond energies in the same order as sdf file
-                    for bond in sdf_bonds:
-                        energy = bonds_energy[bond]
-                        if energy is None:
-                            f.write("0.0 ")
-                        else:
-                            f.write("{:.15g} ".format(energy))
-                    f.write("   ")
-
-                    # write bond energy indicator
-                    for bond in sdf_bonds:
-                        energy = bonds_energy[bond]
-                        if energy is None:
-                            f.write("0 ")
-                        else:
-                            f.write("1 ")
-                    f.write("\n")
-
-        # write sdf
-        self.write_sdf(molecules, struct_name)
-
     @staticmethod
     def _get_formula_composition_map(mols):
         fcmap = dict()
@@ -785,30 +686,6 @@ class ReactionExtractor:
             if int(amt) % 2 != 0:
                 return False
         return True
-
-    @staticmethod
-    def _get_bond_indices(bond, reactant, use_babel_bond_indices):
-        """
-        Convert mol_graph bond indices to babel bond indices.
-        """
-        if use_babel_bond_indices:
-            idx0 = reactant.graph_idx_to_ob_idx_map[bond[0]]
-            idx1 = reactant.graph_idx_to_ob_idx_map[bond[1]]
-            bond_indices = tuple(sorted([idx0, idx1]))
-        else:
-            bond_indices = bond
-        return bond_indices
-
-    @staticmethod
-    def _get_reactant_index(reactant, use_string_reactant_index):
-        """
-        Convert reactant to an identifier, which is used as index.
-        """
-        if use_string_reactant_index:
-            reactant_idx = reactant.formula + "_" + reactant.id
-        else:
-            reactant_idx = reactant
-        return reactant_idx
 
     @staticmethod
     def _is_valid_A_to_B_C_composition(composition1, composition2, composition3):
@@ -859,13 +736,12 @@ class ReactionExtractor:
         )
         return cls(d["molecules"], d["reactions"])
 
-    def to_file_by_ids(self, filename="rxns.json"):
+    def to_file_by_ids(self, filename="rxns.yaml"):
         logger.info("Start writing reactions by ids to file: {}".format(filename))
         reaction_ids = []
         for r in self.reactions:
             reaction_ids.append(r.as_dict())
-        with open(filename, "w") as f:
-            json.dump(reaction_ids, f)
+        yaml_dump(reaction_ids, filename)
 
     @classmethod
     def from_file_by_ids(cls, filename, db_path):
@@ -875,8 +751,7 @@ class ReactionExtractor:
         mols = db.to_molecules(purify=True)
         id_to_mol_map = {m.id: m for m in mols}
 
-        with open(filename, "r") as f:
-            reactions = json.load(f)
+        reactions = yaml_load(filename)
 
         rxns = []
         for r in tqdm(reactions):
