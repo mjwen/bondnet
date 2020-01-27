@@ -15,7 +15,7 @@ from gnn.data.feature_analyzer import (
     read_sdf,
 )
 from gnn.utils import expand_path
-from beautifultable import BeautifulTable
+from gnn.data.utils import TexWriter
 
 
 def get_dataset_electrolyte():
@@ -82,10 +82,12 @@ def tsne_analysis(dataset):
 
 
 def write_features(
-    sdf_file="~/Applications/mongo_db_access/extracted_data/struct.sdf",
-    label_file="~/Applications/mongo_db_access/extracted_data/label.txt",
-    # sdf_file="~/Applications/mongo_db_access/extracted_data/struct_n200.sdf",
-    # label_file="~/Applications/mongo_db_access/extracted_data/label_n200.txt",
+    # sdf_file="~/Applications/mongo_db_access/extracted_data/struct.sdf",
+    # label_file="~/Applications/mongo_db_access/extracted_data/label.txt",
+    # feature_file="~/Applications/mongo_db_access/extracted_data/feature.yaml",
+    sdf_file="~/Applications/mongo_db_access/extracted_data/struct_n200.sdf",
+    label_file="~/Applications/mongo_db_access/extracted_data/label_n200.txt",
+    feature_file="~/Applications/mongo_db_access/extracted_data/feature_n200.yaml",
     # sdf_file="~/Applications/mongo_db_access/extracted_data/struct_charge0.sdf",
     # label_file="~/Applications/mongo_db_access/extracted_data/label_charge0.txt",
     # sdf_file="~/Applications/mongo_db_access/extracted_data/struct_charge0_CC.sdf",
@@ -93,83 +95,13 @@ def write_features(
     png_dir="~/Applications/mongo_db_access/extracted_data/mol_png_cropped",
     tex_file="~/Applications/mongo_db_access/features.tex",
 ):
-    def plot_fig(filename):
-        s = r"""
-    \begin{center}
-    \includegraphics[width=0.4\columnwidth]{"""
-        s += filename
-        s += r"""}
-    \end{center}
-            """
-        return s
-
-    def fix_length(s, length=80, starter=""):
-        """
-        Given a string `s` returns a list of string of fixed length.
-        """
-        return [starter + s[0 + i : length + i] for i in range(0, len(s), length)]
-
-    def two_d_array_to_beautifultable(
-        array, header, first_column=None, first_column_header=None, num_tables=2
-    ):
-        """
-        Convert a 2D array to a beautiful table, with the ability to separate the table
-        into multiple ones in case there are too many columns.
-
-        first_column: 1D array
-        first_column_header: str
-        num_tabels: number of tables to split the array (along column)
-
-        Returns:
-            a list of beautiful tabels
-        """
-        array = np.asarray(array)
-
-        tables = []
-        headers = []
-        arrays = []
-        column_width = int(np.ceil(len(array[0]) / num_tables))
-        for i in range(num_tables):
-            tables.append(BeautifulTable(max_width=80))
-
-            if first_column_header is not None:
-                headers.append(
-                    [first_column_header]
-                    + header[i * column_width : (i + 1) * column_width]
-                )
-            else:
-                headers.append(header[i * column_width : (i + 1) * column_width])
-
-            a = array[:, i * column_width : (i + 1) * column_width]
-            if first_column is not None:
-                fc = np.atleast_2d(first_column).T
-                a = np.concatenate((fc, a), axis=1)
-            arrays.append(a)
-
-        for t, h, a in zip(tables, headers, arrays):
-            t.column_headers = h
-            for row in a:
-                t.append_row(row)
-
-        return tables
-
-    # header
-    header = r"""
-    \documentclass[11pt]{article}
-
-    \usepackage[top=1in, bottom=1in, left=1in, right=1in]{geometry}
-    \usepackage{amsmath}
-    \usepackage{graphicx}
-    \usepackage{caption}
-    \usepackage{subcaption}
-    \usepackage{color}
-    \usepackage{float}    %\begin{figure}[H]
-
-    \begin{document}
-    """
 
     dataset = ElectrolyteDataset(
-        sdf_file, label_file, feature_transformer=False, label_transformer=False
+        sdf_file,
+        label_file,
+        feature_file,
+        feature_transformer=False,
+        label_transformer=False,
     )
 
     structs = read_sdf(filename=sdf_file)
@@ -178,7 +110,7 @@ def write_features(
 
     tex_file = expand_path(tex_file)
     with open(tex_file, "w") as f:
-        f.write(header)
+        f.write(TexWriter.head())
 
         for i, (g, _, _) in enumerate(dataset):
 
@@ -194,8 +126,7 @@ def write_features(
 
             # label info (raw)
             f.write("\n" * 2)
-            for r in fix_length(raw):
-                f.write(r + "\n")
+            f.write(TexWriter.resize_string(raw))
 
             f.write(r"\end{verbatim}" + "\n")
 
@@ -209,8 +140,7 @@ def write_features(
                 raise Exception(
                     "cannot find png file for {} in {}".format(reactant, png_dir)
                 )
-            s = plot_fig(filename)
-            f.write(s)
+            f.write(TexWriter.single_figure(filename))
 
             # feature info
             f.write(r"\begin{verbatim}" + "\n")
@@ -220,115 +150,45 @@ def write_features(
             ft = g.nodes["atom"].data["feat"]
             ft = np.asarray(ft, dtype=np.int32)  # they are actually int feature
             header = dataset.feature_name["atom"]
-            tables = two_d_array_to_beautifultable(
+            tables = TexWriter.beautifultable(
                 ft,
                 header,
                 first_column=[1 + i for i in range(len(ft))],
                 first_column_header="id",
                 num_tables=2,
             )
-            for table in tables:
-                for line in str(table):
-                    f.write(line)
-                f.write("\n")
+            f.write(tables)
 
             # bond feature
             f.write("\n\nbond feature:\n")
             ft = g.nodes["bond"].data["feat"]
             ft = np.asarray(ft, dtype=np.int32)  # they are actually int feature
             header = dataset.feature_name["bond"]
-            tables = two_d_array_to_beautifultable(
+            tables = TexWriter.beautifultable(
                 ft,
                 header,
                 first_column=[1 + i for i in range(len(ft))],
                 first_column_header="id",
                 num_tables=1,
             )
-            for table in tables:
-                for line in str(table):
-                    f.write(line)
-                f.write("\n")
+            f.write(tables)
 
             f.write(r"\end{verbatim}" + "\n")
 
-        # tail
-        tail = r"\end{document}"
-        f.write(tail)
+        f.write(TexWriter.tail())
 
 
-def kmeans_analysis(cluster_info_file="cluster_info.txt"):
-    # sdf_file = "~/Applications/mongo_db_access/extracted_data/struct_n200.sdf"
-    # label_file = "~/Applications/mongo_db_access/extracted_data/label_n200.txt"
-    # sdf_file="~/Applications/mongo_db_access/extracted_data/struct_charge0.sdf"
-    # label_file="~/Applications/mongo_db_access/extracted_data/label_charge0.txt"
-    sdf_file = "~/Applications/mongo_db_access/extracted_data/struct_charge0_CC.sdf"
-    label_file = "~/Applications/mongo_db_access/extracted_data/label_charge0_CC.txt"
-
-    # kmeans analysis
-    dataset = ElectrolyteDataset(sdf_file, label_file, label_transformer=False)
-    analyzer = KMeansAnalyzer(dataset)
-    features, clusters, centers, energies = analyzer.compute()
-
-    # data and label
-    # structs = read_sdf(sdf_file)
-    labels = read_label(label_file, sort_by_formula=False)
-
-    # write cluster info, i.e. which bond are clustered to be close to each other
-    classes = defaultdict(list)
-    for i, c in enumerate(clusters):
-        classes[c].append(i)
-    with open(cluster_info_file, "w") as f:
-        f.write("# bonds     energy     raw\n")
-        for c, cen in enumerate(centers):
-            f.write("center: ")
-            for j in cen:
-                f.write("{:12.5e} ".format(j))
-            f.write("\n")
-
-            cls = classes[c]
-            for j in cls:
-                f.write(
-                    "{:<4d}     {:12.5e}     {}\n".format(
-                        j, energies[j], labels[j]["raw"]
-                    )
-                )
-            f.write("\n" * 3)
-
-
-def kmeans_analysis_create_tex(
-    # label_file="~/Applications/mongo_db_access/extracted_data/label_n200.txt",
-    # sdf_file="~/Applications/mongo_db_access/extracted_data/struct_n200.sdf",
+def kmeans_analysis(
     label_file="~/Applications/mongo_db_access/extracted_data/label_charge0_CC.txt",
     sdf_file="~/Applications/mongo_db_access/extracted_data/struct_charge0_CC.sdf",
+    feature_file="~/Applications/mongo_db_access/extracted_data/feature_charge0_CC.yaml",
     png_dir="~/Applications/mongo_db_access/extracted_data/mol_png_cropped",
     tex_file="~/Applications/mongo_db_access/kmeans_cluster.tex",
 ):
-    def plot_fig(filename):
-        s = r"""
-\begin{center}
-\includegraphics[width=0.4\columnwidth]{"""
-        s += filename
-        s += r"""}
-\end{center}
-        """
-        return s
-
-    # header
-    header = r"""
-\documentclass[11pt]{article}
-\usepackage[top=1in, bottom=1in, left=1in, right=1in]{geometry}
-\usepackage{amsmath}
-\usepackage{graphicx}
-\usepackage{caption}
-\usepackage{subcaption}
-\usepackage{color}
-\usepackage{float}    %\begin{figure}[H]
-
-
-\begin{document}
-"""
     # kmeans analysis
-    dataset = ElectrolyteDataset(sdf_file, label_file, label_transformer=False)
+    dataset = ElectrolyteDataset(
+        sdf_file, label_file, feature_file, label_transformer=False
+    )
     analyzer = KMeansAnalyzer(dataset)
     features, clusters, centers, energies = analyzer.compute()
     classes = defaultdict(list)
@@ -341,7 +201,7 @@ def kmeans_analysis_create_tex(
 
     tex_file = expand_path(tex_file)
     with open(tex_file, "w") as f:
-        f.write(header)
+        f.write(TexWriter.head())
 
         for c, cen in enumerate(centers):
 
@@ -393,8 +253,7 @@ def kmeans_analysis_create_tex(
                     raise Exception(
                         "cannot find png file for {} in {}".format(reactant, png_dir)
                     )
-                s = plot_fig(filename)
-                f.write(s)
+                f.write(TexWriter.single_figure(filename))
 
                 f.write(r"\begin{equation*}\downarrow\end{equation*}")
 
@@ -410,8 +269,7 @@ def kmeans_analysis_create_tex(
                         raise Exception(
                             "cannot find png file for {} in {}".format(p, png_dir)
                         )
-                    s = plot_fig(filename)
-                    f.write(s)
+                    f.write(TexWriter.single_figure(filename))
 
         # tail
         tail = r"\end{document}"
@@ -428,7 +286,5 @@ if __name__ == "__main__":
     # pca_analysis(dataset)
     # tsne_analysis(dataset)
 
-    # kmeans_analysis()
-    # kmeans_analysis_create_tex()
-
-    write_features()
+    kmeans_analysis()
+    # write_features()

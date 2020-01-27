@@ -65,7 +65,7 @@ def write_features():
         feat = m.pack_features(use_obabel_idx=True)
         all_feats[feat["id"]] = feat
 
-    filename = "~/Applications/mongo_db_access/extracted_mols/features.yaml"
+    filename = "~/Applications/mongo_db_access/extracted_mols/feature.yaml"
     # filename = "~/Applications/mongo_db_access/extracted_mols/features_n200.yaml"
     yaml_dump(all_feats, filename)
 
@@ -121,7 +121,8 @@ def write_dataset():
 
 
 def get_single_atom_energy():
-    filename = "~/Applications/mongo_db_access/extracted_mols/molecules.pkl"
+    filename = "~/Applications/mongo_db_access/extracted_mols/unfiltered_molecules.pkl"
+    # filename = "~/Applications/mongo_db_access/extracted_mols/molecules.pkl"
     # filename = "~/Applications/mongo_db_access/extracted_mols/molecules_n200.pkl"
     mols = pickle_load(filename)
 
@@ -139,5 +140,5 @@ if __name__ == "__main__":
     # plot_molecules()
     # write_dataset()
     # write_features()
-    write_group_isomorphic_to_file()
-    # get_single_atom_energy()
+    # write_group_isomorphic_to_file()
+    get_single_atom_energy()

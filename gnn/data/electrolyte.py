@@ -51,6 +51,7 @@ class ElectrolyteDataset(BaseDataset):
         feature_file=None,
         self_loop=True,
         grapher="hetero",
+        atom_featurizer_with_extra_info=False,
         bond_length_featurizer=None,
         feature_transformer=True,
         label_transformer=True,
@@ -62,8 +63,10 @@ class ElectrolyteDataset(BaseDataset):
         self.label_file = expand_path(label_file)
         if feature_file is None:
             self.feature_file = None
+            self.atom_featurizer_with_extra_info = False
         else:
             self.feature_file = expand_path(feature_file)
+            self.atom_featurizer_with_extra_info = atom_featurizer_with_extra_info
 
         self.self_loop = self_loop
         self.grapher = grapher
@@ -116,7 +119,7 @@ class ElectrolyteDataset(BaseDataset):
             # initialize featurizer
             species = self._get_species()
 
-            if self.feature_file is not None:
+            if self.atom_featurizer_with_extra_info:
                 atom_featurizer = AtomFeaturizerWithExtraInfo(species, dtype=self.dtype)
             else:
                 atom_featurizer = AtomFeaturizer(species, dtype=self.dtype)

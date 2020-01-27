@@ -257,7 +257,7 @@ class ReactionExtractor:
         for _, entries_formula in self.buckets.items():
             i += 1
             if i % 10000 == 0:
-                print("@@flag running bucket", i)
+                print("@@flag A->B running bucket", i)
             for _, entries_charges in entries_formula.items():
                 for A, B in itertools.permutations(entries_charges, 2):
                     bond = is_valid_A_to_B_reaction(A, B)
@@ -287,7 +287,7 @@ class ReactionExtractor:
 
             i += 1
             if i % 10000 == 0:
-                print("@@flag running bucket", i)
+                print("@@flag A->B+C running bucket", i)
 
             composition_A = fcmap[formula_A]
             composition_B = fcmap[formula_B]
@@ -481,7 +481,7 @@ class ReactionExtractor:
                 f.write(sdf)
 
     @staticmethod
-    def write_feature(molecules, filename="features.yaml"):
+    def write_feature(molecules, filename="feature.yaml"):
         """
         Write molecules features to file.
 

@@ -1,4 +1,3 @@
-from gnn.data.database_molecules import DatabaseOperation
 from gnn.data.reaction import ReactionExtractor
 from pprint import pprint
 from gnn.utils import pickle_load
@@ -128,6 +127,7 @@ def eg_create_struct_label_dataset_with_lowest_energy_across_charge_bond_based()
     extractor.create_struct_label_dataset_with_lowest_energy_across_charge_bond_based(
         # struct_name="~/Applications/mongo_db_access/extracted_mols/struct.sdf",
         # label_name="~/Applications/mongo_db_access/extracted_mols/label.txt",
+        # feature_name="~/Applications/mongo_db_access/extracted_mols/feature.yaml",
         struct_name="~/Applications/mongo_db_access/extracted_mols/struct_n200.sdf",
         label_name="~/Applications/mongo_db_access/extracted_mols/label_n200.txt",
         feature_name="~/Applications/mongo_db_access/extracted_mols/feature_n200.yaml",

@@ -47,7 +47,7 @@ def yaml_dump(obj, filename):
 def yaml_load(filename):
     filename = expand_path(filename)
     with open(filename, "r") as f:
-        obj = yaml.load(f)
+        obj = yaml.safe_load(f)
     return obj
 
 

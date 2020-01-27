@@ -472,6 +472,18 @@ class MoleculeWrapper:
         filename = create_directory(filename)
         Draw.MolToFile(m, filename)
 
+    def pack_features(self, use_obabel_idx=True):
+        feats = dict()
+
+        # molecule level
+        feats["id"] = self.id
+        feats["free_energy"] = self.free_energy
+        feats["atomization_free_energy"] = self.atomization_free_energy
+        feats["charge"] = self.charge
+        feats["spin_multiplicity"] = self.spin_multiplicity
+
+        return feats
+
 
 class DatabaseOperation:
     def __init__(self, entries):
@@ -546,7 +558,7 @@ class DatabaseOperation:
 
         self.entries = results
 
-    def get_job_types(self, filename="job_types.yml"):
+    def get_job_types(self, filename="job_types.yaml"):
         counts = defaultdict(list)
         for entry in self.entries:
             job_type = entry["output"]["job_type"]
