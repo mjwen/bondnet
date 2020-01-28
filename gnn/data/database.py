@@ -254,7 +254,7 @@ class MoleculeWrapper:
                 extend_structure=False,
             )
             if self.use_metal_edge_extender:
-                self._mol_graph = metal_edge_extender(self.mol_graph)
+                self._mol_graph = metal_edge_extender(self._mol_graph)
 
         return self._mol_graph
 

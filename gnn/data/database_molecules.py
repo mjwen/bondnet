@@ -13,6 +13,7 @@ from atomate.qchem.database import QChemCalcDb
 import pymatgen
 from pymatgen.analysis.graphs import MoleculeGraph, MolGraphSplitError
 from pymatgen.analysis.local_env import OpenBabelNN
+from pymatgen.analysis.fragmenter import metal_edge_extender
 from rdkit import Chem
 from rdkit.Chem import Draw, AllChem
 import openbabel as ob
@@ -159,6 +160,17 @@ class MoleculeWrapper:
                     raise Exception("atom not found.")
         return self._graph_idx_to_ob_idx_map
 
+    def convert_to_babel_mol_graph(self, use_metal_edge_extender=True):
+        self._ob_adaptor = None
+        self.mol_graph = MoleculeGraph.with_local_env_strategy(
+            self.pymatgen_mol,
+            OpenBabelNN(order=True),
+            reorder=False,
+            extend_structure=False,
+        )
+        if use_metal_edge_extender:
+            self.mol_graph = metal_edge_extender(self.mol_graph)
+
     def graph_bond_idx_to_ob_bond_idx(self, bond):
         """
         Convert mol_graph bond indices to babel bond indices.
@@ -226,6 +238,7 @@ class MoleculeWrapper:
 
     def write(self, filename=None, file_format="sdf", message=None):
         if filename is not None:
+            filename = expand_path(filename)
             create_directory(filename)
         message = str(self.id) if message is None else message
         self.ob_mol.SetTitle(message)

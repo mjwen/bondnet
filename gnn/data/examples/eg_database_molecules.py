@@ -1,5 +1,8 @@
+import os
+import subprocess
 from gnn.data.database_molecules import DatabaseOperation
-from gnn.utils import pickle_dump, pickle_load, yaml_dump
+from gnn.data.utils import TexWriter
+from gnn.utils import pickle_dump, pickle_load, yaml_dump, expand_path
 
 
 def pickle_database():
@@ -21,13 +24,13 @@ def pickle_molecules():
     # db = DatabaseOperation.from_query(num_entries=200)
 
     mols = db.to_molecules()
-    filename = "~/Applications/mongo_db_access/extracted_mols/unfiltered_molecules.pkl"
+    filename = "~/Applications/mongo_db_access/extracted_mols/molecules_unfiltered.pkl"
     # filename = "~/Applications/mongo_db_access/extracted_mols/molecules_n200.pkl"
     pickle_dump(mols, filename)
 
 
 def filter_then_pickle_molecules():
-    filename = "~/Applications/mongo_db_access/extracted_mols/unfiltered_molecules.pkl"
+    filename = "~/Applications/mongo_db_access/extracted_mols/molecules_unfiltered.pkl"
     mols = pickle_load(filename)
 
     mols = DatabaseOperation.filter_molecules(mols, connectivity=True, isomorphism=True)
@@ -36,21 +39,26 @@ def filter_then_pickle_molecules():
 
 
 def plot_molecules():
+    plot_prefix = "~/Applications/mongo_db_access/extracted_mols"
+
     filename = "~/Applications/mongo_db_access/extracted_mols/molecules.pkl"
-    # filename = "~/Applications/mongo_db_access/extracted_mols/molecules_n200.pkl"
+    # filename="~/Applications/mongo_db_access/extracted_mols/molecules_n200.pkl"
     mols = pickle_load(filename)
 
     for m in mols:
-        # fname = "~/Applications/mongo_db_access/extracted_mols/mol_svg/{}_{}_{}_{}.svg".format(
-        # m.formula, m.charge, m.id, str(m.free_energy).replace(".", "dot")
-        # )
-        fname = "~/Applications/mongo_db_access/extracted_mols/mol_png/{}_{}_{}_{}.png".format(
-            m.formula, m.charge, m.id, str(m.free_energy).replace(".", "dot")
+        fname = os.path.join(
+            plot_prefix,
+            "mol_png/{}_{}_{}_{}.png".format(
+                m.formula, m.charge, m.id, str(m.free_energy).replace(".", "dot")
+            ),
         )
         m.draw(fname, show_atom_idx=True)
 
-        fname = "/Users/mjwen/Applications/mongo_db_access/extracted_mols/pdb/{}_{}_{}_{}.pdb".format(
-            m.formula, m.charge, m.id, str(m.free_energy).replace(".", "dot")
+        fname = os.path.join(
+            plot_prefix,
+            "mol_pdb/{}_{}_{}_{}.pdb".format(
+                m.formula, m.charge, m.id, str(m.free_energy).replace(".", "dot")
+            ),
         )
         m.write(fname, file_format="pdb")
 
@@ -121,7 +129,7 @@ def write_dataset():
 
 
 def get_single_atom_energy():
-    filename = "~/Applications/mongo_db_access/extracted_mols/unfiltered_molecules.pkl"
+    filename = "~/Applications/mongo_db_access/extracted_mols/molecules_unfiltered.pkl"
     # filename = "~/Applications/mongo_db_access/extracted_mols/molecules.pkl"
     # filename = "~/Applications/mongo_db_access/extracted_mols/molecules_n200.pkl"
     mols = pickle_load(filename)
@@ -133,6 +141,64 @@ def get_single_atom_energy():
             print(m.formula, m.free_energy, m.charge)
 
 
+def compare_connectivity_mol_builder_and_babel_builder(
+    filename="~/Applications/mongo_db_access/extracted_mols/molecules.pkl",
+    # filename="~/Applications/mongo_db_access/extracted_mols/molecules_n200.pkl",
+    tex_file="~/Applications/mongo_db_access/extracted_mols/mol_connectivity.tex",
+):
+
+    # write tex file
+    tex_file = expand_path(tex_file)
+    with open(tex_file, "w") as f:
+        f.write(TexWriter.head())
+        f.write(
+            "On each page, we plot three mols (top to bottom) from mol builder, "
+            "babel builder, and babel builder with metal edge extender.\n"
+        )
+
+        mols = pickle_load(filename)
+        for m in mols:
+
+            f.write(TexWriter.newpage())
+            f.write(TexWriter.verbatim("formula:" + m.formula))
+            f.write(TexWriter.verbatim("charge:" + str(m.charge)))
+            f.write(TexWriter.verbatim("spin multiplicity:" + str(m.spin_multiplicity)))
+            f.write(TexWriter.verbatim("id:" + m.id))
+
+            # mol builder
+            fname = "~/Applications/mongo_db_access/extracted_mols/png_mol_builder/{}.png".format(
+                m.id
+            )
+            fname = expand_path(fname)
+            m.draw(fname, show_atom_idx=True)
+            subprocess.run(["convert", fname, "-trim", "-resize", "100%", fname])
+            f.write(TexWriter.single_figure(fname))
+            f.write(TexWriter.verbatim("=" * 80))
+
+            # babel builder
+            m.convert_to_babel_mol_graph(use_metal_edge_extender=False)
+            fname = "~/Applications/mongo_db_access/extracted_mols/png_babel_builder/{}.png".format(
+                m.id
+            )
+            fname = expand_path(fname)
+            m.draw(fname, show_atom_idx=True)
+            subprocess.run(["convert", fname, "-trim", "-resize", "100%", fname])
+            f.write(TexWriter.single_figure(fname))
+            f.write(TexWriter.verbatim("=" * 80))
+
+            # babel builder with extender
+            m.convert_to_babel_mol_graph(use_metal_edge_extender=True)
+            fname = "~/Applications/mongo_db_access/extracted_mols/png_extend_builder/{}.png".format(
+                m.id
+            )
+            fname = expand_path(fname)
+            m.draw(fname, show_atom_idx=True)
+            subprocess.run(["convert", fname, "-trim", "-resize", "100%", fname])
+            f.write(TexWriter.single_figure(fname))
+
+        f.write(TexWriter.tail())
+
+
 if __name__ == "__main__":
     # pickle_database()
     # pickle_molecules()
@@ -141,4 +207,6 @@ if __name__ == "__main__":
     # write_dataset()
     # write_features()
     # write_group_isomorphic_to_file()
-    get_single_atom_energy()
+    # get_single_atom_energy()
+
+    compare_connectivity_mol_builder_and_babel_builder()

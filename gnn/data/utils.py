@@ -102,15 +102,21 @@ class TexWriter:
         return r"\end{document}"
 
     @staticmethod
+    def newpage():
+        return "\n" * 2 + r"\newpage" + "\n"
+
+    def verbatim(s):
+        return "\n" + r"\begin{verbatim}" + "\n" + s + "\n" + r"\end{verbatim}" + "\n"
+
+    @staticmethod
     def single_figure(filename):
         s = r"""
-        \begin{center}
-        \includegraphics[width=0.4\columnwidth]{
-        """
+\begin{center}
+\includegraphics[width=0.4\columnwidth]{"""
         s += filename
         s += r"""}
-        \end{center}
-        """
+\end{center}
+"""
         return s
 
     def resize_string(s, length=80, start="", end=r"\n"):

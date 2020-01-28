@@ -1,4 +1,5 @@
 from gnn.data.database import DatabaseOperation
+from gnn.data.utils import TexWriter
 from gnn.utils import pickle_dump, pickle_load
 
 
@@ -82,7 +83,7 @@ def eg_write_group_isomorphic_to_file():
     # db_path = "~/Applications/mongo_db_access/extracted_data/database_n200.pkl"
     db = DatabaseOperation.from_file(db_path)
     mols = db.to_molecules(optimized=True, purify=True)
-    filename = "/Users/mjwen/Applications/mongo_db_access/extracted_data/isomorphic.txt"
+    filename = "~/Applications/mongo_db_access/extracted_data/isomorphic.txt"
     db.write_group_isomorphic_to_file(mols, filename)
 
 
