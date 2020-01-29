@@ -116,6 +116,9 @@ class MoleculeWrapper:
 
     @property
     def graph(self):
+        return self.nx_graph()
+
+    def nx_graph(self):
         return self.mol_graph.graph
 
     @property
@@ -142,7 +145,7 @@ class MoleculeWrapper:
     @property
     def fragments(self):
         if self._fragments is None:
-            self._fragments = self._get_fragments()
+            self._fragments = self.get_fragments()
         return self._fragments
 
     @property
@@ -214,16 +217,21 @@ class MoleculeWrapper:
     def _get_edge_attr(self, attr):
         return [a for _, _, a in self.graph.edges.data(attr)]
 
-    def _get_fragments(self):
+    def get_fragments(self, bonds=None):
         """
         Fragment molecule by breaking ONE bond.
+
+        Args: a list of tuple as bond indices.
 
         Returns:
             A dictionary with key of bond index (a tuple (idx1, idx2)), and value a list
             of the new mol_graphs (could be empty if the mol has no bonds).
         """
         sub_mols = {}
-        for edge in self.graph.edges():
+
+        if bonds is None:
+            bonds = self.graph.edges()
+        for edge in bonds:
             try:
                 new_mgs = self.mol_graph.split_molecule_subgraphs(
                     [edge], allow_reverse=True, alterations=None

@@ -1,6 +1,8 @@
 import itertools
 import logging
 from tqdm import tqdm
+import networkx as nx
+import networkx.algorithms.isomorphism as iso
 from collections import defaultdict, OrderedDict
 from gnn.data.database import DatabaseOperation
 from gnn.utils import (
@@ -32,8 +34,9 @@ class Reaction:
         assert len(reactants) == 1, "incorrect number of reactants, should be 1"
         assert 1 <= len(products) <= 2, "incorrect number of products, should be 1 or 2"
         self.reactants = reactants
-        # self.products = self._order_molecules(products)
-        self.products = products
+        # ordered products needed by `group_by_reactant_bond_and_charge(self)`
+        # where we use charge as a dict key
+        self.products = self._order_molecules(products)
         self.broken_bond = broken_bond
 
     def get_broken_bond(self):
@@ -110,94 +113,94 @@ class Reaction:
         d = pickle_load(filename)
         return cls(d["reactants"], d["products"], d["broken_bond"])
 
-    # @staticmethod
-    # def _order_molecules(mols):
-    #     """
-    #     Order the molecules according to the below rules (in order):
-    #     1. molecular mass
-    #     2. number of atoms
-    #     3. number of bonds
-    #     4. alphabetical formula
-    #     5. diameter of molecule graph, i.e. largest distance for node to node
-    #     6. charge
-    #
-    #     Args:
-    #         mols: a list of molecules.
-    #
-    #     Returns:
-    #         A list of ordered molecules.
-    #     """
-    #
-    #     def compare(pa, pb, a, b):
-    #         if pa < pb:
-    #             return [a, b]
-    #         elif pa > pb:
-    #             return [b, a]
-    #         else:
-    #             return None
-    #
-    #     def order_by_weight(a, b):
-    #         pa = a.weight
-    #         pb = b.weight
-    #         return compare(pa, pb, a, b)
-    #
-    #     def order_by_natoms(a, b):
-    #         pa = len(a.atoms)
-    #         pb = len(b.atoms)
-    #         return compare(pa, pb, a, b)
-    #
-    #     def order_by_nbonds(a, b):
-    #         pa = len(a.bonds)
-    #         pb = len(b.bonds)
-    #         return compare(pa, pb, a, b)
-    #
-    #     def order_by_formula(a, b):
-    #         pa = a.formula
-    #         pb = b.formula
-    #         return compare(pa, pb, a, b)
-    #
-    #     def order_by_diameter(a, b):
-    #         try:
-    #             pa = nx.diameter(a.graph)
-    #         except nx.NetworkXError:
-    #             pa = 100000000
-    #         try:
-    #             pb = nx.diameter(b.graph)
-    #         except nx.NetworkXError:
-    #             pb = 100000
-    #         return compare(pa, pb, a, b)
-    #
-    #     def order_by_charge(a, b):
-    #         pa = a.charge
-    #         pb = b.charge
-    #         return compare(pa, pb, a, b)
-    #
-    #     if len(mols) == 1:
-    #         return mols
-    #
-    #     out = order_by_weight(*mols)
-    #     if out is not None:
-    #         return out
-    #     out = order_by_natoms(*mols)
-    #     if out is not None:
-    #         return out
-    #     out = order_by_nbonds(*mols)
-    #     if out is not None:
-    #         return out
-    #     out = order_by_formula(*mols)
-    #     if out is not None:
-    #         return out
-    #     out = order_by_diameter(*mols)
-    #     if out is not None:
-    #         return out
-    #     a, b = mols
-    #     if a.mol_graph.isomorphic_to(b.mol_graph):
-    #         out = order_by_charge(*mols)  # e.g. H+ and H-
-    #         if out is not None:
-    #             return out
-    #         else:
-    #             return mols  # two exactly the same molecules
-    #     raise RuntimeError("Cannot order molecules")
+    @staticmethod
+    def _order_molecules(mols):
+        """
+        Order the molecules according to the below rules (in order):
+        1. molecular mass
+        2. number of atoms
+        3. number of bonds
+        4. alphabetical formula
+        5. diameter of molecule graph, i.e. largest distance for node to node
+        6. charge
+
+        Args:
+            mols: a list of molecules.
+
+        Returns:
+            A list of ordered molecules.
+        """
+
+        def compare(pa, pb, a, b):
+            if pa < pb:
+                return [a, b]
+            elif pa > pb:
+                return [b, a]
+            else:
+                return None
+
+        def order_by_weight(a, b):
+            pa = a.weight
+            pb = b.weight
+            return compare(pa, pb, a, b)
+
+        def order_by_natoms(a, b):
+            pa = len(a.atoms)
+            pb = len(b.atoms)
+            return compare(pa, pb, a, b)
+
+        def order_by_nbonds(a, b):
+            pa = len(a.bonds)
+            pb = len(b.bonds)
+            return compare(pa, pb, a, b)
+
+        def order_by_formula(a, b):
+            pa = a.formula
+            pb = b.formula
+            return compare(pa, pb, a, b)
+
+        def order_by_diameter(a, b):
+            try:
+                pa = nx.diameter(a.graph)
+            except nx.NetworkXError:
+                pa = 100000000
+            try:
+                pb = nx.diameter(b.graph)
+            except nx.NetworkXError:
+                pb = 100000
+            return compare(pa, pb, a, b)
+
+        def order_by_charge(a, b):
+            pa = a.charge
+            pb = b.charge
+            return compare(pa, pb, a, b)
+
+        if len(mols) == 1:
+            return mols
+
+        out = order_by_weight(*mols)
+        if out is not None:
+            return out
+        out = order_by_natoms(*mols)
+        if out is not None:
+            return out
+        out = order_by_nbonds(*mols)
+        if out is not None:
+            return out
+        out = order_by_formula(*mols)
+        if out is not None:
+            return out
+        out = order_by_diameter(*mols)
+        if out is not None:
+            return out
+        a, b = mols
+        if a.mol_graph.isomorphic_to(b.mol_graph):
+            out = order_by_charge(*mols)  # e.g. H+ and H-
+            if out is not None:
+                return out
+            else:
+                return mols  # two exactly the same molecules
+        raise RuntimeError("Cannot order molecules")
 
 
 class ReactionExtractor:
@@ -387,34 +390,6 @@ class ReactionExtractor:
             grouped_reactions[reactant].append(rxn)
         return grouped_reactions
 
-    # def group_by_reactant_charge_and_bond(self):
-    #     """
-    #     Group all the reactions according to the reactant and the charge of the
-    #     reactant and products.
-    #
-    #     Returns:
-    #         A dict of dict of dict. The outer dict has reactant as the key, the middle
-    #         dict has charges (a tuple) as the key and the inner dict has bond
-    #         indices (a tuple) as the key and bond attributes (a dict of energy,
-    #         bond order, ect.).
-    #     """
-    #     grouped_reactions = self.group_by_reactant()
-    #
-    #     groups = OrderedDict()
-    #     for reactant, reactions in grouped_reactions.items():
-    #         groups[reactant] = dict()
-    #
-    #         for rxn in reactions:
-    #             charge = tuple([m.charge for m in rxn.reactants + rxn.products])
-    #             groups[reactant][charge] = OrderedDict()
-    #             for bond in reactant.graph.edges():
-    #                 groups[reactant][charge][bond] = None
-    #
-    #             bond = rxn.get_broken_bond()
-    #             groups[reactant][charge][bond] = rxn.as_dict()
-    #
-    #     return groups
-
     def group_by_reactant_bond_and_charge(self):
         """
         Group all the reactions to nested dicts according to the reactant, bond, and
@@ -422,9 +397,9 @@ class ReactionExtractor:
 
         Returns:
             A dict of dict of dict. The outer dict has reactant index as the key,
-            the middle dict has charges (a tuple) as the key and the inner dict has bond
-            indices (a tuple) as the key and bond attributes (a dict of energy,
-            bond order, ect.).
+            the middle dict has bond indices (a tuple) as the key and the inner dict
+            has charges (a tuple) as the key and bond attributes (a dict of energy,
+            bond order, ect.). as the value.
         """
         grouped_reactions = self.group_by_reactant()
 
@@ -442,7 +417,101 @@ class ReactionExtractor:
 
         return groups
 
-    def bond_energies_to_file(self, filename, mode="reactant_bond_charge"):
+    def group_by_reactant_bond_keep_lowest_energy_across_products_charge(self):
+        """
+        Group all the reactions to nested dicts according to the reactant and bond.
+        For cases where products have different charges, we keep the reaction with the
+        lowess energy.
+
+        Returns:
+            A dict of dict. The outer dict has reactant as the key and the inner dict has
+            bond (a tuple) as the key and Reaction instance as the value.
+        """
+        grouped_reactions = self.group_by_reactant()
+
+        groups = OrderedDict()
+        for reactant, reactions in grouped_reactions.items():
+            groups[reactant] = OrderedDict()
+
+            for rxn in reactions:
+                bond = rxn.get_broken_bond()
+                if bond not in groups[reactant]:
+                    groups[reactant][bond] = rxn
+                else:
+                    e_old = groups[reactant][bond].get_reaction_free_energy()
+                    e_new = rxn.get_reaction_free_energy()
+                    if e_new < e_old:
+                        groups[reactant][bond] = rxn
+
+        return groups
+
+    def group_by_reactant_charge(self):
+        """
+        Get the energy difference of reactions that has the same isomorphic reactant
+        but different charge.
+        e.g. M(+1) M(0)
+
+        Returns:
+            A dict: with a type (charge1, charge2) as the key, and a list of types of
+            the value, where each tuple are two reactions (reaction1, reactions2) that
+            has the same breaking bond.
+        """
+
+        grouped_reactions = (
+            self.group_by_reactant_bond_keep_lowest_energy_across_products_charge()
+        )
+
+        # groups is A list of dict, where the keys of each dict are isomorphic to each
+        # other.
+        groups = []
+        for reactant, reactions in grouped_reactions.items():
+            find_iso = False
+            for g in groups:
+                # get the first in the isomorphic group
+                for m in g:
+                    iso_m = m
+                    break
+                # add to the isomorphic group
+                if iso_m.mol_graph.isomorphic_to(reactant.mol_graph):
+                    g[reactant] = reactions
+                    find_iso = True
+                    break
+
+            if not find_iso:
+                g = OrderedDict()
+                g[reactant] = reactions
+                groups.append(g)
+
+        # group by charge of a pair of reactants
+        result = defaultdict(list)
+        for g in groups:
+            reactants = list(g.keys())
+            for r1, r2 in itertools.combinations(reactants, 2):
+                if r2.charge < r1.charge:
+                    r1, r2 = r2, r1
+
+                res = get_same_bond_breaking_reactions_between_two_reaction_groups(
+                    r1, g[r1], r2, g[r2]
+                )
+                result[(r1.charge, r2.charge)].extend(res)
+        return result
+
+    def get_reactions_with_lowest_energy(self):
+        """
+        Get the reactions by removing higher energy ones. Higher energy is compared
+        across product charge.
+
+        Returns:
+            A list of Reaction.
+        """
+        groups = self.group_by_reactant_bond_keep_lowest_energy_across_products_charge()
+        reactions = []
+        for _, rxns in groups.items():
+            for _, r in rxns.items():
+                reactions.append(r)
+        return reactions
+
+    def write_bond_energies(self, filename, mode="reactant_bond_charge"):
         if mode == "reactant_bond_charge":
             groups = self.group_by_reactant_bond_and_charge()
         elif mode == "reactant_charge_bond":
@@ -765,6 +834,33 @@ class ReactionExtractor:
 
         return cls(mols, rxns)
 
+    @staticmethod
+    def isomorphic_atom_mapping(mol1, mol2):
+        """
+        Returns `None` is mol1 is not isomorphic to mol2, otherwise the atom mapping from
+        mol1 to mol2.
+        """
+        mol_g1 = mol1.mol_graph
+        mol_g2 = mol2.mol_graph
+        nx_g1 = mol1.nx_graph
+        nx_g2 = mol2.nx_graph
+        if len(mol_g1.molecule) != len(mol_g2.molecule):
+            return None
+        elif (
+            mol_g1.molecule.composition.alphabetical_formula
+            != mol_g2.molecule.composition.alphabetical_formula
+        ):
+            return None
+        elif len(nx_g1.edges()) != len(nx_g2.edges()):
+            return None
+        else:
+            nm = iso.categorical_node_match("specie", "ERROR")
+            GM = iso.GraphMatcher(nx_g1, nx_g2, node_match=nm)
+            if GM.is_isomorphic():
+                return GM.mapping
+            else:
+                return None
+
 
 def is_valid_A_to_B_reaction(reactant, product):
     """
@@ -805,3 +901,41 @@ def is_valid_A_to_B_C_reaction(reactant, products):
             ):
                 return edge
     return None
+
+
+def get_same_bond_breaking_reactions_between_two_reaction_groups(
+    reactant1, group1, reactant2, group2
+):
+    """
+    Args:
+        reactant1 (MolecularWrapper instance)
+        group1, (dict): A group of reactions that have the same reactant1 but
+            breaking different bonds. the bond indices is the key of the dict.
+        reactant2 (MolecularWrapper instance) reactant2 should have the same
+            isomorphism as that of reactant1, but other property can be different,
+            e.g. (charge).
+        group2 (dict): A group of reactions that have the same reactant2 but
+            breaking different bonds. the bond indices is the key of the dict.
+
+    Returns:
+        A list of tuples where each tuple has the same breaking bond.
+    """
+
+    bonds1 = [tuple(k) for k in group1]
+    bonds2 = [tuple(k) for k in group2]
+    fragments1 = reactant1.get_fragments(bonds1)
+    fragments2 = reactant2.get_fragments(bonds2)
+
+    res = []
+    for b1, mgs1 in fragments1.items():
+        for b2, mgs2 in fragments2.items():
+            if len(mgs1) == len(mgs2) == 1:
+                if mgs1[0].isomorphic_to(mgs2[0]):
+                    res.append((group1[b1], group2[b2]))
+
+            if len(mgs1) == len(mgs2) == 2:
+                if (
+                    mgs1[0].isomorphic_to(mgs2[0]) and mgs1[1].isomorphic_to(mgs2[1])
+                ) or (mgs1[0].isomorphic_to(mgs2[1]) and mgs1[1].isomorphic_to(mgs2[0])):
+                    res.append((group1[b1], group2[b2]))
+    return res

@@ -90,7 +90,7 @@ def eg_reactants_bond_energies_to_file():
 
     filename = "~/Applications/mongo_db_access/extracted_data/bond_energies.yaml"
     # filename = "~/Applications/mongo_db_access/extracted_data/bond_energies_n200.yaml"
-    extractor.bond_energies_to_file(filename)
+    extractor.write_bond_energies(filename)
 
 
 def eg_create_struct_label_dataset():

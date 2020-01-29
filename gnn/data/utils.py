@@ -109,14 +109,16 @@ class TexWriter:
         return "\n" + r"\begin{verbatim}" + "\n" + s + "\n" + r"\end{verbatim}" + "\n"
 
     @staticmethod
-    def single_figure(filename):
+    def single_figure(filename, figure_size=0.4):
         s = r"""
-\begin{center}
-\includegraphics[width=0.4\columnwidth]{"""
-        s += filename
-        s += r"""}
-\end{center}
-"""
+\begin{figure}[H]
+\centering
+\includegraphics[width=%s\columnwidth]{%s}
+\end{figure}
+""" % (
+            str(figure_size),
+            filename,
+        )
         return s
 
     def resize_string(s, length=80, start="", end=r"\n"):
