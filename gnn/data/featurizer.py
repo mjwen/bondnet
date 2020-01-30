@@ -569,7 +569,7 @@ class AtomFeaturizerWithExtraInfo(BaseFeaturizer):
             # from extra info
             ft.append(feats_info["resp"][i])
             ft.append(feats_info["mulliken"][i])
-            ft.append(feats_info["atom_spin_multiplicity"][i])
+            ft.append(feats_info["atom_spin"][i])
 
             feats.append(ft)
 

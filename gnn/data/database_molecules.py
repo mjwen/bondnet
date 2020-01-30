@@ -40,7 +40,13 @@ class MoleculeWrapper:
             raise UnsuccessfulEntryError
 
         try:
-            self.mulliken = db_entry["mulliken"]
+            mulliken = db_entry["mulliken"]
+            if len(np.asarray(mulliken).shape) == 1:  # partial spin is 0
+                self.mulliken = [i for i in mulliken]
+                self.atom_spin = [0 for i in mulliken]
+            else:
+                self.mulliken = [i[0] for i in mulliken]
+                self.atom_spin = [i[1] for i in mulliken]
         except KeyError as e:
             print(self.__class__.__name__, e, "mulliken", self.id)
             raise UnsuccessfulEntryError
@@ -72,22 +78,6 @@ class MoleculeWrapper:
         self._graph_idx_to_ob_idx_map = None
 
     @property
-    def atomization_free_energy(self):
-        charge0_atom_energy = {
-            "H": -13.899716296436546,
-            "Li": -203.8840240968338,
-            "C": -1028.6825101424483,
-            "O": -2040.4807693439561,
-            "F": -2714.237000742088,
-            "P": -9283.226337212582,
-        }
-
-        e = self.free_energy
-        for spec, num in self.composition_dict.items():
-            e -= charge0_atom_energy[spec] * num
-        return e
-
-    @property
     def ob_adaptor(self):
         if self._ob_adaptor is None:
             self._ob_adaptor = BabelMolAdaptor.from_molecule_graph(self.mol_graph)
@@ -105,6 +95,22 @@ class MoleculeWrapper:
     def rdkit_mol(self):
         sdf = self.write(file_format="sdf")
         return Chem.MolFromMolBlock(sdf)
+
+    @property
+    def atomization_free_energy(self):
+        charge0_atom_energy = {
+            "H": -13.899716296436546,
+            "Li": -203.8840240968338,
+            "C": -1028.6825101424483,
+            "O": -2040.4807693439561,
+            "F": -2714.237000742088,
+            "P": -9283.226337212582,
+        }
+
+        e = self.free_energy
+        for spec, num in self.composition_dict.items():
+            e -= charge0_atom_energy[spec] * num
+        return e
 
     @property
     def charge(self):
@@ -244,6 +250,30 @@ class MoleculeWrapper:
                 sub_mols[edge] = [new_mg]
         return sub_mols
 
+    def subgraph_atom_mapping(self, bond):
+        """
+        Break a bond in a molecule and find the atoms mapping in the two subgraphs.
+
+        Returns:
+            tuple of list: each list contains the atoms in one subgraph.
+        """
+
+        original = copy.deepcopy(self.mol_graph)
+        original.break_edge(bond[0], bond[1], allow_reverse=True)
+
+        # A -> B breaking
+        if nx.is_weakly_connected(original.graph):
+            mapping = list(range(len(self.atoms)))
+            return (mapping, mapping)
+        # A -> B + C breaking
+        else:
+            components = nx.weakly_connected_components(original.graph)
+            nodes = [original.graph.subgraph(c).nodes for c in components]
+            mapping = tuple([list(sorted(n)) for n in nodes])
+            if len(mapping) != 2:
+                raise Exception("Mole not split into two parts")
+            return mapping
+
     def write(self, filename=None, file_format="sdf", message=None):
         if filename is not None:
             filename = expand_path(filename)
@@ -279,27 +309,23 @@ class MoleculeWrapper:
 
         # atom level
         resp = [i for i in self.resp]
-        if len(np.asarray(self.mulliken).shape) == 1:  # partial spin is 0
-            mulliken = [i for i in self.mulliken]
-            atom_spin_multiplicity = [0 for i in self.mulliken]
-        else:
-            mulliken = [i[0] for i in self.mulliken]
-            atom_spin_multiplicity = [i[1] for i in self.mulliken]
+        mulliken = [i for i in self.mulliken]
+        atom_spin = [i for i in self.atom_spin]
 
         if use_obabel_idx:
             resp_old = copy.deepcopy(resp)
             mulliken_old = copy.deepcopy(mulliken)
-            asm_old = copy.deepcopy(atom_spin_multiplicity)
+            asm_old = copy.deepcopy(atom_spin)
             for graph_idx in range(len(self.atoms)):
                 ob_idx = self.graph_idx_to_ob_idx_map[graph_idx]
                 # -1 because ob index starts from 1
                 resp[ob_idx - 1] = resp_old[graph_idx]
                 mulliken[ob_idx - 1] = mulliken_old[graph_idx]
-                atom_spin_multiplicity[ob_idx - 1] = asm_old[graph_idx]
+                atom_spin[ob_idx - 1] = asm_old[graph_idx]
 
         feats["resp"] = resp
         feats["mulliken"] = mulliken
-        feats["atom_spin_multiplicity"] = atom_spin_multiplicity
+        feats["atom_spin"] = atom_spin
 
         return feats
 

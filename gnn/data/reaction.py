@@ -79,6 +79,33 @@ class Reaction:
             energy += mol.free_energy
         return energy
 
+    def pack_features(self):
+        """
+        Prepare the features that may be used by ML model, e.g. partial charge on
+        subgraphs after a bond breaking.
+
+        Returns:
+            dict of features.
+        """
+
+        reactant = self.reactants[0]
+        broken_bond = self.get_broken_bond()
+        mappings = reactant.subgraph_atom_mapping(broken_bond)
+        resp = []
+        mulliken = []
+        atom_spin = []
+        for m in mappings:
+            resp.append([reactant.resp[i] for i in m])
+            mulliken.append([reactant.mulliken[i] for i in m])
+            atom_spin.append([reactant.atom_spin[i] for i in m])
+
+        feats = dict()
+        feats["abs_resp_diff"] = abs(sum(resp[0]) - sum(resp[1]))
+        feats["abs_mulliken_diff"] = abs(sum(mulliken[0]) - sum(mulliken[1]))
+        feats["abs_atom_spin_diff"] = abs(sum(atom_spin[0]) - sum(atom_spin[1]))
+
+        return feats
+
     def as_dict(self):
         d = {
             "reactants": [
@@ -550,7 +577,7 @@ class ReactionExtractor:
                 f.write(sdf)
 
     @staticmethod
-    def write_feature(molecules, filename="feature.yaml"):
+    def write_feature(reactions, filename="feature.yaml"):
         """
         Write molecules features to file.
 
@@ -561,21 +588,20 @@ class ReactionExtractor:
         logger.info("Start writing feature file: {}".format(filename))
 
         all_feats = []
-        for m in molecules:
+        for rxn in reactions:
+            m = rxn.reactants[0]
             feat = m.pack_features(use_obabel_idx=True)
+            feat.update(rxn.pack_features())
             all_feats.append(feat)
         yaml_dump(all_feats, filename)
 
         logger.info("Finish writing feature file: {}".format(filename))
 
-    def create_struct_label_dataset_with_lowest_energy_across_charge_bond_based(
+    def create_struct_label_dataset_bond_based(
         self, struct_name="sturct.sdf", label_name="label.txt", feature_name=None
     ):
         """
         Write the reactions to files.
-
-        Each reactant may have multiple products corresponding to various charge
-        combinations. Here, we write the lowest energy one.
 
         Also, this is based on the bond energy, i.e. each bond (that we have energies)
         will have one entry.
@@ -585,10 +611,12 @@ class ReactionExtractor:
             label_name (str): filename of the label
             feature_name (str): filename for the feature file, if `None`, do not write it
         """
-        grouped_reactions = self.group_by_reactant_bond_and_charge()
+        grouped_reactions = (
+            self.group_by_reactant_bond_keep_lowest_energy_across_products_charge()
+        )
 
         # write label
-        mols = []
+        all_rxns = []
         label_name = expand_path(label_name)
         create_directory(label_name)
         with open(label_name, "w") as f:
@@ -603,144 +631,233 @@ class ReactionExtractor:
             )
             for reactant, reactions in grouped_reactions.items():
 
-                bonds_energy = dict()
-                other_attr = dict()
-                for bond, rxns in reactions.items():
+                current_rxns = dict()
+                for bond, rxn in reactions.items():
                     bond = tuple(sorted(reactant.graph_bond_idx_to_ob_bond_idx(bond)))
-                    bonds_energy[bond] = None
-                    other_attr[bond] = None
-                    for charge, attr in rxns.items():
-                        if attr:
-                            # find the min energy across charge
-                            if bonds_energy[bond] is not None:
-                                if attr["bond_energy"] < bonds_energy[bond]:
-                                    bonds_energy[bond] = attr["bond_energy"]
-                                    other_attr[bond] = attr
-                            else:
-                                bonds_energy[bond] = attr["bond_energy"]
-                                other_attr[bond] = attr
-
-                for _, energy in bonds_energy.items():
-                    if energy is not None:
-                        mols.append(reactant)
+                    # note we need to keep track of it because the order changes when
+                    # we write it out below
+                    current_rxns[bond] = rxn
 
                 # write bond energies in the same order as sdf file
                 sdf_bonds = reactant.get_sdf_bond_indices()
                 for ib, bond in enumerate(sdf_bonds):
-                    energy = bonds_energy[bond]
-                    attr = other_attr[bond]
 
-                    if energy is not None:
+                    if bond not in current_rxns:  # do not have reaction breaking bond
+                        continue
 
-                        # write charge
-                        f.write("{}    ".format(reactant.charge))
+                    rxn = current_rxns[bond]
+                    all_rxns.append(rxn)
 
-                        # write bond energies
-                        for ii in range(len(sdf_bonds)):
-                            if ii == ib:
-                                f.write("{:.15g} ".format(energy))
-                            else:
-                                f.write("0.0 ")
-                        f.write("   ")
+                    attr = rxn.as_dict()
 
-                        # write bond energy indicator
-                        for ii in range(len(sdf_bonds)):
-                            if ii == ib:
-                                f.write("1 ")
-                            else:
-                                f.write("0 ")
+                    # charge
+                    f.write("{}    ".format(reactant.charge))
 
-                        # write other info (reactant and product info, and bond energy)
-                        f.write(
-                            "    # {} {} {} {}\n".format(
-                                attr["reactants"],
-                                attr["products"],
-                                reactant.graph_bond_idx_to_ob_bond_idx(
-                                    attr["broken_bond"]
-                                ),
-                                attr["bond_energy"],
-                            )
+                    # write bond energies
+                    for ii in range(len(sdf_bonds)):
+                        if ii == ib:
+                            f.write("{:.15g} ".format(attr["bond_energy"]))
+                        else:
+                            f.write("0.0 ")
+                    f.write("   ")
+
+                    # write bond energy indicator
+                    for ii in range(len(sdf_bonds)):
+                        if ii == ib:
+                            f.write("1 ")
+                        else:
+                            f.write("0 ")
+
+                    # write other info (reactant and product info, and bond energy)
+                    f.write(
+                        "    # {} {} {} {}\n".format(
+                            attr["reactants"],
+                            attr["products"],
+                            reactant.graph_bond_idx_to_ob_bond_idx(attr["broken_bond"]),
+                            attr["bond_energy"],
                         )
+                    )
 
         # write sdf
-        self.write_sdf(mols, struct_name)
+        reactants = [rxn.reactants[0] for rxn in all_rxns]
+        self.write_sdf(reactants, struct_name)
 
         # write feature
         if feature_name is not None:
-            self.write_feature(mols, feature_name)
+            self.write_feature(all_rxns, feature_name)
 
-    def create_struct_label_dataset_with_lowest_energy_across_charge(
-        self, struct_name="sturct.sdf", label_name="label.txt", feature_name=None
-    ):
-        """
-        Write the reactions to files.
-
-        Each reactant may have multiple products corresponding to various charge
-        combinations. Here, we write the lowest energy one.
-
-        args:
-            struct_name (str): filename of the sdf structure file
-            label_name (str): filename of the laels
-            feature_name (str): filename for the feature file, if `None`, do not write it
-        """
-        grouped_reactions = self.group_by_reactant_bond_and_charge(False, True)
-
-        # write label
-        label_name = expand_path(label_name)
-        create_directory(label_name)
-        with open(label_name, "w") as f:
-            f.write(
-                "# Each line lists the molecule charge and bond energies of a molecule. "
-                "The number of items in each line is equal to 1 + 2*N, where N is the "
-                "number bonds. The first item is the molecule charge. The first half "
-                "of the remaining items are bond energies and the next half values are "
-                "indicators (0 or 1) to specify whether the bond energy exist in the "
-                "dataset. A value of 0 means the corresponding bond energy should be "
-                "ignored, whatever its value is.\n"
-            )
-            for reactant, reactions in grouped_reactions.items():
-
-                bonds_energy = dict()
-                for bond, rxns in reactions.items():
-                    bond = tuple(sorted(reactant.graph_bond_idx_to_ob_bond_idx(bond)))
-                    bonds_energy[bond] = None
-                    for charge, attr in rxns.items():
-                        if attr:
-                            if bonds_energy[bond] is not None:
-                                bonds_energy[bond] = min(
-                                    bonds_energy[bond], attr["bond_energy"]
-                                )
-                            else:
-                                bonds_energy[bond] = attr["bond_energy"]
-
-                # write charge
-                f.write("{}    ".format(reactant.charge))
-
-                # write bond energies in the same order as sdf file
-                sdf_bonds = reactant.get_sdf_bond_indices()
-                for bond in sdf_bonds:
-                    energy = bonds_energy[bond]
-                    if energy is None:
-                        f.write("0.0 ")
-                    else:
-                        f.write("{:.15g} ".format(energy))
-                f.write("   ")
-
-                # write bond energy indicator
-                for bond in sdf_bonds:
-                    energy = bonds_energy[bond]
-                    if energy is None:
-                        f.write("0 ")
-                    else:
-                        f.write("1 ")
-                f.write("\n")
-
-        # write sdf
-        self.write_sdf(grouped_reactions, struct_name)
-
-        # write feature
-        if feature_name is not None:
-            self.write_feature(grouped_reactions, feature_name)
+    # def create_struct_label_dataset_with_lowest_energy_across_charge_bond_based(
+    #     self, struct_name="sturct.sdf", label_name="label.txt", feature_name=None
+    # ):
+    #     """
+    #     Write the reactions to files.
+    #
+    #     Each reactant may have multiple products corresponding to various charge
+    #     combinations. Here, we write the lowest energy one.
+    #
+    #     Also, this is based on the bond energy, i.e. each bond (that we have energies)
+    #     will have one entry.
+    #
+    #     args:
+    #         struct_name (str): filename of the sdf structure file
+    #         label_name (str): filename of the label
+    #         feature_name (str): filename for the feature file, if `None`, do not write it
+    #     """
+    #     grouped_reactions = self.group_by_reactant_bond_and_charge()
+    #
+    #     # write label #     mols = []
+    #     label_name = expand_path(label_name)
+    #     create_directory(label_name)
+    #     with open(label_name, "w") as f:
+    #         f.write(
+    #             "# Each line lists the molecule charge and bond energies of a molecule. "
+    #             "The number of items in each line is equal to 1 + 2*N, where N is the "
+    #             "number bonds. The first item is the molecule charge. The first half "
+    #             "of the remaining items are bond energies and the next half values are "
+    #             "indicators (0 or 1) to specify whether the bond energy exist in the "
+    #             "dataset. A value of 0 means the corresponding bond energy should be "
+    #             "ignored, whatever its value is.\n"
+    #         )
+    #         for reactant, reactions in grouped_reactions.items():
+    #
+    #             bonds_energy = dict()
+    #             other_attr = dict()
+    #             for bond, rxns in reactions.items():
+    #                 bond = tuple(sorted(reactant.graph_bond_idx_to_ob_bond_idx(bond)))
+    #                 bonds_energy[bond] = None
+    #                 other_attr[bond] = None
+    #                 for charge, attr in rxns.items():
+    #                     if attr:
+    #                         # find the min energy across charge
+    #                         if bonds_energy[bond] is not None:
+    #                             if attr["bond_energy"] < bonds_energy[bond]:
+    #                                 bonds_energy[bond] = attr["bond_energy"]
+    #                                 other_attr[bond] = attr
+    #                         else:
+    #                             bonds_energy[bond] = attr["bond_energy"]
+    #                             other_attr[bond] = attr
+    #
+    #             for _, energy in bonds_energy.items():
+    #                 if energy is not None:
+    #                     mols.append(reactant)
+    #
+    #             # write bond energies in the same order as sdf file
+    #             sdf_bonds = reactant.get_sdf_bond_indices()
+    #             for ib, bond in enumerate(sdf_bonds):
+    #                 energy = bonds_energy[bond]
+    #                 attr = other_attr[bond]
+    #
+    #                 if energy is not None:
+    #
+    #                     # write charge
+    #                     f.write("{}    ".format(reactant.charge))
+    #
+    #                     # write bond energies
+    #                     for ii in range(len(sdf_bonds)):
+    #                         if ii == ib:
+    #                             f.write("{:.15g} ".format(energy))
+    #                         else:
+    #                             f.write("0.0 ")
+    #                     f.write("   ")
+    #
+    #                     # write bond energy indicator
+    #                     for ii in range(len(sdf_bonds)):
+    #                         if ii == ib:
+    #                             f.write("1 ")
+    #                         else:
+    #                             f.write("0 ")
+    #
+    #                     # write other info (reactant and product info, and bond energy)
+    #                     f.write(
+    #                         "    # {} {} {} {}\n".format(
+    #                             attr["reactants"],
+    #                             attr["products"],
+    #                             reactant.graph_bond_idx_to_ob_bond_idx(
+    #                                 attr["broken_bond"]
+    #                             ),
+    #                             attr["bond_energy"],
+    #                         )
+    #                     )
+    #
+    #     # write sdf
+    #     self.write_sdf(mols, struct_name)
+    #
+    #     # write feature
+    #     if feature_name is not None:
+    #         self.write_feature(mols, feature_name)
+    #
+    # def create_struct_label_dataset_with_lowest_energy_across_charge(
+    #     self, struct_name="sturct.sdf", label_name="label.txt", feature_name=None
+    # ):
+    #     """
+    #     Write the reactions to files.
+    #
+    #     Each reactant may have multiple products corresponding to various charge
+    #     combinations. Here, we write the lowest energy one.
+    #
+    #     args:
+    #         struct_name (str): filename of the sdf structure file
+    #         label_name (str): filename of the laels
+    #         feature_name (str): filename for the feature file, if `None`, do not write it
+    #     """
+    #     grouped_reactions = self.group_by_reactant_bond_and_charge(False, True)
+    #
+    #     # write label
+    #     label_name = expand_path(label_name)
+    #     create_directory(label_name)
+    #     with open(label_name, "w") as f:
+    #         f.write(
+    #             "# Each line lists the molecule charge and bond energies of a molecule. "
+    #             "The number of items in each line is equal to 1 + 2*N, where N is the "
+    #             "number bonds. The first item is the molecule charge. The first half "
+    #             "of the remaining items are bond energies and the next half values are "
+    #             "indicators (0 or 1) to specify whether the bond energy exist in the "
+    #             "dataset. A value of 0 means the corresponding bond energy should be "
+    #             "ignored, whatever its value is.\n"
+    #         )
+    #         for reactant, reactions in grouped_reactions.items():
+    #
+    #             bonds_energy = dict()
+    #             for bond, rxns in reactions.items():
+    #                 bond = tuple(sorted(reactant.graph_bond_idx_to_ob_bond_idx(bond)))
+    #                 bonds_energy[bond] = None
+    #                 for charge, attr in rxns.items():
+    #                     if attr:
+    #                         if bonds_energy[bond] is not None:
+    #                             bonds_energy[bond] = min(
+    #                                 bonds_energy[bond], attr["bond_energy"]
+    #                             )
+    #                         else:
+    #                             bonds_energy[bond] = attr["bond_energy"]
+    #
+    #             # write charge
+    #             f.write("{}    ".format(reactant.charge))
+    #
+    #             # write bond energies in the same order as sdf file
+    #             sdf_bonds = reactant.get_sdf_bond_indices()
+    #             for bond in sdf_bonds:
+    #                 energy = bonds_energy[bond]
+    #                 if energy is None:
+    #                     f.write("0.0 ")
+    #                 else:
+    #                     f.write("{:.15g} ".format(energy))
+    #             f.write("   ")
+    #
+    #             # write bond energy indicator
+    #             for bond in sdf_bonds:
+    #                 energy = bonds_energy[bond]
+    #                 if energy is None:
+    #                     f.write("0 ")
+    #                 else:
+    #                     f.write("1 ")
+    #             f.write("\n")
+    #
+    #     # write sdf
+    #     self.write_sdf(grouped_reactions, struct_name)
+    #
+    #     # write feature
+    #     if feature_name is not None:
+    #         self.write_feature(grouped_reactions, feature_name)
 
     @staticmethod
     def _get_formula_composition_map(mols):
@@ -918,7 +1035,7 @@ def get_same_bond_breaking_reactions_between_two_reaction_groups(
             breaking different bonds. the bond indices is the key of the dict.
 
     Returns:
-        A list of tuples where each tuple has the same breaking bond.
+        A list of tuples (rxn1, rxn2) where rxn1 and rxn2 has the same breaking bond.
     """
 
     bonds1 = [tuple(k) for k in group1]

@@ -330,6 +330,9 @@ class MoleculeWrapper:
 
     @property
     def graph(self):
+        return self.nx_graph()
+
+    def nx_graph(self):
         return self.mol_graph.graph
 
     @property
@@ -356,7 +359,7 @@ class MoleculeWrapper:
     @property
     def fragments(self):
         if self._fragments is None:
-            self._fragments = self._get_fragments()
+            self._fragments = self.get_fragments()
         return self._fragments
 
     @property
@@ -428,16 +431,21 @@ class MoleculeWrapper:
             out = out[k]
         return out
 
-    def _get_fragments(self):
+    def get_fragments(self, bonds=None):
         """
         Fragment molecule by breaking ONE bond.
+
+        Args: a list of tuple as bond indices.
 
         Returns:
             A dictionary with key of bond index (a tuple (idx1, idx2)), and value a list
             of the new mol_graphs (could be empty if the mol has no bonds).
         """
         sub_mols = {}
-        for edge in self.graph.edges():
+
+        if bonds is None:
+            bonds = self.graph.edges()
+        for edge in bonds:
             try:
                 new_mgs = self.mol_graph.split_molecule_subgraphs(
                     [edge], allow_reverse=True, alterations=None
@@ -452,6 +460,7 @@ class MoleculeWrapper:
 
     def write(self, filename=None, file_format="sdf", message=None):
         if filename is not None:
+            filename = expand_path(filename)
             create_directory(filename)
         message = str(self.id) if message is None else message
         self.ob_mol.SetTitle(message)
