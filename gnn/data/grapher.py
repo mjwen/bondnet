@@ -73,6 +73,14 @@ class HomoBidirectedGraph:
             g.edata.update(self.bond_featurizer(mol, **kwargs))
         return g
 
+    @property
+    def graph_id(self):
+        return getattr(self, "_id", None)
+
+    @graph_id.setter
+    def graph_id(self, val):
+        self._id = val
+
 
 class HomoCompleteGraph:
     """
@@ -133,6 +141,14 @@ class HomoCompleteGraph:
         if self.bond_featurizer is not None:
             g.edata.update(self.bond_featurizer(mol, **kwargs))
         return g
+
+    @property
+    def graph_id(self):
+        return getattr(self, "_id", None)
+
+    @graph_id.setter
+    def graph_id(self, val):
+        self._id = val
 
 
 class HeteroMoleculeGraph:
@@ -234,3 +250,11 @@ class HeteroMoleculeGraph:
             g.nodes["global"].data.update(self.global_state_featurizer(mol, **kwargs))
 
         return g
+
+    @property
+    def graph_id(self):
+        return getattr(self, "_id", None)
+
+    @graph_id.setter
+    def graph_id(self, val):
+        self._id = val

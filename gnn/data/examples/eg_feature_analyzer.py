@@ -23,9 +23,15 @@ def get_dataset_electrolyte():
         # sdf_file="~/Applications/mongo_db_access/extracted_mols/struct.sdf",
         # label_file="~/Applications/mongo_db_access/extracted_mols/label.txt",
         # feature_file="~/Applications/mongo_db_access/extracted_mols/feature.yaml",
-        sdf_file="~/Applications/mongo_db_access/extracted_mols/struct_n200.sdf",
-        label_file="~/Applications/mongo_db_access/extracted_mols/label_n200.txt",
-        feature_file="~/Applications/mongo_db_access/extracted_mols/feature_n200.yaml",
+        # sdf_file="~/Applications/mongo_db_access/extracted_mols/struct_n200.sdf",
+        # label_file="~/Applications/mongo_db_access/extracted_mols/label_n200.txt",
+        # feature_file="~/Applications/mongo_db_access/extracted_mols/feature_n200.yaml",
+        sdf_file="~/Applications/mongo_db_access/extracted_mols/struct_charge0.sdf",
+        label_file="~/Applications/mongo_db_access/extracted_mols/label_charge0.txt",
+        feature_file="~/Applications/mongo_db_access/extracted_mols/feature_charge0.yaml",
+        # sdf_file="~/Applications/mongo_db_access/extracted_mols/struct_charge0_CC.sdf",
+        # label_file="~/Applications/mongo_db_access/extracted_mols/label_charge0_CC.txt",
+        # feature_file="~/Applications/mongo_db_access/extracted_mols/feature_charge0_CC.yaml",
         atom_featurizer_with_extra_info=True,
         bond_length_featurizer="bin",
         pickle_dataset=False,
@@ -60,7 +66,7 @@ def get_pickled_qm9():
 def feature_stdev(dataset):
     analyzer = StdevThreshold(dataset)
     not_satisfied = {}
-    for ntype in ["atom", "bond"]:
+    for ntype in ["atom", "bond", "global"]:
         not_satisfied[ntype] = analyzer.compute(ntype, threshold=1e-8)
     return not_satisfied
 
@@ -68,7 +74,7 @@ def feature_stdev(dataset):
 def corelation(dataset, excludes):
     analyzer = PearsonCorrelation(dataset)
 
-    for ntype in ["atom", "bond"]:
+    for ntype in ["atom", "bond", "global"]:
         exclude = excludes[ntype]
         corr = analyzer.compute(ntype, exclude)
         filename = os.path.join(os.path.dirname(__file__), "{}_heatmap.pdf".format(ntype))
@@ -86,108 +92,11 @@ def tsne_analysis(dataset):
     analyzer.compute()
 
 
-def write_features(
-    # sdf_file="~/Applications/mongo_db_access/extracted_mols/struct.sdf",
-    # label_file="~/Applications/mongo_db_access/extracted_mols/label.txt",
-    # feature_file="~/Applications/mongo_db_access/extracted_mols/feature.yaml",
-    sdf_file="~/Applications/mongo_db_access/extracted_mols/struct_n200.sdf",
-    label_file="~/Applications/mongo_db_access/extracted_mols/label_n200.txt",
-    feature_file="~/Applications/mongo_db_access/extracted_mols/feature_n200.yaml",
-    # sdf_file="~/Applications/mongo_db_access/extracted_mols/struct_charge0.sdf",
-    # label_file="~/Applications/mongo_db_access/extracted_mols/label_charge0.txt",
-    # sdf_file="~/Applications/mongo_db_access/extracted_mols/struct_charge0_CC.sdf",
-    # label_file="~/Applications/mongo_db_access/extracted_mols/label_charge0_CC.txt",
-    png_dir="~/Applications/mongo_db_access/extracted_mols/mol_png_cropped",
-    tex_file="~/Applications/mongo_db_access/features.tex",
-):
-
-    dataset = ElectrolyteDataset(
-        sdf_file,
-        label_file,
-        feature_file,
-        feature_transformer=False,
-        label_transformer=False,
-    )
-
-    structs = read_sdf(filename=sdf_file)
-    labels = read_label(label_file, sort_by_formula=False)
-    all_pngs = glob.glob(os.path.join(expand_path(png_dir), "*.png"))
-
-    tex_file = expand_path(tex_file)
-    with open(tex_file, "w") as f:
-        f.write(TexWriter.head())
-
-        for i, (g, _, _) in enumerate(dataset):
-
-            rxn = labels[i]
-            reactant = rxn["reactants"]
-            raw = rxn["raw"]
-
-            f.write("\n" * 2 + r"\newpage" + "\n")
-            f.write(r"\begin{verbatim}" + "\n")
-
-            # sdf info
-            f.write(structs[reactant])
-
-            # label info (raw)
-            f.write("\n" * 2)
-            f.write(TexWriter.resize_string(raw))
-
-            f.write(r"\end{verbatim}" + "\n")
-
-            # molecule figure
-            filename = None
-            for name in all_pngs:
-                if reactant in name:
-                    filename = name
-                    break
-            if filename is None:
-                raise Exception(
-                    "cannot find png file for {} in {}".format(reactant, png_dir)
-                )
-            f.write(TexWriter.single_figure(filename))
-
-            # feature info
-            f.write(r"\begin{verbatim}" + "\n")
-
-            # atom feature
-            f.write("atom feature:\n")
-            ft = g.nodes["atom"].data["feat"]
-            ft = np.asarray(ft, dtype=np.int32)  # they are actually int feature
-            header = dataset.feature_name["atom"]
-            tables = TexWriter.beautifultable(
-                ft,
-                header,
-                first_column=[1 + i for i in range(len(ft))],
-                first_column_header="id",
-                num_tables=2,
-            )
-            f.write(tables)
-
-            # bond feature
-            f.write("\n\nbond feature:\n")
-            ft = g.nodes["bond"].data["feat"]
-            ft = np.asarray(ft, dtype=np.int32)  # they are actually int feature
-            header = dataset.feature_name["bond"]
-            tables = TexWriter.beautifultable(
-                ft,
-                header,
-                first_column=[1 + i for i in range(len(ft))],
-                first_column_header="id",
-                num_tables=1,
-            )
-            f.write(tables)
-
-            f.write(r"\end{verbatim}" + "\n")
-
-        f.write(TexWriter.tail())
-
-
 def kmeans_analysis(
     label_file="~/Applications/mongo_db_access/extracted_mols/label_charge0_CC.txt",
     sdf_file="~/Applications/mongo_db_access/extracted_mols/struct_charge0_CC.sdf",
     feature_file="~/Applications/mongo_db_access/extracted_mols/feature_charge0_CC.yaml",
-    png_dir="~/Applications/mongo_db_access/extracted_mols/mol_png_cropped",
+    png_dir="~/Applications/mongo_db_access/extracted_mols/mol_png",
     tex_file="~/Applications/mongo_db_access/kmeans_cluster.tex",
 ):
     # kmeans analysis
@@ -281,9 +190,116 @@ def kmeans_analysis(
         f.write(tail)
 
 
+def write_features(
+    sdf_file="~/Applications/mongo_db_access/extracted_mols/struct.sdf",
+    label_file="~/Applications/mongo_db_access/extracted_mols/label.txt",
+    feature_file="~/Applications/mongo_db_access/extracted_mols/feature.yaml",
+    # sdf_file="~/Applications/mongo_db_access/extracted_mols/struct_n200.sdf",
+    # label_file="~/Applications/mongo_db_access/extracted_mols/label_n200.txt",
+    # feature_file="~/Applications/mongo_db_access/extracted_mols/feature_n200.yaml",
+    # sdf_file="~/Applications/mongo_db_access/extracted_mols/struct_charge0.sdf",
+    # label_file="~/Applications/mongo_db_access/extracted_mols/label_charge0.txt",
+    # sdf_file="~/Applications/mongo_db_access/extracted_mols/struct_charge0_CC.sdf",
+    # label_file="~/Applications/mongo_db_access/extracted_mols/label_charge0_CC.txt",
+    png_dir="~/Applications/mongo_db_access/extracted_mols/mol_png",
+    tex_file="~/Applications/mongo_db_access/tex_features.tex",
+):
+
+    dataset = ElectrolyteDataset(
+        sdf_file,
+        label_file,
+        feature_file,
+        feature_transformer=False,
+        label_transformer=False,
+        atom_featurizer_with_extra_info=True,
+        bond_length_featurizer="bin",
+    )
+
+    structs = read_sdf(filename=sdf_file)
+    labels = read_label(label_file, sort_by_formula=False)
+    png_dir = expand_path(png_dir)
+    all_pngs = glob.glob(os.path.join(png_dir, "*.png"))
+
+    tex_file = expand_path(tex_file)
+    with open(tex_file, "w") as f:
+        f.write(TexWriter.head())
+
+        for i, (g, _, _) in enumerate(dataset):
+
+            # we use g.graph_id instead of i here because some sdf entries may fail
+            # when creating the dataset, and thus there could be mismatch
+            rxn = labels[g.graph_id]
+
+            reactant = rxn["reactants"]
+            raw = rxn["raw"]
+
+            f.write(TexWriter.newpage())
+            # sdf info
+            f.write(TexWriter.verbatim(structs[reactant]))
+            # label info (raw)
+            f.write(TexWriter.verbatim(TexWriter.resize_string(raw)))
+
+            # molecule figure
+            filename = None
+            for name in all_pngs:
+                if reactant in name:
+                    filename = name
+                    break
+            if filename is None:
+                raise Exception(
+                    "cannot find png file for {} in {}".format(reactant, png_dir)
+                )
+            f.write(TexWriter.single_figure(filename))
+
+            # feature info
+            # atom feature
+            f.write("atom feature:\n")
+            ft = g.nodes["atom"].data["feat"]
+            # ft = np.asarray(ft, dtype=np.int32)  # they are actually int feature
+            header = dataset.feature_name["atom"]
+            tables = TexWriter.beautifultable(
+                ft,
+                header,
+                first_column=[1 + i for i in range(len(ft))],
+                first_column_header="id",
+                num_tables=1,
+            )
+            f.write(TexWriter.verbatim(tables))
+
+            # bond feature
+            f.write("\n\nbond feature:\n")
+            ft = g.nodes["bond"].data["feat"]
+            # ft = np.asarray(ft, dtype=np.int32)  # they are actually int feature
+            header = dataset.feature_name["bond"]
+            tables = TexWriter.beautifultable(
+                ft,
+                header,
+                first_column=[1 + i for i in range(len(ft))],
+                first_column_header="id",
+                num_tables=1,
+            )
+            f.write(TexWriter.verbatim(tables))
+
+            # global feature
+            f.write("\n\nglobal feature:\n")
+            ft = g.nodes["global"].data["feat"]
+            # ft = np.asarray(ft, dtype=np.int32)  # they are actually int feature
+            header = dataset.feature_name["global"]
+            tables = TexWriter.beautifultable(
+                ft,
+                header,
+                first_column=[1 + i for i in range(len(ft))],
+                first_column_header="id",
+                num_tables=1,
+            )
+            f.write(TexWriter.verbatim(tables))
+
+        f.write(TexWriter.tail())
+
+
 if __name__ == "__main__":
     dataset = get_dataset_electrolyte()
-    # # dataset = get_dataset_qm9()
+    # dataset = get_dataset_qm9()
     not_satisfied = feature_stdev(dataset)
     corelation(dataset, not_satisfied)
 
@@ -291,5 +307,5 @@ if __name__ == "__main__":
     # pca_analysis(dataset)
     # tsne_analysis(dataset)
 
-    # kmeans_analysis()
     # write_features()
+    # kmeans_analysis()

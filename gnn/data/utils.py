@@ -121,7 +121,7 @@ class TexWriter:
         )
         return s
 
-    def resize_string(s, length=80, start="", end=r"\n"):
+    def resize_string(s, length=80, start="", end="\n"):
         """
         Reshape a string `s` to substrings with `start` prepended and `end` appended at
         each substring.

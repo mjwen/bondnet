@@ -75,14 +75,26 @@ def subselect_reactions():
     filename = "~/Applications/mongo_db_access/extracted_mols/reactions.pkl"
     extractor = ReactionExtractor.from_file(filename)
     reactions = []
-    for rxn in extractor.reactions:
-        if rxn.reactants[0].formula == "C5H8Li1O3":
-            reactions.append(rxn)
+
+    # for rxn in extractor.reactions:
+    #    if rxn.reactants[0].formula == "C5H8Li1O3":
+    #        reactions.append(rxn)
+
+    ##############
+    # filter reactant charge = 0
+    ##############
+    extractor.filter_reactions_by_reactant_charge(charge=0)
+
+    # ##############
+    # # filter C-C bond
+    # ##############
+    # extractor.filter_reactions_by_bond_type_and_order(bond_type=("C", "C"))
 
     extractor.reactions = reactions
     extractor.molecules = extractor._get_molecules_from_reactions(reactions)
 
-    filename = "~/Applications/mongo_db_access/extracted_mols/reactions_C5H8Li1O3.pkl"
+    # filename = "~/Applications/mongo_db_access/extracted_mols/reactions_C5H8Li1O3.pkl"
+    filename = "~/Applications/mongo_db_access/extracted_mols/reactions_charge0.pkl"
     extractor.to_file(filename)
 
 
@@ -289,6 +301,43 @@ def plot_bond_energy_hist(
         plot_one(reactions, s1, s2)
 
 
+def plot_all_bond_length_hist(
+    filename="~/Applications/mongo_db_access/extracted_mols/reactions.pkl",
+    # filename="~/Applications/mongo_db_access/extracted_mols/reactions_n200.pkl",
+):
+    """
+    This includes all bonds in molecules.
+    """
+
+    def plot_hist(data, filename):
+        fig = plt.figure()
+        ax = fig.gca()
+        ax.hist(data, 20)
+
+        ax.set_xlabel("Bond length")
+        ax.set_ylabel("counts")
+
+        fig.savefig(filename, bbox_inches="tight")
+
+    # TODO this should be moved to Reaction (coords should be moved to WrapperMolecule)
+    def get_length_of_bond(rxn):
+        reactant = rxn.reactants[0]
+        coords = np.asarray([s.coords for s in reactant.pymatgen_mol.sites])
+        dist = [np.linalg.norm(coords[u] - coords[v]) for u, v, _ in reactant.bonds]
+        return dist
+
+    # prepare data
+    extractor = ReactionExtractor.from_file(filename)
+    all_reactions = extractor.get_reactions_with_lowest_energy()
+    data = [get_length_of_bond(rxn) for rxn in all_reactions]
+    data = np.concatenate(data)
+
+    print("\n\n@@@ all bond length min={}, max={}".format(min(data), max(data)))
+    filename = "~/Applications/mongo_db_access/extracted_mols/bond_length_all.pdf"
+    filename = expand_path(filename)
+    plot_hist(data, filename)
+
+
 def plot_broken_bond_length_hist(
     filename="~/Applications/mongo_db_access/extracted_mols/reactions.pkl",
     # filename="~/Applications/mongo_db_access/extracted_mols/reactions_n200.pkl",
@@ -319,8 +368,8 @@ def plot_broken_bond_length_hist(
     all_reactions = extractor.get_reactions_with_lowest_energy()
     data = [get_length_of_broken_bond(rxn) for rxn in all_reactions]
 
-    print("\n\n@@@ bond length min={}, max={}".format(min(data), max(data)))
-    filename = "~/Applications/mongo_db_access/extracted_mols/bond_length.pdf"
+    print("\n\n@@@ broken bond length min={}, max={}".format(min(data), max(data)))
+    filename = "~/Applications/mongo_db_access/extracted_mols/bond_length_broken.pdf"
     filename = expand_path(filename)
     plot_hist(data, filename)
 
@@ -347,27 +396,29 @@ def create_struct_label_dataset_bond_based():
     # filename = "~/Applications/mongo_db_access/extracted_mols/reactions_n200.pkl"
     extractor = ReactionExtractor.from_file(filename)
 
-    # ##############
-    # # filter reactant charge = 0
-    # ##############
-    # extractor.filter_reactions_by_reactant_charge(charge=0)
-    #
+    ##############
+    # filter reactant charge = 0
+    ##############
+    extractor.filter_reactions_by_reactant_charge(charge=0)
+
     # ##############
     # # filter C-C bond
     # ##############
-    # extractor.filter_reactions_by_bond_type_and_order(bond_type=("C", "C"), bond_order=1)
+    # extractor.filter_reactions_by_bond_type_and_order(bond_type=("C", "C"))
 
     extractor.create_struct_label_dataset_bond_based(
-        struct_name="~/Applications/mongo_db_access/extracted_mols/struct.sdf",
-        label_name="~/Applications/mongo_db_access/extracted_mols/label.txt",
-        feature_name="~/Applications/mongo_db_access/extracted_mols/feature.yaml",
+        # struct_name="~/Applications/mongo_db_access/extracted_mols/struct.sdf",
+        # label_name="~/Applications/mongo_db_access/extracted_mols/label.txt",
+        # feature_name="~/Applications/mongo_db_access/extracted_mols/feature.yaml",
         # struct_name="~/Applications/mongo_db_access/extracted_mols/struct_n200.sdf",
         # label_name="~/Applications/mongo_db_access/extracted_mols/label_n200.txt",
         # feature_name="~/Applications/mongo_db_access/extracted_mols/feature_n200.yaml",
-        # struct_name="~/Applications/mongo_db_access/extracted_mols/struct_charge0.sdf",
-        # label_name="~/Applications/mongo_db_access/extracted_mols/label_charge0.txt",
+        struct_name="~/Applications/mongo_db_access/extracted_mols/struct_charge0.sdf",
+        label_name="~/Applications/mongo_db_access/extracted_mols/label_charge0.txt",
+        feature_name="~/Applications/mongo_db_access/extracted_mols/feature_charge0.yaml",
         # struct_name="~/Applications/mongo_db_access/extracted_mols/struct_charge0_CC.sdf",
         # label_name="~/Applications/mongo_db_access/extracted_mols/label_charge0_CC.txt",
+        # feature_name="~/Applications/mongo_db_access/extracted_mols/feature_charge0_CC.yaml",
     )
 
 
@@ -376,13 +427,14 @@ if __name__ == "__main__":
     # eg_extract_A_to_B()
     # eg_extract_A_to_B_C()
     # eg_extract_one_bond_break()
-    # subselect_reactions()
-
-    # reactants_bond_energies_to_file()
-    # eg_create_struct_label_dataset_mol_based()
-    # create_struct_label_dataset_bond_based()
+    subselect_reactions()
 
     # plot_reaction_energy_difference_arcoss_reactant_charge()
     # plot_bond_type_heat_map()
     # plot_bond_energy_hist()
-    plot_broken_bond_length_hist()
+    # plot_broken_bond_length_hist()
+    # plot_all_bond_length_hist()
+
+    # reactants_bond_energies_to_file()
+    # eg_create_struct_label_dataset_mol_based()
+    # create_struct_label_dataset_bond_based()

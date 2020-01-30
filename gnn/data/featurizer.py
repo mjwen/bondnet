@@ -114,21 +114,21 @@ class BondAsNodeFeaturizer(BondFeaturizer):
             bond = mol.GetBondWithIdx(u)
 
             ft = [
-                int(bond.GetIsAromatic()),
+                # int(bond.GetIsAromatic()),
                 int(bond.IsInRing()),
-                int(bond.GetIsConjugated()),
+                # int(bond.GetIsConjugated()),
             ]
 
-            ft += one_hot_encoding(
-                bond.GetBondType(),
-                [
-                    Chem.rdchem.BondType.SINGLE,
-                    Chem.rdchem.BondType.DOUBLE,
-                    Chem.rdchem.BondType.TRIPLE,
-                    # Chem.rdchem.BondType.AROMATIC,
-                    # Chem.rdchem.BondType.IONIC,
-                ],
-            )
+            # ft += one_hot_encoding(
+            #     bond.GetBondType(),
+            #     [
+            #         Chem.rdchem.BondType.SINGLE,
+            #         Chem.rdchem.BondType.DOUBLE,
+            #         Chem.rdchem.BondType.TRIPLE,
+            #         # Chem.rdchem.BondType.AROMATIC,
+            #         # Chem.rdchem.BondType.IONIC,
+            #     ],
+            # )
 
             if self.length_featurizer:
                 at1 = bond.GetBeginAtomIdx()
@@ -141,7 +141,7 @@ class BondAsNodeFeaturizer(BondFeaturizer):
 
         feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
         self._feature_size = feats.shape[1]
-        self._feature_name = ["is aromatic", "is in ring", "is conjugated"] + ["type"] * 3
+        self._feature_name = ["is in ring"]
         if self.length_featurizer:
             self._feature_name += self.length_featurizer.feature_name
 
@@ -560,10 +560,10 @@ class AtomFeaturizerWithExtraInfo(BaseFeaturizer):
 
             # from rdkit
             ft.append(atom.GetTotalDegree())
-            ft.append(int(atom.GetIsAromatic()))
+            # ft.append(int(atom.GetIsAromatic()))
             ft.append(int(atom.IsInRing()))
-            # atomic number of symbols are redudant
-            ft.append(atom.GetAtomicNum())
+            # atomic number of symbols are redundant
+            # ft.append(atom.GetAtomicNum())
             ft += one_hot_encoding(atom.GetSymbol(), self.species)
 
             # from extra info
@@ -576,7 +576,7 @@ class AtomFeaturizerWithExtraInfo(BaseFeaturizer):
         feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
         self._feature_size = feats.shape[1]
         self._feature_name = (
-            ["total degree", "is aromatic", "is in ring", "atomic number"]
+            ["total degree", "is in ring"]
             + ["chemical symbol"] * len(self.species)
             + ["resp", "mulliken", "spin"]
         )
@@ -611,14 +611,23 @@ class GlobalFeaturizerWithExtraInfo(BaseFeaturizer):
                 "{} `extra_feats_info` needed for {}.".format(e, self.__class__.__name__)
             )
 
-        # TODO, multiplicity chould also be one hot encoding
-        g = [feats_info["spin_multiplicity"]]
+        g = [
+            feats_info["charge"],
+            sum(feats_info["atom_spin"]),
+            feats_info["abs_resp_diff"],
+            feats_info["abs_mulliken_diff"],
+            feats_info["abs_atom_spin_diff"],
+        ]
         g += one_hot_encoding(feats_info["charge"], [-1, 0, 1])
+        g += one_hot_encoding(feats_info["spin_multiplicity"], [1, 2])
 
         feats = torch.tensor([g], dtype=getattr(torch, self.dtype))
         self._feature_size = feats.shape[1]
-        self._feature_name = ["spin"] + ["charge"] * 3
-
+        self._feature_name = (
+            ["charge sum", "spin sum", "resp diff", "mulliken diff", "atom spin diff"]
+            + ["charge"] * 3
+            + ["spin " "multi."] * 2
+        )
         return {"feat": feats}
 
 

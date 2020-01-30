@@ -268,7 +268,8 @@ class PCAAnalyzer(BaseAnalyzer):
     """
 
     def compute(self):
-        features, labels = self._stack_feature_and_label(ntype="bond")
+        # features, labels = self._stack_feature_and_label(ntype="bond")
+        features, labels = self._stack_bond_feature_plus_atom_feature_and_label()
         return self.embedding([features], [labels])
 
     @staticmethod
@@ -302,7 +303,8 @@ class TSNEAnalyzer(BaseAnalyzer):
     """
 
     def compute(self):
-        features, labels = self._stack_feature_and_label(ntype="bond")
+        # features, labels = self._stack_feature_and_label(ntype="bond")
+        features, labels = self._stack_bond_feature_plus_atom_feature_and_label()
         return self.embedding([features], [labels])
 
     @staticmethod

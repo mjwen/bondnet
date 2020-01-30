@@ -39,9 +39,11 @@ class ElectrolyteDataset(BaseDataset):
             file.
         self_loop (bool): whether to create self loop, i.e. a node is connected to
             itself through an edge.
-        hetero (bool): Whether to build hetero graph, where atom, bond, and global state
-            are all represented as graph nodes). If `False`, build a homo graph, where
-            atoms are represented as node and bond are represented as graphs.
+        grapher (str): What type of graph to build. Options are `hetero`,
+            `homo_bidirected` and `homo_complete`.
+            For hetero graph, atom, bond, and global state are all represented as
+            graph nodes. For homo graph, atoms are represented as node and bond are
+            represented as graph edges.
     """
 
     def __init__(
@@ -180,15 +182,16 @@ class ElectrolyteDataset(BaseDataset):
                 if mol is None:  # bad mol
                     continue
 
-                nbonds = int((len(prop) - 1) / 2)
+                nbonds = len(prop) // 2
                 dtype = getattr(torch, self.dtype)
-                bonds_energy = torch.tensor(prop[1 : nbonds + 1], dtype=dtype)
-                bonds_indicator = torch.tensor(prop[nbonds + 1 :], dtype=dtype)
+                bonds_energy = torch.tensor(prop[:nbonds], dtype=dtype)
+                bonds_indicator = torch.tensor(prop[nbonds:], dtype=dtype)
 
                 if feats is not None:
                     g = grapher.build_graph_and_featurize(mol, extra_feats_info=feats)
                 else:
                     g = grapher.build_graph_and_featurize(mol)
+                g.graph_id = i
 
                 self.graphs.append(g)
 

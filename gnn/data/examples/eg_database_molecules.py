@@ -25,16 +25,14 @@ def pickle_molecules():
 
     mols = db.to_molecules()
     # filename = "~/Applications/mongo_db_access/extracted_mols/molecules_unfiltered.pkl"
-    filename = "~/Applications/mongo_db_access/extracted_mols/molecules_n200.pkl"
+    filename = (
+        "~/Applications/mongo_db_access/extracted_mols/molecules_n200_unfiltered.pkl"
+    )
     pickle_dump(mols, filename)
 
-
-def filter_then_pickle_molecules():
-    filename = "~/Applications/mongo_db_access/extracted_mols/molecules_unfiltered.pkl"
-    mols = pickle_load(filename)
-
     mols = DatabaseOperation.filter_molecules(mols, connectivity=True, isomorphism=True)
-    filename = "~/Applications/mongo_db_access/extracted_mols/molecules.pkl"
+    # filename = "~/Applications/mongo_db_access/extracted_mols/molecules.pkl"
+    filename = "~/Applications/mongo_db_access/extracted_mols/molecules_n200.pkl"
     pickle_dump(mols, filename)
 
 
@@ -46,6 +44,7 @@ def plot_molecules():
     mols = pickle_load(filename)
 
     for m in mols:
+
         fname = os.path.join(
             plot_prefix,
             "mol_png/{}_{}_{}_{}.png".format(
@@ -53,6 +52,8 @@ def plot_molecules():
             ),
         )
         m.draw(fname, show_atom_idx=True)
+        fname = expand_path(fname)
+        subprocess.run(["convert", fname, "-trim", "-resize", "100%", fname])
 
         fname = os.path.join(
             plot_prefix,
@@ -201,11 +202,10 @@ def compare_connectivity_mol_builder_and_babel_builder(
 
 if __name__ == "__main__":
     # pickle_database()
-    pickle_molecules()
-    # filter_then_pickle_molecules()
+    # pickle_molecules()
     # plot_molecules()
     # write_dataset()
-    # write_features()
+    write_features()
     # write_group_isomorphic_to_file()
     # get_single_atom_energy()
 

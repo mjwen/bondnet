@@ -621,13 +621,12 @@ class ReactionExtractor:
         create_directory(label_name)
         with open(label_name, "w") as f:
             f.write(
-                "# Each line lists the molecule charge and bond energies of a molecule. "
-                "The number of items in each line is equal to 1 + 2*N, where N is the "
-                "number bonds. The first item is the molecule charge. The first half "
-                "of the remaining items are bond energies and the next half values are "
-                "indicators (0 or 1) to specify whether the bond energy exist in the "
-                "dataset. A value of 0 means the corresponding bond energy should be "
-                "ignored, whatever its value is.\n"
+                "# Each line lists the bond energies of a molecule. "
+                "The number of items in each line is equal to 2*N, where N is the "
+                "number bonds. The first N items are bond energies and the next N "
+                "items are indicators (0 or 1) to specify whether the bond energy "
+                "exists in the dataset. A value of 0 means the corresponding bond "
+                "energy should be ignored, whatever its value is.\n"
             )
             for reactant, reactions in grouped_reactions.items():
 
@@ -649,9 +648,6 @@ class ReactionExtractor:
                     all_rxns.append(rxn)
 
                     attr = rxn.as_dict()
-
-                    # charge
-                    f.write("{}    ".format(reactant.charge))
 
                     # write bond energies
                     for ii in range(len(sdf_bonds)):
