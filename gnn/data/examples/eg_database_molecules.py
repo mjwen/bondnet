@@ -20,12 +20,12 @@ def pickle_molecules():
     # db = DatabaseOperation.from_file(db_path)
 
     # directly from query
-    db = DatabaseOperation.from_query()
-    # db = DatabaseOperation.from_query(num_entries=200)
+    # db = DatabaseOperation.from_query()
+    db = DatabaseOperation.from_query(num_entries=1000)
 
     mols = db.to_molecules()
-    filename = "~/Applications/mongo_db_access/extracted_mols/molecules_unfiltered.pkl"
-    # filename = "~/Applications/mongo_db_access/extracted_mols/molecules_n200.pkl"
+    # filename = "~/Applications/mongo_db_access/extracted_mols/molecules_unfiltered.pkl"
+    filename = "~/Applications/mongo_db_access/extracted_mols/molecules_n200.pkl"
     pickle_dump(mols, filename)
 
 
@@ -201,7 +201,7 @@ def compare_connectivity_mol_builder_and_babel_builder(
 
 if __name__ == "__main__":
     # pickle_database()
-    # pickle_molecules()
+    pickle_molecules()
     # filter_then_pickle_molecules()
     # plot_molecules()
     # write_dataset()
@@ -209,4 +209,4 @@ if __name__ == "__main__":
     # write_group_isomorphic_to_file()
     # get_single_atom_energy()
 
-    compare_connectivity_mol_builder_and_babel_builder()
+    # compare_connectivity_mol_builder_and_babel_builder()

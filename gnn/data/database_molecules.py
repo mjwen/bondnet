@@ -269,7 +269,7 @@ class MoleculeWrapper:
         else:
             components = nx.weakly_connected_components(original.graph)
             nodes = [original.graph.subgraph(c).nodes for c in components]
-            mapping = tuple([list(sorted(n)) for n in nodes])
+            mapping = tuple([list(sorted(list(n))) for n in nodes])
             if len(mapping) != 2:
                 raise Exception("Mole not split into two parts")
             return mapping

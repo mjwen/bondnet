@@ -188,14 +188,17 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
 def main(args):
 
     ### dataset
-    sdf_file = "~/Applications/mongo_db_access/extracted_data/struct_n200.sdf"
-    label_file = "~/Applications/mongo_db_access/extracted_data/label_n200.txt"
+    sdf_file = "~/Applications/mongo_db_access/extracted_mols/struct_n200.sdf"
+    label_file = "~/Applications/mongo_db_access/extracted_mols/label_n200.txt"
+    feature_file = "~/Applications/mongo_db_access/extracted_mols/feature_n200.yaml"
     dataset = ElectrolyteDataset(
         sdf_file,
         label_file,
+        feature_file,
         self_loop=True,
         grapher="hetero",
-        bond_length_featurizer="rbf",
+        atom_featurizer_with_extra_info=True,
+        bond_length_featurizer="bin",
     )
     trainset, valset, testset = train_validation_test_split(
         dataset, validation=0.1, test=0.1

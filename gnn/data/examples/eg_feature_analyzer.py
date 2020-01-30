@@ -19,21 +19,26 @@ from gnn.data.utils import TexWriter
 
 
 def get_dataset_electrolyte():
-    return ElectrolyteDataset(
-        # sdf_file="~/Applications/mongo_db_access/extracted_data/struct_n200.sdf",
-        # label_file="~/Applications/mongo_db_access/extracted_data/label_n200.txt",
-        # sdf_file="~/Applications/mongo_db_access/extracted_data/struct_charge0.sdf",
-        # label_file="~/Applications/mongo_db_access/extracted_data/label_charge0.txt",
-        sdf_file="~/Applications/mongo_db_access/extracted_data/struct_charge0_CC.sdf",
-        label_file="~/Applications/mongo_db_access/extracted_data/label_charge0_CC.txt",
+    dataset = ElectrolyteDataset(
+        # sdf_file="~/Applications/mongo_db_access/extracted_mols/struct.sdf",
+        # label_file="~/Applications/mongo_db_access/extracted_mols/label.txt",
+        # feature_file="~/Applications/mongo_db_access/extracted_mols/feature.yaml",
+        sdf_file="~/Applications/mongo_db_access/extracted_mols/struct_n200.sdf",
+        label_file="~/Applications/mongo_db_access/extracted_mols/label_n200.txt",
+        feature_file="~/Applications/mongo_db_access/extracted_mols/feature_n200.yaml",
+        atom_featurizer_with_extra_info=True,
+        bond_length_featurizer="bin",
         pickle_dataset=False,
     )
+
+    print("@@@ len(dataset)", len(dataset))
+    return dataset
 
 
 def get_pickled_electrolyte():
     return ElectrolyteDataset(
-        sdf_file="~/Applications/mongo_db_access/extracted_data/struct_n200.sdf.pkl",
-        label_file="~/Applications/mongo_db_access/extracted_data/label_n200.txt.pkl",
+        sdf_file="~/Applications/mongo_db_access/extracted_mols/struct_n200.sdf.pkl",
+        label_file="~/Applications/mongo_db_access/extracted_mols/label_n200.txt.pkl",
     )
 
 
@@ -82,17 +87,17 @@ def tsne_analysis(dataset):
 
 
 def write_features(
-    # sdf_file="~/Applications/mongo_db_access/extracted_data/struct.sdf",
-    # label_file="~/Applications/mongo_db_access/extracted_data/label.txt",
-    # feature_file="~/Applications/mongo_db_access/extracted_data/feature.yaml",
-    sdf_file="~/Applications/mongo_db_access/extracted_data/struct_n200.sdf",
-    label_file="~/Applications/mongo_db_access/extracted_data/label_n200.txt",
-    feature_file="~/Applications/mongo_db_access/extracted_data/feature_n200.yaml",
-    # sdf_file="~/Applications/mongo_db_access/extracted_data/struct_charge0.sdf",
-    # label_file="~/Applications/mongo_db_access/extracted_data/label_charge0.txt",
-    # sdf_file="~/Applications/mongo_db_access/extracted_data/struct_charge0_CC.sdf",
-    # label_file="~/Applications/mongo_db_access/extracted_data/label_charge0_CC.txt",
-    png_dir="~/Applications/mongo_db_access/extracted_data/mol_png_cropped",
+    # sdf_file="~/Applications/mongo_db_access/extracted_mols/struct.sdf",
+    # label_file="~/Applications/mongo_db_access/extracted_mols/label.txt",
+    # feature_file="~/Applications/mongo_db_access/extracted_mols/feature.yaml",
+    sdf_file="~/Applications/mongo_db_access/extracted_mols/struct_n200.sdf",
+    label_file="~/Applications/mongo_db_access/extracted_mols/label_n200.txt",
+    feature_file="~/Applications/mongo_db_access/extracted_mols/feature_n200.yaml",
+    # sdf_file="~/Applications/mongo_db_access/extracted_mols/struct_charge0.sdf",
+    # label_file="~/Applications/mongo_db_access/extracted_mols/label_charge0.txt",
+    # sdf_file="~/Applications/mongo_db_access/extracted_mols/struct_charge0_CC.sdf",
+    # label_file="~/Applications/mongo_db_access/extracted_mols/label_charge0_CC.txt",
+    png_dir="~/Applications/mongo_db_access/extracted_mols/mol_png_cropped",
     tex_file="~/Applications/mongo_db_access/features.tex",
 ):
 
@@ -179,10 +184,10 @@ def write_features(
 
 
 def kmeans_analysis(
-    label_file="~/Applications/mongo_db_access/extracted_data/label_charge0_CC.txt",
-    sdf_file="~/Applications/mongo_db_access/extracted_data/struct_charge0_CC.sdf",
-    feature_file="~/Applications/mongo_db_access/extracted_data/feature_charge0_CC.yaml",
-    png_dir="~/Applications/mongo_db_access/extracted_data/mol_png_cropped",
+    label_file="~/Applications/mongo_db_access/extracted_mols/label_charge0_CC.txt",
+    sdf_file="~/Applications/mongo_db_access/extracted_mols/struct_charge0_CC.sdf",
+    feature_file="~/Applications/mongo_db_access/extracted_mols/feature_charge0_CC.yaml",
+    png_dir="~/Applications/mongo_db_access/extracted_mols/mol_png_cropped",
     tex_file="~/Applications/mongo_db_access/kmeans_cluster.tex",
 ):
     # kmeans analysis
@@ -277,14 +282,14 @@ def kmeans_analysis(
 
 
 if __name__ == "__main__":
-    # dataset = get_dataset_electrolyte()
+    dataset = get_dataset_electrolyte()
     # # dataset = get_dataset_qm9()
-    # not_satisfied = feature_stdev(dataset)
-    # corelation(dataset, not_satisfied)
+    not_satisfied = feature_stdev(dataset)
+    corelation(dataset, not_satisfied)
 
     # dataset = get_dataset_electrolyte()
     # pca_analysis(dataset)
     # tsne_analysis(dataset)
 
-    kmeans_analysis()
+    # kmeans_analysis()
     # write_features()
