@@ -1,9 +1,9 @@
-from gnn.data.electrolyte import ElectrolyteDataset
+from gnn.data.electrolyte import ElectrolyteBondDataset
 from gnn.data.qm9 import QM9Dataset
 
 
 def get_dataset_electrolyte():
-    return ElectrolyteDataset(
+    return ElectrolyteBondDataset(
         sdf_file="/Users/mjwen/Applications/mongo_db_access/extracted_data/sturct_n200.sdf",
         label_file="/Users/mjwen/Applications/mongo_db_access/extracted_data/label_n200.txt",
         pickle_dataset=True,
@@ -11,7 +11,7 @@ def get_dataset_electrolyte():
 
 
 def get_pickled_electrolyte():
-    return ElectrolyteDataset(
+    return ElectrolyteBondDataset(
         sdf_file="/Users/mjwen/Applications/mongo_db_access/extracted_data/sturct_n200.sdf.pkl",
         label_file="/Users/mjwen/Applications/mongo_db_access/extracted_data/label_n200.txt.pkl",
     )

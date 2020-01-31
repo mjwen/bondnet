@@ -1,8 +1,8 @@
 import numpy as np
 import os
-from gnn.data.electrolyte import ElectrolyteDataset
+from gnn.data.electrolyte import ElectrolyteBondDataset
 from gnn.data.qm9 import QM9Dataset
-from gnn.data.electrolyte_mols import ElectrolyteMoleculeDataset
+from gnn.data.electrolyte import ElectrolyteMoleculeDataset
 
 
 test_files = os.path.dirname(__file__)
@@ -21,7 +21,7 @@ def test_electrolyte_label():
             ]
             ref_ts = [[std] * len(x) for x in ref_label_energies]
 
-        dataset = ElectrolyteDataset(
+        dataset = ElectrolyteBondDataset(
             sdf_file=os.path.join(test_files, "EC_struct.sdf"),
             label_file=os.path.join(test_files, "EC_label.txt"),
             feature_file=os.path.join(test_files, "EC_feature.yaml"),

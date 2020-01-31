@@ -8,7 +8,7 @@ from torch.nn import MSELoss
 from gnn.metric import WeightedL1Loss, EarlyStopping
 from gnn.model.hgatmol import HGATMol
 from gnn.data.dataset import train_validation_test_split
-from gnn.data.electrolyte_mols import ElectrolyteMoleculeDataset
+from gnn.data.electrolyte import ElectrolyteMoleculeDataset
 from gnn.data.dataloader import DataLoaderMolecule
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import (

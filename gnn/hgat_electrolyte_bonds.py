@@ -7,7 +7,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from gnn.metric import WeightedMSELoss, WeightedL1Loss, EarlyStopping
 from gnn.model.hgat import HGAT
 from gnn.data.dataset import train_validation_test_split
-from gnn.data.electrolyte import ElectrolyteDataset
+from gnn.data.electrolyte import ElectrolyteBondDataset
 from gnn.data.dataloader import DataLoaderBond
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import (
@@ -210,7 +210,7 @@ def main(args):
     sdf_file = "~/Applications/mongo_db_access/extracted_mols/struct_n200.sdf"
     label_file = "~/Applications/mongo_db_access/extracted_mols/label_n200.txt"
     feature_file = "~/Applications/mongo_db_access/extracted_mols/feature_n200.yaml"
-    dataset = ElectrolyteDataset(get_grapher(), sdf_file, label_file, feature_file)
+    dataset = ElectrolyteBondDataset(get_grapher(), sdf_file, label_file, feature_file)
     trainset, valset, testset = train_validation_test_split(
         dataset, validation=0.1, test=0.1
     )

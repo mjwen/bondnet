@@ -1,6 +1,6 @@
 import numpy as np
 import os
-from gnn.data.electrolyte import ElectrolyteDataset
+from gnn.data.electrolyte import ElectrolyteBondDataset
 from gnn.data.qm9 import QM9Dataset
 from gnn.data.dataloader import DataLoaderBond, DataLoaderMolecule
 
@@ -22,7 +22,7 @@ def test_dataloader_electrolyte():
             ]
             ref_scales = [[std] * len(x) for x in ref_label_energies]
 
-        dataset = ElectrolyteDataset(
+        dataset = ElectrolyteBondDataset(
             sdf_file=os.path.join(test_files, "EC_struct.sdf"),
             label_file=os.path.join(test_files, "EC_label.txt"),
             feature_file=os.path.join(test_files, "EC_feature.yaml"),

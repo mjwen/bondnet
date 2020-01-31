@@ -2,7 +2,7 @@ import os
 import glob
 import numpy as np
 from collections import defaultdict
-from gnn.data.electrolyte import ElectrolyteDataset
+from gnn.data.electrolyte import ElectrolyteBondDataset
 from gnn.data.qm9 import QM9Dataset
 from gnn.data.feature_analyzer import (
     StdevThreshold,
@@ -19,7 +19,7 @@ from gnn.data.utils import TexWriter
 
 
 def get_dataset_electrolyte():
-    dataset = ElectrolyteDataset(
+    dataset = ElectrolyteBondDataset(
         # sdf_file="~/Applications/mongo_db_access/extracted_mols/struct.sdf",
         # label_file="~/Applications/mongo_db_access/extracted_mols/label.txt",
         # feature_file="~/Applications/mongo_db_access/extracted_mols/feature.yaml",
@@ -42,7 +42,7 @@ def get_dataset_electrolyte():
 
 
 def get_pickled_electrolyte():
-    return ElectrolyteDataset(
+    return ElectrolyteBondDataset(
         sdf_file="~/Applications/mongo_db_access/extracted_mols/struct_n200.sdf.pkl",
         label_file="~/Applications/mongo_db_access/extracted_mols/label_n200.txt.pkl",
     )
@@ -100,7 +100,7 @@ def kmeans_analysis(
     tex_file="~/Applications/mongo_db_access/kmeans_cluster.tex",
 ):
     # kmeans analysis
-    dataset = ElectrolyteDataset(
+    dataset = ElectrolyteBondDataset(
         sdf_file, label_file, feature_file, label_transformer=False
     )
     analyzer = KMeansAnalyzer(dataset)
@@ -205,7 +205,7 @@ def write_features(
     tex_file="~/Applications/mongo_db_access/tex_features.tex",
 ):
 
-    dataset = ElectrolyteDataset(
+    dataset = ElectrolyteBondDataset(
         sdf_file,
         label_file,
         feature_file,

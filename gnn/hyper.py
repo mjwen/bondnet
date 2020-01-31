@@ -33,7 +33,7 @@ with ht.Scheduler(n_parallel=batch_size) as scheduler:
         samples = optimiser.run_step(batch_size=batch_size, minimise=True)
         jobs = [
             ht.Job(
-                task=os.path.join(os.getcwd(), "hgat_electrolyte.py"),
+                task=os.path.join(os.getcwd(), "hgat_electrolyte_bonds.py"),
                 args=s.as_dict(),
                 meta={"binary": "python"},
             )

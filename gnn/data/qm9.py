@@ -16,13 +16,13 @@ from gnn.data.featurizer import (
     MolWeightFeaturizer,
 )
 from gnn.data.grapher import HomoBidirectedGraph, HomoCompleteGraph, HeteroMoleculeGraph
-from gnn.data.electrolyte import ElectrolyteDataset
+from gnn.data.electrolyte import ElectrolyteBondDataset
 from gnn.data.transformers import StandardScaler, GraphFeatureStandardScaler
 
 logger = logging.getLogger(__name__)
 
 
-class QM9Dataset(ElectrolyteDataset):
+class QM9Dataset(ElectrolyteBondDataset):
     """
     The QM9 dataset.
 

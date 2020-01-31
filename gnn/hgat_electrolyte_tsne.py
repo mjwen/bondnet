@@ -3,7 +3,7 @@ import torch
 import argparse
 from gnn.model.hgat import HGAT
 from gnn.data.dataset import train_validation_test_split
-from gnn.data.electrolyte import ElectrolyteDataset
+from gnn.data.electrolyte import ElectrolyteBondDataset
 from gnn.data.dataloader import DataLoaderBond
 from gnn.utils import seed_torch, load_checkpoints
 from gnn.data.feature_analyzer import TSNEAnalyzer
@@ -141,7 +141,7 @@ def main(args):
     ### dataset
     sdf_file = "~/Applications/mongo_db_access/extracted_data/struct_n200.sdf"
     label_file = "~/Applications/mongo_db_access/extracted_data/label_n200.txt"
-    dataset = ElectrolyteDataset(
+    dataset = ElectrolyteBondDataset(
         sdf_file,
         label_file,
         self_loop=True,

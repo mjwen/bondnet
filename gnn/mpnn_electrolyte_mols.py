@@ -8,7 +8,7 @@ from torch.nn import MSELoss
 from gnn.metric import WeightedL1Loss, EarlyStopping
 from dgl.model_zoo.chem.mpnn import MPNNModel
 from gnn.data.dataset import train_validation_test_split
-from gnn.data.electrolyte_mols import ElectrolyteMoleculeDataset
+from gnn.data.electrolyte import ElectrolyteMoleculeDataset
 from gnn.data.dataloader import DataLoaderMolecule
 from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
