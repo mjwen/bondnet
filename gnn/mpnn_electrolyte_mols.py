@@ -10,6 +10,8 @@ from dgl.model_zoo.chem.mpnn import MPNNModel
 from gnn.data.dataset import train_validation_test_split
 from gnn.data.electrolyte import ElectrolyteMoleculeDataset
 from gnn.data.dataloader import DataLoaderMolecule
+from gnn.data.grapher import HomoCompleteGraph
+from gnn.data.featurizer import AtomFeaturizerWithExtraInfo, BondAsEdgeCompleteFeaturizer
 from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
 
@@ -114,19 +116,32 @@ def evaluate(model, data_loader, metric_fn, device=None):
     return accuracy / count
 
 
+def get_grapher(self_loop=False):
+    atom_featurizer = AtomFeaturizerWithExtraInfo()
+    bond_featurizer = BondAsEdgeCompleteFeaturizer(
+        self_loop=self_loop, length_featurizer="bin"
+    )
+    grapher = HomoCompleteGraph(
+        atom_featurizer=atom_featurizer,
+        bond_featurizer=bond_featurizer,
+        self_loop=self_loop,
+    )
+    return grapher
+
+
 def main(args):
 
     ### dataset
-    sdf_file = "~/Applications/mongo_db_access/extracted_data/struct_mols_n200.sdf"
-    label_file = "~/Applications/mongo_db_access/extracted_data/label_mols_n200.csv"
+    sdf_file = "~/Applications/mongo_db_access/extracted_mols/struct_mols_n200.sdf"
+    label_file = "~/Applications/mongo_db_access/extracted_mols/label_mols_n200.csv"
+    feature_file = "~/Applications/mongo_db_access/extracted_mols/feature_mols_n200.yaml"
 
     props = ["atomization_energy"]
     dataset = ElectrolyteMoleculeDataset(
-        sdf_file,
-        label_file,
-        self_loop=False,
-        grapher="homo_complete",
-        bond_length_featurizer="bin",
+        grapher=get_grapher(),
+        sdf_file=sdf_file,
+        label_file=label_file,
+        feature_file=feature_file,
         properties=props,
         unit_conversion=True,
     )

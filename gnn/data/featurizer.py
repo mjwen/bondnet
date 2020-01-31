@@ -148,61 +148,6 @@ class BondAsNodeFeaturizer(BondFeaturizer):
         return {"feat": feats}
 
 
-class BondAsNodeFeaturizerMinimum(BondFeaturizer):
-    """
-    Featurize all bonds in a molecule.
-
-    The bond indices will be preserved, i.e. feature i corresponds to atom i.
-    The number of features will be equal to the number of bonds in the molecule,
-    so this is suitable for the case where we represent bond as graph nodes.
-    """
-
-    def __call__(self, mol, **kwargs):
-        """
-        Parameters
-        ----------
-        mol : rdkit.Chem.rdchem.Mol
-            RDKit molecule object
-
-        Returns
-        -------
-            Dictionary for bond features
-        """
-        feats = []
-
-        num_bonds = mol.GetNumBonds()
-        if num_bonds < 1:
-            warnings.warn("molecular has no bonds")
-
-        for u in range(num_bonds):
-            bond = mol.GetBondWithIdx(u)
-
-            ft = [
-                # int(bond.GetIsAromatic()),
-                int(bond.IsInRing()),
-                # int(bond.GetIsConjugated()),
-            ]
-
-            at1 = bond.GetBeginAtomIdx()
-            at2 = bond.GetEndAtomIdx()
-            atoms_pos = mol.GetConformer().GetPositions()
-            bond_length = np.linalg.norm(atoms_pos[at1] - atoms_pos[at2])
-            ft += [bond_length]
-
-            if self.length_featurizer:
-                ft += self.length_featurizer(bond_length)
-
-            feats.append(ft)
-
-        feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
-        self._feature_size = feats.shape[1]
-        self._feature_name = ["is in ring", "length"]
-        if self.length_featurizer:
-            self._feature_name += self.length_featurizer.feature_name
-
-        return {"feat": feats}
-
-
 class BondAsEdgeBidirectedFeaturizer(BondFeaturizer):
     """
     Featurize all bonds in a molecule.
