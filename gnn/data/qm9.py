@@ -102,7 +102,7 @@ class QM9Dataset(ElectrolyteDataset):
                 grapher = HeteroMoleculeGraph(
                     atom_featurizer=atom_featurizer,
                     bond_featurizer=bond_featurizer,
-                    global_state_featurizer=global_featurizer,
+                    global_featurizer=global_featurizer,
                     self_loop=self.self_loop,
                 )
             elif self.grapher == "homo_bidirected":

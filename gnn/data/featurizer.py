@@ -399,9 +399,8 @@ class AtomFeaturizer(BaseFeaturizer):
     The atom indices will be preserved, i.e. feature i corresponds to atom i.
     """
 
-    def __init__(self, species, dtype="float32"):
+    def __init__(self, dtype="float32"):
         super(AtomFeaturizer, self).__init__(dtype)
-        self.species = sorted(species)
         self._feature_size = None
         self._feature_name = None
 
@@ -424,6 +423,13 @@ class AtomFeaturizer(BaseFeaturizer):
         -------
             Dictionary for atom features
         """
+        try:
+            species = sorted(kwargs["dataset_species"])
+        except KeyError as e:
+            raise KeyError(
+                "{} `dataset_species` needed for {}.".format(e, self.__class__.__name__)
+            )
+
         feats = []
         is_donor = defaultdict(int)
         is_acceptor = defaultdict(int)
@@ -466,7 +472,7 @@ class AtomFeaturizer(BaseFeaturizer):
             ft.append(atom.GetTotalNumHs())
 
             ft.append(atom.GetAtomicNum())
-            ft += one_hot_encoding(atom.GetSymbol(), self.species)
+            ft += one_hot_encoding(atom.GetSymbol(), species)
 
             ft += one_hot_encoding(
                 atom.GetHybridization(),
@@ -502,7 +508,7 @@ class AtomFeaturizer(BaseFeaturizer):
                 "num total H",
                 "atomic number",
             ]
-            + ["chemical symbol"] * len(self.species)
+            + ["chemical symbol"] * len(species)
             + ["hybridization"] * 6
         )
 
@@ -519,9 +525,8 @@ class AtomFeaturizerWithExtraInfo(BaseFeaturizer):
     The atom indices will be preserved, i.e. feature i corresponds to atom i.
     """
 
-    def __init__(self, species, dtype="float32"):
+    def __init__(self, dtype="float32"):
         super(AtomFeaturizerWithExtraInfo, self).__init__(dtype)
-        self.species = sorted(species)
         self._feature_size = None
         self._feature_name = None
 
@@ -543,7 +548,12 @@ class AtomFeaturizerWithExtraInfo(BaseFeaturizer):
         Returns:
             Dictionary of atom features
         """
-
+        try:
+            species = sorted(kwargs["dataset_species"])
+        except KeyError as e:
+            raise KeyError(
+                "{} `dataset_species` needed for {}.".format(e, self.__class__.__name__)
+            )
         try:
             feats_info = kwargs["extra_feats_info"]
         except KeyError as e:
@@ -564,7 +574,7 @@ class AtomFeaturizerWithExtraInfo(BaseFeaturizer):
             ft.append(int(atom.IsInRing()))
             # atomic number of symbols are redundant
             # ft.append(atom.GetAtomicNum())
-            ft += one_hot_encoding(atom.GetSymbol(), self.species)
+            ft += one_hot_encoding(atom.GetSymbol(), species)
 
             # from extra info
             ft.append(feats_info["resp"][i])
@@ -577,7 +587,7 @@ class AtomFeaturizerWithExtraInfo(BaseFeaturizer):
         self._feature_size = feats.shape[1]
         self._feature_name = (
             ["total degree", "is in ring"]
-            + ["chemical symbol"] * len(self.species)
+            + ["chemical symbol"] * len(species)
             + ["resp", "mulliken", "spin"]
         )
 

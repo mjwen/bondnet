@@ -9,6 +9,12 @@ from gnn.model.hgat import HGAT
 from gnn.data.dataset import train_validation_test_split
 from gnn.data.electrolyte import ElectrolyteDataset
 from gnn.data.dataloader import DataLoaderBond
+from gnn.data.grapher import HeteroMoleculeGraph
+from gnn.data.featurizer import (
+    AtomFeaturizerWithExtraInfo,
+    BondAsNodeFeaturizer,
+    GlobalFeaturizerWithExtraInfo,
+)
 from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
 
@@ -185,21 +191,26 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
     return accuracy / count
 
 
+def get_grapher():
+    atom_featurizer = AtomFeaturizerWithExtraInfo()
+    bond_featurizer = BondAsNodeFeaturizer(length_featurizer="bin")
+    global_featurizer = GlobalFeaturizerWithExtraInfo()
+    grapher = HeteroMoleculeGraph(
+        atom_featurizer=atom_featurizer,
+        bond_featurizer=bond_featurizer,
+        global_featurizer=global_featurizer,
+        self_loop=True,
+    )
+    return grapher
+
+
 def main(args):
 
     ### dataset
     sdf_file = "~/Applications/mongo_db_access/extracted_mols/struct_n200.sdf"
     label_file = "~/Applications/mongo_db_access/extracted_mols/label_n200.txt"
     feature_file = "~/Applications/mongo_db_access/extracted_mols/feature_n200.yaml"
-    dataset = ElectrolyteDataset(
-        sdf_file,
-        label_file,
-        feature_file,
-        self_loop=True,
-        grapher="hetero",
-        atom_featurizer_with_extra_info=True,
-        bond_length_featurizer="bin",
-    )
+    dataset = ElectrolyteDataset(get_grapher(), sdf_file, label_file, feature_file)
     trainset, valset, testset = train_validation_test_split(
         dataset, validation=0.1, test=0.1
     )

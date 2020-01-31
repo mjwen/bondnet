@@ -4,22 +4,8 @@ Build molecule graph and then featurize it.
 import dgl
 
 
-class HomoBidirectedGraph:
-    """
-    Convert a RDKit molecule to a homogeneous bidirected DGLGraph and featurize for it.
-
-    This creates a bidirectional graph. Atom i of the molecule is node i of the graph.
-    Bond 0 corresponds to graph edges 0 and 1, bond 1 corresponds to graph edges 2,
-    and 3 ... If `self_loop` is `True`, graph edge 2N represents self loop of atom 0,
-    edge 2N+1 represents self loop of atom 1... where N is the number of bonds in the
-    molecule.
-
-    Notes:
-        Make sure your featurizer match the above order, and pay carefully attention
-        to bond featurizer.
-    """
-
-    def __init__(self, atom_featurizer=None, bond_featurizer=None, self_loop=True):
+class BaseGraph:
+    def __init__(self, atom_featurizer=None, bond_featurizer=None, self_loop=False):
         self.atom_featurizer = atom_featurizer
         self.bond_featurizer = bond_featurizer
         self.self_loop = self_loop
@@ -40,6 +26,49 @@ class HomoBidirectedGraph:
         g = self.build_graph(mol)
         g = self.featurize(g, mol, **kwargs)
         return g
+
+    @property
+    def feature_size(self):
+        res = {}
+        if self.atom_featurizer is not None:
+            res["atom"] = self.atom_featurizer.feature_size
+        if self.bond_featurizer is not None:
+            res["bond"] = self.bond_featurizer.feature_size
+        if hasattr(self, "global_featurizer") and self.global_featurizer is not None:
+            res["global"] = self.global_featurizer.feature_size
+        return res
+
+    @property
+    def feature_name(self):
+        res = {}
+        if self.atom_featurizer is not None:
+            res["atom"] = self.atom_featurizer.feature_name
+        if self.bond_featurizer is not None:
+            res["bond"] = self.bond_featurizer.feature_name
+        if hasattr(self, "global_featurizer") and self.global_featurizer is not None:
+            res["global"] = self.global_featurizer.feature_name
+        return res
+
+
+class HomoBidirectedGraph(BaseGraph):
+    """
+    Convert a RDKit molecule to a homogeneous bidirected DGLGraph and featurize for it.
+
+    This creates a bidirectional graph. Atom i of the molecule is node i of the graph.
+    Bond 0 corresponds to graph edges 0 and 1, bond 1 corresponds to graph edges 2,
+    and 3 ... If `self_loop` is `True`, graph edge 2N represents self loop of atom 0,
+    edge 2N+1 represents self loop of atom 1... where N is the number of bonds in the
+    molecule.
+
+    Notes:
+        Make sure your featurizer match the above order, and pay carefully attention
+        to bond featurizer.
+    """
+
+    def __init__(self, atom_featurizer=None, bond_featurizer=None, self_loop=True):
+        super(HomoBidirectedGraph, self).__init__(
+            atom_featurizer, bond_featurizer, self_loop
+        )
 
     def build_graph(self, mol):
         g = dgl.DGLGraph()
@@ -73,16 +102,8 @@ class HomoBidirectedGraph:
             g.edata.update(self.bond_featurizer(mol, **kwargs))
         return g
 
-    @property
-    def graph_id(self):
-        return getattr(self, "_id", None)
 
-    @graph_id.setter
-    def graph_id(self, val):
-        self._id = val
-
-
-class HomoCompleteGraph:
+class HomoCompleteGraph(BaseGraph):
     """
     Convert a RDKit molecule to a homogeneous complete DGLGraph and featurize for it.
 
@@ -94,27 +115,9 @@ class HomoCompleteGraph:
     """
 
     def __init__(self, atom_featurizer=None, bond_featurizer=None, self_loop=True):
-        self.atom_featurizer = atom_featurizer
-        self.bond_featurizer = bond_featurizer
-        self.self_loop = self_loop
-
-    def build_graph_and_featurize(self, mol, **kwargs):
-        """
-        Build a graph with atoms as the nodes and bonds as the edges and then featurize
-        the graph.
-
-
-        Args:
-            mol (rdkit mol): a rdkit molecule
-            kwargs: extra keyword arguments needed by featurizer
-
-        Returns:
-            (DGLGraph)
-        """
-
-        g = self.build_graph(mol)
-        g = self.featurize(g, mol, **kwargs)
-        return g
+        super(HomoCompleteGraph, self).__init__(
+            atom_featurizer, bond_featurizer, self_loop
+        )
 
     def build_graph(self, mol):
 
@@ -142,16 +145,8 @@ class HomoCompleteGraph:
             g.edata.update(self.bond_featurizer(mol, **kwargs))
         return g
 
-    @property
-    def graph_id(self):
-        return getattr(self, "_id", None)
 
-    @graph_id.setter
-    def graph_id(self, val):
-        self._id = val
-
-
-class HeteroMoleculeGraph:
+class HeteroMoleculeGraph(BaseGraph):
     """
     Convert a RDKit molecule to a DGLHeteroGraph and featurize for it.
 
@@ -165,32 +160,13 @@ class HeteroMoleculeGraph:
         self,
         atom_featurizer=None,
         bond_featurizer=None,
-        global_state_featurizer=None,
+        global_featurizer=None,
         self_loop=True,
     ):
-        self.atom_featurizer = atom_featurizer
-        self.bond_featurizer = bond_featurizer
-        self.global_state_featurizer = global_state_featurizer
-        self.self_loop = self_loop
-
-    def build_graph_and_featurize(self, mol, **kwargs):
-        """
-        Build an a heterograph, with three types of nodes: atom, bond, and glboal
-        state, and then featurize the graph.
-
-        Args:
-            mol (rdkit mol): a rdkit molecule
-            kwargs: extra keyword arguments needed by featurizer
-
-        Returns:
-            (dgl heterograph): bond_idx_to_atom_idx (dict): mapping between two type
-                bond indices, key is integer bond index, and value is a tuple of atom
-                indices that specify the bond.
-        """
-
-        g = self.build_graph(mol)
-        g = self.featurize(g, mol, **kwargs)
-        return g
+        super(HeteroMoleculeGraph, self).__init__(
+            atom_featurizer, bond_featurizer, self_loop
+        )
+        self.global_featurizer = global_featurizer
 
     def build_graph(self, mol):
         num_atoms = mol.GetNumAtoms()
@@ -246,15 +222,7 @@ class HeteroMoleculeGraph:
             g.nodes["atom"].data.update(self.atom_featurizer(mol, **kwargs))
         if self.bond_featurizer is not None:
             g.nodes["bond"].data.update(self.bond_featurizer(mol, **kwargs))
-        if self.global_state_featurizer is not None:
-            g.nodes["global"].data.update(self.global_state_featurizer(mol, **kwargs))
+        if self.global_featurizer is not None:
+            g.nodes["global"].data.update(self.global_featurizer(mol, **kwargs))
 
         return g
-
-    @property
-    def graph_id(self):
-        return getattr(self, "_id", None)
-
-    @graph_id.setter
-    def graph_id(self, val):
-        self._id = val
