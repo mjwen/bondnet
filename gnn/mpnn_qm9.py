@@ -10,6 +10,8 @@ from dgl.model_zoo.chem.mpnn import MPNNModel
 from gnn.data.dataset import train_validation_test_split
 from gnn.data.qm9 import QM9Dataset
 from gnn.data.dataloader import DataLoaderMolecule
+from gnn.data.grapher import HomoCompleteGraph
+from gnn.data.featurizer import AtomFeaturizer, BondAsEdgeCompleteFeaturizer
 from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
 
@@ -114,6 +116,21 @@ def evaluate(model, data_loader, metric_fn, device=None):
     return accuracy / count
 
 
+# TODO for the lenght_featurizer, we should change the lower and upper bound to
+#  meet that of the dataset
+def get_grapher(self_loop=False):
+    atom_featurizer = AtomFeaturizer()
+    bond_featurizer = BondAsEdgeCompleteFeaturizer(
+        self_loop=self_loop, length_featurizer="bin"
+    )
+    grapher = HomoCompleteGraph(
+        atom_featurizer=atom_featurizer,
+        bond_featurizer=bond_featurizer,
+        self_loop=self_loop,
+    )
+    return grapher
+
+
 def main(args):
 
     ### dataset
@@ -121,11 +138,9 @@ def main(args):
     label_file = "/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf.csv"
     props = ["u0_atom"]
     dataset = QM9Dataset(
-        sdf_file,
-        label_file,
-        self_loop=False,
-        grapher="homo_complete",
-        bond_length_featurizer="bin",
+        grapher=get_grapher(),
+        sdf_file=sdf_file,
+        label_file=label_file,
         properties=props,
         unit_conversion=True,
     )

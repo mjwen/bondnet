@@ -10,6 +10,8 @@ from gnn.model.hgatmol import HGATMol
 from gnn.data.dataset import train_validation_test_split
 from gnn.data.qm9 import QM9Dataset
 from gnn.data.dataloader import DataLoaderMolecule
+from gnn.data.grapher import HeteroMoleculeGraph
+from gnn.data.featurizer import AtomFeaturizer, BondAsNodeFeaturizer, MolWeightFeaturizer
 from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
 
@@ -192,6 +194,21 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
     return accuracy / count
 
 
+# TODO for the lenght_featurizer, we should change the lower and upper bound to
+#  meet that of the dataset
+def get_grapher():
+    atom_featurizer = AtomFeaturizer()
+    bond_featurizer = BondAsNodeFeaturizer(length_featurizer="bin")
+    global_featurizer = MolWeightFeaturizer()
+    grapher = HeteroMoleculeGraph(
+        atom_featurizer=atom_featurizer,
+        bond_featurizer=bond_featurizer,
+        global_featurizer=global_featurizer,
+        self_loop=True,
+    )
+    return grapher
+
+
 def main(args):
 
     ### dataset
@@ -199,11 +216,9 @@ def main(args):
     label_file = "/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf.csv"
     props = ["u0_atom"]
     dataset = QM9Dataset(
-        sdf_file,
-        label_file,
-        self_loop=True,
-        grapher="hetero",
-        bond_length_featurizer="rbf",
+        grapher=get_grapher(),
+        sdf_file=sdf_file,
+        label_file=label_file,
         properties=props,
         unit_conversion=True,
     )

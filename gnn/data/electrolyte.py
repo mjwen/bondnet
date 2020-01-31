@@ -341,23 +341,6 @@ class ElectrolyteMoleculeDataset(ElectrolyteBondDataset):
         )
 
     def _load(self):
-        # if self._pickled:
-        #     logger.info(
-        #         "Start loading dataset from picked files {} and {}...".format(
-        #             self.sdf_file, self.label_file
-        #         )
-        #     )
-        #
-        #     if self.grapher == "hetero":
-        #         self.graphs, self.labels = self.load_dataset_hetero()
-        #     elif self.grapher in ["homo_bidirected", "homo_complete"]:
-        #         self.graphs, self.labels = self.load_dataset()
-        #     else:
-        #         raise ValueError("Unsupported grapher type '{}".format(self.grapher))
-        #
-        #     self.load_state_dict(self._default_state_dict_filename())
-        #
-        #     return
 
         logger.info(
             "Start loading dataset from files {}, {}...".format(
@@ -452,14 +435,6 @@ class ElectrolyteMoleculeDataset(ElectrolyteBondDataset):
             logger.info("Label scaler std: {}".format(label_scaler_std))
 
         self.labels = torch.tensor(labels, dtype=getattr(torch, self.dtype))
-
-        # if self.pickle_dataset:
-        #     if self.pickle_dataset:
-        #         if self.grapher == "hetero":
-        #             self.save_dataset_hetero()
-        #         else:
-        #             self.save_dataset()
-        #     self.save_state_dict(self._default_state_dict_filename())
 
         logger.info("Finish loading {} graphs...".format(len(self.labels)))
 

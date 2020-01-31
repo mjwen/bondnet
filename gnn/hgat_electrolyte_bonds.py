@@ -210,7 +210,12 @@ def main(args):
     sdf_file = "~/Applications/mongo_db_access/extracted_mols/struct_n200.sdf"
     label_file = "~/Applications/mongo_db_access/extracted_mols/label_n200.txt"
     feature_file = "~/Applications/mongo_db_access/extracted_mols/feature_n200.yaml"
-    dataset = ElectrolyteBondDataset(get_grapher(), sdf_file, label_file, feature_file)
+    dataset = ElectrolyteBondDataset(
+        graphter=get_grapher(),
+        sdf_file=sdf_file,
+        label_file=label_file,
+        feature_file=feature_file,
+    )
     trainset, valset, testset = train_validation_test_split(
         dataset, validation=0.1, test=0.1
     )
