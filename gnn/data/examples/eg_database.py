@@ -101,8 +101,8 @@ def write_dataset():
             new_mols.append(m)
     mols = new_mols
 
-    # structure_name = "~/Applications/mongo_db_access/extracted_data/struct_mols.sdf"
-    # label_name = "~/Applications/mongo_db_access/extracted_data/label_mols.csv"
+    # struct_file = "~/Applications/mongo_db_access/extracted_data/struct_mols.sdf"
+    # label_file = "~/Applications/mongo_db_access/extracted_data/label_mols.csv"
     structure_name = (
         "~/Applications/mongo_db_access/extracted_data/struct_mols_charge0.sdf"
     )

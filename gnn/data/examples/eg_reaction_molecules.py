@@ -383,11 +383,11 @@ def create_struct_label_dataset_mol_based():
         struct_name="~/Applications/mongo_db_access/extracted_mols/struct.sdf",
         label_name="~/Applications/mongo_db_access/extracted_mols/label.txt",
         feature_name="~/Applications/mongo_db_access/extracted_mols/feature.yaml",
-        # struct_name="~/Applications/mongo_db_access/extracted_mols/struct_n200.sdf",
-        # label_name="~/Applications/mongo_db_access/extracted_mols/label_n200.txt",
-        # feature_name="~/Applications/mongo_db_access/extracted_mols/feature_n200.yaml",
-        # struct_name="~/Applications/mongo_db_access/extracted_mols/struct_charge0.sdf",
-        # label_name="~/Applications/mongo_db_access/extracted_mols/label_charge0.txt",
+        # struct_file="~/Applications/mongo_db_access/extracted_mols/struct_n200.sdf",
+        # label_file="~/Applications/mongo_db_access/extracted_mols/label_n200.txt",
+        # feature_file="~/Applications/mongo_db_access/extracted_mols/feature_n200.yaml",
+        # struct_file="~/Applications/mongo_db_access/extracted_mols/struct_charge0.sdf",
+        # label_file="~/Applications/mongo_db_access/extracted_mols/label_charge0.txt",
     )
 
 
@@ -407,18 +407,18 @@ def create_struct_label_dataset_bond_based():
     # extractor.filter_reactions_by_bond_type_and_order(bond_type=("C", "C"))
 
     extractor.create_struct_label_dataset_bond_based(
-        # struct_name="~/Applications/mongo_db_access/extracted_mols/struct.sdf",
-        # label_name="~/Applications/mongo_db_access/extracted_mols/label.txt",
-        # feature_name="~/Applications/mongo_db_access/extracted_mols/feature.yaml",
-        # struct_name="~/Applications/mongo_db_access/extracted_mols/struct_n200.sdf",
-        # label_name="~/Applications/mongo_db_access/extracted_mols/label_n200.txt",
-        # feature_name="~/Applications/mongo_db_access/extracted_mols/feature_n200.yaml",
-        struct_name="~/Applications/mongo_db_access/extracted_mols/struct_charge0.sdf",
-        label_name="~/Applications/mongo_db_access/extracted_mols/label_charge0.txt",
-        feature_name="~/Applications/mongo_db_access/extracted_mols/feature_charge0.yaml",
-        # struct_name="~/Applications/mongo_db_access/extracted_mols/struct_charge0_CC.sdf",
-        # label_name="~/Applications/mongo_db_access/extracted_mols/label_charge0_CC.txt",
-        # feature_name="~/Applications/mongo_db_access/extracted_mols/feature_charge0_CC.yaml",
+        # struct_file="~/Applications/mongo_db_access/extracted_mols/struct.sdf",
+        # label_file="~/Applications/mongo_db_access/extracted_mols/label.txt",
+        # feature_file="~/Applications/mongo_db_access/extracted_mols/feature.yaml",
+        # struct_file="~/Applications/mongo_db_access/extracted_mols/struct_n200.sdf",
+        # label_file="~/Applications/mongo_db_access/extracted_mols/label_n200.txt",
+        # feature_file="~/Applications/mongo_db_access/extracted_mols/feature_n200.yaml",
+        struct_file="~/Applications/mongo_db_access/extracted_mols/struct_charge0.sdf",
+        label_file="~/Applications/mongo_db_access/extracted_mols/label_charge0.txt",
+        feature_file="~/Applications/mongo_db_access/extracted_mols/feature_charge0.yaml",
+        # struct_file="~/Applications/mongo_db_access/extracted_mols/struct_charge0_CC.sdf",
+        # label_file="~/Applications/mongo_db_access/extracted_mols/label_charge0_CC.txt",
+        # feature_file="~/Applications/mongo_db_access/extracted_mols/feature_charge0_CC.yaml",
     )
 
 

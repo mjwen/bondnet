@@ -4,7 +4,7 @@ from gnn.data.featurizer import (
     BondAsNodeFeaturizer,
     BondAsEdgeBidirectedFeaturizer,
     BondAsEdgeCompleteFeaturizer,
-    GlobalFeaturizerWithExtraInfo,
+    GlobalFeaturizerWithReactionInfo,
     MolWeightFeaturizer,
     DistanceBins,
     RBF,
@@ -77,7 +77,7 @@ def test_bond_as_edge_complete_featurizer():
 
 
 def test_mol_charge_featurizer():
-    featurizer = GlobalFeaturizerWithExtraInfo()
+    featurizer = GlobalFeaturizerWithReactionInfo()
     feat = featurizer(None, extra_feats_info={"charge": 1, "spin_multiplicity": 0})
     size = featurizer.feature_size
     assert size == 4

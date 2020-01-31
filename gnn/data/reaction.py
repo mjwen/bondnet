@@ -346,7 +346,7 @@ class ReactionExtractor:
                 ):
                     bond = is_valid_A_to_B_C_reaction(A, [B, C])
                     if bond is not None:
-                        ids = set([A.id, B.id, C.id])
+                        ids = {A.id, B.id, C.id}
                         # remove repeating reactions (e.g. A->B+C and A->C+B)
                         if ids not in reaction_ids:
                             A2BC.append(Reaction([A], [B, C], bond))
@@ -582,8 +582,8 @@ class ReactionExtractor:
         Write molecules features to file.
 
         Args:
+            reactions (list): a list of reactions
             filename (str): output filename
-            molecules: an iterable of molecules, e.g. list, OrderedDict
         """
         logger.info("Start writing feature file: {}".format(filename))
 
@@ -598,7 +598,7 @@ class ReactionExtractor:
         logger.info("Finish writing feature file: {}".format(filename))
 
     def create_struct_label_dataset_bond_based(
-        self, struct_name="sturct.sdf", label_name="label.txt", feature_name=None
+        self, struct_file="sturct.sdf", label_file="label.txt", feature_file=None
     ):
         """
         Write the reactions to files.
@@ -607,9 +607,9 @@ class ReactionExtractor:
         will have one entry.
 
         args:
-            struct_name (str): filename of the sdf structure file
-            label_name (str): filename of the label
-            feature_name (str): filename for the feature file, if `None`, do not write it
+            struct_file (str): filename of the sdf structure file
+            label_file (str): filename of the label
+            feature_file (str): filename for the feature file, if `None`, do not write it
         """
         grouped_reactions = (
             self.group_by_reactant_bond_keep_lowest_energy_across_products_charge()
@@ -617,9 +617,9 @@ class ReactionExtractor:
 
         # write label
         all_rxns = []
-        label_name = expand_path(label_name)
-        create_directory(label_name)
-        with open(label_name, "w") as f:
+        label_file = expand_path(label_file)
+        create_directory(label_file)
+        with open(label_file, "w") as f:
             f.write(
                 "# Each line lists the bond energies of a molecule. "
                 "The number of items in each line is equal to 2*N, where N is the "
@@ -676,14 +676,14 @@ class ReactionExtractor:
 
         # write sdf
         reactants = [rxn.reactants[0] for rxn in all_rxns]
-        self.write_sdf(reactants, struct_name)
+        self.write_sdf(reactants, struct_file)
 
         # write feature
-        if feature_name is not None:
-            self.write_feature(all_rxns, feature_name)
+        if feature_file is not None:
+            self.write_feature(all_rxns, feature_file)
 
     # def create_struct_label_dataset_with_lowest_energy_across_charge_bond_based(
-    #     self, struct_name="sturct.sdf", label_name="label.txt", feature_name=None
+    #     self, struct_file="sturct.sdf", label_file="label.txt", feature_file=None
     # ):
     #     """
     #     Write the reactions to files.
@@ -695,16 +695,16 @@ class ReactionExtractor:
     #     will have one entry.
     #
     #     args:
-    #         struct_name (str): filename of the sdf structure file
-    #         label_name (str): filename of the label
-    #         feature_name (str): filename for the feature file, if `None`, do not write it
+    #         struct_file (str): filename of the sdf structure file
+    #         label_file (str): filename of the label
+    #         feature_file (str): filename for the feature file, if `None`, do not write it
     #     """
     #     grouped_reactions = self.group_by_reactant_bond_and_charge()
     #
     #     # write label #     mols = []
-    #     label_name = expand_path(label_name)
-    #     create_directory(label_name)
-    #     with open(label_name, "w") as f:
+    #     label_file = expand_path(label_file)
+    #     create_directory(label_file)
+    #     with open(label_file, "w") as f:
     #         f.write(
     #             "# Each line lists the molecule charge and bond energies of a molecule. "
     #             "The number of items in each line is equal to 1 + 2*N, where N is the "
@@ -776,14 +776,14 @@ class ReactionExtractor:
     #                     )
     #
     #     # write sdf
-    #     self.write_sdf(mols, struct_name)
+    #     self.write_sdf(mols, struct_file)
     #
     #     # write feature
-    #     if feature_name is not None:
-    #         self.write_feature(mols, feature_name)
+    #     if feature_file is not None:
+    #         self.write_feature(mols, feature_file)
     #
     # def create_struct_label_dataset_with_lowest_energy_across_charge(
-    #     self, struct_name="sturct.sdf", label_name="label.txt", feature_name=None
+    #     self, struct_file="sturct.sdf", label_file="label.txt", feature_file=None
     # ):
     #     """
     #     Write the reactions to files.
@@ -792,16 +792,16 @@ class ReactionExtractor:
     #     combinations. Here, we write the lowest energy one.
     #
     #     args:
-    #         struct_name (str): filename of the sdf structure file
-    #         label_name (str): filename of the laels
-    #         feature_name (str): filename for the feature file, if `None`, do not write it
+    #         struct_file (str): filename of the sdf structure file
+    #         label_file (str): filename of the laels
+    #         feature_file (str): filename for the feature file, if `None`, do not write it
     #     """
     #     grouped_reactions = self.group_by_reactant_bond_and_charge(False, True)
     #
     #     # write label
-    #     label_name = expand_path(label_name)
-    #     create_directory(label_name)
-    #     with open(label_name, "w") as f:
+    #     label_file = expand_path(label_file)
+    #     create_directory(label_file)
+    #     with open(label_file, "w") as f:
     #         f.write(
     #             "# Each line lists the molecule charge and bond energies of a molecule. "
     #             "The number of items in each line is equal to 1 + 2*N, where N is the "
@@ -849,11 +849,11 @@ class ReactionExtractor:
     #             f.write("\n")
     #
     #     # write sdf
-    #     self.write_sdf(grouped_reactions, struct_name)
+    #     self.write_sdf(grouped_reactions, struct_file)
     #
     #     # write feature
-    #     if feature_name is not None:
-    #         self.write_feature(grouped_reactions, feature_name)
+    #     if feature_file is not None:
+    #         self.write_feature(grouped_reactions, feature_file)
 
     @staticmethod
     def _get_formula_composition_map(mols):

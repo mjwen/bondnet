@@ -112,8 +112,8 @@ def eg_create_struct_label_dataset_with_lowest_energy_across_charge():
     extractor.create_struct_label_dataset_with_lowest_energy_across_charge(
         struct_name="~/Applications/mongo_db_access/extracted_data/struct_n200.sdf",
         label_name="~/Applications/mongo_db_access/extracted_data/label_n200.txt",
-        # struct_name="~/Applications/mongo_db_access/extracted_data/struct_charge0.sdf",
-        # label_name="~/Applications/mongo_db_access/extracted_data/label_charge0.txt",
+        # struct_file="~/Applications/mongo_db_access/extracted_data/struct_charge0.sdf",
+        # label_file="~/Applications/mongo_db_access/extracted_data/label_charge0.txt",
     )
 
 
@@ -133,16 +133,16 @@ def eg_create_struct_label_dataset_with_lowest_energy_across_charge_bond_based()
     extractor.filter_reactions_by_bond_type_and_order(bond_type=("C", "C"), bond_order=1)
 
     extractor.create_struct_label_dataset_with_lowest_energy_across_charge_bond_based(
-        # struct_name="~/Applications/mongo_db_access/extracted_data/struct.sdf",
-        # label_name="~/Applications/mongo_db_access/extracted_data/label.txt",
-        # feature_name="~/Applications/mongo_db_access/extracted_data/feature.yaml",
+        # struct_file="~/Applications/mongo_db_access/extracted_data/struct.sdf",
+        # label_file="~/Applications/mongo_db_access/extracted_data/label.txt",
+        # feature_file="~/Applications/mongo_db_access/extracted_data/feature.yaml",
         struct_name="~/Applications/mongo_db_access/extracted_data/struct_n200.sdf",
         label_name="~/Applications/mongo_db_access/extracted_data/label_n200.txt",
         feature_name="~/Applications/mongo_db_access/extracted_data/feature_n200.yaml",
-        # struct_name="~/Applications/mongo_db_access/extracted_data/struct_charge0.sdf",
-        # label_name="~/Applications/mongo_db_access/extracted_data/label_charge0.txt",
-        # struct_name="~/Applications/mongo_db_access/extracted_data/struct_charge0_CC.sdf",
-        # label_name="~/Applications/mongo_db_access/extracted_data/label_charge0_CC.txt",
+        # struct_file="~/Applications/mongo_db_access/extracted_data/struct_charge0.sdf",
+        # label_file="~/Applications/mongo_db_access/extracted_data/label_charge0.txt",
+        # struct_file="~/Applications/mongo_db_access/extracted_data/struct_charge0_CC.sdf",
+        # label_file="~/Applications/mongo_db_access/extracted_data/label_charge0_CC.txt",
     )
 
 

@@ -252,13 +252,13 @@ class ElectrolyteDataset(BaseDataset):
     # def load_state_dict(self, filename):
     #     d = pickle_load(filename)
     #     self._feature_size = d["feature_size"]
-    #     self._feature_name = d["feature_name"]
+    #     self._feature_name = d["feature_file"]
     #     self.transformer_scale = d["transformer_scale"]
     #
     # def save_state_dict(self, filename):
     #     d = {
     #         "feature_size": self._feature_size,
-    #         "feature_name": self._feature_name,
+    #         "feature_file": self._feature_name,
     #         "transformer_scale": self.transformer_scale,
     #     }
     #     pickle_dump(d, filename)

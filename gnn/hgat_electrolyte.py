@@ -13,7 +13,7 @@ from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import (
     AtomFeaturizerWithExtraInfo,
     BondAsNodeFeaturizer,
-    GlobalFeaturizerWithExtraInfo,
+    GlobalFeaturizerWithReactionInfo,
 )
 from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
@@ -194,7 +194,7 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
 def get_grapher():
     atom_featurizer = AtomFeaturizerWithExtraInfo()
     bond_featurizer = BondAsNodeFeaturizer(length_featurizer="bin")
-    global_featurizer = GlobalFeaturizerWithExtraInfo()
+    global_featurizer = GlobalFeaturizerWithReactionInfo()
     grapher = HeteroMoleculeGraph(
         atom_featurizer=atom_featurizer,
         bond_featurizer=bond_featurizer,

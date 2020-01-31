@@ -594,13 +594,52 @@ class AtomFeaturizerWithExtraInfo(BaseFeaturizer):
         return {"feat": feats}
 
 
-class GlobalFeaturizerWithExtraInfo(BaseFeaturizer):
+class GlobalFeaturizer(BaseFeaturizer):
     """
     Featurize the global state of a molecules using charge and spin multiplicity.
     """
 
     def __init__(self, dtype="float32"):
-        super(GlobalFeaturizerWithExtraInfo, self).__init__(dtype)
+        super(GlobalFeaturizer, self).__init__(dtype)
+        self._feature_size = None
+        self._feature_name = None
+
+    @property
+    def feature_size(self):
+        return self._feature_size
+
+    @property
+    def feature_name(self):
+        return self._feature_name
+
+    def __call__(self, mol, **kwargs):
+
+        try:
+            feats_info = kwargs["extra_feats_info"]
+        except KeyError as e:
+            raise KeyError(
+                "{} `extra_feats_info` needed for {}.".format(e, self.__class__.__name__)
+            )
+
+        g = [feats_info["charge"], sum(feats_info["atom_spin"])]
+        g += one_hot_encoding(feats_info["charge"], [-1, 0, 1])
+        g += one_hot_encoding(feats_info["spin_multiplicity"], [1, 2])
+
+        feats = torch.tensor([g], dtype=getattr(torch, self.dtype))
+        self._feature_size = feats.shape[1]
+        self._feature_name = (
+            ["charge sum", "spin sum"] + ["charge"] * 3 + ["spin " "multi."] * 2
+        )
+        return {"feat": feats}
+
+
+class GlobalFeaturizerWithReactionInfo(BaseFeaturizer):
+    """
+    Featurize the global state of a molecules using charge and spin multiplicity.
+    """
+
+    def __init__(self, dtype="float32"):
+        super(GlobalFeaturizerWithReactionInfo, self).__init__(dtype)
         self._feature_size = None
         self._feature_name = None
 

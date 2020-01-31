@@ -17,7 +17,7 @@ from pymatgen.analysis.fragmenter import metal_edge_extender
 from rdkit import Chem
 from rdkit.Chem import Draw, AllChem
 import openbabel as ob
-from gnn.utils import create_directory, pickle_dump, pickle_load, expand_path
+from gnn.utils import create_directory, pickle_dump, pickle_load, expand_path, yaml_dump
 from gnn.data.database import BabelMolAdaptor2 as BabelMolAdaptor
 
 logger = logging.getLogger(__name__)
@@ -544,20 +544,23 @@ class DatabaseOperation:
     @staticmethod
     def write_sdf_csv_dataset(
         molecules,
-        structure_name="electrolyte_struct.sdf",
-        label_name="electrolyte_label.csv",
+        struct_file="struct_mols.sdf",
+        label_file="label_mols.csv",
+        feature_file="feature_mols.yaml",
         exclude_single_atom=True,
     ):
-        structure_name = expand_path(structure_name)
-        label_name = expand_path(label_name)
+        struct_file = expand_path(struct_file)
+        label_file = expand_path(label_file)
 
         logger.info(
-            "Start writing dataset to files: {} and {}".format(structure_name, label_name)
+            "Start writing dataset to files: {} and {}".format(struct_file, label_file)
         )
 
-        with open(structure_name, "w") as fx, open(label_name, "w") as fy:
+        feats = []
 
-            fy.write("mol_id,charge,atomization_energy\n")
+        with open(struct_file, "w") as fx, open(label_file, "w") as fy:
+
+            fy.write("mol_id,atomization_energy\n")
 
             i = 0
             for m in molecules:
@@ -568,11 +571,13 @@ class DatabaseOperation:
 
                 sdf = m.write(file_format="sdf", message=m.id + " int_id-" + str(i))
                 fx.write(sdf)
-                fy.write(
-                    "{},{},{:.15g}\n".format(m.id, m.charge, m.atomization_free_energy)
-                )
+                fy.write("{},{:.15g}\n".format(m.id, m.atomization_free_energy))
 
+                feats.append(m.pack_features())
                 i += 1
+
+        # write feature file
+        yaml_dump(feats, feature_file)
 
 
 class UnsuccessfulEntryError(Exception):

@@ -93,14 +93,14 @@ def write_dataset():
     # filename = "~/Applications/mongo_db_access/extracted_mols/molecules_n200.pkl"
     mols = pickle_load(filename)
 
-    #######################
-    # filter charge 0 mols
-    #######################
-    new_mols = []
-    for m in mols:
-        if m.charge == 0:
-            new_mols.append(m)
-    mols = new_mols
+    # #######################
+    # # filter charge 0 mols
+    # #######################
+    # new_mols = []
+    # for m in mols:
+    #     if m.charge == 0:
+    #         new_mols.append(m)
+    # mols = new_mols
 
     # mols = mols[1 : len(mols) // 2]
     # mols = mols[1 : len(mols) // 4]
@@ -118,15 +118,16 @@ def write_dataset():
     # mols = mols[len(mols) * 368 // 1024 : len(mols) * 369 // 1024]
     # mols = mols[len(mols) * 369 // 1024 : len(mols) * 370 // 1024]
     # mols = mols[len(mols) * 738 // 2048 : len(mols) * 739 // 2048]
-    mols = mols[len(mols) * 739 // 2048 : len(mols) * 740 // 2048]
+    # mols = mols[len(mols) * 739 // 2048 : len(mols) * 740 // 2048]
 
-    # structure_name = "~/Applications/mongo_db_access/extracted_mols/struct_mols.sdf"
-    # label_name = "~/Applications/mongo_db_access/extracted_mols/label_mols.csv"
-    structure_name = (
-        "~/Applications/mongo_db_access/extracted_mols/struct_mols_charge0.sdf"
-    )
-    label_name = "~/Applications/mongo_db_access/extracted_mols/label_mols_charge0.csv"
-    DatabaseOperation.write_sdf_csv_dataset(mols, structure_name, label_name)
+    struct_file = "~/Applications/mongo_db_access/extracted_mols/struct_mols.sdf"
+    label_file = "~/Applications/mongo_db_access/extracted_mols/label_mols.csv"
+    feature_file = "~/Applications/mongo_db_access/extracted_mols/feature_mols.yaml"
+    # structure_name = (
+    #     "~/Applications/mongo_db_access/extracted_mols/struct_mols_charge0.sdf"
+    # )
+    # label_name = "~/Applications/mongo_db_access/extracted_mols/label_mols_charge0.csv"
+    DatabaseOperation.write_sdf_csv_dataset(mols, struct_file, label_file, feature_file)
 
 
 def get_single_atom_energy():
@@ -204,8 +205,8 @@ if __name__ == "__main__":
     # pickle_database()
     # pickle_molecules()
     # plot_molecules()
-    # write_dataset()
-    write_features()
+    write_dataset()
+    # write_features()
     # write_group_isomorphic_to_file()
     # get_single_atom_energy()
 
