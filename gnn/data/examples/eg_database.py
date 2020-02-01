@@ -1,46 +1,69 @@
 import os
 import subprocess
-from gnn.data.database_molecules import DatabaseOperation
+from gnn.data.database import DatabaseOperation
 from gnn.data.utils import TexWriter
 from gnn.utils import pickle_dump, pickle_load, yaml_dump, expand_path
 
 
-def pickle_database():
-    # db = DatabaseOperation.from_query()
-    # db.to_file("~/Applications/mongo_db_access/extracted_mols/database.pkl")
-    db = DatabaseOperation.from_query(num_entries=200)
-    db.to_file("~/Applications/mongo_db_access/extracted_mols/database_n200.pkl")
+def pickle_db_entries():
+    entries = DatabaseOperation.query_db_entries(
+        db_collection="mol_builder", num_entries=200
+    )
+    # entries = DatabaseOperation.query_db_entries(db_collection="smd", num_entries=200)
+
+    filename = "~/Applications/db_access/mol_builder/database_n200.pkl"
+    pickle_dump(entries, filename)
 
 
 def pickle_molecules():
-
-    # # from pickled database
-    # # db_path = "~/Applications/mongo_db_access/extracted_mols/database.pkl"
-    # db_path = "~/Applications/mongo_db_access/extracted_mols/database_n200.pkl"
-    # db = DatabaseOperation.from_file(db_path)
-
-    # directly from query
-    # db = DatabaseOperation.from_query()
-    db = DatabaseOperation.from_query(num_entries=1000)
-
-    mols = db.to_molecules()
-    # filename = "~/Applications/mongo_db_access/extracted_mols/molecules_unfiltered.pkl"
-    filename = (
-        "~/Applications/mongo_db_access/extracted_mols/molecules_n200_unfiltered.pkl"
+    db_collection = "mol_builder"
+    entries = DatabaseOperation.query_db_entries(
+        db_collection=db_collection, num_entries=None
     )
+
+    mols = DatabaseOperation.to_molecules(entries, db_collection=db_collection)
+    filename = "~/Applications/db_access/mol_builder/molecules_unfiltered.pkl"
+    # filename = "~/Applications/db_access/mol_builder/molecules_n200_unfiltered.pkl"
     pickle_dump(mols, filename)
 
     mols = DatabaseOperation.filter_molecules(mols, connectivity=True, isomorphism=True)
-    # filename = "~/Applications/mongo_db_access/extracted_mols/molecules.pkl"
-    filename = "~/Applications/mongo_db_access/extracted_mols/molecules_n200.pkl"
+    filename = "~/Applications/db_access/mol_builder/molecules.pkl"
+    # filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
     pickle_dump(mols, filename)
 
 
-def plot_molecules():
-    plot_prefix = "~/Applications/mongo_db_access/extracted_mols"
+def print_mol_property():
+    # filename = "~/Applications/db_access/mol_builder/molecules.pkl"
+    filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
+    mols = pickle_load(filename)
 
-    filename = "~/Applications/mongo_db_access/extracted_mols/molecules.pkl"
-    # filename="~/Applications/mongo_db_access/extracted_mols/molecules_n200.pkl"
+    m = mols[10]
+
+    # get all attributes
+    for key, val in vars(m).items():
+        print("{}: {}".format(key, val))
+
+    # @property attributes
+    properties = [
+        "charge",
+        "spin_multiplicity",
+        "atoms",
+        "bonds",
+        "species",
+        "coords",
+        "formula",
+        "composition_dict",
+        "weight",
+    ]
+    for prop in properties:
+        print("{}: {}".format(prop, getattr(m, prop)))
+
+
+def plot_molecules():
+    plot_prefix = "~/Applications/db_access/mol_builder"
+
+    filename = "~/Applications/db_access/mol_builder/molecules.pkl"
+    # filename="~/Applications/db_access/mol_builder/molecules_n200.pkl"
     mols = pickle_load(filename)
 
     for m in mols:
@@ -64,33 +87,18 @@ def plot_molecules():
         m.write(fname, file_format="pdb")
 
 
-def write_features():
-    filename = "~/Applications/mongo_db_access/extracted_mols/molecule.pkl"
-    # filename = "~/Applications/mongo_db_access/extracted_mols/molecule_n200.pkl"
-    mols = pickle_load(filename)
-
-    all_feats = dict()
-    for m in mols:
-        feat = m.pack_features(use_obabel_idx=True)
-        all_feats[feat["id"]] = feat
-
-    filename = "~/Applications/mongo_db_access/extracted_mols/feature.yaml"
-    # filename = "~/Applications/mongo_db_access/extracted_mols/features_n200.yaml"
-    yaml_dump(all_feats, filename)
-
-
 def write_group_isomorphic_to_file():
-    filename = "~/Applications/mongo_db_access/extracted_mols/molecules.pkl"
-    # filename = "~/Applications/mongo_db_access/extracted_mols/molecules_n200.pkl"
+    filename = "~/Applications/db_access/mol_builder/molecules.pkl"
+    # filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
     mols = pickle_load(filename)
 
-    filename = "~/Applications/mongo_db_access/extracted_mols/isomorphic_mols.txt"
+    filename = "~/Applications/db_access/mol_builder/isomorphic_mols.txt"
     DatabaseOperation.write_group_isomorphic_to_file(mols, filename)
 
 
 def write_dataset():
-    filename = "~/Applications/mongo_db_access/extracted_mols/molecules.pkl"
-    # filename = "~/Applications/mongo_db_access/extracted_mols/molecules_n200.pkl"
+    filename = "~/Applications/db_access/mol_builder/molecules.pkl"
+    # filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
     mols = pickle_load(filename)
 
     # #######################
@@ -120,20 +128,16 @@ def write_dataset():
     # mols = mols[len(mols) * 738 // 2048 : len(mols) * 739 // 2048]
     # mols = mols[len(mols) * 739 // 2048 : len(mols) * 740 // 2048]
 
-    struct_file = "~/Applications/mongo_db_access/extracted_mols/struct_mols.sdf"
-    label_file = "~/Applications/mongo_db_access/extracted_mols/label_mols.csv"
-    feature_file = "~/Applications/mongo_db_access/extracted_mols/feature_mols.yaml"
-    # structure_name = (
-    #     "~/Applications/mongo_db_access/extracted_mols/struct_mols_charge0.sdf"
-    # )
-    # label_name = "~/Applications/mongo_db_access/extracted_mols/label_mols_charge0.csv"
+    struct_file = "~/Applications/db_access/mol_builder/struct_mols.sdf"
+    label_file = "~/Applications/db_access/mol_builder/label_mols.csv"
+    feature_file = "~/Applications/db_access/mol_builder/feature_mols.yaml"
     DatabaseOperation.write_sdf_csv_dataset(mols, struct_file, label_file, feature_file)
 
 
 def get_single_atom_energy():
-    filename = "~/Applications/mongo_db_access/extracted_mols/molecules_unfiltered.pkl"
-    # filename = "~/Applications/mongo_db_access/extracted_mols/molecules.pkl"
-    # filename = "~/Applications/mongo_db_access/extracted_mols/molecules_n200.pkl"
+    filename = "~/Applications/db_access/mol_builder/molecules_unfiltered.pkl"
+    # filename = "~/Applications/db_access/mol_builder/molecules.pkl"
+    # filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
     mols = pickle_load(filename)
 
     formula = ["H1", "Li1", "C1", "O1", "F1", "P1"]
@@ -144,9 +148,9 @@ def get_single_atom_energy():
 
 
 def compare_connectivity_mol_builder_and_babel_builder(
-    filename="~/Applications/mongo_db_access/extracted_mols/molecules.pkl",
-    # filename="~/Applications/mongo_db_access/extracted_mols/molecules_n200.pkl",
-    tex_file="~/Applications/mongo_db_access/extracted_mols/mol_connectivity.tex",
+    filename="~/Applications/db_access/mol_builder/molecules.pkl",
+    # filename="~/Applications/db_access/mol_builder/molecules_n200.pkl",
+    tex_file="~/Applications/db_access/mol_builder/mol_connectivity.tex",
 ):
 
     # write tex file
@@ -168,7 +172,7 @@ def compare_connectivity_mol_builder_and_babel_builder(
             f.write(TexWriter.verbatim("id:" + m.id))
 
             # mol builder
-            fname = "~/Applications/mongo_db_access/extracted_mols/png_mol_builder/{}.png".format(
+            fname = "~/Applications/db_access/mol_builder/png_mol_builder/{}.png".format(
                 m.id
             )
             fname = expand_path(fname)
@@ -179,7 +183,7 @@ def compare_connectivity_mol_builder_and_babel_builder(
 
             # babel builder
             m.convert_to_babel_mol_graph(use_metal_edge_extender=False)
-            fname = "~/Applications/mongo_db_access/extracted_mols/png_babel_builder/{}.png".format(
+            fname = "~/Applications/db_access/mol_builder/png_babel_builder/{}.png".format(
                 m.id
             )
             fname = expand_path(fname)
@@ -190,7 +194,7 @@ def compare_connectivity_mol_builder_and_babel_builder(
 
             # babel builder with extender
             m.convert_to_babel_mol_graph(use_metal_edge_extender=True)
-            fname = "~/Applications/mongo_db_access/extracted_mols/png_extend_builder/{}.png".format(
+            fname = "~/Applications/db_access/mol_builder/png_extend_builder/{}.png".format(
                 m.id
             )
             fname = expand_path(fname)
@@ -202,11 +206,12 @@ def compare_connectivity_mol_builder_and_babel_builder(
 
 
 if __name__ == "__main__":
-    # pickle_database()
+    # pickle_db_entries()
     # pickle_molecules()
+    # print_mol_property()
     # plot_molecules()
+
     write_dataset()
-    # write_features()
     # write_group_isomorphic_to_file()
     # get_single_atom_energy()
 

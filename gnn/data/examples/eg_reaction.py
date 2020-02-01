@@ -10,8 +10,8 @@ from gnn.data.utils import TexWriter
 
 
 def eg_buckets():
-    # filename = "~/Applications/mongo_db_access/extracted_mols/molecules.pkl"
-    filename = "~/Applications/mongo_db_access/extracted_mols/molecules_n200.pkl"
+    # filename = "~/Applications/db_access/mol_builder/molecules.pkl"
+    filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
     molecules = pickle_load(filename)
     print("number of moles:", len(molecules))
 
@@ -23,8 +23,8 @@ def eg_buckets():
 
 
 def eg_extract_A_to_B():
-    # filename = "~/Applications/mongo_db_access/extracted_mols/molecules.pkl"
-    filename = "~/Applications/mongo_db_access/extracted_mols/molecules_n200.pkl"
+    # filename = "~/Applications/db_access/mol_builder/molecules.pkl"
+    filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
     molecules = pickle_load(filename)
     print("number of moles:", len(molecules))
 
@@ -33,14 +33,12 @@ def eg_extract_A_to_B():
     print("number of buckets", len(extractor.buckets))
 
     extractor.extract_A_to_B_style_reaction()
-    extractor.to_file(
-        filename="~/Applications/mongo_db_access/extracted_mols/reaction_A2B.pkl"
-    )
+    extractor.to_file(filename="~/Applications/db_access/mol_builder/reaction_A2B.pkl")
 
 
 def eg_extract_A_to_B_C():
-    # filename = "~/Applications/mongo_db_access/extracted_mols/molecules.pkl"
-    filename = "~/Applications/mongo_db_access/extracted_mols/molecules_n200.pkl"
+    # filename = "~/Applications/db_access/mol_builder/molecules.pkl"
+    filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
     molecules = pickle_load(filename)
     print("number of moles:", len(molecules))
 
@@ -49,14 +47,12 @@ def eg_extract_A_to_B_C():
     print("number of buckets", len(extractor.buckets))
 
     extractor.extract_A_to_B_C_style_reaction()
-    extractor.to_file(
-        filename="~/Applications/mongo_db_access/extracted_mols/reactions_A2BC.pkl"
-    )
+    extractor.to_file(filename="~/Applications/db_access/mol_builder/reactions_A2BC.pkl")
 
 
 def eg_extract_one_bond_break():
-    # filename = "~/Applications/mongo_db_access/extracted_mols/molecules.pkl"
-    filename = "~/Applications/mongo_db_access/extracted_mols/molecules_n200.pkl"
+    # filename = "~/Applications/db_access/mol_builder/molecules.pkl"
+    filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
     molecules = pickle_load(filename)
     print("number of moles:", len(molecules))
 
@@ -66,13 +62,13 @@ def eg_extract_one_bond_break():
 
     extractor.extract_one_bond_break()
 
-    # filename = "~/Applications/mongo_db_access/extracted_mols/reactions.pkl"
-    filename = "~/Applications/mongo_db_access/extracted_mols/reactions_n200.pkl"
+    # filename = "~/Applications/db_access/mol_builder/reactions.pkl"
+    filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
     extractor.to_file(filename)
 
 
 def subselect_reactions():
-    filename = "~/Applications/mongo_db_access/extracted_mols/reactions.pkl"
+    filename = "~/Applications/db_access/mol_builder/reactions.pkl"
     extractor = ReactionExtractor.from_file(filename)
     reactions = []
 
@@ -93,15 +89,15 @@ def subselect_reactions():
     extractor.reactions = reactions
     extractor.molecules = extractor._get_molecules_from_reactions(reactions)
 
-    # filename = "~/Applications/mongo_db_access/extracted_mols/reactions_C5H8Li1O3.pkl"
-    filename = "~/Applications/mongo_db_access/extracted_mols/reactions_charge0.pkl"
+    # filename = "~/Applications/db_access/mol_builder/reactions_C5H8Li1O3.pkl"
+    filename = "~/Applications/db_access/mol_builder/reactions_charge0.pkl"
     extractor.to_file(filename)
 
 
 def reactants_bond_energies_to_file():
-    # filename = "~/Applications/mongo_db_access/extracted_mols/reactions.pkl"
-    # filename = "~/Applications/mongo_db_access/extracted_mols/reactions_n200.pkl"
-    filename = "~/Applications/mongo_db_access/extracted_mols/reactions_C5H8Li1O3.pkl"
+    # filename = "~/Applications/db_access/mol_builder/reactions.pkl"
+    # filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
+    filename = "~/Applications/db_access/mol_builder/reactions_C5H8Li1O3.pkl"
     extractor = ReactionExtractor.from_file(filename)
 
     # ##############
@@ -114,15 +110,15 @@ def reactants_bond_energies_to_file():
     # ##############
     # extractor.filter_reactions_by_bond_type_and_order(bond_type=("C", "C"))
 
-    filename = "~/Applications/mongo_db_access/extracted_mols/bond_energies.yaml"
-    # filename = "~/Applications/mongo_db_access/extracted_mols/bond_energies_n200.yaml"
+    filename = "~/Applications/db_access/mol_builder/bond_energies.yaml"
+    # filename = "~/Applications/db_access/mol_builder/bond_energies_n200.yaml"
     extractor.write_bond_energies(filename)
 
 
 def plot_reaction_energy_difference_arcoss_reactant_charge(
-    filename="~/Applications/mongo_db_access/extracted_mols/reactions.pkl",
-    # filename="~/Applications/mongo_db_access/extracted_mols/reactions_n200.pkl",
-    # filename="~/Applications/mongo_db_access/extracted_mols/reactions_C5H8Li1O3.pkl",
+    filename="~/Applications/db_access/mol_builder/reactions.pkl",
+    # filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
+    # filename="~/Applications/db_access/mol_builder/reactions_C5H8Li1O3.pkl",
 ):
     def plot_hist(data, filename, s1, s2, c1, c2):
         fig = plt.figure()
@@ -143,7 +139,7 @@ def plot_reaction_energy_difference_arcoss_reactant_charge(
                 e_diff = rxn2.get_reaction_free_energy() - rxn1.get_reaction_free_energy()
                 energies.append(e_diff)
 
-            outname = "~/Applications/mongo_db_access/extracted_mols/reactant_e_diff/"
+            outname = "~/Applications/db_access/mol_builder/reactant_e_diff/"
             outname += "reactant_e_diff_{}{}_{}_{}.pdf".format(s1, s2, *charge)
             outname = expand_path(outname)
             create_directory(outname)
@@ -163,8 +159,8 @@ def plot_reaction_energy_difference_arcoss_reactant_charge(
 
 
 def plot_bond_type_heat_map(
-    filename="~/Applications/mongo_db_access/extracted_mols/reactions.pkl",
-    # filename="~/Applications/mongo_db_access/extracted_mols/reactions_n200.pkl",
+    filename="~/Applications/db_access/mol_builder/reactions.pkl",
+    # filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
 ):
     def plot_heat_map(matrix, labels, filename="heat_map.pdf", cmap=mpl.cm.viridis):
         fig, ax = plt.subplots()
@@ -203,7 +199,7 @@ def plot_bond_type_heat_map(
             data[idx2, idx1] = num_bonds[key]
 
         # plot
-        filename = "~/Applications/mongo_db_access/extracted_mols/bond_type_count_{}.pdf".format(
+        filename = "~/Applications/db_access/mol_builder/bond_type_count_{}.pdf".format(
             charge
         )
         filename = expand_path(filename)
@@ -232,8 +228,8 @@ def plot_bond_type_heat_map(
 
 
 def plot_bond_energy_hist(
-    filename="~/Applications/mongo_db_access/extracted_mols/reactions.pkl",
-    # filename="~/Applications/mongo_db_access/extracted_mols/reactions_n200.pkl",
+    filename="~/Applications/db_access/mol_builder/reactions.pkl",
+    # filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
 ):
     def plot_hist(data, filename, s1, s2, ch, xmin, xmax):
         fig = plt.figure()
@@ -270,7 +266,7 @@ def plot_bond_energy_hist(
                     xmin = np.min(energies) - 0.5
                     xmax = np.max(energies) + 0.5
 
-            outname = "~/Applications/mongo_db_access/extracted_mols/bond_energy_hist/"
+            outname = "~/Applications/db_access/mol_builder/bond_energy_hist/"
             outname += "bond_energy_histogram_species_{}{}_charge_{}.pdf".format(
                 s1, s2, ch
             )
@@ -302,8 +298,8 @@ def plot_bond_energy_hist(
 
 
 def plot_all_bond_length_hist(
-    filename="~/Applications/mongo_db_access/extracted_mols/reactions.pkl",
-    # filename="~/Applications/mongo_db_access/extracted_mols/reactions_n200.pkl",
+    filename="~/Applications/db_access/mol_builder/reactions.pkl",
+    # filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
 ):
     """
     This includes all bonds in molecules.
@@ -319,10 +315,9 @@ def plot_all_bond_length_hist(
 
         fig.savefig(filename, bbox_inches="tight")
 
-    # TODO this should be moved to Reaction (coords should be moved to WrapperMolecule)
     def get_length_of_bond(rxn):
         reactant = rxn.reactants[0]
-        coords = np.asarray([s.coords for s in reactant.pymatgen_mol.sites])
+        coords = reactant.coords
         dist = [np.linalg.norm(coords[u] - coords[v]) for u, v, _ in reactant.bonds]
         return dist
 
@@ -333,14 +328,14 @@ def plot_all_bond_length_hist(
     data = np.concatenate(data)
 
     print("\n\n@@@ all bond length min={}, max={}".format(min(data), max(data)))
-    filename = "~/Applications/mongo_db_access/extracted_mols/bond_length_all.pdf"
+    filename = "~/Applications/db_access/mol_builder/bond_length_all.pdf"
     filename = expand_path(filename)
     plot_hist(data, filename)
 
 
 def plot_broken_bond_length_hist(
-    filename="~/Applications/mongo_db_access/extracted_mols/reactions.pkl",
-    # filename="~/Applications/mongo_db_access/extracted_mols/reactions_n200.pkl",
+    filename="~/Applications/db_access/mol_builder/reactions.pkl",
+    # filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
 ):
     """
     This includes only the broken bonds, not all the bonds.
@@ -356,9 +351,8 @@ def plot_broken_bond_length_hist(
 
         fig.savefig(filename, bbox_inches="tight")
 
-    # TODO this should be moved to Reaction (coords should be moved to WrapperMolecule)
     def get_length_of_broken_bond(rxn):
-        coords = np.asarray([s.coords for s in rxn.reactants[0].pymatgen_mol.sites])
+        coords = rxn.reactants[0].coords
         u, v = rxn.get_broken_bond()
         dist = np.linalg.norm(coords[u] - coords[v])
         return dist
@@ -369,31 +363,31 @@ def plot_broken_bond_length_hist(
     data = [get_length_of_broken_bond(rxn) for rxn in all_reactions]
 
     print("\n\n@@@ broken bond length min={}, max={}".format(min(data), max(data)))
-    filename = "~/Applications/mongo_db_access/extracted_mols/bond_length_broken.pdf"
+    filename = "~/Applications/db_access/mol_builder/bond_length_broken.pdf"
     filename = expand_path(filename)
     plot_hist(data, filename)
 
 
 def create_struct_label_dataset_mol_based():
-    filename = "~/Applications/mongo_db_access/extracted_mols/reactions.pkl"
-    # filename = "~/Applications/mongo_db_access/extracted_mols/reactions_n200.pkl"
-    # filename = "~/Applications/mongo_db_access/extracted_mols/reactions_charge0.pkl"
+    filename = "~/Applications/db_access/mol_builder/reactions.pkl"
+    # filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
+    # filename = "~/Applications/db_access/mol_builder/reactions_charge0.pkl"
     extractor = ReactionExtractor.from_file(filename)
     extractor.create_struct_label_dataset_mol_based(
-        struct_name="~/Applications/mongo_db_access/extracted_mols/struct.sdf",
-        label_name="~/Applications/mongo_db_access/extracted_mols/label.txt",
-        feature_name="~/Applications/mongo_db_access/extracted_mols/feature.yaml",
-        # struct_file="~/Applications/mongo_db_access/extracted_mols/struct_n200.sdf",
-        # label_file="~/Applications/mongo_db_access/extracted_mols/label_n200.txt",
-        # feature_file="~/Applications/mongo_db_access/extracted_mols/feature_n200.yaml",
-        # struct_file="~/Applications/mongo_db_access/extracted_mols/struct_charge0.sdf",
-        # label_file="~/Applications/mongo_db_access/extracted_mols/label_charge0.txt",
+        struct_name="~/Applications/db_access/mol_builder/struct.sdf",
+        label_name="~/Applications/db_access/mol_builder/label.txt",
+        feature_name="~/Applications/db_access/mol_builder/feature.yaml",
+        # struct_file="~/Applications/db_access/mol_builder/struct_n200.sdf",
+        # label_file="~/Applications/db_access/mol_builder/label_n200.txt",
+        # feature_file="~/Applications/db_access/mol_builder/feature_n200.yaml",
+        # struct_file="~/Applications/db_access/mol_builder/struct_charge0.sdf",
+        # label_file="~/Applications/db_access/mol_builder/label_charge0.txt",
     )
 
 
 def create_struct_label_dataset_bond_based():
-    filename = "~/Applications/mongo_db_access/extracted_mols/reactions.pkl"
-    # filename = "~/Applications/mongo_db_access/extracted_mols/reactions_n200.pkl"
+    # filename = "~/Applications/db_access/mol_builder/reactions.pkl"
+    filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
     extractor = ReactionExtractor.from_file(filename)
 
     ##############
@@ -407,18 +401,18 @@ def create_struct_label_dataset_bond_based():
     # extractor.filter_reactions_by_bond_type_and_order(bond_type=("C", "C"))
 
     extractor.create_struct_label_dataset_bond_based(
-        # struct_file="~/Applications/mongo_db_access/extracted_mols/struct.sdf",
-        # label_file="~/Applications/mongo_db_access/extracted_mols/label.txt",
-        # feature_file="~/Applications/mongo_db_access/extracted_mols/feature.yaml",
-        # struct_file="~/Applications/mongo_db_access/extracted_mols/struct_n200.sdf",
-        # label_file="~/Applications/mongo_db_access/extracted_mols/label_n200.txt",
-        # feature_file="~/Applications/mongo_db_access/extracted_mols/feature_n200.yaml",
-        struct_file="~/Applications/mongo_db_access/extracted_mols/struct_charge0.sdf",
-        label_file="~/Applications/mongo_db_access/extracted_mols/label_charge0.txt",
-        feature_file="~/Applications/mongo_db_access/extracted_mols/feature_charge0.yaml",
-        # struct_file="~/Applications/mongo_db_access/extracted_mols/struct_charge0_CC.sdf",
-        # label_file="~/Applications/mongo_db_access/extracted_mols/label_charge0_CC.txt",
-        # feature_file="~/Applications/mongo_db_access/extracted_mols/feature_charge0_CC.yaml",
+        # struct_file="~/Applications/db_access/mol_builder/struct.sdf",
+        # label_file="~/Applications/db_access/mol_builder/label.txt",
+        # feature_file="~/Applications/db_access/mol_builder/feature.yaml",
+        struct_file="~/Applications/db_access/mol_builder/struct_n200.sdf",
+        label_file="~/Applications/db_access/mol_builder/label_n200.txt",
+        feature_file="~/Applications/db_access/mol_builder/feature_n200.yaml",
+        # struct_file="~/Applications/db_access/mol_builder/struct_charge0.sdf",
+        # label_file="~/Applications/db_access/mol_builder/label_charge0.txt",
+        # feature_file="~/Applications/db_access/mol_builder/feature_charge0.yaml",
+        # struct_file="~/Applications/db_access/mol_builder/struct_charge0_CC.sdf",
+        # label_file="~/Applications/db_access/mol_builder/label_charge0_CC.txt",
+        # feature_file="~/Applications/db_access/mol_builder/feature_charge0_CC.yaml",
     )
 
 
@@ -427,7 +421,7 @@ if __name__ == "__main__":
     # eg_extract_A_to_B()
     # eg_extract_A_to_B_C()
     # eg_extract_one_bond_break()
-    subselect_reactions()
+    # subselect_reactions()
 
     # plot_reaction_energy_difference_arcoss_reactant_charge()
     # plot_bond_type_heat_map()
@@ -436,5 +430,4 @@ if __name__ == "__main__":
     # plot_all_bond_length_hist()
 
     # reactants_bond_energies_to_file()
-    # eg_create_struct_label_dataset_mol_based()
-    # create_struct_label_dataset_bond_based()
+    create_struct_label_dataset_bond_based()
