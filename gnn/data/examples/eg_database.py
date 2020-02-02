@@ -101,36 +101,23 @@ def write_dataset():
     # filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
     mols = pickle_load(filename)
 
-    # #######################
-    # # filter charge 0 mols
-    # #######################
-    # new_mols = []
-    # for m in mols:
-    #     if m.charge == 0:
-    #         new_mols.append(m)
-    # mols = new_mols
-
-    # mols = mols[1 : len(mols) // 2]
-    # mols = mols[1 : len(mols) // 4]
-    # mols = mols[len(mols) // 4 : len(mols) // 2]
-    # mols = mols[len(mols) // 4 : len(mols) * 3 // 8]
-    # mols = mols[len(mols) // 4 : len(mols) * 5 // 16]
-    # mols = mols[len(mols) * 5 // 16 : len(mols) * 6 // 16]
-    # mols = mols[len(mols) * 10 // 32 : len(mols) * 11 // 32]
-    # mols = mols[len(mols) * 11 // 32 : len(mols) * 12 // 32]
-    # mols = mols[len(mols) * 22 // 64 : len(mols) * 23 // 64]
-    # mols = mols[len(mols) * 23 // 64 : len(mols) * 24 // 64]
-    # mols = mols[len(mols) * 46 // 128 : len(mols) * 47 // 128]
-    # mols = mols[len(mols) * 92 // 256 : len(mols) * 93 // 256]
-    # mols = mols[len(mols) * 184 // 512 : len(mols) * 185 // 512]
-    # mols = mols[len(mols) * 368 // 1024 : len(mols) * 369 // 1024]
-    # mols = mols[len(mols) * 369 // 1024 : len(mols) * 370 // 1024]
-    # mols = mols[len(mols) * 738 // 2048 : len(mols) * 739 // 2048]
     # mols = mols[len(mols) * 739 // 2048 : len(mols) * 740 // 2048]
 
-    struct_file = "~/Applications/db_access/mol_builder/struct_mols.sdf"
-    label_file = "~/Applications/db_access/mol_builder/label_mols.csv"
-    feature_file = "~/Applications/db_access/mol_builder/feature_mols.yaml"
+    #######################
+    # filter charge 0 mols
+    #######################
+    new_mols = []
+    for m in mols:
+        if m.charge == 0:
+            new_mols.append(m)
+    mols = new_mols
+
+    # struct_file = "~/Applications/db_access/mol_builder/struct_mols.sdf"
+    # label_file = "~/Applications/db_access/mol_builder/label_mols.csv"
+    # feature_file = "~/Applications/db_access/mol_builder/feature_mols.yaml"
+    struct_file = "~/Applications/db_access/mol_builder/struct_mols_charge0.sdf"
+    label_file = "~/Applications/db_access/mol_builder/label_mols_charge0.csv"
+    feature_file = "~/Applications/db_access/mol_builder/feature_mols_charge0.yaml"
     DatabaseOperation.write_sdf_csv_dataset(mols, struct_file, label_file, feature_file)
 
 

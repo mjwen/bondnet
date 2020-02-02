@@ -132,9 +132,9 @@ def get_grapher(self_loop=False):
 def main(args):
 
     ### dataset
-    sdf_file = "~/Applications/mongo_db_access/extracted_mols/struct_mols_n200.sdf"
-    label_file = "~/Applications/mongo_db_access/extracted_mols/label_mols_n200.csv"
-    feature_file = "~/Applications/mongo_db_access/extracted_mols/feature_mols_n200.yaml"
+    sdf_file = "~/Applications/db_access/mol_builder/struct_mols_n200.sdf"
+    label_file = "~/Applications/db_access/mol_builder/label_mols_n200.csv"
+    feature_file = "~/Applications/db_access/mol_builder/feature_mols_n200.yaml"
 
     props = ["atomization_energy"]
     dataset = ElectrolyteMoleculeDataset(

@@ -386,14 +386,14 @@ def create_struct_label_dataset_mol_based():
 
 
 def create_struct_label_dataset_bond_based():
-    # filename = "~/Applications/db_access/mol_builder/reactions.pkl"
-    filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
+    filename = "~/Applications/db_access/mol_builder/reactions.pkl"
+    # filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
     extractor = ReactionExtractor.from_file(filename)
 
-    ##############
-    # filter reactant charge = 0
-    ##############
-    extractor.filter_reactions_by_reactant_charge(charge=0)
+    # ##############
+    # # filter reactant charge = 0
+    # ##############
+    # extractor.filter_reactions_by_reactant_charge(charge=0)
 
     # ##############
     # # filter C-C bond
@@ -401,12 +401,12 @@ def create_struct_label_dataset_bond_based():
     # extractor.filter_reactions_by_bond_type_and_order(bond_type=("C", "C"))
 
     extractor.create_struct_label_dataset_bond_based(
-        # struct_file="~/Applications/db_access/mol_builder/struct.sdf",
-        # label_file="~/Applications/db_access/mol_builder/label.txt",
-        # feature_file="~/Applications/db_access/mol_builder/feature.yaml",
-        struct_file="~/Applications/db_access/mol_builder/struct_n200.sdf",
-        label_file="~/Applications/db_access/mol_builder/label_n200.txt",
-        feature_file="~/Applications/db_access/mol_builder/feature_n200.yaml",
+        struct_file="~/Applications/db_access/mol_builder/struct.sdf",
+        label_file="~/Applications/db_access/mol_builder/label.txt",
+        feature_file="~/Applications/db_access/mol_builder/feature.yaml",
+        # struct_file="~/Applications/db_access/mol_builder/struct_n200.sdf",
+        # label_file="~/Applications/db_access/mol_builder/label_n200.txt",
+        # feature_file="~/Applications/db_access/mol_builder/feature_n200.yaml",
         # struct_file="~/Applications/db_access/mol_builder/struct_charge0.sdf",
         # label_file="~/Applications/db_access/mol_builder/label_charge0.txt",
         # feature_file="~/Applications/db_access/mol_builder/feature_charge0.yaml",

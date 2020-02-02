@@ -97,25 +97,8 @@ def parse_args():
     else:
         args.device = None
 
-    # if len(args.gat_hidden_size) == 1:
-    #     args.gat_hidden_size = args.gat_hidden_size * args.num_gat_layers
-    # else:
-    #     assert len(args.gat_hidden_size) == args.num_gat_layers, (
-    #         "length of `gat-hidden-size` should be equal to `num-gat-layers`, but got "
-    #         "{} and {}.".format(args.gat_hidden_size, args.num_gat_layers)
-    #     )
-    #
-    # if len(args.fc_hidden_size) == 1:
-    #     args.fc_hidden_size = args.fc_hidden_size * args.num_fc_layers
-    # else:
-    #     assert len(args.fc_hidden_size) == args.num_fc_layers, (
-    #     "length of `fc-hidden-size` should be equal to `num-fc-layers`, but got "
-    #     "{} and {}.".format(args.fc_hidden_size, args.num_fc_layers)
-    # )
-
     if len(args.gat_hidden_size) == 1:
-        val = args.gat_hidden_size[0]
-        args.gat_hidden_size = [val * 2 ** i for i in range(args.num_gat_layers)]
+        args.gat_hidden_size = args.gat_hidden_size * args.num_gat_layers
     else:
         assert len(args.gat_hidden_size) == args.num_gat_layers, (
             "length of `gat-hidden-size` should be equal to `num-gat-layers`, but got "
@@ -123,13 +106,30 @@ def parse_args():
         )
 
     if len(args.fc_hidden_size) == 1:
-        val = args.fc_hidden_size[0]
-        args.fc_hidden_size = [val // 2 ** i for i in range(args.num_fc_layers)]
+        args.fc_hidden_size = args.fc_hidden_size * args.num_fc_layers
     else:
         assert len(args.fc_hidden_size) == args.num_fc_layers, (
             "length of `fc-hidden-size` should be equal to `num-fc-layers`, but got "
             "{} and {}.".format(args.fc_hidden_size, args.num_fc_layers)
         )
+
+    # if len(args.gat_hidden_size) == 1:
+    #     val = args.gat_hidden_size[0]
+    #     args.gat_hidden_size = [val * 2 ** i for i in range(args.num_gat_layers)]
+    # else:
+    #     assert len(args.gat_hidden_size) == args.num_gat_layers, (
+    #         "length of `gat-hidden-size` should be equal to `num-gat-layers`, but got "
+    #         "{} and {}.".format(args.gat_hidden_size, args.num_gat_layers)
+    #     )
+    #
+    # if len(args.fc_hidden_size) == 1:
+    #     val = args.fc_hidden_size[0]
+    #     args.fc_hidden_size = [val // 2 ** i for i in range(args.num_fc_layers)]
+    # else:
+    #     assert len(args.fc_hidden_size) == args.num_fc_layers, (
+    #         "length of `fc-hidden-size` should be equal to `num-fc-layers`, but got "
+    #         "{} and {}.".format(args.fc_hidden_size, args.num_fc_layers)
+    #     )
 
     return args
 
@@ -214,9 +214,9 @@ def get_grapher():
 def main(args):
 
     ### dataset
-    sdf_file = "~/Applications/mongo_db_access/extracted_mols/struct_mols_n200.sdf"
-    label_file = "~/Applications/mongo_db_access/extracted_mols/label_mols_n200.csv"
-    feature_file = "~/Applications/mongo_db_access/extracted_mols/feature_mols_n200.yaml"
+    sdf_file = "~/Applications/db_access/mol_builder/struct_mols_n200.sdf"
+    label_file = "~/Applications/db_access/mol_builder/label_mols_n200.csv"
+    feature_file = "~/Applications/db_access/mol_builder/feature_mols_n200.yaml"
 
     dataset = ElectrolyteMoleculeDataset(
         grapher=get_grapher(),
