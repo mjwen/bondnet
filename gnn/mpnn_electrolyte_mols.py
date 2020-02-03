@@ -11,7 +11,10 @@ from gnn.data.dataset import train_validation_test_split
 from gnn.data.electrolyte import ElectrolyteMoleculeDataset
 from gnn.data.dataloader import DataLoaderMolecule
 from gnn.data.grapher import HomoCompleteGraph
-from gnn.data.featurizer import AtomFeaturizerWithExtraInfo, BondAsEdgeCompleteFeaturizer
+from gnn.data.featurizer import (
+    AtomFeaturizerWithReactionInfo,
+    BondAsEdgeCompleteFeaturizer,
+)
 from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
 
@@ -117,7 +120,7 @@ def evaluate(model, data_loader, metric_fn, device=None):
 
 
 def get_grapher(self_loop=False):
-    atom_featurizer = AtomFeaturizerWithExtraInfo()
+    atom_featurizer = AtomFeaturizerWithReactionInfo()
     bond_featurizer = BondAsEdgeCompleteFeaturizer(
         self_loop=self_loop, length_featurizer="bin"
     )

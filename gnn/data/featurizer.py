@@ -148,6 +148,69 @@ class BondAsNodeFeaturizer(BondFeaturizer):
         return {"feat": feats}
 
 
+class BondAsNodeFeaturizerMinimum(BondFeaturizer):
+    """
+    Featurize all bonds in a molecule.
+
+    We do not expand bond length on any basis, but use the raw bond length as a feature.
+
+
+    See Also:
+        BondAsEdgeBidirectedFeaturizer
+    """
+
+    def __call__(self, mol, **kwargs):
+        """
+        Parameters
+        ----------
+        mol : rdkit.Chem.rdchem.Mol
+            RDKit molecule object
+
+        Returns
+        -------
+            Dictionary for bond features
+        """
+        feats = []
+
+        num_bonds = mol.GetNumBonds()
+        if num_bonds < 1:
+            warnings.warn("molecular has no bonds")
+
+        for u in range(num_bonds):
+            bond = mol.GetBondWithIdx(u)
+
+            ft = [
+                # int(bond.GetIsAromatic()),
+                int(bond.IsInRing()),
+                # int(bond.GetIsConjugated()),
+            ]
+
+            # ft += one_hot_encoding(
+            #     bond.GetBondType(),
+            #     [
+            #         Chem.rdchem.BondType.SINGLE,
+            #         Chem.rdchem.BondType.DOUBLE,
+            #         Chem.rdchem.BondType.TRIPLE,
+            #         # Chem.rdchem.BondType.AROMATIC,
+            #         # Chem.rdchem.BondType.IONIC,
+            #     ],
+            # )
+
+            at1 = bond.GetBeginAtomIdx()
+            at2 = bond.GetEndAtomIdx()
+            atoms_pos = mol.GetConformer().GetPositions()
+            bond_length = np.linalg.norm(atoms_pos[at1] - atoms_pos[at2])
+            ft.append(bond_length)
+
+            feats.append(ft)
+
+        feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
+        self._feature_size = feats.shape[1]
+        self._feature_name = ["is in ring", "length"]
+
+        return {"feat": feats}
+
+
 class BondAsEdgeBidirectedFeaturizer(BondFeaturizer):
     """
     Featurize all bonds in a molecule.
@@ -460,7 +523,7 @@ class AtomFeaturizer(BaseFeaturizer):
         return {"feat": feats}
 
 
-class AtomFeaturizerWithExtraInfo(BaseFeaturizer):
+class AtomFeaturizerWithReactionInfo(BaseFeaturizer):
     """
     Featurize atoms in a molecule.
 
@@ -471,7 +534,7 @@ class AtomFeaturizerWithExtraInfo(BaseFeaturizer):
     """
 
     def __init__(self, dtype="float32"):
-        super(AtomFeaturizerWithExtraInfo, self).__init__(dtype)
+        super(AtomFeaturizerWithReactionInfo, self).__init__(dtype)
         self._feature_size = None
         self._feature_name = None
 
@@ -534,6 +597,85 @@ class AtomFeaturizerWithExtraInfo(BaseFeaturizer):
             ["total degree", "is in ring"]
             + ["chemical symbol"] * len(species)
             + ["resp", "mulliken", "spin"]
+        )
+
+        return {"feat": feats}
+
+
+class AtomFeaturizerMinimum(BaseFeaturizer):
+    """
+    Featurize atoms in a molecule.
+
+    The extra feature info should be provided as a dict to kwargs of __call__,
+    with `extra_feats_info` as the key.
+
+    The atom indices will be preserved, i.e. feature i corresponds to atom i.
+    """
+
+    def __init__(self, dtype="float32"):
+        super(AtomFeaturizerMinimum, self).__init__(dtype)
+        self._feature_size = None
+        self._feature_name = None
+
+    @property
+    def feature_size(self):
+        return self._feature_size
+
+    @property
+    def feature_name(self):
+        return self._feature_name
+
+    def __call__(self, mol, **kwargs):
+        """
+        Args:
+            mol (rdkit.Chem.rdchem.Mol): RDKit molecule object
+
+            Also `extra_feats_info` should be provided as `kwargs` as additional info.
+
+        Returns:
+            Dictionary of atom features
+        """
+        try:
+            species = sorted(kwargs["dataset_species"])
+        except KeyError as e:
+            raise KeyError(
+                "{} `dataset_species` needed for {}.".format(e, self.__class__.__name__)
+            )
+        try:
+            feats_info = kwargs["extra_feats_info"]
+        except KeyError as e:
+            raise KeyError(
+                "{} `extra_feats_info` needed for {}.".format(e, self.__class__.__name__)
+            )
+
+        feats = []
+
+        num_atoms = mol.GetNumAtoms()
+        for i in range(num_atoms):
+            ft = []
+            atom = mol.GetAtomWithIdx(i)
+
+            # from rdkit
+            ft.append(atom.GetTotalDegree())
+            # ft.append(int(atom.GetIsAromatic()))
+            ft.append(int(atom.IsInRing()))
+            # atomic number of symbols are redundant
+            # ft.append(atom.GetAtomicNum())
+            ft += one_hot_encoding(atom.GetSymbol(), species)
+
+            # # from extra info
+            # ft.append(feats_info["resp"][i])
+            # ft.append(feats_info["mulliken"][i])
+            # ft.append(feats_info["atom_spin"][i])
+
+            feats.append(ft)
+
+        feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
+        self._feature_size = feats.shape[1]
+        self._feature_name = (
+            ["total degree", "is in ring"]
+            + ["chemical symbol"] * len(species)
+            # + ["resp", "mulliken", "spin"]
         )
 
         return {"feat": feats}

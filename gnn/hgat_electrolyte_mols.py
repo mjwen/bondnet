@@ -12,7 +12,7 @@ from gnn.data.electrolyte import ElectrolyteMoleculeDataset
 from gnn.data.dataloader import DataLoaderMolecule
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import (
-    AtomFeaturizerWithExtraInfo,
+    AtomFeaturizerWithReactionInfo,
     BondAsNodeFeaturizer,
     GlobalFeaturizer,
 )
@@ -199,7 +199,7 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
 
 
 def get_grapher():
-    atom_featurizer = AtomFeaturizerWithExtraInfo()
+    atom_featurizer = AtomFeaturizerWithReactionInfo()
     bond_featurizer = BondAsNodeFeaturizer(length_featurizer="bin")
     global_featurizer = GlobalFeaturizer()
     grapher = HeteroMoleculeGraph(
