@@ -290,9 +290,10 @@ class ReactionExtractor:
                 print("@@flag A->B running bucket", i)
             for _, entries_charges in entries_formula.items():
                 for A, B in itertools.permutations(entries_charges, 2):
-                    bond = is_valid_A_to_B_reaction(A, B)
-                    if bond is not None:
-                        A2B.append(Reaction([A], [B], bond))
+                    bonds = is_valid_A_to_B_reaction(A, B)
+                    if bonds is not None:
+                        for b in bonds:
+                            A2B.append(Reaction([A], [B], b))
         self.reactions = A2B
 
         return A2B
@@ -344,13 +345,14 @@ class ReactionExtractor:
                 for A, B, C in itertools.product(
                     entries_charge_A, entries_charge_B, entries_charge_C
                 ):
-                    bond = is_valid_A_to_B_C_reaction(A, [B, C])
-                    if bond is not None:
+                    bonds = is_valid_A_to_B_C_reaction(A, [B, C])
+                    if bonds is not None:
                         ids = {A.id, B.id, C.id}
                         # remove repeating reactions (e.g. A->B+C and A->C+B)
                         if ids not in reaction_ids:
-                            A2BC.append(Reaction([A], [B, C], bond))
-                            reaction_ids.append(ids)
+                            for b in bonds:
+                                A2BC.append(Reaction([A], [B, C], b))
+                                reaction_ids.append(ids)
 
         self.reactions = A2BC
 
@@ -809,29 +811,35 @@ class ReactionExtractor:
 def is_valid_A_to_B_reaction(reactant, product):
     """
     A -> B
+
+    Determine by the first found reaction, at most one reations.
+
     Args:
         reactant: mol
         product: mol
 
     Returns:
-        A tuple of the bond indices, if this is valid reaction;
+        A list of tuple of the bond indices, if this is valid reaction;
         None, otherwise.
     """
     for edge, mgs in reactant.fragments.items():
         if len(mgs) == 1 and mgs[0].isomorphic_to(product.mol_graph):
-            return edge
+            return [edge]
     return None
 
 
 def is_valid_A_to_B_C_reaction(reactant, products):
     """
     A -> B + C
+
+    Determine by the first found reaction, at most one reations.
+
     Args:
         reactant: mol
         products: list of mols
 
     Returns:
-        A tuple of the bond indices, if this is valid reaction;
+        A list of tuple of the bond indices, if this is valid reaction;
         None, otherwise.
     """
     for edge, mgs in reactant.fragments.items():
@@ -843,8 +851,60 @@ def is_valid_A_to_B_C_reaction(reactant, products):
                 mgs[0].isomorphic_to(products[1].mol_graph)
                 and mgs[1].isomorphic_to(products[0].mol_graph)
             ):
-                return edge
+                return [edge]
     return None
+
+
+# def is_valid_A_to_B_reaction(reactant, product):
+#     """
+#     A -> B
+#     Args:
+#         reactant: mol
+#         product: mol
+#
+#     Get all the broken bonds.
+#
+#     Returns:
+#         A list of tuple of the bond indices, if this is valid reaction;
+#         None, otherwise.
+#     """
+#     all_edges = []
+#     for edge, mgs in reactant.fragments.items():
+#         if len(mgs) == 1 and mgs[0].isomorphic_to(product.mol_graph):
+#             all_edges.append(edge)
+#     if all_edges:
+#         return all_edges
+#     else:
+#         return None
+#
+#
+# def is_valid_A_to_B_C_reaction(reactant, products):
+#     """
+#     A -> B + C
+#     Args:
+#         reactant: mol
+#         products: list of mols
+#
+#     Get all the broken bonds.
+#     Returns:
+#         A list of tuple of the bond indices, if this is valid reaction;
+#         None, otherwise.
+#     """
+#     all_edges = []
+#     for edge, mgs in reactant.fragments.items():
+#         if len(mgs) == 2:
+#             if (
+#                 mgs[0].isomorphic_to(products[0].mol_graph)
+#                 and mgs[1].isomorphic_to(products[1].mol_graph)
+#             ) or (
+#                 mgs[0].isomorphic_to(products[1].mol_graph)
+#                 and mgs[1].isomorphic_to(products[0].mol_graph)
+#             ):
+#                 all_edges.append(edge)
+#     if all_edges:
+#         return all_edges
+#     else:
+#         return None
 
 
 def get_same_bond_breaking_reactions_between_two_reaction_groups(

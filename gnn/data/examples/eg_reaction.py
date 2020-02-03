@@ -118,6 +118,40 @@ def reactants_bond_energies_to_file():
     extractor.write_bond_energies(filename)
 
 
+def reactant_broken_bond_fraction():
+    """
+    Get the fraction of bonds that broken with respect to all the bonds in a reactant.
+
+    Note, this requires that when extracting the reactions, all the reactions
+    related to a reactant (ignore summetry) should be extracted.
+
+    """
+
+    filename = "~/Applications/db_access/mol_builder/reactions.pkl"
+    # filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
+
+    extractor = ReactionExtractor.from_file(filename)
+    groups = extractor.group_by_reactant_bond_and_charge()
+
+    num_bonds = dict()
+    frac = dict()
+    for reactant, reactions in groups.items():
+        val = 0
+        for bond, rxns in reactions.items():
+            if rxns:
+                val += 1
+        frac[reactant] = val / len(reactions)
+        num_bonds[reactant] = len(reactions)
+
+    frac_list = [v for k, v in frac.items()]
+    num_bonds_list = [v for k, v in num_bonds.items()]
+
+    print("### number of bonds in dataset (mean):", np.mean(num_bonds_list))
+    print("### number of bonds in dataset (median):", np.median(num_bonds_list))
+    print("### broken bond ratio in dataset (mean):", np.mean(frac_list))
+    print("### broken bond ratio in dataset (median):", np.median(frac_list))
+
+
 def plot_reaction_energy_difference_arcoss_reactant_charge(
     filename="~/Applications/db_access/mol_builder/reactions.pkl",
     # filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
@@ -521,6 +555,7 @@ if __name__ == "__main__":
     # eg_extract_A_to_B_C()
     # eg_extract_one_bond_break()
     # subselect_reactions()
+    reactant_broken_bond_fraction()
 
     # plot_reaction_energy_difference_arcoss_reactant_charge()
     # plot_bond_type_heat_map()
@@ -529,6 +564,6 @@ if __name__ == "__main__":
     # plot_all_bond_length_hist()
 
     # reactants_bond_energies_to_file()
-    create_struct_label_dataset_bond_based()
+    # create_struct_label_dataset_bond_based()
 
-    write_reaction_sdf_mol_png()
+    # write_reaction_sdf_mol_png()
