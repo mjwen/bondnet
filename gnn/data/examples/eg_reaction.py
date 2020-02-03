@@ -1,12 +1,15 @@
 import itertools
+import os
+import glob
 import numpy as np
 from collections import defaultdict
 import matplotlib as mpl
 from matplotlib import pyplot as plt
 from gnn.data.reaction import ReactionExtractor
 from pprint import pprint
-from gnn.utils import pickle_load, expand_path, create_directory
 from gnn.data.utils import TexWriter
+from gnn.utils import pickle_load, expand_path, create_directory
+from gnn.data.feature_analyzer import read_sdf, read_label
 
 
 def eg_buckets():
@@ -95,9 +98,9 @@ def subselect_reactions():
 
 
 def reactants_bond_energies_to_file():
-    # filename = "~/Applications/db_access/mol_builder/reactions.pkl"
+    filename = "~/Applications/db_access/mol_builder/reactions.pkl"
     # filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
-    filename = "~/Applications/db_access/mol_builder/reactions_C5H8Li1O3.pkl"
+    # filename = "~/Applications/db_access/mol_builder/reactions_C5H8Li1O3.pkl"
     extractor = ReactionExtractor.from_file(filename)
 
     # ##############
@@ -120,6 +123,18 @@ def plot_reaction_energy_difference_arcoss_reactant_charge(
     # filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
     # filename="~/Applications/db_access/mol_builder/reactions_C5H8Li1O3.pkl",
 ):
+    """
+    Plot a histogram showing the energy difference of the same reaction between
+    different charges.
+
+    e.g.
+    A(+1) -> B(+1) + C(0)    G1
+    A(0) -> B(0) + C(0)      G2
+    Delta G = G2-G2
+
+    we plot delta G
+    """
+
     def plot_hist(data, filename, s1, s2, c1, c2):
         fig = plt.figure()
         ax = fig.gca()
@@ -162,6 +177,11 @@ def plot_bond_type_heat_map(
     filename="~/Applications/db_access/mol_builder/reactions.pkl",
     # filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
 ):
+    """
+    Generate a heatmap to show the statistics of the bond type (species of the two
+    atoms).
+    """
+
     def plot_heat_map(matrix, labels, filename="heat_map.pdf", cmap=mpl.cm.viridis):
         fig, ax = plt.subplots()
         im = ax.imshow(matrix, cmap=cmap, vmin=np.min(matrix), vmax=np.max(matrix))
@@ -231,6 +251,11 @@ def plot_bond_energy_hist(
     filename="~/Applications/db_access/mol_builder/reactions.pkl",
     # filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
 ):
+    """
+    Plot histogram of bond energy of a specific type of bond (two atoms forming the
+    bond) and at a specific charge.
+    """
+
     def plot_hist(data, filename, s1, s2, ch, xmin, xmax):
         fig = plt.figure()
         ax = fig.gca()
@@ -390,10 +415,16 @@ def create_struct_label_dataset_bond_based():
     # filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
     extractor = ReactionExtractor.from_file(filename)
 
-    # ##############
-    # # filter reactant charge = 0
-    # ##############
-    # extractor.filter_reactions_by_reactant_charge(charge=0)
+    ##############
+    # filter by reactant attributes
+    ##############
+    extractor.filter_reactions_by_reactant_attribute(
+        key="id", values=["5e2a06308eab11f1fa10ab94", "5e2a063d8eab11f1fa10b36d"]
+    )
+    # extractor.filter_reactions_by_reactant_attribute(
+    #     key="formula", vlues=["C3H4O3", "C3H3O3"]
+    # )
+    extractor.filter_reactions_by_reactant_attribute(key="charge", values=[0])
 
     # ##############
     # # filter C-C bond
@@ -401,9 +432,9 @@ def create_struct_label_dataset_bond_based():
     # extractor.filter_reactions_by_bond_type_and_order(bond_type=("C", "C"))
 
     extractor.create_struct_label_dataset_bond_based(
-        struct_file="~/Applications/db_access/mol_builder/struct.sdf",
-        label_file="~/Applications/db_access/mol_builder/label.txt",
-        feature_file="~/Applications/db_access/mol_builder/feature.yaml",
+        # struct_file="~/Applications/db_access/mol_builder/struct.sdf",
+        # label_file="~/Applications/db_access/mol_builder/label.txt",
+        # feature_file="~/Applications/db_access/mol_builder/feature.yaml",
         # struct_file="~/Applications/db_access/mol_builder/struct_n200.sdf",
         # label_file="~/Applications/db_access/mol_builder/label_n200.txt",
         # feature_file="~/Applications/db_access/mol_builder/feature_n200.yaml",
@@ -413,7 +444,75 @@ def create_struct_label_dataset_bond_based():
         # struct_file="~/Applications/db_access/mol_builder/struct_charge0_CC.sdf",
         # label_file="~/Applications/db_access/mol_builder/label_charge0_CC.txt",
         # feature_file="~/Applications/db_access/mol_builder/feature_charge0_CC.yaml",
+        struct_file="~/Applications/db_access/mol_builder/struct_observe.sdf",
+        label_file="~/Applications/db_access/mol_builder/label_observe.txt",
+        feature_file="~/Applications/db_access/mol_builder/feature_observe.yaml",
     )
+
+
+def write_reaction_sdf_mol_png():
+    """
+    Write reactions to file, including its sdf file and png graphs.
+    """
+
+    label_file = "~/Applications/db_access/mol_builder/label_observe.txt"
+    struct_file = "~/Applications/db_access/mol_builder/struct_observe.sdf"
+
+    png_dir = "~/Applications/db_access/mol_builder/mol_png"
+    tex_file = "~/Applications/db_access/mol_builder/reactions_sdf_energy_mol_png.tex"
+
+    labels = read_label(label_file)
+    structs = read_sdf(struct_file)
+    all_pngs = glob.glob(os.path.join(expand_path(png_dir), "*.png"))
+
+    tex_file = expand_path(tex_file)
+    with open(tex_file, "w") as f:
+
+        f.write(TexWriter.head())
+
+        for rxn in labels:
+            reactant = rxn["reactants"]
+            products = rxn["products"]
+            raw = rxn["raw"]
+
+            f.write(TexWriter.newpage())
+
+            # sdf info
+            f.write(TexWriter.verbatim(structs[reactant]))
+
+            # label info
+            f.write(TexWriter.verbatim(TexWriter.resize_string(raw)))
+
+            # figure
+            filename = None
+            for name in all_pngs:
+                if reactant in name:
+                    filename = name
+                    break
+            if filename is None:
+                raise Exception(
+                    "cannot find png file for {} in {}".format(reactant, png_dir)
+                )
+            f.write(TexWriter.single_figure(filename))
+
+            f.write(r"\begin{equation*}\downarrow\end{equation*}")
+
+            for i, p in enumerate(products):
+                if i > 0:
+                    f.write(r"\begin{equation*}+\end{equation*}")
+                filename = None
+                for name in all_pngs:
+                    if p in name:
+                        filename = name
+                        break
+                if filename is None:
+                    raise Exception(
+                        "cannot find png file for {} in {}".format(p, png_dir)
+                    )
+                f.write(TexWriter.single_figure(filename))
+
+        # tail
+        f.write(TexWriter.tail())
 
 
 if __name__ == "__main__":
@@ -431,3 +530,5 @@ if __name__ == "__main__":
 
     # reactants_bond_energies_to_file()
     create_struct_label_dataset_bond_based()
+
+    write_reaction_sdf_mol_png()
