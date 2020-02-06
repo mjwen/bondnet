@@ -1,7 +1,6 @@
 import os
 import copy
 from collections import defaultdict
-import itertools
 import numpy as np
 import subprocess
 from gnn.data.utils import TexWriter
@@ -239,9 +238,98 @@ def check_bond_species(
     pickle_dump(failed, filename)
 
 
+def check_bond_length(
+    filename="~/Applications/db_access/mol_builder/molecules.pkl",
+    # filename="~/Applications/db_access/mol_builder/molecules_critic_builder.pkl"
+):
+    """
+    Check the species of atoms associated with a bond. Certain bond (e.g. Li-H) fail
+    the check.
+
+    """
+
+    def get_bond_lengthes(m):
+        """
+        Returns:
+            A list of tuple (species, length), where species are the two species
+            associated with a bond and length is the corresponding bond length.
+        """
+        res = []
+        for a1, a2, _ in m.bonds:
+            s1 = m.species[a1]
+            s2 = m.species[a2]
+            c1 = np.asarray(m.coords[a1])
+            c2 = np.asarray(m.coords[a2])
+            length = np.linalg.norm(c1 - c2)
+            res.append((tuple(sorted([s1, s2])), length))
+        return res
+
+    #
+    # https://chem.libretexts.org/Bookshelves/Physical_and_Theoretical_Chemistry_Textbook_Maps/Supplemental_Modules_(Physical_and_Theoretical_Chemistry)/Chemical_Bonding/Fundamentals_of_Chemical_Bonding/Chemical_Bonds/Bond_Lengths_and_Energies
+    # https://www.chem.tamu.edu/rgroup/connell/linkfiles/bonds.pdf
+    #
+    bond_length_limit = {
+        # H
+        ("H", "H"): 0.74,
+        ("H", "C"): 1.09,
+        ("H", "O"): 0.96,
+        ("H", "Li"): None,
+        ("H", "F"): 0.92,
+        ("H", "P"): 1.44,
+        # C
+        ("C", "C"): 1.54,
+        ("C", "O"): 1.43,
+        ("C", "Li"): None,
+        ("C", "F"): 1.35,
+        ("C", "P"): 1.84,
+        # O
+        ("O", "O"): 1.48,
+        ("O", "Li"): None,
+        ("O", "F"): 1.42,
+        ("O", "P"): 1.63,
+        # Li
+        ("Li", "Li"): None,
+        ("Li", "F"): None,
+        ("Li", "P"): None,
+        # F
+        ("F", "F"): 1.42,
+        ("F", "P"): 1.54,
+        # P
+        ("P", "P"): 2.21,
+    }
+
+    # multiply by 1.2 to give relax the rule a bit
+    tmp = dict()
+    for k, v in bond_length_limit.items():
+        if v is not None:
+            v *= 1.2
+        tmp[tuple(sorted(k))] = v
+    bond_length_limit = tmp
+
+    failed = []
+    reason = []
+    mols = pickle_load(filename)
+    for m in mols:
+        bond_species = get_bond_lengthes(m)
+        for b, length in bond_species:
+            limit = bond_length_limit[b]
+            if limit is not None and length > limit:
+                failed.append(m)
+                reason.append("{}  {} ({})".format(b, length, limit))
+
+    print("@@@ Failed `check_bond_length()`")
+    print("@@@ number of entries failed:", len(failed))
+    print("index    id     bond     length (limit)")
+    for i, (m, r) in enumerate(zip(failed, reason)):
+        print(i, m.id, r)
+    filename = "~/Applications/db_access/mol_builder/failed_check_bond_length.pkl"
+    pickle_dump(failed, filename)
+
+
 if __name__ == "__main__":
 
     # plot_mol_graph()
     # compare_connectivity_across_graph_builder()
-    check_mol_valence()
-    check_bond_species()
+    # check_mol_valence()
+    # check_bond_species()
+    check_bond_length()
