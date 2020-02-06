@@ -194,11 +194,12 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
     return accuracy / count
 
 
-# TODO for the lenght_featurizer, we should change the lower and upper bound to
-#  meet that of the dataset
 def get_grapher():
     atom_featurizer = AtomFeaturizer()
-    bond_featurizer = BondAsNodeFeaturizer(length_featurizer="bin")
+    bond_featurizer = BondAsNodeFeaturizer(
+        length_featurizer="bin",
+        length_featurizer_args={"low": 0.7, "high": 2.5, "num_bins": 10},
+    )
     global_featurizer = MolWeightFeaturizer()
     grapher = HeteroMoleculeGraph(
         atom_featurizer=atom_featurizer,

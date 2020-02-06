@@ -54,17 +54,28 @@ class BondFeaturizer(BaseFeaturizer):
     The number of features will be equal to the number of bonds in the molecule,
     so this is suitable for the case where we represent bond as graph nodes.
 
+    Args:
+        length_featurizer (str): the featurizer for bond lenth
+        length_featurizer_args (dict): a dictionary of the arguments for the featurizer.
+            If `None`, default values will be used, but typically not good because this
+            should be specific to the dataset being used.
     """
 
-    def __init__(self, length_featurizer=None, dtype="float32"):
+    def __init__(
+        self, length_featurizer=None, length_featurizer_args=None, dtype="float32"
+    ):
         super(BondFeaturizer, self).__init__(dtype)
         self._feature_size = None
         self._feature_name = None
 
         if length_featurizer == "bin":
-            self.length_featurizer = DistanceBins(low=0.74, high=2.5, num_bins=20)
+            if length_featurizer_args is None:
+                length_featurizer_args = {"low": 0.74, "high": 2.5, "num_bins": 10}
+            self.length_featurizer = DistanceBins(**length_featurizer_args)
         elif length_featurizer == "rbf":
-            self.length_featurizer = RBF(low=0.0, high=4.0, num_centers=20)
+            if length_featurizer_args is None:
+                length_featurizer_args = {"low": 0.0, "high": 4.0, "num_centers": 20}
+            self.length_featurizer = RBF(**length_featurizer_args)
         elif length_featurizer is None:
             self.length_featurizer = None
         else:
@@ -114,21 +125,21 @@ class BondAsNodeFeaturizer(BondFeaturizer):
             bond = mol.GetBondWithIdx(u)
 
             ft = [
-                # int(bond.GetIsAromatic()),
+                int(bond.GetIsAromatic()),
                 int(bond.IsInRing()),
-                # int(bond.GetIsConjugated()),
+                int(bond.GetIsConjugated()),
             ]
 
-            # ft += one_hot_encoding(
-            #     bond.GetBondType(),
-            #     [
-            #         Chem.rdchem.BondType.SINGLE,
-            #         Chem.rdchem.BondType.DOUBLE,
-            #         Chem.rdchem.BondType.TRIPLE,
-            #         # Chem.rdchem.BondType.AROMATIC,
-            #         # Chem.rdchem.BondType.IONIC,
-            #     ],
-            # )
+            ft += one_hot_encoding(
+                bond.GetBondType(),
+                [
+                    Chem.rdchem.BondType.SINGLE,
+                    Chem.rdchem.BondType.DOUBLE,
+                    Chem.rdchem.BondType.TRIPLE,
+                    # Chem.rdchem.BondType.AROMATIC,
+                    # Chem.rdchem.BondType.IONIC,
+                ],
+            )
 
             if self.length_featurizer:
                 at1 = bond.GetBeginAtomIdx()
@@ -141,7 +152,7 @@ class BondAsNodeFeaturizer(BondFeaturizer):
 
         feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
         self._feature_size = feats.shape[1]
-        self._feature_name = ["is in ring"]
+        self._feature_name = ["is aromatic", "is in ring", "is conjugated"] + ["type"] * 3
         if self.length_featurizer:
             self._feature_name += self.length_featurizer.feature_name
 
@@ -233,9 +244,17 @@ class BondAsEdgeBidirectedFeaturizer(BondFeaturizer):
         BondAsEdgeCompleteFeaturizer
     """
 
-    def __init__(self, self_loop=True, length_featurizer=None, dtype="float32"):
+    def __init__(
+        self,
+        self_loop=True,
+        length_featurizer=None,
+        length_featurizer_args=None,
+        dtype="float32",
+    ):
         self.self_loop = self_loop
-        super(BondAsEdgeBidirectedFeaturizer, self).__init__(length_featurizer, dtype)
+        super(BondAsEdgeBidirectedFeaturizer, self).__init__(
+            length_featurizer, length_featurizer_args, dtype
+        )
 
     def __call__(self, mol, **kwargs):
         """
@@ -333,9 +352,17 @@ class BondAsEdgeCompleteFeaturizer(BondFeaturizer):
         BondAsEdgeBidirectedFeaturizer
     """
 
-    def __init__(self, self_loop=True, length_featurizer=None, dtype="float32"):
+    def __init__(
+        self,
+        self_loop=True,
+        length_featurizer=None,
+        length_featurizer_args=None,
+        dtype="float32",
+    ):
         self.self_loop = self_loop
-        super(BondAsEdgeCompleteFeaturizer, self).__init__(length_featurizer, dtype)
+        super(BondAsEdgeCompleteFeaturizer, self).__init__(
+            length_featurizer, length_featurizer_args, dtype
+        )
 
     def __call__(self, mol, **kwargs):
         """

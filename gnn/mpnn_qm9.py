@@ -116,12 +116,12 @@ def evaluate(model, data_loader, metric_fn, device=None):
     return accuracy / count
 
 
-# TODO for the lenght_featurizer, we should change the lower and upper bound to
-#  meet that of the dataset
 def get_grapher(self_loop=False):
     atom_featurizer = AtomFeaturizer()
     bond_featurizer = BondAsEdgeCompleteFeaturizer(
-        self_loop=self_loop, length_featurizer="bin"
+        self_loop=self_loop,
+        length_featurizer="bin",
+        length_featurizer_args={"low": 2, "high": 6.0, "num_bins": 10},
     )
     grapher = HomoCompleteGraph(
         atom_featurizer=atom_featurizer,
