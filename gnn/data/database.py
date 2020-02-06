@@ -836,6 +836,10 @@ class DatabaseOperation:
                     logger.info("Excluding single atom molecule {}".format(m.formula))
                     continue
 
+                # The same pybel mol will write different sdf file when it is called
+                # the first time and other times. We create a new one by setting
+                # `_ob_adaptor` to None here so that it will write the correct one.
+                m._ob_adaptor = None
                 sdf = m.write(file_format="sdf", message=m.id + " int_id-" + str(i))
                 fx.write(sdf)
                 fy.write("{},{:.15g}\n".format(m.id, m.atomization_free_energy))

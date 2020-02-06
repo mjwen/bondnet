@@ -123,7 +123,7 @@ def reactant_broken_bond_fraction():
     Get the fraction of bonds that broken with respect to all the bonds in a reactant.
 
     Note, this requires that when extracting the reactions, all the reactions
-    related to a reactant (ignore summetry) should be extracted.
+    related to a reactant (ignore symmetry) should be extracted.
 
     """
 
@@ -150,6 +150,62 @@ def reactant_broken_bond_fraction():
     print("### number of bonds in dataset (median):", np.median(num_bonds_list))
     print("### broken bond ratio in dataset (mean):", np.mean(frac_list))
     print("### broken bond ratio in dataset (median):", np.median(frac_list))
+
+
+def bond_energy_difference_in_molecule_nth_lowest():
+
+    """
+    Get the nth lowest bond energy difference in molecules.
+
+    """
+
+    def hist_analysis(data, xmin=0, xmax=1, num_bins=10, frac_all_data=True):
+        hist, bin_edge = np.histogram(data, bins=num_bins, range=(xmin, xmax))
+        outside = 0
+        for i in data:
+            if i > xmax:
+                outside += 1
+
+        if frac_all_data:
+            total = len(data)
+        else:
+            total = sum(hist)
+
+        print("Bond energy difference histogram")
+        print("energy        counts      %")
+        for i, n in enumerate(hist):
+            print(
+                "{:.2f}--{:.2f}:    {}    {:.1f}%".format(
+                    bin_edge[i], bin_edge[i + 1], n, n / total * 100
+                )
+            )
+        print("> {}:          {}    {:.1f}%".format(xmax, outside, outside / total * 100))
+
+    filename = "~/Applications/db_access/mol_builder/reactions.pkl"
+    # filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
+
+    ########################
+    # nth lowest
+    ########################
+    all_nth = [1, 2, 3, 4]
+
+    extractor = ReactionExtractor.from_file(filename)
+    groups = extractor.group_by_reactant_bond_keep_lowest_energy_across_products_charge()
+
+    for nth in all_nth:
+        bond_energy_diff = dict()
+        for reactant, reactions in groups.items():
+            energies = [rxn.get_reaction_free_energy() for bond, rxn in reactions.items()]
+            e_diff = [abs(i - j) for i, j in itertools.combinations(energies, 2)]
+
+            # get the lowest 3
+            bond_energy_diff[reactant] = sorted(e_diff)[(nth - 1) : nth]
+
+        diff = [v for k, v in bond_energy_diff.items()]
+        diff = np.concatenate(diff)
+
+        hist_analysis(diff, xmin=0, xmax=1, num_bins=10, frac_all_data=True)
+        hist_analysis(diff, xmin=0, xmax=0.1, num_bins=10, frac_all_data=False)
 
 
 def plot_reaction_energy_difference_arcoss_reactant_charge(
@@ -444,7 +500,7 @@ def create_struct_label_dataset_mol_based():
     )
 
 
-def create_struct_label_dataset_bond_based():
+def create_struct_label_dataset_bond_based_lowest_energy():
     filename = "~/Applications/db_access/mol_builder/reactions.pkl"
     # filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
     extractor = ReactionExtractor.from_file(filename)
@@ -453,12 +509,12 @@ def create_struct_label_dataset_bond_based():
     # filter by reactant attributes
     ##############
     extractor.filter_reactions_by_reactant_attribute(
-        key="id", values=["5e2a06308eab11f1fa10ab94", "5e2a063d8eab11f1fa10b36d"]
+        key="id", values=["5e2a05838eab11f1fa104e29", "5e2a05d28eab11f1fa107899"]
     )
     # extractor.filter_reactions_by_reactant_attribute(
-    #     key="formula", vlues=["C3H4O3", "C3H3O3"]
+    #     key="formula", values=["C3H4O3", "C3H3O3"]
     # )
-    extractor.filter_reactions_by_reactant_attribute(key="charge", values=[0])
+    # extractor.filter_reactions_by_reactant_attribute(key="charge", values=[1])
 
     # ##############
     # # filter C-C bond
@@ -472,15 +528,44 @@ def create_struct_label_dataset_bond_based():
         # struct_file="~/Applications/db_access/mol_builder/struct_n200.sdf",
         # label_file="~/Applications/db_access/mol_builder/label_n200.txt",
         # feature_file="~/Applications/db_access/mol_builder/feature_n200.yaml",
-        # struct_file="~/Applications/db_access/mol_builder/struct_charge0.sdf",
-        # label_file="~/Applications/db_access/mol_builder/label_charge0.txt",
-        # feature_file="~/Applications/db_access/mol_builder/feature_charge0.yaml",
+        # struct_file="~/Applications/db_access/mol_builder/struct_charge1.sdf",
+        # label_file="~/Applications/db_access/mol_builder/label_charge1.txt",
+        # feature_file="~/Applications/db_access/mol_builder/feature_charge1.yaml",
         # struct_file="~/Applications/db_access/mol_builder/struct_charge0_CC.sdf",
         # label_file="~/Applications/db_access/mol_builder/label_charge0_CC.txt",
         # feature_file="~/Applications/db_access/mol_builder/feature_charge0_CC.yaml",
         struct_file="~/Applications/db_access/mol_builder/struct_observe.sdf",
         label_file="~/Applications/db_access/mol_builder/label_observe.txt",
         feature_file="~/Applications/db_access/mol_builder/feature_observe.yaml",
+    )
+
+
+def create_struct_label_dataset_bond_based_0_charge():
+    filename = "~/Applications/db_access/mol_builder/reactions.pkl"
+    # filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
+    extractor = ReactionExtractor.from_file(filename)
+
+    # ##############
+    # # filter by reactant attributes
+    # ##############
+    # extractor.filter_reactions_by_reactant_attribute(
+    #     key="id", values=["5e2a05838eab11f1fa104e29", "5e2a05d28eab11f1fa107899"]
+    # )
+    # extractor.filter_reactions_by_reactant_attribute(
+    #     key="formula", values=["C3H4O3", "C3H3O3"]
+    # )
+    # extractor.filter_reactions_by_reactant_attribute(key="charge", values=[1])
+
+    # ##############
+    # # filter C-C bond
+    # ##############
+    # extractor.filter_reactions_by_bond_type_and_order(bond_type=("C", "C"))
+
+    extractor.create_struct_label_dataset_bond_based(
+        struct_file="~/Applications/db_access/mol_builder/struct_0_charge_all.sdf",
+        label_file="~/Applications/db_access/mol_builder/label_0_charge_all.txt",
+        feature_file="~/Applications/db_access/mol_builder/feature_0_charge_all.yaml",
+        lowest_across_product_charge=False,
     )
 
 
@@ -555,7 +640,6 @@ if __name__ == "__main__":
     # eg_extract_A_to_B_C()
     # eg_extract_one_bond_break()
     # subselect_reactions()
-    reactant_broken_bond_fraction()
 
     # plot_reaction_energy_difference_arcoss_reactant_charge()
     # plot_bond_type_heat_map()
@@ -563,7 +647,11 @@ if __name__ == "__main__":
     # plot_broken_bond_length_hist()
     # plot_all_bond_length_hist()
 
+    # reactant_broken_bond_fraction()
+    # bond_energy_difference_in_molecule_nth_lowest()
+
     # reactants_bond_energies_to_file()
-    # create_struct_label_dataset_bond_based()
+    # create_struct_label_dataset_bond_based_lowest_energy()
+    create_struct_label_dataset_bond_based_0_charge()
 
     # write_reaction_sdf_mol_png()

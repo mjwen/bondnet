@@ -450,6 +450,34 @@ class ReactionExtractor:
 
         return groups
 
+    def group_by_reactant_bond_keep_0_charge(self):
+        """
+        Group all the reactions to nested dicts according to the reactant and bond.
+        For cases where products have different charges, we keep the reaction where the
+        charges of both reactants and products are zero.
+
+        Returns:
+            A dict of dict. The outer dict has reactant as the key and the inner dict has
+            bond (a tuple) as the key and Reaction instance as the value.
+        """
+        grouped_reactions = self.group_by_reactant()
+
+        groups = OrderedDict()
+        for reactant, reactions in grouped_reactions.items():
+            groups[reactant] = OrderedDict()
+
+            for rxn in reactions:
+                zero_charge = True
+                for m in rxn.reactants + rxn.products:
+                    if m.charge != 0:
+                        zero_charge = False
+                        break
+                if zero_charge:
+                    bond = rxn.get_broken_bond()
+                    groups[reactant][bond] = rxn
+
+        return groups
+
     def group_by_reactant_bond_keep_lowest_energy_across_products_charge(self):
         """
         Group all the reactions to nested dicts according to the reactant and bond.
@@ -579,6 +607,10 @@ class ReactionExtractor:
                 msg = "{}_{}_{}_{} int_id: {}".format(
                     m.formula, m.charge, m.id, m.free_energy, i
                 )
+                # The same pybel mol will write different sdf file when it is called
+                # the first time and other times. We create a new one by setting
+                # `_ob_adaptor` to None here so that it will write the correct one.
+                m._ob_adaptor = None
                 sdf = m.write(file_format="sdf", message=msg)
                 f.write(sdf)
 
@@ -604,7 +636,11 @@ class ReactionExtractor:
         logger.info("Finish writing feature file: {}".format(filename))
 
     def create_struct_label_dataset_bond_based(
-        self, struct_file="sturct.sdf", label_file="label.txt", feature_file=None
+        self,
+        struct_file="sturct.sdf",
+        label_file="label.txt",
+        feature_file=None,
+        lowest_across_product_charge=True,
     ):
         """
         Write the reactions to files.
@@ -616,10 +652,17 @@ class ReactionExtractor:
             struct_file (str): filename of the sdf structure file
             label_file (str): filename of the label
             feature_file (str): filename for the feature file, if `None`, do not write it
+            lowest_across_product_charge (bool): If `True` each reactant corresponds to
+                the lowest energy products. If `False`, find all 0->0+0 reactions,
+                i.e. the charge of reactant and products should all be zero.
+            
         """
-        grouped_reactions = (
-            self.group_by_reactant_bond_keep_lowest_energy_across_products_charge()
-        )
+        if lowest_across_product_charge:
+            grouped_reactions = (
+                self.group_by_reactant_bond_keep_lowest_energy_across_products_charge()
+            )
+        else:
+            grouped_reactions = self.group_by_reactant_bond_keep_0_charge()
 
         # write label
         all_rxns = []
