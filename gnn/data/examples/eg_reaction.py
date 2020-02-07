@@ -127,7 +127,8 @@ def reactant_broken_bond_fraction():
 
     """
 
-    filename = "~/Applications/db_access/mol_builder/reactions.pkl"
+    filename = "~/Applications/db_access/mol_builder/reactions_having_all.pkl"
+    # filename = "~/Applications/db_access/mol_builder/reactions.pkl"
     # filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
 
     extractor = ReactionExtractor.from_file(filename)
@@ -486,11 +487,12 @@ def create_struct_label_dataset_mol_based():
     filename = "~/Applications/db_access/mol_builder/reactions.pkl"
     # filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
     # filename = "~/Applications/db_access/mol_builder/reactions_charge0.pkl"
+
     extractor = ReactionExtractor.from_file(filename)
     extractor.create_struct_label_dataset_mol_based(
-        struct_name="~/Applications/db_access/mol_builder/struct.sdf",
-        label_name="~/Applications/db_access/mol_builder/label.txt",
-        feature_name="~/Applications/db_access/mol_builder/feature.yaml",
+        struct_file="~/Applications/db_access/mol_builder/struct_mol_based.sdf",
+        label_file="~/Applications/db_access/mol_builder/label_mol_based.txt",
+        feature_file="~/Applications/db_access/mol_builder/feature_mol_based.yaml",
         # struct_file="~/Applications/db_access/mol_builder/struct_n200.sdf",
         # label_file="~/Applications/db_access/mol_builder/label_n200.txt",
         # feature_file="~/Applications/db_access/mol_builder/feature_n200.yaml",
@@ -500,7 +502,8 @@ def create_struct_label_dataset_mol_based():
 
 
 def create_struct_label_dataset_bond_based_lowest_energy():
-    filename = "~/Applications/db_access/mol_builder/reactions.pkl"
+    filename = "~/Applications/db_access/mol_builder/reactions_having_all.pkl"
+    # filename = "~/Applications/db_access/mol_builder/reactions.pkl"
     # filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
     extractor = ReactionExtractor.from_file(filename)
 
@@ -540,8 +543,8 @@ def create_struct_label_dataset_bond_based_lowest_energy():
 
 
 def create_struct_label_dataset_bond_based_0_charge():
-    filename = "~/Applications/db_access/mol_builder/reactions.pkl"
-    # filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
+    # filename = "~/Applications/db_access/mol_builder/reactions.pkl"
+    filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
     extractor = ReactionExtractor.from_file(filename)
 
     # ##############
@@ -646,11 +649,12 @@ if __name__ == "__main__":
     # plot_broken_bond_length_hist()
     # plot_all_bond_length_hist()
 
-    reactant_broken_bond_fraction()
+    # reactant_broken_bond_fraction()
     # bond_energy_difference_in_molecule_nth_lowest()
 
     # reactants_bond_energies_to_file()
+    # create_struct_label_dataset_mol_based()
     # create_struct_label_dataset_bond_based_lowest_energy()
-    # create_struct_label_dataset_bond_based_0_charge()
+    create_struct_label_dataset_bond_based_0_charge()
 
     # write_reaction_sdf_mol_png()

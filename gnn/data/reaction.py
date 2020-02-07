@@ -236,7 +236,7 @@ class ReactionsWithSameReactant:
     def __init__(self, reactant):
         self._reactant = reactant
         self._reactions = []
-        self._bonds = None
+        self._bonds_data = None
 
     @property
     def reactant(self):
@@ -247,7 +247,7 @@ class ReactionsWithSameReactant:
         return self._reactions
 
     @property
-    def reactant_bonds(self):
+    def reactant_bonds_data(self):
         """
         Get the info of the bonds in the reactant.
 
@@ -257,7 +257,7 @@ class ReactionsWithSameReactant:
             have keys `energy`, `reaction`, `energy_order`. Their values are set to
             `None` if there is no reaction associated with the bond.
         """
-        if self._bonds is None:
+        if self._bonds_data is None:
             info = OrderedDict()
             for i, j, attr in self.reactant.bonds:
                 info[(i, j)] = {"energy_order": None, "energy": None, "reaction": None}
@@ -276,12 +276,12 @@ class ReactionsWithSameReactant:
                 info[bond]["energy"] = e
                 bond_energy_pair.append((bond, e))
 
-            # sort by bond energies
+            # get bond energies order
             bond_energy_pair = sorted(bond_energy_pair, key=lambda pair: pair[1])
             for i, (bond, energy) in enumerate(bond_energy_pair):
                 info[bond]["energy_order"] = i
-            self._bonds = info
-        return self._bonds
+            self._bonds_data = info
+        return self._bonds_data
 
     def add_reaction(self, rxn):
         if rxn.reactants[0] != self.reactant:
@@ -677,7 +677,7 @@ class ReactionExtractor:
                 f.write(sdf)
 
     @staticmethod
-    def write_feature(reactions, filename="feature.yaml"):
+    def write_feature(reactions, use_reaction_feature=True, filename="feature.yaml"):
         """
         Write molecules features to file.
 
@@ -691,7 +691,8 @@ class ReactionExtractor:
         for rxn in reactions:
             m = rxn.reactants[0]
             feat = m.pack_features(use_obabel_idx=True)
-            feat.update(rxn.pack_features())
+            if use_reaction_feature:
+                feat.update(rxn.pack_features())
             all_feats.append(feat)
         yaml_dump(all_feats, filename)
 
@@ -708,7 +709,7 @@ class ReactionExtractor:
         Write the reactions to files.
 
         Also, this is based on the bond energy, i.e. each bond (that we have energies)
-        will have one entry.
+        will have one line in the label file.
 
         args:
             struct_file (str): filename of the sdf structure file
@@ -717,7 +718,7 @@ class ReactionExtractor:
             lowest_across_product_charge (bool): If `True` each reactant corresponds to
                 the lowest energy products. If `False`, find all 0->0+0 reactions,
                 i.e. the charge of reactant and products should all be zero.
-            
+
         """
         if lowest_across_product_charge:
             grouped_reactions = (
@@ -732,15 +733,16 @@ class ReactionExtractor:
         create_directory(label_file)
         with open(label_file, "w") as f:
             f.write(
-                "# Each line lists the bond energies of a molecule. "
-                "The number of items in each line is equal to 2*N, where N is the "
-                "number bonds. The first N items are bond energies and the next N "
-                "items are indicators (0 or 1) to specify whether the bond energy "
-                "exists in the dataset. A value of 0 means the corresponding bond "
-                "energy should be ignored, whatever its value is.\n"
+                "# Each line lists the energy of a bond in a molecule. "
+                "The number of items in each line is equal to 2*N+1, where N is the "
+                "number bonds in the molecule. The first N items are bond energies and "
+                "the next N items are indicators (0 or 1) specifying whether the bond "
+                "energy exists. A value of 0 means the corresponding bond energy should "
+                "be ignored, whatever its value is. The last item specifies the molecule "
+                "from which the bond come.\n"
             )
 
-            for rsr in grouped_reactions:
+            for ir, rsr in enumerate(grouped_reactions):
                 reactant = rsr.reactant
 
                 # get a mapping between babel bond and reactions
@@ -775,6 +777,9 @@ class ReactionExtractor:
                         else:
                             f.write("0 ")
 
+                    # write which molecule this atom come from
+                    f.write("    {}".format(ir))
+
                     # write other info (reactant and product info, and bond energy)
                     attr = rxn.as_dict()
                     f.write(
@@ -792,7 +797,90 @@ class ReactionExtractor:
 
         # write feature
         if feature_file is not None:
-            self.write_feature(all_rxns, feature_file)
+            self.write_feature(all_rxns, filename=feature_file)
+
+    def create_struct_label_dataset_mol_based(
+        self,
+        struct_file="sturct.sdf",
+        label_file="label.txt",
+        feature_file=None,
+        lowest_across_product_charge=True,
+    ):
+        """
+        Write the reactions to files.
+
+        The is molecule based, each molecule will have a line in the label file.
+
+        args:
+            struct_file (str): filename of the sdf structure file
+            label_file (str): filename of the label
+            feature_file (str): filename for the feature file, if `None`, do not write it
+            lowest_across_product_charge (bool): If `True` each reactant corresponds to
+                the lowest energy products. If `False`, find all 0->0+0 reactions,
+                i.e. the charge of reactant and products should all be zero.
+            
+        """
+        if lowest_across_product_charge:
+            grouped_reactions = (
+                self.group_by_reactant_bond_keep_lowest_energy_across_products_charge()
+            )
+        else:
+            grouped_reactions = self.group_by_reactant_bond_keep_0_charge_of_products()
+
+        # write label
+        label_file = expand_path(label_file)
+        create_directory(label_file)
+        with open(label_file, "w") as f:
+            f.write(
+                "# Each line lists the bond energies of a molecule. "
+                "The number of items in each line is equal to 2*N, where N is the "
+                "number bonds. The first N items are bond energies and the next N "
+                "items are indicators (0 or 1) to specify whether the bond energy "
+                "exists in the dataset. A value of 0 means the corresponding bond "
+                "energy should be ignored, whatever its value is.\n"
+            )
+
+            for rsr in grouped_reactions:
+                reactant = rsr.reactant
+
+                # get a mapping between babel bond and reactions
+                rxns_by_ob_bond = dict()
+                for rxn in rsr.reactions:
+                    bond = rxn.get_broken_bond()
+                    bond = tuple(sorted(reactant.graph_bond_idx_to_ob_bond_idx(bond)))
+                    # we need this because the order of bond changes in sdf file
+                    rxns_by_ob_bond[bond] = rxn
+
+                # write bond energies in the same order as sdf file
+                energy = []
+                indicator = []
+                sdf_bonds = reactant.get_sdf_bond_indices()
+                for ib, bond in enumerate(sdf_bonds):
+
+                    if bond in rxns_by_ob_bond:  # have reaction with breaking this bond
+                        rxn = rxns_by_ob_bond[bond]
+                        energy.append(rxn.get_reaction_free_energy())
+                        indicator.append(1)
+                    else:
+                        energy.append(0.0)
+                        indicator.append(0)
+
+                for i in energy:
+                    f.write("{:.15g} ".format(i))
+                f.write("    ")
+                for i in indicator:
+                    f.write("{} ".format(i))
+                f.write("\n")
+
+        # write sdf
+        reactants = [rsr.reactant for rsr in grouped_reactions]
+        self.write_sdf(reactants, struct_file)
+
+        # write feature
+        # we just need one reaction for each group with the same reactant
+        rxns = [rsr.reactions[0] for rsr in grouped_reactions]
+        if feature_file is not None:
+            self.write_feature(rxns, use_reaction_feature=False, filename=feature_file)
 
     @staticmethod
     def _get_formula_composition_map(mols):
@@ -961,6 +1049,7 @@ def is_valid_A_to_B_C_reaction(reactant, products):
     return None
 
 
+#
 # def is_valid_A_to_B_reaction(reactant, product):
 #     """
 #     A -> B
