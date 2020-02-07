@@ -57,14 +57,12 @@ class Reaction:
         """
         Returns a dict of the species and bond order of the broken bond.
         """
-        graph = self.reactants[0].graph
+        reactant = self.reactants[0]
         u, v = self.get_broken_bond()
-        spec_u = graph.nodes[u]["specie"]
-        spec_v = graph.nodes[v]["specie"]
-        # TODO, we temporarily need the try except block because the
-        #  metal_edge_extender does not add weight/get
+        spec_u = reactant.species[u]
+        spec_v = reactant.species[v]
         try:
-            order = graph.get_edge_data(u, v, key=0)[
+            order = reactant.graph.get_edge_data(u, v, key=0)[
                 "weight"
             ]  # key=0 because of MultiGraph
         except KeyError:
@@ -228,6 +226,67 @@ class Reaction:
             else:
                 return mols  # two exactly the same molecules
         raise RuntimeError("Cannot order molecules")
+
+
+class ReactionsWithSameReactant:
+    """
+    A set of reactions that has the same reactant.
+    """
+
+    def __init__(self, reactant):
+        self._reactant = reactant
+        self._reactions = []
+        self._bonds = None
+
+    @property
+    def reactant(self):
+        return self._reactant
+
+    @property
+    def reactions(self):
+        return self._reactions
+
+    @property
+    def reactant_bonds(self):
+        """
+        Get the info of the bonds in the reactant.
+
+        Returns:
+            A dict of dict.
+            The outer dict has bond indices (a tuple) as the key and the inner dict
+            have keys `energy`, `reaction`, `energy_order`. Their values are set to
+            `None` if there is no reaction associated with the bond.
+        """
+        if self._bonds is None:
+            info = OrderedDict()
+            for i, j, attr in self.reactant.bonds:
+                info[(i, j)] = {"energy_order": None, "energy": None, "reaction": None}
+
+            bond_energy_pair = []
+            for rxn in self._reactions:
+                bond = rxn.get_broken_bond()
+                if bond in info:
+                    raise Exception(
+                        "Reaction that breaks bond {} already exists! You may "
+                        "want to remove reactions with the same products but "
+                        "different charge first.".format(bond)
+                    )
+                info[bond]["reaction"] = rxn
+                e = rxn.get_reaction_free_energy()
+                info[bond]["energy"] = e
+                bond_energy_pair.append((bond, e))
+
+            # sort by bond energies
+            bond_energy_pair = sorted(bond_energy_pair, key=lambda pair: pair[1])
+            for i, (bond, energy) in enumerate(bond_energy_pair):
+                info[bond]["energy_order"] = i
+            self._bonds = info
+        return self._bonds
+
+    def add_reaction(self, rxn):
+        if rxn.reactants[0] != self.reactant:
+            raise Exception("Cannot add reaction since its reactant is not the same.")
+        self._reactions.append(rxn)
 
 
 class ReactionExtractor:
@@ -434,127 +493,131 @@ class ReactionExtractor:
             has charges (a tuple) as the key and bond attributes (a dict of energy,
             bond order, ect.). as the value.
         """
-        grouped_reactions = self.group_by_reactant()
+        groups = self.group_by_reactant()
 
-        groups = OrderedDict()
-        for reactant, reactions in grouped_reactions.items():
-            groups[reactant] = OrderedDict()
+        new_groups = OrderedDict()
+        for reactant in groups:
 
-            for bond in reactant.graph.edges():
-                groups[reactant][bond] = dict()
+            new_groups[reactant] = OrderedDict()
+            for i, j, _ in reactant.bonds:
+                bond = (i, j)
+                new_groups[reactant][bond] = dict()
 
-            for rxn in reactions:
+            for rxn in groups[reactant]:
                 charge = tuple([m.charge for m in rxn.reactants + rxn.products])
                 bond = rxn.get_broken_bond()
-                groups[reactant][bond][charge] = rxn.as_dict()
+                new_groups[reactant][bond][charge] = rxn.as_dict()
 
-        return groups
+        return new_groups
 
-    def group_by_reactant_bond_keep_0_charge(self):
+    def group_by_reactant_bond_keep_0_charge_of_products(self):
         """
-        Group all the reactions to nested dicts according to the reactant and bond.
-        For cases where products have different charges, we keep the reaction where the
-        charges of both reactants and products are zero.
+        Group reactions that have the same reactant together.
+        For reactions that have the same reactant and break the same bond, we keep the
+        reaction that the charge of the products are 0.
 
         Returns:
-            A dict of dict. The outer dict has reactant as the key and the inner dict has
-            bond (a tuple) as the key and Reaction instance as the value.
+            A list of ReactionsWithSameReactant.
         """
-        grouped_reactions = self.group_by_reactant()
+        groups = self.group_by_reactant()
 
-        groups = OrderedDict()
-        for reactant, reactions in grouped_reactions.items():
-            groups[reactant] = OrderedDict()
+        new_groups = []
+        for reactant in groups:
 
-            for rxn in reactions:
+            rsr = ReactionsWithSameReactant(reactant)
+
+            for rxn in groups[reactant]:
                 zero_charge = True
-                for m in rxn.reactants + rxn.products:
+                for m in rxn.products:
                     if m.charge != 0:
                         zero_charge = False
                         break
                 if zero_charge:
-                    bond = rxn.get_broken_bond()
-                    groups[reactant][bond] = rxn
+                    rsr.add_reaction(rxn)
 
-        return groups
+            new_groups.append(rsr)
+
+        return new_groups
 
     def group_by_reactant_bond_keep_lowest_energy_across_products_charge(self):
         """
-        Group all the reactions to nested dicts according to the reactant and bond.
-        For cases where products have different charges, we keep the reaction with the
-        lowess energy.
-
+        Group reactions that have the same reactant together.
+        For reactions that have the same reactant and break the same bond, we keep the
+        reaction that have the lowest energy across products charge.
         Returns:
-            A dict of dict. The outer dict has reactant as the key and the inner dict has
-            bond (a tuple) as the key and Reaction instance as the value.
+            A list of ReactionsWithSameReactant.
         """
-        grouped_reactions = self.group_by_reactant()
 
-        groups = OrderedDict()
-        for reactant, reactions in grouped_reactions.items():
-            groups[reactant] = OrderedDict()
+        groups = self.group_by_reactant()
 
-            for rxn in reactions:
+        new_groups = []
+        for reactant in groups:
+
+            # find the lowest energy reaction for each bond
+            lowest_energy_reaction = dict()
+            for rxn in groups[reactant]:
                 bond = rxn.get_broken_bond()
-                if bond not in groups[reactant]:
-                    groups[reactant][bond] = rxn
+                if bond not in lowest_energy_reaction:
+                    lowest_energy_reaction[bond] = rxn
                 else:
-                    e_old = groups[reactant][bond].get_reaction_free_energy()
+                    e_old = lowest_energy_reaction[bond].get_reaction_free_energy()
                     e_new = rxn.get_reaction_free_energy()
                     if e_new < e_old:
-                        groups[reactant][bond] = rxn
+                        lowest_energy_reaction[bond] = rxn
 
-        return groups
+            rsr = ReactionsWithSameReactant(reactant)
+            for bond, rxn in lowest_energy_reaction.items():
+                rsr.add_reaction(rxn)
+            new_groups.append(rsr)
+
+        return new_groups
 
     def group_by_reactant_charge(self):
         """
-        Get the energy difference of reactions that has the same isomorphic reactant
-        but different charge.
-        e.g. M(+1) M(0)
+        Group reactions whose reactant are isomorphic to each other together.
+        Then create pairs of reactions where the reactant and products of one reaction is
+        is isomorphic to those of the other reaction in a pair. The pair is indexed by
+        the charges of the reactants of the pair.
 
         Returns:
-            A dict: with a type (charge1, charge2) as the key, and a list of types of
+            A dict with a type (charge1, charge2) as the key, and a list of tuples as
             the value, where each tuple are two reactions (reaction1, reactions2) that
-            has the same breaking bond.
+            have the same breaking bond.
         """
 
         grouped_reactions = (
             self.group_by_reactant_bond_keep_lowest_energy_across_products_charge()
         )
 
-        # groups is A list of dict, where the keys of each dict are isomorphic to each
-        # other.
+        # groups is a list of list, where the elements of each inner list are
+        # ReactionsWithSameReactant instances and the corresponding reactants are
+        # isomorphic to each other
         groups = []
-        for reactant, reactions in grouped_reactions.items():
+        for rsr in grouped_reactions:
             find_iso = False
             for g in groups:
-                # get the first in the isomorphic group
-                for m in g:
-                    iso_m = m
-                    break
+                old_rsr = g[0]
                 # add to the isomorphic group
-                if iso_m.mol_graph.isomorphic_to(reactant.mol_graph):
-                    g[reactant] = reactions
+                if rsr.reactant.mol_graph.isomorphic_to(old_rsr.reactant.mol_graph):
+                    g.append(rsr)
                     find_iso = True
                     break
-
             if not find_iso:
-                g = OrderedDict()
-                g[reactant] = reactions
+                g = [rsr]
                 groups.append(g)
 
         # group by charge of a pair of reactants
         result = defaultdict(list)
         for g in groups:
-            reactants = list(g.keys())
-            for r1, r2 in itertools.combinations(reactants, 2):
-                if r2.charge < r1.charge:
-                    r1, r2 = r2, r1
-
+            for rsr1, rsr2 in itertools.combinations(g, 2):
+                if rsr2.reactant.charge < rsr1.reactant.charge:
+                    rsr1, rsr2 = rsr2, rsr1
+                rxn1 = {r.get_broken_bond(): r for r in rsr1.reactions}
+                rxn2 = {r.get_broken_bond(): r for r in rsr2.reactions}
                 res = get_same_bond_breaking_reactions_between_two_reaction_groups(
-                    r1, g[r1], r2, g[r2]
+                    rsr1.reactant, rxn1, rsr2.reactant, rxn2
                 )
-                result[(r1.charge, r2.charge)].extend(res)
+                result[(rsr1.reactant.charge, rsr2.reactant.charge)].extend(res)
         return result
 
     def get_reactions_with_lowest_energy(self):
@@ -567,9 +630,8 @@ class ReactionExtractor:
         """
         groups = self.group_by_reactant_bond_keep_lowest_energy_across_products_charge()
         reactions = []
-        for _, rxns in groups.items():
-            for _, r in rxns.items():
-                reactions.append(r)
+        for rsr in groups:
+            reactions.extend(rsr.reactions)
         return reactions
 
     def write_bond_energies(self, filename, mode="reactant_bond_charge"):
@@ -662,7 +724,7 @@ class ReactionExtractor:
                 self.group_by_reactant_bond_keep_lowest_energy_across_products_charge()
             )
         else:
-            grouped_reactions = self.group_by_reactant_bond_keep_0_charge()
+            grouped_reactions = self.group_by_reactant_bond_keep_0_charge_of_products()
 
         # write label
         all_rxns = []
@@ -677,31 +739,31 @@ class ReactionExtractor:
                 "exists in the dataset. A value of 0 means the corresponding bond "
                 "energy should be ignored, whatever its value is.\n"
             )
-            for reactant, reactions in grouped_reactions.items():
 
-                current_rxns = dict()
-                for bond, rxn in reactions.items():
+            for rsr in grouped_reactions:
+                reactant = rsr.reactant
+
+                # get a mapping between babel bond and reactions
+                rxns_by_ob_bond = dict()
+                for rxn in rsr.reactions:
+                    bond = rxn.get_broken_bond()
                     bond = tuple(sorted(reactant.graph_bond_idx_to_ob_bond_idx(bond)))
-                    # note we need to keep track of it because the order changes when
-                    # we write it out below
-                    current_rxns[bond] = rxn
+                    # we need this because the order of bond changes in sdf file
+                    rxns_by_ob_bond[bond] = rxn
 
                 # write bond energies in the same order as sdf file
                 sdf_bonds = reactant.get_sdf_bond_indices()
                 for ib, bond in enumerate(sdf_bonds):
 
-                    if bond not in current_rxns:  # do not have reaction breaking bond
+                    if bond not in rxns_by_ob_bond:  # do not have reaction breaking bond
                         continue
-
-                    rxn = current_rxns[bond]
+                    rxn = rxns_by_ob_bond[bond]
                     all_rxns.append(rxn)
-
-                    attr = rxn.as_dict()
 
                     # write bond energies
                     for ii in range(len(sdf_bonds)):
                         if ii == ib:
-                            f.write("{:.15g} ".format(attr["bond_energy"]))
+                            f.write("{:.15g} ".format(rxn.get_reaction_free_energy()))
                         else:
                             f.write("0.0 ")
                     f.write("   ")
@@ -714,6 +776,7 @@ class ReactionExtractor:
                             f.write("0 ")
 
                     # write other info (reactant and product info, and bond energy)
+                    attr = rxn.as_dict()
                     f.write(
                         "    # {} {} {} {}\n".format(
                             attr["reactants"],

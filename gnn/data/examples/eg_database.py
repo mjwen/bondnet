@@ -21,17 +21,17 @@ def pickle_db_entries():
 def pickle_molecules():
     db_collection = "mol_builder"
     entries = DatabaseOperation.query_db_entries(
-        db_collection=db_collection, num_entries=1000
+        db_collection=db_collection, num_entries=None
     )
 
     mols = DatabaseOperation.to_molecules(entries, db_collection=db_collection)
-    # filename = "~/Applications/db_access/mol_builder/molecules_unfiltered.pkl"
-    filename = "~/Applications/db_access/mol_builder/molecules_n200_unfiltered.pkl"
+    filename = "~/Applications/db_access/mol_builder/molecules_unfiltered.pkl"
+    # filename = "~/Applications/db_access/mol_builder/molecules_n200_unfiltered.pkl"
     pickle_dump(mols, filename)
 
     mols = DatabaseOperation.filter_molecules(mols, connectivity=True, isomorphism=True)
-    # filename = "~/Applications/db_access/mol_builder/molecules.pkl"
-    filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
+    filename = "~/Applications/db_access/mol_builder/molecules.pkl"
+    # filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
     pickle_dump(mols, filename)
 
 
@@ -60,6 +60,18 @@ def print_mol_property():
     ]
     for prop in properties:
         print("{}: {}".format(prop, getattr(m, prop)))
+
+    # using atom and bond
+    print("looping m.atoms")
+    for idx, attr in m.atoms:
+        print(idx, attr)
+    print("direct access: m.atoms[0]:", m.atoms[0])
+
+    print("looping m.bonds")
+    for i, j, attr in m.bonds:
+        print(i, j, attr)
+    bond = (i, j)
+    print("direct access: m.atoms[({},{})]:".format(i, j, m.bonds[(i, j)]))
 
 
 def plot_molecules():

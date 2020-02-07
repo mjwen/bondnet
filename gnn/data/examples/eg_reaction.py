@@ -194,13 +194,12 @@ def bond_energy_difference_in_molecule_nth_lowest():
 
     for nth in all_nth:
         bond_energy_diff = dict()
-        for reactant, reactions in groups.items():
-            energies = [rxn.get_reaction_free_energy() for bond, rxn in reactions.items()]
+        for rsr in groups:
+            energies = [rxn.get_reaction_free_energy() for rxn in rsr.reactions]
             e_diff = [abs(i - j) for i, j in itertools.combinations(energies, 2)]
 
-            # get the lowest 3
-            bond_energy_diff[reactant] = sorted(e_diff)[(nth - 1) : nth]
-
+            # get nth lowest
+            bond_energy_diff[rsr.reactant] = sorted(e_diff)[(nth - 1) : nth]
         diff = [v for k, v in bond_energy_diff.items()]
         diff = np.concatenate(diff)
 
@@ -508,9 +507,9 @@ def create_struct_label_dataset_bond_based_lowest_energy():
     ##############
     # filter by reactant attributes
     ##############
-    extractor.filter_reactions_by_reactant_attribute(
-        key="id", values=["5e2a05838eab11f1fa104e29", "5e2a05d28eab11f1fa107899"]
-    )
+    # extractor.filter_reactions_by_reactant_attribute(
+    #     key="id", values=["5e2a05838eab11f1fa104e29", "5e2a05d28eab11f1fa107899"]
+    # )
     # extractor.filter_reactions_by_reactant_attribute(
     #     key="formula", values=["C3H4O3", "C3H3O3"]
     # )
@@ -522,9 +521,9 @@ def create_struct_label_dataset_bond_based_lowest_energy():
     # extractor.filter_reactions_by_bond_type_and_order(bond_type=("C", "C"))
 
     extractor.create_struct_label_dataset_bond_based(
-        # struct_file="~/Applications/db_access/mol_builder/struct.sdf",
-        # label_file="~/Applications/db_access/mol_builder/label.txt",
-        # feature_file="~/Applications/db_access/mol_builder/feature.yaml",
+        struct_file="~/Applications/db_access/mol_builder/struct.sdf",
+        label_file="~/Applications/db_access/mol_builder/label.txt",
+        feature_file="~/Applications/db_access/mol_builder/feature.yaml",
         # struct_file="~/Applications/db_access/mol_builder/struct_n200.sdf",
         # label_file="~/Applications/db_access/mol_builder/label_n200.txt",
         # feature_file="~/Applications/db_access/mol_builder/feature_n200.yaml",
@@ -534,9 +533,9 @@ def create_struct_label_dataset_bond_based_lowest_energy():
         # struct_file="~/Applications/db_access/mol_builder/struct_charge0_CC.sdf",
         # label_file="~/Applications/db_access/mol_builder/label_charge0_CC.txt",
         # feature_file="~/Applications/db_access/mol_builder/feature_charge0_CC.yaml",
-        struct_file="~/Applications/db_access/mol_builder/struct_observe.sdf",
-        label_file="~/Applications/db_access/mol_builder/label_observe.txt",
-        feature_file="~/Applications/db_access/mol_builder/feature_observe.yaml",
+        # struct_file="~/Applications/db_access/mol_builder/struct_observe.sdf",
+        # label_file="~/Applications/db_access/mol_builder/label_observe.txt",
+        # feature_file="~/Applications/db_access/mol_builder/feature_observe.yaml",
     )
 
 
@@ -647,11 +646,11 @@ if __name__ == "__main__":
     # plot_broken_bond_length_hist()
     # plot_all_bond_length_hist()
 
-    # reactant_broken_bond_fraction()
+    reactant_broken_bond_fraction()
     # bond_energy_difference_in_molecule_nth_lowest()
 
     # reactants_bond_energies_to_file()
     # create_struct_label_dataset_bond_based_lowest_energy()
-    create_struct_label_dataset_bond_based_0_charge()
+    # create_struct_label_dataset_bond_based_0_charge()
 
     # write_reaction_sdf_mol_png()
