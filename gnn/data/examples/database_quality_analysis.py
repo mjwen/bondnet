@@ -130,6 +130,7 @@ def compare_connectivity_across_graph_builder(
 
 
 def check_mol_valence(
+    mols=None,
     filename="~/Applications/db_access/mol_builder/molecules.pkl",
     # filename="~/Applications/db_access/mol_builder/molecules_critic_builder.pkl"
 ):
@@ -165,11 +166,17 @@ def check_mol_valence(
         "Li": Li_allowed,
     }
 
+    succeeded = []
     failed = []
     reason = []
-    mols = pickle_load(filename)
+
+    if mols is None:
+        mols = pickle_load(filename)
+
     for m in mols:
         bonds = get_atom_bonds(m)
+        do_fail = False
+
         for atom_specie, bonded_atom_species in bonds:
 
             if len(bonded_atom_species) == 0 and len(bonds) == 1:
@@ -184,6 +191,10 @@ def check_mol_valence(
             if num_bonds not in allowed_charge[atom_specie]:
                 failed.append(m)
                 reason.append([atom_specie, num_bonds])
+                do_fail = True
+
+        if not do_fail:
+            succeeded.append(m)
 
     print("@@@ Failed `check_mol_valence()`")
     print("@@@ number of entries failed:", len(failed))
@@ -193,8 +204,11 @@ def check_mol_valence(
     filename = "~/Applications/db_access/mol_builder/failed_check_mol_valence.pkl"
     pickle_dump(failed, filename)
 
+    return succeeded
+
 
 def check_bond_species(
+    mols=None,
     filename="~/Applications/db_access/mol_builder/molecules.pkl",
     # filename="~/Applications/db_access/mol_builder/molecules_critic_builder.pkl"
 ):
@@ -219,15 +233,25 @@ def check_bond_species(
     not_allowed = [("Li", "H"), ("Li", "Li")]
     not_allowed = [sorted(i) for i in not_allowed]
 
+    if mols is None:
+        mols = pickle_load(filename)
+
+    succeeded = []
     failed = []
     reason = []
-    mols = pickle_load(filename)
+
     for m in mols:
+        do_fail = False
         bond_species = get_bond_species(m)
+
         for b in bond_species:
             if b in not_allowed:
                 failed.append(m)
                 reason.append(b)
+                do_fail = True
+
+        if not do_fail:
+            succeeded.append(m)
 
     print("@@@ Failed `check_bond_species()`")
     print("@@@ number of entries failed:", len(failed))
@@ -237,8 +261,11 @@ def check_bond_species(
     filename = "~/Applications/db_access/mol_builder/failed_check_bond_species.pkl"
     pickle_dump(failed, filename)
 
+    return succeeded
+
 
 def check_bond_length(
+    mols=None,
     filename="~/Applications/db_access/mol_builder/molecules.pkl",
     # filename="~/Applications/db_access/mol_builder/molecules_critic_builder.pkl"
 ):
@@ -306,16 +333,26 @@ def check_bond_length(
         tmp[tuple(sorted(k))] = v
     bond_length_limit = tmp
 
+    if mols is None:
+        mols = pickle_load(filename)
+
+    succeeded = []
     failed = []
     reason = []
-    mols = pickle_load(filename)
+
     for m in mols:
+        do_fail = False
         bond_species = get_bond_lengthes(m)
+
         for b, length in bond_species:
             limit = bond_length_limit[b]
             if limit is not None and length > limit:
                 failed.append(m)
                 reason.append("{}  {} ({})".format(b, length, limit))
+                do_fail = True
+
+        if not do_fail:
+            succeeded.append(m)
 
     print("@@@ Failed `check_bond_length()`")
     print("@@@ number of entries failed:", len(failed))
@@ -325,6 +362,23 @@ def check_bond_length(
     filename = "~/Applications/db_access/mol_builder/failed_check_bond_length.pkl"
     pickle_dump(failed, filename)
 
+    return succeeded
+
+
+def check_all(filename="~/Applications/db_access/mol_builder/molecules.pkl"):
+    mols = pickle_load(filename)
+
+    print("Number of mols before any check:", len(mols))
+
+    mols = check_mol_valence(mols=mols)
+    mols = check_bond_species(mols=mols)
+    mols = check_bond_length(mols=mols)
+
+    print("Number of mols after check:", len(mols))
+
+    filename = "~/Applications/db_access/mol_builder/molecules_quality_check.pkl"
+    pickle_dump(mols, filename)
+
 
 if __name__ == "__main__":
 
@@ -332,4 +386,5 @@ if __name__ == "__main__":
     # compare_connectivity_across_graph_builder()
     # check_mol_valence()
     # check_bond_species()
-    check_bond_length()
+    # check_bond_length()
+    check_all()
