@@ -544,7 +544,8 @@ def create_struct_label_dataset_bond_based_lowest_energy():
 
 def create_struct_label_dataset_bond_based_0_charge():
     # filename = "~/Applications/db_access/mol_builder/reactions.pkl"
-    filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
+    # filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
+    filename = "~/Applications/db_access/mol_builder/reactions_quality_check.pkl"
     extractor = ReactionExtractor.from_file(filename)
 
     # ##############
@@ -564,9 +565,9 @@ def create_struct_label_dataset_bond_based_0_charge():
     # extractor.filter_reactions_by_bond_type_and_order(bond_type=("C", "C"))
 
     extractor.create_struct_label_dataset_bond_based(
-        struct_file="~/Applications/db_access/mol_builder/struct_0_charge_all.sdf",
-        label_file="~/Applications/db_access/mol_builder/label_0_charge_all.txt",
-        feature_file="~/Applications/db_access/mol_builder/feature_0_charge_all.yaml",
+        struct_file="~/Applications/db_access/mol_builder/struct_qc.sdf",
+        label_file="~/Applications/db_access/mol_builder/label_qc.txt",
+        feature_file="~/Applications/db_access/mol_builder/feature_qc.yaml",
         lowest_across_product_charge=False,
     )
 

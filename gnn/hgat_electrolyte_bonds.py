@@ -134,13 +134,14 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
 
     for it, (bg, label, scale) in enumerate(data_loader):
         feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-        if device is not None:
-            feats = {k: v.to(device=device) for k, v in feats.items()}
-            label = {k: v.to(device=device) for k, v in label.items()}
-            if scale is not None:
-                scale = scale.to(device=device)
         label_val = label["value"]
         label_ind = label["indicator"]
+        if device is not None:
+            feats = {k: v.to(device) for k, v in feats.items()}
+            label_val = label_val.to(device)
+            label_ind = label_ind.to(device)
+            if scale is not None:
+                scale = scale.to(device=device)
 
         pred = model(bg, feats)
         loss = loss_fn(pred, label_val, label_ind)
@@ -174,13 +175,14 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
 
         for bg, label, scale in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-            if device is not None:
-                feats = {k: v.to(device) for k, v in feats.items()}
-                label = {k: v.to(device) for k, v in label.items()}
-                if scale is not None:
-                    scale = scale.to(device=device)
             label_val = label["value"]
             label_ind = label["indicator"]
+            if device is not None:
+                feats = {k: v.to(device) for k, v in feats.items()}
+                label_val = label_val.to(device)
+                label_ind = label_ind.to(device)
+                if scale is not None:
+                    scale = scale.to(device=device)
 
             pred = model(bg, feats)
 

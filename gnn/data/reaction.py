@@ -742,7 +742,7 @@ class ReactionExtractor:
                 "from which the bond come.\n"
             )
 
-            for ir, rsr in enumerate(grouped_reactions):
+            for rsr in grouped_reactions:
                 reactant = rsr.reactant
 
                 # get a mapping between babel bond and reactions
@@ -778,7 +778,7 @@ class ReactionExtractor:
                             f.write("0 ")
 
                     # write which molecule this atom come from
-                    f.write("    {}".format(ir))
+                    f.write("    {}".format(reactant.id))
 
                     # write other info (reactant and product info, and bond energy)
                     attr = rxn.as_dict()

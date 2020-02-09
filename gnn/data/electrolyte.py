@@ -105,21 +105,21 @@ class ElectrolyteBondDataset(BaseDataset):
         species = self._get_species()
 
         # read graphs and label
-        properties = self._read_label_file()
+        raw_value, raw_indicator, raw_mol_source = self._read_label_file()
 
         # additional features from file
         if self.feature_file is not None:
             features = self._read_feature_file()
         else:
-            features = [None] * len(properties)
+            features = [None] * len(raw_value)
 
         self.graphs = []
         self.labels = []
         supp = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
 
-        for i, (mol, feats, prop) in enumerate(zip(supp, features, properties)):
+        for i, mol in enumerate(supp):
             if i % 100 == 0:
-                logger.info("Processing molecule {}/{}".format(i, len(properties)))
+                logger.info("Processing molecule {}/{}".format(i, len(raw_value)))
 
             # bad mol
             if mol is None:
@@ -127,18 +127,22 @@ class ElectrolyteBondDataset(BaseDataset):
 
             # graph
             g = self.grapher.build_graph_and_featurize(
-                mol, extra_feats_info=feats, dataset_species=species
+                mol, extra_feats_info=features[i], dataset_species=species
             )
             # we add this for check purpose, because some entries in the sdf file may fail
             g.graph_id = i
             self.graphs.append(g)
 
             # label
-            nbonds = len(prop) // 2
             dtype = getattr(torch, self.dtype)
-            bonds_energy = torch.tensor(prop[:nbonds], dtype=dtype)
-            bonds_indicator = torch.tensor(prop[nbonds:], dtype=dtype)
-            label = {"value": bonds_energy, "indicator": bonds_indicator}
+            bonds_energy = torch.tensor(raw_value[i], dtype=dtype)
+            bonds_indicator = torch.tensor(raw_indicator[i], dtype=dtype)
+            bonds_mol_source = raw_mol_source[i]
+            label = {
+                "value": bonds_energy,
+                "indicator": bonds_indicator,
+                "mol_source": bonds_mol_source,
+            }
             self.labels.append(label)
 
         # this should be called after grapher.build_graph_and_featurize,
@@ -162,6 +166,14 @@ class ElectrolyteBondDataset(BaseDataset):
         # Then MAE is |y^-y| = |y'^ - y'| *std(y), i.e. we just need to multiple
         # standard deviation to get back to the original scale. Similar analysis
         # applies to RMSE.
+        #
+        # TODO the below code may not be perfect, since most of label values will be
+        #  zero (only one element is non-zero) for each label. As as result, the mean
+        #  and standard deviation are more or less computed for a list of zeros,
+        #  at least the stdev would be pretty small. Making the training value
+        #  extremely large. We'd better compute mean and stdev using non-zero values,
+        #  because that's what we are training on model on.
+        #
         if self.label_transformer:
             labels = [lb["value"] for lb in self.labels]  # list of 1D tensor
             labels = torch.cat(labels)  # 1D tensor
@@ -285,7 +297,9 @@ class ElectrolyteBondDataset(BaseDataset):
         return list(system_species)
 
     def _read_label_file(self):
-        rslt = []
+        value = []
+        indicator = []
+        mol_source = []
         with open(self.label_file, "r") as f:
             for line in f:
                 line = line.strip()
@@ -296,9 +310,15 @@ class ElectrolyteBondDataset(BaseDataset):
                 if "#" in line:
                     line = line[: line.index("#")]
 
-                line = [float(i) for i in line.split()]
-                rslt.append(line)
-        return rslt
+                line = line.split()
+                mol_source.append(line[-1])  # it could be a string
+
+                line = [float(i) for i in line[:-1]]
+                nbonds = len(line) // 2
+                value.append(line[:nbonds])
+                indicator.append(line[nbonds:])
+
+        return value, indicator, mol_source
 
     def _read_feature_file(self):
         return yaml_load(self.feature_file)

@@ -21,7 +21,16 @@ class DataLoaderBond(torch.utils.data.DataLoader):
                 batched_graph = dgl.batch(graphs)
             energies = torch.cat([la["value"] for la in labels])
             indicators = torch.cat([la["indicator"] for la in labels])
-            labels = {"value": energies, "indicator": indicators}
+            mol_sources = [la["mol_source"] for la in labels]
+            # length of value (indicator) for each datapoint i.e. number of bonds in
+            # the moleucle from which the bond come from
+            length = [len(la["value"]) for la in labels]
+            labels = {
+                "value": energies,
+                "indicator": indicators,
+                "mol_source": mol_sources,
+                "length": length,
+            }
             scales = None if scales[0] is None else torch.cat(scales)
             return batched_graph, labels, scales
 
