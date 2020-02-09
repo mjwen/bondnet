@@ -3,10 +3,12 @@ import time
 import warnings
 import torch
 import argparse
+import numpy as np
+from collections import defaultdict
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from gnn.metric import WeightedMSELoss, WeightedL1Loss, EarlyStopping
 from gnn.model.hgat import HGAT
-from gnn.data.dataset import train_validation_test_split
+from gnn.data.dataset import train_validation_test_split_test_with_all_bonds_of_mol
 from gnn.data.electrolyte import ElectrolyteBondDataset
 from gnn.data.dataloader import DataLoaderBond
 from gnn.data.grapher import HeteroMoleculeGraph
@@ -107,7 +109,7 @@ def parse_args():
     #         "length of `gat-hidden-size` should be equal to `num-gat-layers`, but got "
     #         "{} and {}.".format(args.gat_hidden_size, args.num_gat_layers)
     #     )
-
+    #
     # if len(args.fc_hidden_size) == 1:
     #     val = args.fc_hidden_size[0]
     #     args.fc_hidden_size = [val // 2 ** i for i in range(args.num_fc_layers)]
@@ -193,6 +195,96 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
     return accuracy / count
 
 
+# TODO we could pass smallest_n_score as the metric_fn
+def ordering_accuracy(model, nodes, data_loader, metric_fn, device=None):
+    """
+    Evaluate the accuracy of an validation set of test set.
+
+    Args:
+        metric_fn (function): the function should be using a `sum` reduction method.
+    """
+    model.eval()
+
+    ### prepare data
+
+    with torch.no_grad():
+
+        all_pred = []
+        all_val = []
+        all_ind = []
+        all_mol_source = []
+
+        for bg, label, scale in data_loader:
+            feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
+            label_val = label["value"]
+            label_ind = label["indicator"]
+            label_mol_source = label["mol_source"]
+            label_length = label["length"]
+
+            if device is not None:
+                feats = {k: v.to(device) for k, v in feats.items()}
+            pred = model(bg, feats)
+
+            # each element of these list corresponds to a bond
+            all_val.extend(
+                [t.detach().numpy() for t in torch.split(label_val, label_length)]
+            )  # list of 1D array
+
+            all_ind.extend(
+                [t.detach().numpy() for t in torch.split(label_ind, label_length)]
+            )  # list of 1D array
+
+            all_mol_source.extend(label_mol_source)  # list of str
+
+            all_pred.extend(
+                [t.detach().numpy() for t in torch.split(pred, label_length)]
+            )  # list of 1D array
+
+    ### analyze accuracy of energy order
+    def smallest_n_score(source, target, n=2):
+        """
+        Measure how many smallest n elements of source are in that of the target.
+
+        Args:
+            source (1D array):
+            target (1D array):
+            n (int): the number of elements to consider
+
+        Returns:
+            A float of value {0,1/n, 2/n, ..., n/n}, depending the intersection of the
+            smallest n elements between source and target.
+        """
+        # first n args that will sort the array
+        s_args = list(np.argsort(source)[:n])
+        t_args = list(np.argsort(target)[:n])
+        intersection = set(s_args).intersection(set(t_args))
+        return len(intersection) / len(s_args)
+
+    # group by mol source
+    group = defaultdict(list)
+    for m, val, ind, pred in zip(all_mol_source, all_val, all_ind, all_pred):
+        i = np.argmax(ind)  # index of the value (bond) that has nonzero energy
+        group[m].append((i, val[i], pred[i]))
+
+    # analyzer order correctness for each group
+    n_smallest = 1
+    scores = dict()
+    for mol_source, g in group.items():
+        data = np.asarray(g)
+        pred = data[:, 2]
+        val = data[:, 1]
+        s = smallest_n_score(pred, val, n=n_smallest)
+        scores[mol_source] = s
+    values = list(scores.values())
+    mean_score = np.mean(values)
+
+    # print(
+    #     "### mean score of predicting the intersection of smallest {} predictions: "
+    #     "{}".format(n_smallest, mean_score)
+    # )
+    return mean_score
+
+
 def get_grapher():
     atom_featurizer = AtomFeaturizerWithReactionInfo()
     bond_featurizer = BondAsNodeFeaturizer(length_featurizer="bin")
@@ -218,7 +310,7 @@ def main(args):
         label_file=label_file,
         feature_file=feature_file,
     )
-    trainset, valset, testset = train_validation_test_split(
+    trainset, valset, testset = train_validation_test_split_test_with_all_bonds_of_mol(
         dataset, validation=0.15, test=0.15
     )
     print(
@@ -290,7 +382,10 @@ def main(args):
             warnings.warn(str(e) + " Continue without loading checkpoints.")
             pass
 
-    print("\n\n# Epoch     Loss         TrainAcc        ValAcc     Time (s)")
+    print(
+        "\n\n# Epoch     Loss         TrainAcc        ValAcc        OrdAcc     Time ("
+        "s)"
+    )
     t0 = time.time()
 
     for epoch in range(args.epochs):
@@ -302,6 +397,10 @@ def main(args):
         )
         val_acc = evaluate(model, attn_order, val_loader, metric, args.device)
 
+        ordering_score = ordering_accuracy(
+            model, attn_order, test_loader, None, args.device
+        )
+
         if stopper.step(val_acc, checkpoints_objs, msg="epoch " + str(epoch)):
             # save results for hyperparam tune
             pickle_dump(float(stopper.best_score), args.output_file)
@@ -312,8 +411,8 @@ def main(args):
         tt = time.time() - ti
 
         print(
-            "{:5d}   {:12.6e}   {:12.6e}   {:12.6e}   {:.2f}".format(
-                epoch, loss, train_acc, val_acc, tt
+            "{:5d}   {:12.6e}   {:12.6e}   {:12.6e}   {:12.6e}   {:.2f}".format(
+                epoch, loss, train_acc, val_acc, ordering_score, tt
             )
         )
         if epoch % 10 == 0:

@@ -1,4 +1,5 @@
 import numpy as np
+from collections import defaultdict
 
 
 class BaseDataset:
@@ -131,6 +132,66 @@ def train_validation_test_split(dataset, validation=0.1, test=0.1, random_seed=3
     train_idx = idx[:num_train]
     val_idx = idx[num_train : num_train + num_val]
     test_idx = idx[num_train + num_val :]
+    return [
+        Subset(dataset, train_idx),
+        Subset(dataset, val_idx),
+        Subset(dataset, test_idx),
+    ]
+
+
+def train_validation_test_split_test_with_all_bonds_of_mol(
+    dataset, validation=0.1, test=0.1, random_seed=35
+):
+    """
+    Split a dataset into training, validation, and test set.
+
+    Different from `train_validation_test_split`, where the split of dataset is bond
+    based, here the bonds from a molecule either goes to (train, validation) set or
+    test set. This is used to evaluate the prediction order of bond energy.
+
+    The training set will be automatically determined based on `validation` and `test`,
+    i.e. train = 1 - validation - test.
+
+    Args:
+        dataset: the dataset
+        validation (float, optional): The amount of data (fraction) to be assigned to
+            validation set. Defaults to 0.1.
+        test (float, optional): The amount of data (fraction) to be assigned to test
+            set. Defaults to 0.1.
+        random_seed (int, optional): random seed that determines the permutation of the
+            dataset. Defaults to 35.
+
+    Returns:
+        [train set, validation set, test_set]
+    """
+    assert validation + test < 1.0, "validation + test >= 1"
+    size = len(dataset)
+    num_val = int(size * validation)
+    num_test = int(size * test)
+    num_train = size - num_val - num_test
+
+    # group by molecule
+    groups = defaultdict(list)
+    for i, (_, label, _) in enumerate(dataset):
+        groups[label["mol_source"]].append(i)
+    groups = [val for key, val in groups.items()]
+
+    # permute on the molecule level
+    np.random.seed(random_seed)
+    idx = np.random.permutation(len(groups))
+    test_idx = []
+    train_val_idx = []
+    for i in idx:
+        if len(test_idx) < num_test:
+            test_idx.extend(groups[i])
+        else:
+            train_val_idx.extend(groups[i])
+
+    # permute on the bond level for train and validation
+    idx = np.random.permutation(train_val_idx)
+    train_idx = idx[:num_train]
+    val_idx = idx[num_train:]
+
     return [
         Subset(dataset, train_idx),
         Subset(dataset, val_idx),
