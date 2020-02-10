@@ -166,36 +166,29 @@ class ElectrolyteBondDataset(BaseDataset):
         # Then MAE is |y^-y| = |y'^ - y'| *std(y), i.e. we just need to multiple
         # standard deviation to get back to the original scale. Similar analysis
         # applies to RMSE.
-        #
-        # TODO the below code may not be perfect, since most of label values will be
-        #  zero (only one element is non-zero) for each label. As as result, the mean
-        #  and standard deviation are more or less computed for a list of zeros,
-        #  at least the stdev would be pretty small. Making the training value
-        #  extremely large. We'd better compute mean and stdev using non-zero values,
-        #  because that's what we are training on model on.
-        #
+
         if self.label_transformer:
             labels = [lb["value"] for lb in self.labels]  # list of 1D tensor
             labels = torch.cat(labels)  # 1D tensor
-            labels = labels.view(len(labels), 1)  # 2D tensor of shape (N, 1)
 
-            label_scaler = StandardScaler()
-            labels = label_scaler(labels)
-            labels = torch.tensor(labels, dtype=getattr(torch, self.dtype))
+            # compute mean and stdev using nonzero elements (these are the actual label)
+            non_zeros = [i for i in labels if i != 0.0]
+            mean = float(np.mean(non_zeros))
+            std = float(np.std(non_zeros))
 
+            # normalization
+            labels = (labels - mean) / std
             sizes = [len(lb["value"]) for lb in self.labels]
-            labels = torch.split(labels, sizes)  # list of 2D tensor of shape (Nb, 1)
-            labels = [torch.flatten(lb) for lb in labels]
+            labels = torch.split(labels, sizes)
 
-            std = label_scaler.std[0]
             self.transformer_scale = []
             for i, lb in enumerate(labels):
                 self.labels[i]["value"] = lb
                 sca = torch.tensor([std] * len(lb), dtype=getattr(torch, self.dtype))
                 self.transformer_scale.append(sca)
 
-            logger.info("Label scaler mean: {}".format(label_scaler.mean))
-            logger.info("Label scaler std: {}".format(label_scaler.std))
+            logger.info("Label scaler mean: {}".format(mean))
+            logger.info("Label scaler std: {}".format(std))
 
         logger.info("Finish loading {} graphs...".format(len(self.labels)))
 
