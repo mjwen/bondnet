@@ -2,9 +2,11 @@
 Graph Attention Networks for heterograph.
 """
 
+import torch
 import torch.nn as nn
 from gnn.layer.hgatconv import HGATConv
 from gnn.layer.readout import ConcatenateMeanMax
+from dgl import BatchedDGLHeteroGraph
 
 
 class HGAT(nn.Module):
@@ -105,7 +107,7 @@ class HGAT(nn.Module):
         # final output layer, mapping feature to size 1
         self.fc_layers.append(nn.Linear(in_size, 1))
 
-    def forward(self, graph, feats):
+    def forward(self, graph, feats, mol_energy=False):
         h = feats
 
         # hgat layer
@@ -119,9 +121,23 @@ class HGAT(nn.Module):
         h = h["bond"]
         for layer in self.fc_layers:
             h = layer(h)
-        h = h.view(-1)  # reshape to a 1D tensor to make each component a bond energy
+        out = h.view(-1)  # reshape to a 1D tensor to make each component a bond energy
 
-        return h
+        if mol_energy:
+            out = self._bond_energy_to_mol_energy(graph, out)
+
+        return out
+
+    @staticmethod
+    def _bond_energy_to_mol_energy(graph, bond_energy):
+        if isinstance(graph, BatchedDGLHeteroGraph):
+            nbonds = graph.batch_num_nodes("bond")
+            mol_energy = [torch.sum(i) for i in torch.split(bond_energy, nbonds)]
+            mol_energy = torch.stack(mol_energy)
+        else:
+            mol_energy = torch.sum(bond_energy)
+        mol_energy = mol_energy.view((-1, 1))  # return a 2D tensor
+        return mol_energy
 
     def feature_before_fc(self, graph, feats):
 
