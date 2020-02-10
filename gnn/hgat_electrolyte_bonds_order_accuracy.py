@@ -267,16 +267,16 @@ def ordering_accuracy(model, nodes, data_loader, metric_fn, device=None):
         group[m].append((i, val[i], pred[i]))
 
     # analyzer order correctness for each group
-    n_smallest = 1
-    scores = dict()
+    scores = []
     for mol_source, g in group.items():
         data = np.asarray(g)
         pred = data[:, 2]
         val = data[:, 1]
-        s = smallest_n_score(pred, val, n=n_smallest)
-        scores[mol_source] = s
-    values = list(scores.values())
-    mean_score = np.mean(values)
+        s1 = smallest_n_score(pred, val, n=1)
+        s2 = smallest_n_score(pred, val, n=2)
+        s3 = smallest_n_score(pred, val, n=3)
+        scores.append([s1, s2, s3])
+    mean_score = np.mean(scores, axis=0)
 
     # print(
     #     "### mean score of predicting the intersection of smallest {} predictions: "
@@ -411,7 +411,7 @@ def main(args):
         tt = time.time() - ti
 
         print(
-            "{:5d}   {:12.6e}   {:12.6e}   {:12.6e}   {:12.6e}   {:.2f}".format(
+            "{:5d}   {:12.6e}   {:12.6e}   {:12.6e}   {}   {:.2f}".format(
                 epoch, loss, train_acc, val_acc, ordering_score, tt
             )
         )
