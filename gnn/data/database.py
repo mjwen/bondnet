@@ -1,13 +1,16 @@
 """
 Convert Sam's database entries to molecules.
 """
-
+import os
 import copy
 import logging
 import warnings
 import numpy as np
 import itertools
+import subprocess
 from collections import defaultdict
+from svglib.svglib import svg2rlg
+from reportlab.graphics import renderPDF, renderPM
 import networkx as nx
 from atomate.qchem.database import QChemCalcDb
 import pymatgen
@@ -404,7 +407,11 @@ class BaseMoleculeWrapper:
         return self.pybel_mol.write(file_format, filename, overwrite=True)
 
     def draw(self, filename=None, draw_2D=True, show_atom_idx=False):
+        """
+        Draw using rdkit.
+        """
         sdf = self.write(file_format="sdf")
+
         m = Chem.MolFromMolBlock(sdf)
         if m is None:
             warnings.warn("cannot draw mol")
@@ -414,9 +421,85 @@ class BaseMoleculeWrapper:
         if show_atom_idx:
             atoms = [m.GetAtomWithIdx(i) for i in range(m.GetNumAtoms())]
             _ = [a.SetAtomMapNum(a.GetIdx() + 1) for a in atoms]
-        filename = filename or "mol.svg"
+
+        filename = filename or "mol.png"
         filename = create_directory(filename)
         Draw.MolToFile(m, filename)
+
+    def draw2(self, filename=None, draw_2D=True, show_atom_idx=False):
+        """
+        Draw using pybel.
+        """
+
+        filename = filename or "mol.png"
+        filename = create_directory(filename)
+        if draw_2D:
+            usecoords = False
+        else:
+            usecoords = True
+        self.pybel_mol.draw(show=False, filename=filename, usecoords=usecoords)
+
+    def draw3(self, filename=None, draw_2D=True, show_atom_idx=False):
+        """
+        Draw using obabel cmdline tool.
+        """
+
+        sdf = self.write(file_format="sdf")
+
+        # remove sdf M attributes except the ones in except_M
+        # except_M = ["RAD"]
+        except_M = []
+        new_sdf = sdf.split("\n")
+        sdf = []
+        for line in new_sdf:
+            if "M" in line:
+                keep = False
+                for ecpt in except_M:
+                    if ecpt in line:
+                        keep = True
+                        break
+                if not keep:
+                    continue
+            sdf.append(line)
+        sdf = "\n".join(sdf)
+
+        # write the sdf to a file
+        sdf_name = "graph.sdf"
+        with open(sdf_name, "w") as f:
+            f.write(sdf)
+
+        # use obable to write svg file
+        svg_name = "graph.svg"
+        command = ["obabel", "graph.sdf", "-O", svg_name, "-xa", "-xd"]
+        if show_atom_idx:
+            command += ["-xi"]
+        subprocess.run(command)
+
+        # convert format
+        filename = filename or "mol.svg"
+        filename = create_directory(filename)
+        path, extension = os.path.splitext(filename)
+        if extension == ".svg":
+            subprocess.run(["cp", svg_name, filename])
+        else:
+            try:
+                drawing = svg2rlg(svg_name)
+                if extension == ".pdf":
+                    renderPDF.drawToFile(drawing, filename)
+                elif extension == ".png":
+                    renderPM.drawToFile(drawing, filename, fmt="PNG")
+                else:
+                    raise Exception(
+                        "file format `{}` not support. Supported are pdf and png.".format(
+                            extension
+                        )
+                    )
+            except AttributeError:
+                print("Cannot convert to {} file for {}".format(extension), self.id)
+
+        # remove temporary files
+        subprocess.run(["rm", sdf_name])
+        subprocess.run(["rm", svg_name])
 
 
 class MoleculeWrapperTaskCollection(BaseMoleculeWrapper):

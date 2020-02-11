@@ -75,11 +75,12 @@ def print_mol_property():
     print("direct access: m.atoms[({},{})]:".format(i, j, m.bonds[(i, j)]))
 
 
-def plot_molecules():
-    plot_prefix = "~/Applications/db_access/mol_builder"
+def plot_molecules(
+    filename="~/Applications/db_access/mol_builder/molecules.pkl",
+    # filename="~/Applications/db_access/mol_builder/molecules_n200.pkl",
+    plot_prefix="~/Applications/db_access/mol_builder",
+):
 
-    filename = "~/Applications/db_access/mol_builder/molecules.pkl"
-    # filename="~/Applications/db_access/mol_builder/molecules_n200.pkl"
     mols = pickle_load(filename)
 
     for m in mols:
@@ -90,7 +91,9 @@ def plot_molecules():
                 m.formula, m.charge, m.id, str(m.free_energy).replace(".", "dot")
             ),
         )
-        m.draw(fname, show_atom_idx=True)
+        # m.draw(fname, show_atom_idx=True)
+        m.draw3(filename=fname, show_atom_idx=True)
+
         fname = expand_path(fname)
         subprocess.run(["convert", fname, "-trim", "-resize", "100%", fname])
 
@@ -210,9 +213,9 @@ def get_single_atom_energy():
 
 if __name__ == "__main__":
     # pickle_db_entries()
-    pickle_molecules()
+    # pickle_molecules()
     # print_mol_property()
-    # plot_molecules()
+    plot_molecules()
     # plot_atom_distance_hist()
     # number_of_bonds()
 

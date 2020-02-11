@@ -1,6 +1,5 @@
 import os
 import copy
-from collections import defaultdict
 import numpy as np
 import subprocess
 from gnn.data.utils import TexWriter
@@ -14,7 +13,7 @@ def plot_mol_graph(
     def plot_one(m, prefix):
         fname = os.path.join(prefix, "{}.png".format(m.id))
         fname = expand_path(fname)
-        m.draw(fname, show_atom_idx=True)
+        m.draw3(fname, show_atom_idx=True)
         subprocess.run(["convert", fname, "-trim", "-resize", "100%", fname])
 
     mols = pickle_load(filename)
@@ -449,5 +448,5 @@ if __name__ == "__main__":
     # check_bond_length()
     # check_all()
 
-    # plot_mol_graph()
-    compare_connectivity_across_graph_builder()
+    plot_mol_graph()
+    # compare_connectivity_across_graph_builder()
