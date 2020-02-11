@@ -419,10 +419,10 @@ class BaseMoleculeWrapper:
         Draw.MolToFile(m, filename)
 
 
-class MoleculeWrapperSMD(BaseMoleculeWrapper):
+class MoleculeWrapperTaskCollection(BaseMoleculeWrapper):
     def __init__(self, db_entry, use_metal_edge_extender=True, optimized=True):
 
-        super(MoleculeWrapperSMD, self).__init__(db_entry)
+        super(MoleculeWrapperTaskCollection, self).__init__(db_entry)
 
         self.id = str(db_entry["_id"])
 
@@ -544,6 +544,13 @@ class MoleculeWrapperMolBuilder(BaseMoleculeWrapper):
                 print(self.__class__.__name__, e, "free energy", self.id)
                 raise UnsuccessfulEntryError
 
+        # critic
+        try:
+            self.critic = db_entry["critic"]
+        except KeyError as e:
+            print(self.__class__.__name__, e, "critic", self.id)
+            raise UnsuccessfulEntryError
+
     def convert_to_babel_mol_graph(self, use_metal_edge_extender=True):
         self._ob_adaptor = None
         self.mol_graph = MoleculeGraph.with_local_env_strategy(
@@ -554,6 +561,19 @@ class MoleculeWrapperMolBuilder(BaseMoleculeWrapper):
         )
         if use_metal_edge_extender:
             self.mol_graph = metal_edge_extender(self.mol_graph)
+
+    def convert_to_critic_mol_graph(self):
+        self._ob_adaptor = None
+        bonds = dict()
+        try:
+            for key, val in self.critic["bonding"].items():
+                idx = val["atom_ids"]
+                idx = tuple([int(i) - 1 for i in idx])
+                bonds[idx] = None
+        except KeyError as e:
+            print(self.__class__.__name__, e, "critic bonding", self.id)
+            raise UnsuccessfulEntryError
+        self.mol_graph = MoleculeGraph.with_edges(self.pymatgen_mol, bonds)
 
     def pack_features(self, use_obabel_idx=True):
         feats = dict()
@@ -611,7 +631,7 @@ class DatabaseOperation:
                 db_file = (
                     "/Users/mjwen/Applications/mongo_db_access/sam_db_molecules.json"
                 )
-            elif db_collection == "smd":
+            elif db_collection == "task":
                 db_file = "/Users/mjwen/Applications/mongo_db_access/sam_db.json"
             else:
                 raise Exception("Unrecognized db_collection = {}".format(db_collection))
@@ -623,7 +643,7 @@ class DatabaseOperation:
                 entries = mmdb.collection.find()
             else:
                 entries = mmdb.collection.find().limit(num_entries)
-        elif db_collection == "smd":
+        elif db_collection == "task":
             query = {"tags.class": "smd_production"}
             if num_entries is None:
                 entries = mmdb.collection.find(query)

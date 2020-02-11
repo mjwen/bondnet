@@ -1,5 +1,6 @@
 import sys
 import time
+from datetime import datetime
 import warnings
 import torch
 import argparse
@@ -109,7 +110,7 @@ def parse_args():
     #         "length of `gat-hidden-size` should be equal to `num-gat-layers`, but got "
     #         "{} and {}.".format(args.gat_hidden_size, args.num_gat_layers)
     #     )
-    #
+
     # if len(args.fc_hidden_size) == 1:
     #     val = args.fc_hidden_size[0]
     #     args.fc_hidden_size = [val // 2 ** i for i in range(args.num_fc_layers)]
@@ -299,6 +300,7 @@ def get_grapher():
 
 
 def main(args):
+    print("\n\nStart training at:", datetime.now())
 
     ### dataset
     sdf_file = "~/Applications/db_access/mol_builder/struct_n200.sdf"
@@ -427,6 +429,7 @@ def main(args):
 
     tt = time.time() - t0
     print("\n#TestAcc: {:12.6e} | Total time (s): {:.2f}\n".format(test_acc, tt))
+    print("\nFinish training at:", datetime.now())
 
 
 # do not make it main because we need to run hypertunity

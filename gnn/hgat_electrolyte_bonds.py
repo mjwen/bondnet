@@ -1,5 +1,6 @@
 import sys
 import time
+from datetime import datetime
 import warnings
 import torch
 import argparse
@@ -207,6 +208,7 @@ def get_grapher():
 
 
 def main(args):
+    print("\n\nStart training at:", datetime.now())
 
     ### dataset
     sdf_file = "~/Applications/db_access/mol_builder/struct_n200.sdf"
@@ -329,6 +331,7 @@ def main(args):
 
     tt = time.time() - t0
     print("\n#TestAcc: {:12.6e} | Total time (s): {:.2f}\n".format(test_acc, tt))
+    print("\nFinish training at:", datetime.now())
 
 
 # do not make it main because we need to run hypertunity

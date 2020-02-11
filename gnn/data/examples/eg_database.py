@@ -19,6 +19,7 @@ def pickle_db_entries():
 
 
 def pickle_molecules():
+    # db_collection = "task"
     db_collection = "mol_builder"
     entries = DatabaseOperation.query_db_entries(
         db_collection=db_collection, num_entries=None
@@ -131,7 +132,7 @@ def plot_atom_distance_hist(
     data = [get_distances(m) for m in mols]
     data = np.concatenate(data)
 
-    print("\n\n@@@ atom distance min={}, max={}".format(min(data), max(data)))
+    print("\n\n### atom distance min={}, max={}".format(min(data), max(data)))
     filename = "~/Applications/db_access/mol_builder/atom_distances.pdf"
     filename = expand_path(filename)
     plot_hist(data, filename)
@@ -190,8 +191,8 @@ def number_of_bonds():
     mean = np.mean(nbonds)
     median = np.median(nbonds)
 
-    print("@@@ number of bonds mean:", mean)
-    print("@@@ number of bonds median:", median)
+    print("### number of bonds mean:", mean)
+    print("### number of bonds median:", median)
 
 
 def get_single_atom_energy():
@@ -209,8 +210,8 @@ def get_single_atom_energy():
 
 if __name__ == "__main__":
     # pickle_db_entries()
-    # pickle_molecules()
-    print_mol_property()
+    pickle_molecules()
+    # print_mol_property()
     # plot_molecules()
     # plot_atom_distance_hist()
     # number_of_bonds()

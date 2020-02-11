@@ -7,141 +7,43 @@ from gnn.data.utils import TexWriter
 from gnn.utils import pickle_dump, pickle_load, expand_path
 
 
-def plot_mol_graph():
+def plot_mol_graph(
+    filename="~/Applications/db_access/mol_builder/molecules.pkl",
+    # filename="~/Applications/db_access/mol_builder/molecules_n200.pkl",
+):
     def plot_one(m, prefix):
         fname = os.path.join(prefix, "{}.png".format(m.id))
         fname = expand_path(fname)
         m.draw(fname, show_atom_idx=True)
         subprocess.run(["convert", fname, "-trim", "-resize", "100%", fname])
 
-    filename = "~/Applications/db_access/mol_builder/molecules.pkl"
     mols = pickle_load(filename)
-
     for m in mols:
 
         # mol builder
-        prefix = "~/Applications/db_access/mol_builder/png_critic_builder"
+        prefix = "~/Applications/db_access/mol_builder/png_union_builder"
         plot_one(m, prefix)
 
         # babel builder with extender
         m.convert_to_babel_mol_graph(use_metal_edge_extender=True)
-        prefix = "~/Applications/db_access/mol_builder/png_extend_builder"
-        plot_one(m, prefix)
-
-        # babel builder
-        m.convert_to_babel_mol_graph(use_metal_edge_extender=False)
         prefix = "~/Applications/db_access/mol_builder/png_babel_builder"
         plot_one(m, prefix)
 
+        # critic
+        m.convert_to_critic_mol_graph()
+        prefix = "~/Applications/db_access/mol_builder/png_critic_builder"
+        plot_one(m, prefix)
 
-def compare_connectivity_across_graph_builder(
-    filename="~/Applications/db_access/mol_builder/molecules.pkl",
-    # filename="~/Applications/db_access/mol_builder/molecules_n200.pkl",
-    tex_file="~/Applications/db_access/mol_builder/tex_mol_connectivity.tex",
-    only_different=True,
-):
+
+def check_valence_mol(mol):
     """
-    Plot the mol connectivity and same how different they are.
-    """
-
-    mols = pickle_load(filename)
-
-    # ###############
-    # # filter on charge
-    # ###############
-    # new_mols = []
-    # for m in mols:
-    #     if m.charge == 0:
-    #         new_mols.append(m)
-    # mols = new_mols
-
-    mols_differ_graph = defaultdict(list)
-
-    # write tex file
-    tex_file = expand_path(tex_file)
-    with open(tex_file, "w") as f:
-        f.write(TexWriter.head())
-        f.write(
-            "On each page, we plot three mols (top to bottom) from mol builder, "
-            "babel builder, and babel builder with metal edge extender.\n"
-        )
-
-        for m in mols:
-
-            mol_keeper = []
-
-            # mol builder
-            m.make_picklable()
-            mol_keeper.append(copy.deepcopy(m))
-
-            # babel builder with extender
-            m.convert_to_babel_mol_graph(use_metal_edge_extender=True)
-            m.make_picklable()
-            mol_keeper.append(copy.deepcopy(m))
-
-            # babel builder
-            m.convert_to_babel_mol_graph(use_metal_edge_extender=False)
-            m.make_picklable()
-            mol_keeper.append(copy.deepcopy(m))
-
-            do_plot = True
-            if only_different:
-                mol_builder_graph = mol_keeper[0].mol_graph
-                ob_extender_graph = mol_keeper[1].mol_graph
-                if mol_builder_graph.isomorphic_to(ob_extender_graph):
-                    do_plot = False
-
-            if do_plot:
-                f.write(TexWriter.newpage())
-                f.write(TexWriter.verbatim("formula: " + m.formula))
-                f.write(TexWriter.verbatim("charge: " + str(m.charge)))
-                f.write(
-                    TexWriter.verbatim("spin multiplicity: " + str(m.spin_multiplicity))
-                )
-                f.write(TexWriter.verbatim("free energy: " + str(m.free_energy)))
-                f.write(TexWriter.verbatim("id: " + m.id))
-
-                for i, m in enumerate(mol_keeper):
-                    if i == 0:
-                        p = "png_critic_builder"
-                    elif i == 1:
-                        p = "png_extend_builder"
-                    elif i == 2:
-                        p = "png_babel_builder"
-                    fname = os.path.join(
-                        "~/Applications/db_access/mol_builder", p, "{}.png".format(m.id)
-                    )
-
-                    f.write(TexWriter.single_figure(fname))
-                    f.write(TexWriter.verbatim("=" * 80))
-
-                mols_differ_graph["critic_builder"].append(mol_keeper[0])
-                mols_differ_graph["extend_builder"].append(mol_keeper[1])
-                mols_differ_graph["babel_builder"].append(mol_keeper[2])
-
-        f.write(TexWriter.tail())
-
-        filename = "~/Applications/db_access/mol_builder/molecules_critic_builder.pkl"
-        pickle_dump(mols_differ_graph["critic_builder"], filename)
-        filename = "~/Applications/db_access/mol_builder/molecules_extend_builder.pkl"
-        pickle_dump(mols_differ_graph["extend_builder"], filename)
-        filename = "~/Applications/db_access/mol_builder/molecules_babel_buidler.pkl"
-        pickle_dump(mols_differ_graph["babel_builder"], filename)
-
-
-def check_mol_valence(
-    mols=None,
-    filename="~/Applications/db_access/mol_builder/molecules.pkl",
-    # filename="~/Applications/db_access/mol_builder/molecules_critic_builder.pkl"
-):
-    """
-    Check the valence of each atom, without considering their bonding to Li,
+    Check the valence of each atom in a mol, without considering their bonding to Li,
     since elements can form coordination bond with Li.
 
     For Li itself, we experiment with the bonds it has and see how it works.
     """
 
-    def get_atom_bonds(m):
+    def get_neighbor_species(m):
         """
         Returns:
             A list of tuple (atom species, bonded atom species),
@@ -166,52 +68,30 @@ def check_mol_valence(
         "Li": Li_allowed,
     }
 
-    succeeded = []
-    failed = []
+    neigh_species = get_neighbor_species(mol)
+
+    do_fail = False
     reason = []
 
-    if mols is None:
-        mols = pickle_load(filename)
+    for a_s, n_s in neigh_species:
 
-    for m in mols:
-        bonds = get_atom_bonds(m)
-        do_fail = False
+        if len(n_s) == 0 and len(neigh_species) == 1:
+            print("#####Error##### not connected atom in mol:", mol.id)
 
-        for atom_specie, bonded_atom_species in bonds:
+        removed_Li = [s for s in n_s if s != "Li"]
+        num_bonds = len(removed_Li)
 
-            if len(bonded_atom_species) == 0 and len(bonds) == 1:
-                print("@@@@@Error@@@@@@ not connected atom in mol:", m.id)
+        if num_bonds == 0:  # fine since we removed Li bonds
+            continue
 
-            removed_Li = [s for s in bonded_atom_species if s != "Li"]
-            num_bonds = len(removed_Li)
+        if num_bonds not in allowed_charge[a_s]:
+            reason.append("{} {}".format(a_s, num_bonds))
+            do_fail = True
 
-            if num_bonds == 0:  # fine since we removed Li bonds
-                continue
-
-            if num_bonds not in allowed_charge[atom_specie]:
-                failed.append(m)
-                reason.append([atom_specie, num_bonds])
-                do_fail = True
-
-        if not do_fail:
-            succeeded.append(m)
-
-    print("@@@ Failed `check_mol_valence()`")
-    print("@@@ number of entries failed:", len(failed))
-    print("idx    id    atom specie    num bonds (without considering Li)")
-    for i, (m, r) in enumerate(zip(failed, reason)):
-        print(i, m.id, r)
-    filename = "~/Applications/db_access/mol_builder/failed_check_mol_valence.pkl"
-    pickle_dump(failed, filename)
-
-    return succeeded
+    return do_fail, reason
 
 
-def check_bond_species(
-    mols=None,
-    filename="~/Applications/db_access/mol_builder/molecules.pkl",
-    # filename="~/Applications/db_access/mol_builder/molecules_critic_builder.pkl"
-):
+def check_bond_species_mol(mol):
     """
     Check the species of atoms associated with a bond. Certain bond (e.g. Li-H) fail
     the check.
@@ -233,49 +113,26 @@ def check_bond_species(
     not_allowed = [("Li", "H"), ("Li", "Li")]
     not_allowed = [sorted(i) for i in not_allowed]
 
-    if mols is None:
-        mols = pickle_load(filename)
+    bond_species = get_bond_species(mol)
 
-    succeeded = []
-    failed = []
+    do_fail = False
     reason = []
+    for b in bond_species:
+        if b in not_allowed:
+            reason.append(str(b))
+            do_fail = True
 
-    for m in mols:
-        do_fail = False
-        bond_species = get_bond_species(m)
-
-        for b in bond_species:
-            if b in not_allowed:
-                failed.append(m)
-                reason.append(b)
-                do_fail = True
-
-        if not do_fail:
-            succeeded.append(m)
-
-    print("@@@ Failed `check_bond_species()`")
-    print("@@@ number of entries failed:", len(failed))
-    print("index    id     reason")
-    for i, (m, r) in enumerate(zip(failed, reason)):
-        print(i, m.id, r)
-    filename = "~/Applications/db_access/mol_builder/failed_check_bond_species.pkl"
-    pickle_dump(failed, filename)
-
-    return succeeded
+    return do_fail, reason
 
 
-def check_bond_length(
-    mols=None,
-    filename="~/Applications/db_access/mol_builder/molecules.pkl",
-    # filename="~/Applications/db_access/mol_builder/molecules_critic_builder.pkl"
-):
+def check_bond_length_mol(mol):
     """
     Check the species of atoms associated with a bond. Certain bond (e.g. Li-H) fail
     the check.
 
     """
 
-    def get_bond_lengthes(m):
+    def get_bond_lengths(m):
         """
         Returns:
             A list of tuple (species, length), where species are the two species
@@ -333,6 +190,25 @@ def check_bond_length(
         tmp[tuple(sorted(k))] = v
     bond_length_limit = tmp
 
+    do_fail = False
+    reason = []
+
+    bond_species = get_bond_lengths(mol)
+    for b, length in bond_species:
+        limit = bond_length_limit[b]
+        if limit is not None and length > limit:
+            reason.append("{}  {} ({})".format(b, length, limit))
+            do_fail = True
+
+    return do_fail, reason
+
+
+def check_valence(
+    mols=None,
+    # filename="~/Applications/db_access/mol_builder/molecules.pkl",
+    filename="~/Applications/db_access/mol_builder/molecules_n200.pkl",
+):
+
     if mols is None:
         mols = pickle_load(filename)
 
@@ -341,21 +217,78 @@ def check_bond_length(
     reason = []
 
     for m in mols:
-        do_fail = False
-        bond_species = get_bond_lengthes(m)
-
-        for b, length in bond_species:
-            limit = bond_length_limit[b]
-            if limit is not None and length > limit:
-                failed.append(m)
-                reason.append("{}  {} ({})".format(b, length, limit))
-                do_fail = True
-
-        if not do_fail:
+        do_fail, rsn = check_valence_mol(m)
+        if do_fail:
+            failed.append(m)
+            reason.append(rsn)
+        else:
             succeeded.append(m)
 
-    print("@@@ Failed `check_bond_length()`")
-    print("@@@ number of entries failed:", len(failed))
+    print("### Failed `check_mol_valence()`")
+    print("### number of entries failed:", len(failed))
+    print("idx    id    atom specie    num bonds (without considering Li)")
+    for i, (m, r) in enumerate(zip(failed, reason)):
+        print(i, m.id, r)
+    filename = "~/Applications/db_access/mol_builder/failed_check_mol_valence.pkl"
+    pickle_dump(failed, filename)
+
+    return succeeded
+
+
+def check_bond_species(
+    mols=None,
+    # filename="~/Applications/db_access/mol_builder/molecules.pkl",
+    filename="~/Applications/db_access/mol_builder/molecules_n200.pkl",
+):
+    if mols is None:
+        mols = pickle_load(filename)
+
+    succeeded = []
+    failed = []
+    reason = []
+
+    for m in mols:
+        do_fail, rsn = check_bond_species_mol(m)
+        if do_fail:
+            failed.append(m)
+            reason.append(rsn)
+        else:
+            succeeded.append(m)
+
+    print("### Failed `check_bond_species()`")
+    print("### number of entries failed:", len(failed))
+    print("index    id     reason")
+    for i, (m, r) in enumerate(zip(failed, reason)):
+        print(i, m.id, r)
+    filename = "~/Applications/db_access/mol_builder/failed_check_bond_species.pkl"
+    pickle_dump(failed, filename)
+
+    return succeeded
+
+
+def check_bond_length(
+    mols=None,
+    # filename="~/Applications/db_access/mol_builder/molecules.pkl",
+    filename="~/Applications/db_access/mol_builder/molecules_n200.pkl",
+):
+
+    if mols is None:
+        mols = pickle_load(filename)
+
+    succeeded = []
+    failed = []
+    reason = []
+
+    for m in mols:
+        do_fail, rsn = check_bond_length_mol(m)
+        if do_fail:
+            failed.append(m)
+            reason.append(rsn)
+        else:
+            succeeded.append(m)
+
+    print("### Failed `check_bond_length()`")
+    print("### number of entries failed:", len(failed))
     print("index    id     bond     length (limit)")
     for i, (m, r) in enumerate(zip(failed, reason)):
         print(i, m.id, r)
@@ -365,12 +298,12 @@ def check_bond_length(
     return succeeded
 
 
-def check_all(filename="~/Applications/db_access/mol_builder/molecules.pkl"):
+def check_all(filename="~/Applications/db_access/mol_builder/molecules_n200.pkl"):
     mols = pickle_load(filename)
 
     print("Number of mols before any check:", len(mols))
 
-    mols = check_mol_valence(mols=mols)
+    mols = check_valence(mols=mols)
     mols = check_bond_species(mols=mols)
     mols = check_bond_length(mols=mols)
 
@@ -380,11 +313,141 @@ def check_all(filename="~/Applications/db_access/mol_builder/molecules.pkl"):
     pickle_dump(mols, filename)
 
 
+def compare_connectivity_across_graph_builder(
+    filename="~/Applications/db_access/mol_builder/molecules.pkl",
+    # filename="~/Applications/db_access/mol_builder/molecules_n200.pkl",
+    tex_file="~/Applications/db_access/mol_builder/tex_mol_connectivity_comparison.tex",
+    only_different=True,
+    checker=[check_valence_mol, check_bond_length_mol, check_bond_species_mol],
+):
+    """
+    Plot the mol connectivity and see how different they are.
+    """
+
+    molecules = pickle_load(filename)
+
+    # ###############
+    # # filter on charge
+    # ###############
+    # new_mols = []
+    # for m in mols:
+    #     if m.charge == 0:
+    #         new_mols.append(m)
+    # mols = new_mols
+
+    # keep record of molecules of which the babel mol graph and critic mol graph are
+    # different
+    mols_differ_graph = []
+    for m in molecules:
+        # mol builder
+        m.make_picklable()
+        m1 = copy.deepcopy(m)
+
+        # babel builder with extender
+        m.convert_to_babel_mol_graph(use_metal_edge_extender=True)
+        m.make_picklable()
+        m2 = copy.deepcopy(m)
+
+        # critic
+        m.convert_to_critic_mol_graph()
+        m.make_picklable()
+        m3 = copy.deepcopy(m)
+
+        if not only_different or not m2.mol_graph.isomorphic_to(m3.mol_graph):
+            mols_differ_graph.append([m1, m2, m3])
+
+    # filter out (remove) molecules where both the babel graph and critic graph fail the
+    # same checker
+    if checker is not None:
+        remaining = []
+        reason = []
+
+        for m1, m2, m3 in mols_differ_graph:
+
+            fail_both_check = False
+            rsn = []
+
+            for ck in checker:
+                # we only check whether babel and critic fails
+                fail2, rsn2 = ck(m2)
+                fail3, rsn3 = ck(m3)
+                if fail2 and fail3:
+                    fail_both_check = True
+                    break
+                else:
+                    rsn.append([rsn2, rsn3])
+
+            if fail_both_check:
+                continue
+            else:
+                remaining.append([m1, m2, m3])
+                reason.append(rsn)
+
+        mols_differ_graph = remaining
+
+    # write tex file
+    tex_file = expand_path(tex_file)
+    with open(tex_file, "w") as f:
+        f.write(TexWriter.head())
+        f.write(
+            "On each page, we plot three mols (top to bottom) from the union, babel "
+            "builder (with metal edge extender) and the critic builder.\n"
+        )
+
+        for i, mols in enumerate(mols_differ_graph):
+
+            f.write(TexWriter.newpage())
+            f.write(TexWriter.verbatim("formula: " + m.formula))
+            f.write(TexWriter.verbatim("charge: " + str(m.charge)))
+            f.write(TexWriter.verbatim("spin multiplicity: " + str(m.spin_multiplicity)))
+            f.write(TexWriter.verbatim("free energy: " + str(m.free_energy)))
+            f.write(TexWriter.verbatim("id: " + m.id))
+
+            for j, m in enumerate(mols):
+                if j == 0:
+                    p = "png_union_builder"
+                elif j == 1:
+                    p = "png_babel_builder"
+                elif j == 2:
+                    p = "png_critic_builder"
+                fname = os.path.join(
+                    "~/Applications/db_access/mol_builder", p, "{}.png".format(m.id)
+                )
+                fname = expand_path(fname)
+
+                f.write(TexWriter.single_figure(fname))
+                f.write(TexWriter.verbatim("=" * 80))
+
+            # if use checker, write reason
+            if checker is not None:
+                f.write(TexWriter.verbatim(str(reason[i])))
+
+        f.write(TexWriter.tail())
+
+        filename = "~/Applications/db_access/mol_builder/molecules_union_builder.pkl"
+        mols = [i[0] for i in mols_differ_graph]
+        pickle_dump(mols, filename)
+        filename = "~/Applications/db_access/mol_builder/molecules_babel_builder.pkl"
+        mols = [i[1] for i in mols_differ_graph]
+        pickle_dump(mols, filename)
+        filename = "~/Applications/db_access/mol_builder/molecules_critic_builder.pkl"
+        mols = [i[2] for i in mols_differ_graph]
+        pickle_dump(mols, filename)
+
+        print(
+            "### mol graph comparison. number of mols {}, different mol graphs by "
+            "babel builder and critic builder: {}".format(
+                len(molecules), len(mols_differ_graph)
+            )
+        )
+
+
 if __name__ == "__main__":
 
-    # plot_mol_graph()
-    # compare_connectivity_across_graph_builder()
-    # check_mol_valence()
+    # check_valence()
     # check_bond_species()
     # check_bond_length()
-    check_all()
+    # check_all()
+
+    # plot_mol_graph()
+    compare_connectivity_across_graph_builder()
