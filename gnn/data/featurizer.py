@@ -489,24 +489,24 @@ class AtomFeaturizer(BaseFeaturizer):
 
             atom = mol.GetAtomWithIdx(u)
 
-            ft.append(atom.GetDegree())
+            # ft.append(atom.GetDegree())
             ft.append(atom.GetTotalDegree())
 
-            ft.append(atom.GetExplicitValence())
-            ft.append(atom.GetImplicitValence())
+            # ft.append(atom.GetExplicitValence())
+            # ft.append(atom.GetImplicitValence())
             ft.append(atom.GetTotalValence())
 
-            ft.append(atom.GetFormalCharge())
+            # ft.append(atom.GetFormalCharge())
             ft.append(atom.GetNumRadicalElectrons())
 
             ft.append(int(atom.GetIsAromatic()))
             ft.append(int(atom.IsInRing()))
 
-            ft.append(atom.GetNumExplicitHs())
-            ft.append(atom.GetNumImplicitHs())
+            # ft.append(atom.GetNumExplicitHs())
+            # ft.append(atom.GetNumImplicitHs())
             ft.append(atom.GetTotalNumHs())
 
-            ft.append(atom.GetAtomicNum())
+            # ft.append(atom.GetAtomicNum())
             ft += one_hot_encoding(atom.GetSymbol(), species)
 
             ft += one_hot_encoding(
@@ -516,8 +516,8 @@ class AtomFeaturizer(BaseFeaturizer):
                     Chem.rdchem.HybridizationType.SP,
                     Chem.rdchem.HybridizationType.SP2,
                     Chem.rdchem.HybridizationType.SP3,
-                    Chem.rdchem.HybridizationType.SP3D,
-                    Chem.rdchem.HybridizationType.SP3D2,
+                    # Chem.rdchem.HybridizationType.SP3D,
+                    # Chem.rdchem.HybridizationType.SP3D2,
                 ],
             )
 
@@ -529,22 +529,22 @@ class AtomFeaturizer(BaseFeaturizer):
             [
                 "acceptor",
                 "donor",
-                "degree",
+                # "degree",
                 "total degree",
-                "explicit valence",
-                "implicit valence",
+                # "explicit valence",
+                # "implicit valence",
                 "total valence",
-                "formal charge",
+                # "formal charge",
                 "num radical electrons",
                 "is aromatic",
                 "is in ring",
-                "num explicit H",
-                "num implicit H",
+                # "num explicit H",
+                # "num implicit H",
                 "num total H",
-                "atomic number",
+                # "atomic number",
             ]
             + ["chemical symbol"] * len(species)
-            + ["hybridization"] * 6
+            + ["hybridization"] * 4
         )
 
         return {"feat": feats}

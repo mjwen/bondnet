@@ -448,5 +448,5 @@ if __name__ == "__main__":
     # check_bond_length()
     # check_all()
 
-    plot_mol_graph()
-    # compare_connectivity_across_graph_builder()
+    # plot_mol_graph()
+    compare_connectivity_across_graph_builder()

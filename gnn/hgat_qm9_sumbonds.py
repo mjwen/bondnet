@@ -27,7 +27,7 @@ def parse_args():
         "--gat-hidden-size",
         type=int,
         nargs="+",
-        default=[32, 32, 64],
+        default=[24, 32, 64],
         help="number of hidden units of GAT layers",
     )
     parser.add_argument(
