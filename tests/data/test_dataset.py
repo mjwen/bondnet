@@ -3,29 +3,54 @@ import os
 from gnn.data.electrolyte import ElectrolyteBondDataset
 from gnn.data.qm9 import QM9Dataset
 from gnn.data.electrolyte import ElectrolyteMoleculeDataset
+from gnn.data.grapher import HeteroMoleculeGraph, HomoCompleteGraph
+from gnn.data.featurizer import (
+    AtomFeaturizer,
+    BondAsNodeFeaturizer,
+    BondAsEdgeCompleteFeaturizer,
+    GlobalFeaturizer,
+)
 
 
 test_files = os.path.dirname(__file__)
 
 
-def test_electrolyte_label():
+def get_grapher_hetero():
+    return HeteroMoleculeGraph(
+        atom_featurizer=AtomFeaturizer(),
+        bond_featurizer=BondAsNodeFeaturizer(),
+        global_featurizer=GlobalFeaturizer(),
+        self_loop=True,
+    )
+
+
+def get_grapher_homo():
+    return HomoCompleteGraph(
+        atom_featurizer=AtomFeaturizer(), bond_featurizer=BondAsEdgeCompleteFeaturizer()
+    )
+
+
+def test_electrolyte_bond_label():
     def assert_label(lt):
+
         ref_label_energies = [[0, 0.1, 0, 0.2, 0, 0.3], [0.4, 0, 0, 0.5, 0, 0]]
-        ref_label_indicators = [[0, 1, 0, 0, 1, 0], [1, 0, 0, 1, 0, 0]]
+        ref_label_indicators = [[0, 1, 0, 1, 0, 1], [1, 0, 0, 1, 0, 0]]
 
         if lt:
-            mean = np.mean(ref_label_energies)
-            std = np.std(ref_label_energies)
+            non_zeros = [i for j in ref_label_energies for i in j if i != 0.0]
+            mean = float(np.mean(non_zeros))
+            std = float(np.std(non_zeros))
             ref_label_energies = [
                 (np.asarray(a) - mean) / std for a in ref_label_energies
             ]
             ref_ts = [[std] * len(x) for x in ref_label_energies]
 
         dataset = ElectrolyteBondDataset(
+            grapher=get_grapher_hetero(),
             sdf_file=os.path.join(test_files, "EC_struct.sdf"),
             label_file=os.path.join(test_files, "EC_label.txt"),
             feature_file=os.path.join(test_files, "EC_feature.yaml"),
-            feature_transformer=False,
+            feature_transformer=True,
             label_transformer=lt,
         )
 
@@ -42,28 +67,24 @@ def test_electrolyte_label():
             else:
                 assert ts is None
 
-    assert_label(True)
     assert_label(False)
+    assert_label(True)
 
 
-def test_qm9_label():
+def test_electrolyte_molecule_label():
     def assert_label(lt):
-        ref_labels = np.asarray([[-0.3877, -40.47893], [-0.257, -56.525887]])
-        natoms = [5, 4]
+        ref_labels = np.asarray([[-0.941530613939904], [-8.91357537335352]])
+        natoms = np.asarray([[2], [5]])
 
         if lt:
-            homo = [ref_labels[0][0], ref_labels[1][0]]
-            std = np.std(homo)
-            homo = (homo - np.mean(homo)) / std
-            for i in range(len(ref_labels)):
-                ref_labels[i][0] = homo[i]
-                ref_labels[i][1] /= natoms[i]
-            ref_ts = [[std, natoms[0]], [std, natoms[1]]]
+            ref_labels /= natoms
+            ref_ts = natoms
 
-        dataset = QM9Dataset(
-            sdf_file=os.path.join(test_files, "gdb9_n2.sdf"),
-            label_file=os.path.join(test_files, "gdb9_n2.sdf.csv"),
-            properties=["homo", "u0"],  # homo is intensive and u0 is extensive
+        dataset = ElectrolyteMoleculeDataset(
+            grapher=get_grapher_homo(),
+            sdf_file=os.path.join(test_files, "electrolyte_mols_struct.sdf"),
+            label_file=os.path.join(test_files, "electrolyte_mols_label.csv"),
+            properties=["atomization_energy"],
             unit_conversion=False,
             feature_transformer=True,
             label_transformer=lt,
@@ -85,20 +106,25 @@ def test_qm9_label():
     assert_label(True)
 
 
-def test_electrolyte_molecule_label():
+def test_qm9_label():
     def assert_label(lt):
-        ref_labels = np.asarray([[-0.941530613939904], [-8.91357537335352]])
-        natoms = np.asarray([[2], [5]])
+        ref_labels = np.asarray([[-0.3877, -40.47893], [-0.257, -56.525887]])
+        natoms = [5, 4]
 
         if lt:
-            ref_labels /= natoms
-            ref_ts = natoms
+            homo = [ref_labels[0][0], ref_labels[1][0]]
+            std = np.std(homo)
+            homo = (homo - np.mean(homo)) / std
+            for i in range(len(ref_labels)):
+                ref_labels[i][0] = homo[i]
+                ref_labels[i][1] /= natoms[i]
+            ref_ts = [[std, natoms[0]], [std, natoms[1]]]
 
-        dataset = ElectrolyteMoleculeDataset(
-            sdf_file=os.path.join(test_files, "electrolyte_mols_struct.sdf"),
-            label_file=os.path.join(test_files, "electrolyte_mols_label.csv"),
-            grapher="homo_bidirected",  # avoid providing feature_file needed by `hetero`
-            properties=["atomization_energy"],
+        dataset = QM9Dataset(
+            grapher=get_grapher_homo(),
+            sdf_file=os.path.join(test_files, "gdb9_n2.sdf"),
+            label_file=os.path.join(test_files, "gdb9_n2.sdf.csv"),
+            properties=["homo", "u0"],  # homo is intensive and u0 is extensive
             unit_conversion=False,
             feature_transformer=True,
             label_transformer=lt,

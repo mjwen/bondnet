@@ -1,4 +1,4 @@
-- atom_spin_multiplicity:
+- atom_spin:
   - 0.992227
   - -0.001906
   - 0.00968
@@ -24,7 +24,7 @@
   - 0.732555
   - -0.408594
   spin_multiplicity: 2
-- atom_spin_multiplicity:
+- atom_spin:
   - 0.992227
   - -0.001906
   - 0.00968

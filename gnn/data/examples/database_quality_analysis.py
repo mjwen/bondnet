@@ -414,12 +414,12 @@ def compare_connectivity_across_graph_builder(
                 )
                 fname = expand_path(fname)
 
-                f.write(TexWriter.single_figure(fname))
+                f.write(TexWriter.single_figure(fname, figure_size=0.2))
                 f.write(TexWriter.verbatim("=" * 80))
 
             # if use checker, write reason
             if checker is not None:
-                f.write(TexWriter.verbatim(str(reason[i])))
+                f.write(TexWriter.verbatim(TexWriter.resize_string(str(reason[i]))))
 
         f.write(TexWriter.tail())
 

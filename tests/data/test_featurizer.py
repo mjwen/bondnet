@@ -4,7 +4,7 @@ from gnn.data.featurizer import (
     BondAsNodeFeaturizer,
     BondAsEdgeBidirectedFeaturizer,
     BondAsEdgeCompleteFeaturizer,
-    GlobalFeaturizerWithReactionInfo,
+    GlobalFeaturizer,
     MolWeightFeaturizer,
     DistanceBins,
     RBF,
@@ -15,8 +15,8 @@ from .utils import make_EC_mol
 def test_atom_featurizer():
     m = make_EC_mol()
     species = list(set([a.GetSymbol() for a in m.GetAtoms()]))
-    featurizer = AtomFeaturizer(species)
-    feat = featurizer(m)
+    featurizer = AtomFeaturizer()
+    feat = featurizer(m, dataset_species=species)
     size = featurizer.feature_size
     assert np.array_equal(feat["feat"].shape, (m.GetNumAtoms(), size))
     assert len(featurizer.feature_name) == size
@@ -77,10 +77,17 @@ def test_bond_as_edge_complete_featurizer():
 
 
 def test_mol_charge_featurizer():
-    featurizer = GlobalFeaturizerWithReactionInfo()
-    feat = featurizer(None, extra_feats_info={"charge": 1, "spin_multiplicity": 0})
+    featurizer = GlobalFeaturizer()
+    feat = featurizer(
+        None,
+        extra_feats_info={
+            "charge": 1,
+            "spin_multiplicity": 0,
+            "atom_spin": [0.1, 0, 3, 0.6],
+        },
+    )
     size = featurizer.feature_size
-    assert size == 4
+    assert size == 7
     assert np.array_equal(feat["feat"].shape, (1, size))
     assert len(featurizer.feature_name) == size
 

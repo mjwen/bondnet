@@ -3,26 +3,52 @@ import os
 from gnn.data.electrolyte import ElectrolyteBondDataset
 from gnn.data.qm9 import QM9Dataset
 from gnn.data.dataloader import DataLoaderBond, DataLoaderMolecule
+from gnn.data.grapher import HeteroMoleculeGraph, HomoCompleteGraph
+from gnn.data.featurizer import (
+    AtomFeaturizer,
+    BondAsNodeFeaturizer,
+    BondAsEdgeCompleteFeaturizer,
+    GlobalFeaturizer,
+)
+
 
 test_files = os.path.dirname(__file__)
 
 
+def get_grapher_hetero():
+    return HeteroMoleculeGraph(
+        atom_featurizer=AtomFeaturizer(),
+        bond_featurizer=BondAsNodeFeaturizer(),
+        global_featurizer=GlobalFeaturizer(),
+        self_loop=True,
+    )
+
+
+def get_grapher_homo():
+    return HomoCompleteGraph(
+        atom_featurizer=AtomFeaturizer(), bond_featurizer=BondAsEdgeCompleteFeaturizer()
+    )
+
+
 # do not assert feature and graph struct, which is handled by dgl,
-# and it should be correct
-def test_dataloader_electrolyte():
+# and it should be correct?
+# Here we mainly test the correctness of batch
+def test_dataloader_bond():
     def assert_label(lt):
         ref_label_energies = [[0, 0.1, 0, 0.2, 0, 0.3], [0.4, 0, 0, 0.5, 0, 0]]
-        ref_label_indicators = [[0, 1, 0, 0, 1, 0], [1, 0, 0, 1, 0, 0]]
+        ref_label_indicators = [[0, 1, 0, 1, 0, 1], [1, 0, 0, 1, 0, 0]]
 
         if lt:
-            mean = np.mean(ref_label_energies)
-            std = np.std(ref_label_energies)
+            non_zeros = [i for j in ref_label_energies for i in j if i != 0.0]
+            mean = np.mean(non_zeros)
+            std = np.std(non_zeros)
             ref_label_energies = [
                 (np.asarray(a) - mean) / std for a in ref_label_energies
             ]
             ref_scales = [[std] * len(x) for x in ref_label_energies]
 
         dataset = ElectrolyteBondDataset(
+            grapher=get_grapher_hetero(),
             sdf_file=os.path.join(test_files, "EC_struct.sdf"),
             label_file=os.path.join(test_files, "EC_label.txt"),
             feature_file=os.path.join(test_files, "EC_feature.yaml"),
@@ -56,7 +82,7 @@ def test_dataloader_electrolyte():
 
 # do not assert feature and graph struct, which is handled by dgl,
 # and it should be correct
-def test_dataloader_qm9():
+def test_dataloader_molecule():
     def assert_label(lt):
         ref_labels = np.asarray([[-0.3877, -40.47893], [-0.257, -56.525887]])
         natoms = [5, 4]
@@ -71,6 +97,7 @@ def test_dataloader_qm9():
             ref_scales = [[std, natoms[0]], [std, natoms[1]]]
 
         dataset = QM9Dataset(
+            grapher=get_grapher_homo(),
             sdf_file=os.path.join(test_files, "gdb9_n2.sdf"),
             label_file=os.path.join(test_files, "gdb9_n2.sdf.csv"),
             properties=["homo", "u0"],  # homo is intensive and u0 is extensive
