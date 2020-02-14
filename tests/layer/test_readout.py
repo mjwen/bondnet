@@ -1,5 +1,10 @@
 import numpy as np
-from gnn.layer.readout import ConcatenateMeanMax, Set2Set, Set2SetThenCat
+from gnn.layer.readout import (
+    ConcatenateMeanMax,
+    ConcatenateMeanAbsDiff,
+    Set2Set,
+    Set2SetThenCat,
+)
 from ..utils import make_hetero_graph, make_batched_hetero_graph
 
 
@@ -18,6 +23,22 @@ def test_concatenate_mean_max():
     ]
 
     assert np.allclose(rst["atom"], ref)
+
+
+def test_concatenate_mean_abs_diff():
+    g, feats = make_hetero_graph()
+
+    etypes = [("atom", "a2b", "bond")]
+    layer = ConcatenateMeanAbsDiff(etypes)
+    rst = layer(g, feats)
+
+    ref = [
+        [0.0, 1.0, 2.0, 1.0, 2.0, 2.0, 2.0],
+        [3.0, 4.0, 5.0, 3.0, 4.0, 2.0, 2.0],
+        [6.0, 7.0, 8.0, 4.0, 5.0, 4.0, 4.0],
+    ]
+
+    assert np.allclose(rst["bond"], ref)
 
 
 def test_set2set():

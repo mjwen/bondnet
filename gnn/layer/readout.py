@@ -10,14 +10,14 @@ from gnn.layer.utils import broadcast_nodes, sum_nodes, softmax_nodes
 
 class ConcatenateMeanMax(nn.Module):
     """
-    Concatenate the features of some nodes to other nodes as specified in `etypes`.
+    Concatenate the mean and max of features of some nodes to other nodes.
 
     Args:
         etypes (list of tuples): canonical edge types of a graph of which the features
-            of node `u` will be concatenated to the features of node `v`.
+            of node `u` are concatenated to the features of node `v`.
             For example: if `etypes = [('atom', 'a2b', 'bond'), ('global','g2b', 'bond')]`
-            then the features of `atom` and `global` are concatenated to the features of
-            `bond`.
+            then the mean and max of the features of `atom` and `global` are concatenated
+            to the features of `bond`.
     """
 
     def __init__(self, etypes):
@@ -25,6 +25,16 @@ class ConcatenateMeanMax(nn.Module):
         self.etypes = etypes
 
     def forward(self, graph, feats):
+        """
+        Args:
+            graph (DGLHeteroGraph or BatchedDGLHeteroGraph): the graph
+            feats (dict): node features with node type as key and the corresponding
+                features as value.
+
+        Returns:
+            dict: updated node features. The features of nodes specified in `etypes` at
+                instantiation are updated.
+        """
         graph = graph.local_var()
 
         # assign data
@@ -32,22 +42,26 @@ class ConcatenateMeanMax(nn.Module):
             graph.nodes[nt].data.update({"ft": ft})
 
         for et in self.etypes:
-            # graph[et].update_all(fn.copy_u("ft", "m"), fn.mean("m", "mean"), etype=et)
-            # graph[et].update_all(fn.copy_u("ft", "m"), fn.max("m", "max"), etype=et)
-            # graph.apply_nodes(self._concatenate_node_feat, ntype=et[2])
-            graph[et].update_all(
-                fn.copy_u("ft", "m"), self._concatenate_mean_max, etype=et
-            )
+            # option 1
+            graph[et].update_all(fn.copy_u("ft", "m"), fn.mean("m", "mean"), etype=et)
+            graph[et].update_all(fn.copy_u("ft", "m"), fn.max("m", "max"), etype=et)
+            graph.apply_nodes(self._concatenate_node_feat, ntype=et[2])
+
+            # # using the above could be faster since we use as many dgl fn as possible
+            # option 2
+            # graph[et].update_all(
+            #     fn.copy_u("ft", "m"), self._concatenate_mean_max, etype=et
+            # )
 
         return {nt: graph.nodes[nt].data["ft"] for nt in feats}
 
-    # @staticmethod
-    # def _concatenate_node_feat(nodes):
-    #     data = nodes.data["ft"]
-    #     mean = nodes.data["mean"]
-    #     max = nodes.data["max"]
-    #     concatenated = torch.cat((data, mean, max), dim=1)
-    #     return {"ft": concatenated}
+    @staticmethod
+    def _concatenate_node_feat(nodes):
+        data = nodes.data["ft"]
+        mean = nodes.data["mean"]
+        max = nodes.data["max"]
+        concatenated = torch.cat((data, mean, max), dim=1)
+        return {"ft": concatenated}
 
     @staticmethod
     def _concatenate_mean_max(nodes):
@@ -57,6 +71,59 @@ class ConcatenateMeanMax(nn.Module):
         max_v = torch.max(message, dim=1).values
         data = nodes.data["ft"]
         concatenated = torch.cat((data, mean_v, max_v), dim=1)
+        return {"ft": concatenated}
+
+
+class ConcatenateMeanAbsDiff(nn.Module):
+    """
+    Concatenate the mean and absolute difference of two nodes directed to a node.
+    This is very specific to the scheme that two atoms directed to bond. Others may fail.
+
+    Args:
+        etypes (list of tuples): canonical edge types of a graph of which the features
+            of node `u` are concatenated to the features of node `v`.
+            For example: if `etypes = [('atom', 'a2b', 'bond'), ('global','g2b', 'bond')]`
+            then the mean and max of the features of `atom` and `global` are concatenated
+            to the features of `bond`.
+    """
+
+    def __init__(self, etypes):
+        super(ConcatenateMeanAbsDiff, self).__init__()
+        self.etypes = etypes
+
+    def forward(self, graph, feats):
+        """
+        Args:
+            graph (DGLHeteroGraph or BatchedDGLHeteroGraph): the graph
+            feats (dict): node features with node type as key and the corresponding
+                features as value.
+
+        Returns:
+            dict: updated node features. The features of nodes specified in `etypes` at
+                instantiation are updated.
+        """
+        graph = graph.local_var()
+
+        # assign data
+        for nt, ft in feats.items():
+            graph.nodes[nt].data.update({"ft": ft})
+
+        for et in self.etypes:
+            graph[et].update_all(fn.copy_u("ft", "m"), self._concatenate_data, etype=et)
+
+        return {nt: graph.nodes[nt].data["ft"] for nt in feats}
+
+    @staticmethod
+    def _concatenate_data(nodes):
+        message = nodes.mailbox["m"]
+        mean_v = torch.mean(message, dim=1)
+        # NOTE this is very specific to the atom -> bond case
+        # there are two elements along dim=1, since for each bond we have two atoms
+        # directed to it
+        abs_diff = torch.stack([torch.abs(x[0] - x[1]) for x in message])
+        data = nodes.data["ft"]
+
+        concatenated = torch.cat((data, mean_v, abs_diff), dim=1)
         return {"ft": concatenated}
 
 
