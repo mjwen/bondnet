@@ -7,6 +7,7 @@ import torch.nn as nn
 from gnn.layer.hgatconv import HGATConv
 from gnn.layer.readout import ConcatenateMeanMax
 from dgl import BatchedDGLHeteroGraph
+import warnings
 
 
 class HGAT(nn.Module):
@@ -34,6 +35,7 @@ class HGAT(nn.Module):
             layers, i.e. there is an additional fc layer to map feature size to 1.
         fc_hidden_size (list): hidden size of fc layers
         fc_activation (torch activation): activation fn of fc layers
+        fc_drop (float, optional): dropout ratio for fc layer.
     """
 
     def __init__(
@@ -52,12 +54,13 @@ class HGAT(nn.Module):
         num_fc_layers=3,
         fc_hidden_size=[128, 64, 32],
         fc_activation=nn.ELU(),
+        fc_drop=0.0,
     ):
         super(HGAT, self).__init__()
 
         self.gat_layers = nn.ModuleList()
 
-        # input projection (no dropout, no residual)
+        # input projection (no dropout)
         self.gat_layers.append(
             HGATConv(
                 attn_mechanism=attn_mechanism,
@@ -68,7 +71,7 @@ class HGAT(nn.Module):
                 feat_drop=0.0,
                 attn_drop=0.0,
                 negative_slope=negative_slope,
-                residual=False,
+                residual=residual,
                 activation=gat_activation,
             )
         )
@@ -91,42 +94,69 @@ class HGAT(nn.Module):
                 )
             )
 
-        # TODO this could be passed in as arguments
+        # TODO to be general, this could and should be passed in as argument
         etypes = [("atom", "a2b", "bond")]
         self.readout_layer = ConcatenateMeanMax(etypes=etypes)
+        # 3 because we concatenate atom feats to bond feats  in the readout_layer
+        readout_out_size = gat_hidden_size[-1] * num_heads * 3
 
+        # need dropout?
+        delta = 1e-3
+        if fc_drop < delta:
+            warnings.warn(
+                "`fc_drop = {}` provided for {} smaller than {}. "
+                "Ignore dropout.".format(feat_drop, self.__class__.__name__, delta)
+            )
+            apply_drop = False
+        else:
+            apply_drop = True
+
+        # fc layer to map to feature to bond energy
         self.fc_layers = nn.ModuleList()
-        # outsize of readout_layer; 3 because we concatenate atom feats to bond feats
-        # in readout_layer
-        in_size = gat_hidden_size[-1] * num_heads * 3
+        in_size = readout_out_size
         for i in range(num_fc_layers):
             self.fc_layers.append(nn.Linear(in_size, fc_hidden_size[i]))
             self.fc_layers.append(fc_activation)
+            if apply_drop:
+                self.fc_layers.append(nn.Dropout(fc_drop))
+
             in_size = fc_hidden_size[i]
 
         # final output layer, mapping feature to size 1
         self.fc_layers.append(nn.Linear(in_size, 1))
 
     def forward(self, graph, feats, mol_energy=False):
-        h = feats
+        """
+        Args:
+            graph (DGLHeteroGraph or BatchedDGLHeteroGraph): (batched) molecule graphs
+            feats (dict): node features with node type as key and the corresponding
+                features as value.
+            mol_energy (bool): If `True`, sum the prediction of bond energies as
+                molecule energy.
+        Returns:
+            1D Tensor: bond energies. If `mol_energy` is `True`, then return a 2D
+                tensor of shape (N, 1), where `N` is the number of molecules in the
+                batch of data.
+        """
 
         # hgat layer
         for layer in self.gat_layers:
-            h = layer(graph, h)
+            feats = layer(graph, feats)
 
-        # readout layer
-        h = self.readout_layer(graph, h)
+        # readout layer for bond features only
+        feats = self.readout_layer(graph, feats)
+        feats = feats["bond"]
 
-        # fc
-        h = h["bond"]
+        # TODO to be general, this could and should be passed in as argument
+        # fc, activation, and dropout
         for layer in self.fc_layers:
-            h = layer(h)
-        out = h.view(-1)  # reshape to a 1D tensor to make each component a bond energy
+            feats = layer(feats)
+        res = feats.view(-1)  # reshape to 1D tensor to make each component a bond energy
 
         if mol_energy:
-            out = self._bond_energy_to_mol_energy(graph, out)
+            res = self._bond_energy_to_mol_energy(graph, res)
 
-        return out
+        return res
 
     @staticmethod
     def _bond_energy_to_mol_energy(graph, bond_energy):
@@ -140,15 +170,15 @@ class HGAT(nn.Module):
         return mol_energy
 
     def feature_before_fc(self, graph, feats):
-
-        h = feats
-
+        """
+        This is used when we want to visualize feature.
+        """
         # hgat layer
         for layer in self.gat_layers:
-            h = layer(graph, h)
+            feats = layer(graph, feats)
 
         # readout layer
-        h = self.readout_layer(graph, h)
-        h = h["bond"]
+        feats = self.readout_layer(graph, feats)
+        res = feats["bond"]
 
-        return h
+        return res
