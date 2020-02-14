@@ -5,7 +5,7 @@ Graph Attention Networks for heterograph.
 import torch
 import torch.nn as nn
 from gnn.layer.hgatconv import HGATConv
-from gnn.layer.readout import ConcatenateMeanMax
+from gnn.layer.readout import ConcatenateMeanMax, ConcatenateMeanAbsDiff
 from dgl import BatchedDGLHeteroGraph
 import warnings
 
@@ -36,6 +36,8 @@ class HGAT(nn.Module):
         fc_hidden_size (list): hidden size of fc layers
         fc_activation (torch activation): activation fn of fc layers
         fc_drop (float, optional): dropout ratio for fc layer.
+        readout_type (str): how to read out the features to bonds and then pass the fc
+            layers. Options are {'bond', 'bond_cat_mean_max', 'bond_cat_mean_diff'}.
     """
 
     def __init__(
@@ -45,7 +47,7 @@ class HGAT(nn.Module):
         in_feats,
         num_gat_layers=3,
         gat_hidden_size=[32, 64, 128],
-        gat_activation=nn.ELU(),
+        gat_activation="ELU",
         num_heads=4,
         feat_drop=0.0,
         attn_drop=0.0,
@@ -53,10 +55,17 @@ class HGAT(nn.Module):
         residual=True,
         num_fc_layers=3,
         fc_hidden_size=[128, 64, 32],
-        fc_activation=nn.ELU(),
+        fc_activation="ELU",
         fc_drop=0.0,
+        readout_type="bond",
     ):
         super(HGAT, self).__init__()
+
+        # activation fn
+        if isinstance(gat_activation, str):
+            gat_activation = getattr(nn, gat_activation)()
+        if isinstance(fc_activation, str):
+            fc_activation = getattr(nn, fc_activation)()
 
         self.gat_layers = nn.ModuleList()
 
@@ -95,10 +104,23 @@ class HGAT(nn.Module):
             )
 
         # TODO to be general, this could and should be passed in as argument
-        etypes = [("atom", "a2b", "bond")]
-        self.readout_layer = ConcatenateMeanMax(etypes=etypes)
-        # 3 because we concatenate atom feats to bond feats  in the readout_layer
-        readout_out_size = gat_hidden_size[-1] * num_heads * 3
+        if readout_type == "bond":
+            self.readout_layer = lambda graph, feats: feats  # similar to nn.Identity()
+            readout_out_size = gat_hidden_size[-1] * num_heads
+
+        elif readout_type == "bond_cat_mean_max":
+            etypes = [("atom", "a2b", "bond")]
+            self.readout_layer = ConcatenateMeanMax(etypes=etypes)
+            # 3 because we concatenate atom feats to bond feats  in the readout_layer
+            readout_out_size = gat_hidden_size[-1] * num_heads * 3
+
+        elif readout_type == "bond_cat_mean_diff":
+            etypes = [("atom", "a2b", "bond")]
+            self.readout_layer = ConcatenateMeanAbsDiff(etypes=etypes)
+            # 3 because we concatenate atom feats to bond feats  in the readout_layer
+            readout_out_size = gat_hidden_size[-1] * num_heads * 3
+        else:
+            raise ValueError("readout_type='{}' not supported.".format(readout_type))
 
         # need dropout?
         delta = 1e-3

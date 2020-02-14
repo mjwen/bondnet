@@ -34,6 +34,10 @@ def parse_args():
         help="number of hidden units of GAT layers",
     )
     parser.add_argument(
+        "--gat-activation", type=str, default="ELU", help="activation fn for gat layer"
+    )
+
+    parser.add_argument(
         "--num-heads", type=int, default=1, help="number of hidden attention heads"
     )
     parser.add_argument(
@@ -59,8 +63,18 @@ def parse_args():
         "--fc-hidden-size",
         type=int,
         nargs="+",
-        default=[128, 64, 32],
+        default=[64, 64, 32],
         help="number of hidden units of fc layers",
+    )
+    parser.add_argument(
+        "--fc-activation", type=str, default="ELU", help="activation fn for fc layer"
+    )
+    parser.add_argument(
+        "--fc-drop", type=float, default=0.0, help="dropout rato for fc layer"
+    )
+
+    parser.add_argument(
+        "--readout-type", type=str, default="bond", help="type of readout bond feature"
     )
 
     # training
@@ -258,6 +272,7 @@ def main(args):
         in_feats,
         num_gat_layers=args.num_gat_layers,
         gat_hidden_size=args.gat_hidden_size,
+        gat_activation=args.gat_activation,
         num_heads=args.num_heads,
         feat_drop=args.feat_drop,
         attn_drop=args.attn_drop,
@@ -265,6 +280,9 @@ def main(args):
         residual=args.residual,
         num_fc_layers=args.num_fc_layers,
         fc_hidden_size=args.fc_hidden_size,
+        fc_activation=args.fc_activation,
+        fc_drop=args.fc_drop,
+        readout_type=args.readout_type,
     )
     print(model)
 

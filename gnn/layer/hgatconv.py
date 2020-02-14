@@ -139,7 +139,6 @@ class NodeAttentionLayer(nn.Module):
             )
             self.attn_drop = nn.ModuleDict({nt: nn.Identity() for nt in attn_nodes})
 
-        # TODO take a look at this and see whether we need to do this
         self.reset_parameters()
 
     def reset_parameters(self):
