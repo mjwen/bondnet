@@ -343,7 +343,7 @@ def compare_connectivity_across_graph_builder(
     # keep record of molecules of which the babel mol graph and critic mol graph are
     # different
     mols_differ_graph = []
-    for m in molecules:
+    for m in molecules[:1500]:
 
         # mol builder
         m.make_picklable()
@@ -408,6 +408,7 @@ def compare_connectivity_across_graph_builder(
         )
 
         for i, mols in enumerate(mols_differ_graph):
+            m = mols[0]
 
             # molecule info
             f.write(TexWriter.newpage())
@@ -419,7 +420,7 @@ def compare_connectivity_across_graph_builder(
 
             # edge distances
             f.write("atom pair distances:\n\n")
-            m = mols[0]
+
             for a1, a2 in itertools.combinations(range(len(m.atoms)), 2):
                 dist = np.linalg.norm(m.coords[a1] - m.coords[a2])
                 f.write("{} {}: {:.3f}\n\n".format(a1 + 1, a2 + 1, dist))
@@ -433,6 +434,26 @@ def compare_connectivity_across_graph_builder(
             extender_not_in_critic = extender_bonds - intersection
             critic_not_in_extender = critic_bonds - intersection
 
+            # # babel missing Li bond (do not include)
+            # missing_li_bond = True
+            # for b in critic_not_in_extender:
+            #     if m.species[b[0]] != "Li" and m.species[b[1]] != "Li":
+            #         missing_li_bond = False
+            #         break
+            # if missing_li_bond:
+            #     continue
+            #
+            # # critic bond to itself
+            # self_bond = False
+            # for b in critic_bonds:
+            #     if b[0] == b[1]:
+            #         self_bond = True
+            #         break
+            # if self_bond:
+            #     continue
+
+            #################
+            #################
             f.write("extender added to babel: ")
             for b in extender_bonds - babel_bonds:
                 f.write("{} ".format(b))
@@ -470,25 +491,25 @@ def compare_connectivity_across_graph_builder(
 
         f.write(TexWriter.tail())
 
-        filename = "~/Applications/db_access/mol_builder/molecules_union_builder.pkl"
-        mols = [i[0] for i in mols_differ_graph]
-        pickle_dump(mols, filename)
-        filename = "~/Applications/db_access/mol_builder/molecules_babel_builder.pkl"
-        mols = [i[1] for i in mols_differ_graph]
-        pickle_dump(mols, filename)
-        filename = "~/Applications/db_access/mol_builder/molecules_extender_builder.pkl"
-        mols = [i[2] for i in mols_differ_graph]
-        pickle_dump(mols, filename)
-        filename = "~/Applications/db_access/mol_builder/molecules_critic_builder.pkl"
-        mols = [i[3] for i in mols_differ_graph]
-        pickle_dump(mols, filename)
+    filename = "~/Applications/db_access/mol_builder/molecules_union_builder.pkl"
+    mols = [i[0] for i in mols_differ_graph]
+    pickle_dump(mols, filename)
+    filename = "~/Applications/db_access/mol_builder/molecules_babel_builder.pkl"
+    mols = [i[1] for i in mols_differ_graph]
+    pickle_dump(mols, filename)
+    filename = "~/Applications/db_access/mol_builder/molecules_extender_builder.pkl"
+    mols = [i[2] for i in mols_differ_graph]
+    pickle_dump(mols, filename)
+    filename = "~/Applications/db_access/mol_builder/molecules_critic_builder.pkl"
+    mols = [i[3] for i in mols_differ_graph]
+    pickle_dump(mols, filename)
 
-        print(
-            "### mol graph comparison. number of mols {}, different mol graphs by "
-            "babel extender builder and critic builder: {}".format(
-                len(molecules), len(mols_differ_graph)
-            )
+    print(
+        "### mol graph comparison. number of mols {}, different mol graphs by "
+        "babel extender builder and critic builder: {}".format(
+            len(molecules), len(mols_differ_graph)
         )
+    )
 
 
 if __name__ == "__main__":

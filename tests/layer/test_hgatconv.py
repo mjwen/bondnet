@@ -37,7 +37,10 @@ def test_edge_softmax():
             np.arange(nedge * feat_size).reshape(nedge, feat_size), dtype=np.float32
         )
         edge_data.append(torch.from_numpy(d))
-    a = heterograph_edge_softmax(g, master_node, attn_nodes, attn_edges, edge_data)
+
+    edge_types  = [(n, e, master_node) for n, e in zip(attn_nodes, attn_edges)]
+
+    a = heterograph_edge_softmax(g, edge_types, edge_data)
 
     # check the softmax for edges connected to atom 1
     # atom 1 is connected to bond 0,1,2 (with bond edge indices 1,2,4) and the single

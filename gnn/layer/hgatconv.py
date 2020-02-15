@@ -333,21 +333,22 @@ def heterograph_edge_softmax(graph, edge_types, edge_data):
     """
     g = graph.local_var()
 
-    # The softmax trick, see
-    # https://jamesmccaffrey.wordpress.com/2016/03/04/the-max-trick-when-computing-softmax
     # assign data
     for etype, edata in zip(edge_types, edge_data):
         g.edges[etype].data["e"] = edata
 
-    # e max (fn.max operates on the axis of features from different nodes)
-    g.multi_update_all(
-        {etype: (fn.copy_e("e", "m"), fn.max("m", "emax")) for etype in edge_types}, "max"
-    )
+    # # The softmax trick (making it more stable), see
+    # # https://jamesmccaffrey.wordpress.com/2016/03/04/the-max-trick-when-computing-softmax
+    # # e max (fn.max operates on the axis of features from different nodes)
+    # g.multi_update_all(
+    #     {etype: (fn.copy_e("e", "m"), fn.max("m", "emax")) for etype in edge_types}, "max"
+    # )
+    # # subtract max and compute exponential
+    # for etype in edge_types:
+    #     g.apply_edges(fn.e_sub_v("e", "emax", "e"), etype=etype)
 
-    # subtract max and compute exponential
     for etype in edge_types:
-        g.apply_edges(fn.e_sub_v("e", "emax", "out"), etype=etype)
-        g.edges[etype].data["out"] = torch.exp(g.edges[etype].data["out"])
+        g.edges[etype].data["out"] = torch.exp(g.edges[etype].data["e"])
 
     # e sum
     g.multi_update_all(

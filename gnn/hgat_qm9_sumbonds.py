@@ -71,7 +71,7 @@ def parse_args():
     )
 
     parser.add_argument(
-        "--readout-type", type=str, default="bond", help="type of readout bond feature"
+        "--readout-type", type=str, default="bond", help="type of readout " "bond feature"
     )
 
     # training
@@ -147,8 +147,8 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
     for it, (bg, label, scale) in enumerate(data_loader):
         feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
         if device is not None:
-            feats = {k: v.to(device=device) for k, v in feats.items()}
-            label = label.to(device=device)
+            feats = {k: v.to(device) for k, v in feats.items()}
+            label = label.to(device)
             if scale is not None:
                 scale = scale.to(device=device)
 
@@ -185,7 +185,7 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
-                label = label.to(device=device)
+                label = label.to(device)
                 if scale is not None:
                     scale = scale.to(device=device)
 
