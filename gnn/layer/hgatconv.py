@@ -107,8 +107,9 @@ class NodeAttentionLayer(nn.Module):
         # self.fc_layers = nn.ModuleDict(d)
 
         # parameters for attention
-        self.attn_l = nn.Parameter(torch.FloatTensor(size=(1, num_heads, out_feats)))
-        self.attn_r = nn.Parameter(torch.FloatTensor(size=(1, num_heads, out_feats)))
+        self.attn_l = nn.Parameter(torch.zeros(1, num_heads, out_feats))
+        self.attn_r = nn.Parameter(torch.zeros(1, num_heads, out_feats))
+        self.reset_parameters()
         self.leaky_relu = nn.LeakyReLU(negative_slope)
 
         # here we use different dropout for each node type
@@ -139,13 +140,11 @@ class NodeAttentionLayer(nn.Module):
             )
             self.attn_drop = nn.ModuleDict({nt: nn.Identity() for nt in attn_nodes})
 
-        self.reset_parameters()
-
     def reset_parameters(self):
         """Reinitialize parameters."""
         gain = nn.init.calculate_gain("relu")
-        for nt, layer in self.fc_layers.items():
-            nn.init.xavier_normal_(layer.weight, gain=gain)
+        # for nt, layer in self.fc_layers.items():
+        #     nn.init.xavier_normal_(layer.weight, gain=gain)
         nn.init.xavier_normal_(self.attn_l, gain=gain)
         nn.init.xavier_normal_(self.attn_r, gain=gain)
 
@@ -334,18 +333,25 @@ def heterograph_edge_softmax(graph, edge_types, edge_data):
     g = graph.local_var()
 
     # assign data
+    max_e = 0.0
     for etype, edata in zip(edge_types, edge_data):
         g.edges[etype].data["e"] = edata
+        m = torch.max(edata)
+        max_e = m if m > max_e else max_e
 
-    # # The softmax trick (making it more stable), see
-    # # https://jamesmccaffrey.wordpress.com/2016/03/04/the-max-trick-when-computing-softmax
-    # # e max (fn.max operates on the axis of features from different nodes)
-    # g.multi_update_all(
-    #     {etype: (fn.copy_e("e", "m"), fn.max("m", "emax")) for etype in edge_types}, "max"
-    # )
-    # # subtract max and compute exponential
-    # for etype in edge_types:
-    #     g.apply_edges(fn.e_sub_v("e", "emax", "e"), etype=etype)
+    # The softmax trick, making the exponential stable if the exponent is large.
+    # This will not change the softmax value
+    # see
+    # https://jamesmccaffrey.wordpress.com/2016/03/04/the-max-trick-when-computing-softmax
+    if max_e > 64:
+        # e max (fn.max operates on the axis of features from different nodes)
+        g.multi_update_all(
+            {etype: (fn.copy_e("e", "m"), fn.max("m", "emax")) for etype in edge_types},
+            "max",
+        )
+        # subtract max and compute exponential
+        for etype in edge_types:
+            g.apply_edges(fn.e_sub_v("e", "emax", "e"), etype=etype)
 
     for etype in edge_types:
         g.edges[etype].data["out"] = torch.exp(g.edges[etype].data["e"])

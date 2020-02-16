@@ -71,7 +71,7 @@ def parse_args():
     )
 
     parser.add_argument(
-        "--readout-type", type=str, default="bond", help="type of readout " "bond feature"
+        "--readout-type", type=str, default="bond", help="type of readout bond feature"
     )
 
     # training
