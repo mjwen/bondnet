@@ -3,6 +3,7 @@ import torch
 from torch import nn
 import warnings
 from dgl import function as fn
+from gnn.utils import warn_stdout
 
 
 class UnifySize(nn.Module):
@@ -119,6 +120,8 @@ class NodeAttentionLayer(nn.Module):
                 {nt: nn.Dropout(feat_drop) for nt, _ in in_feats.items()}
             )
         else:
+            warnings.showwarning = warn_stdout
+
             warnings.warn(
                 "`feat_drop = {}` provided for {} smaller than {}. "
                 "Ignore dropout.".format(feat_drop, self.__class__.__name__, delta)
@@ -134,6 +137,8 @@ class NodeAttentionLayer(nn.Module):
                 {nt: nn.Dropout(attn_drop) for nt in attn_nodes}
             )
         else:
+            warnings.showwarning = warn_stdout
+
             warnings.warn(
                 "`attn_drop = {}` provided for {} smaller than {}. "
                 "Ignore dropout.".format(attn_drop, self.__class__.__name__, delta)

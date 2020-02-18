@@ -7,6 +7,8 @@ import numpy as np
 import torch
 import dgl
 import logging
+import warnings
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -129,3 +131,16 @@ class Timer:
             )
         )
         self.latest = current
+
+
+def warn_stdout(message, category, filename, lineno, file=None, line=None):
+    """
+    Redirect warning message to stdout instead of stderr.
+
+    To use this:
+    >>> warnings.showwarning = warn_stdout
+    >>> warnings.warn("some warning message")
+
+    see: https://stackoverflow.com/questions/858916/how-to-redirect-python-warnings-to-a-custom-stream
+    """
+    sys.stdout.write(warnings.formatwarning(message, category, filename, lineno))

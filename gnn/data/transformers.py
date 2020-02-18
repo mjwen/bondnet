@@ -4,6 +4,7 @@ import warnings
 import torch
 from sklearn.preprocessing import StandardScaler as sk_StandardScaler
 from dgl import DGLGraph
+from gnn.utils import warn_stdout
 
 
 def _transform(X, copy, with_mean, with_std, threshold=1.0e-3):
@@ -23,6 +24,7 @@ def _transform(X, copy, with_mean, with_std, threshold=1.0e-3):
     std = np.sqrt(scaler.var_)
     for i, v in enumerate(std):
         if v <= threshold:
+            warnings.showwarning = warn_stdout
             warnings.warn(
                 "Standard deviation for feature {} is {}; smaller than {}. "
                 "Take a look at the log file.".format(i, v, threshold)

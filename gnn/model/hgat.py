@@ -8,6 +8,7 @@ from gnn.layer.hgatconv import HGATConv
 from gnn.layer.readout import ConcatenateMeanMax, ConcatenateMeanAbsDiff
 from dgl import BatchedDGLHeteroGraph
 import warnings
+from gnn.utils import warn_stdout
 
 
 class HGAT(nn.Module):
@@ -125,6 +126,7 @@ class HGAT(nn.Module):
         # need dropout?
         delta = 1e-3
         if fc_drop < delta:
+            warnings.showwarning = warn_stdout
             warnings.warn(
                 "`fc_drop = {}` provided for {} smaller than {}. "
                 "Ignore dropout.".format(feat_drop, self.__class__.__name__, delta)
