@@ -10,6 +10,13 @@ from pprint import pprint
 from gnn.data.utils import TexWriter
 from gnn.utils import pickle_load, expand_path, create_directory
 from gnn.data.feature_analyzer import read_sdf, read_label
+from gnn.data.grapher import HeteroMoleculeGraph
+from gnn.data.featurizer import (
+    AtomFeaturizerWithReactionInfo,
+    BondAsNodeFeaturizer,
+    GlobalFeaturizerWithReactionInfo,
+)
+from gnn.data.electrolyte import ElectrolyteBondDataset
 
 
 def eg_buckets():
@@ -449,7 +456,8 @@ def plot_all_bond_length_hist(
 
 
 def plot_broken_bond_length_hist(
-    filename="~/Applications/db_access/mol_builder/reactions.pkl",
+    # filename="~/Applications/db_access/mol_builder/reactions.pkl",
+    filename="~/Applications/db_access/mol_builder/reactions_quality_check.pkl",
     # filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
 ):
     """
@@ -463,6 +471,7 @@ def plot_broken_bond_length_hist(
 
         ax.set_xlabel("Bond length")
         ax.set_ylabel("counts")
+        ax.set_yscale("log")
 
         fig.savefig(filename, bbox_inches="tight")
 
@@ -470,6 +479,18 @@ def plot_broken_bond_length_hist(
         coords = rxn.reactants[0].coords
         u, v = rxn.get_broken_bond()
         dist = np.linalg.norm(coords[u] - coords[v])
+
+        if dist > 3.0:
+            print(
+                "Some bonds are suspicious. id:",
+                rxn.reactants[0].id,
+                "bonds:",
+                u,
+                v,
+                "energy",
+                rxn.reactants[0].free_energy,
+            )
+
         return dist
 
     # prepare data
@@ -637,6 +658,38 @@ def write_reaction_sdf_mol_png():
         f.write(TexWriter.tail())
 
 
+def get_dataset(
+    struct_file="~/Applications/db_access/mol_builder/struct_qc.sdf",
+    label_file="~/Applications/db_access/mol_builder/label_qc.txt",
+    feature_file="~/Applications/db_access/mol_builder/feature_qc.yaml",
+):
+    """
+    By running this, we observe the output to get a sense of the low and high values
+    for bond length featurizer.
+
+    """
+    grapher = HeteroMoleculeGraph(
+        atom_featurizer=AtomFeaturizerWithReactionInfo(),
+        bond_featurizer=BondAsNodeFeaturizer(
+            # length_featurizer="bin",
+            # length_featurizer_args={"low": 0.7, "high": 2.5, "num_bins": 10},
+            length_featurizer="rbf",
+            length_featurizer_args={"low": 0.0, "high": 2.6, "num_centers": 20},
+        ),
+        global_featurizer=GlobalFeaturizerWithReactionInfo(),
+        self_loop=True,
+    )
+
+    dataset = ElectrolyteBondDataset(
+        grapher=grapher,
+        sdf_file=struct_file,
+        label_file=label_file,
+        feature_file=feature_file,
+    )
+
+    return dataset
+
+
 if __name__ == "__main__":
     # eg_buckets()
     # eg_extract_A_to_B()
@@ -656,6 +709,8 @@ if __name__ == "__main__":
     # reactants_bond_energies_to_file()
     # create_struct_label_dataset_mol_based()
     # create_struct_label_dataset_bond_based_lowest_energy()
-    create_struct_label_dataset_bond_based_0_charge()
+    # create_struct_label_dataset_bond_based_0_charge()
 
     # write_reaction_sdf_mol_png()
+
+    get_dataset()

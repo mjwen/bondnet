@@ -348,7 +348,7 @@ def heterograph_edge_softmax(graph, edge_types, edge_data):
     # This will not change the softmax value
     # see
     # https://jamesmccaffrey.wordpress.com/2016/03/04/the-max-trick-when-computing-softmax
-    if max_e > 64:
+    if max_e > 32:
         # e max (fn.max operates on the axis of features from different nodes)
         g.multi_update_all(
             {etype: (fn.copy_e("e", "m"), fn.max("m", "emax")) for etype in edge_types},
