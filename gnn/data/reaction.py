@@ -785,6 +785,8 @@ class ReactionExtractor:
                 bond = tuple(sorted(reactant.ob_bond_idx_to_graph_bond_idx(bond)))
                 data = rsr.reactant_bonds_data[bond]
                 rxn = data["reaction"]
+
+                # NOTE this will only write class 0 and class 1
                 if rxn is None:  # do not have reaction breaking bond
                     continue
                 else:

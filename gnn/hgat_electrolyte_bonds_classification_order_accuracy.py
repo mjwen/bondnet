@@ -5,12 +5,12 @@ import warnings
 import torch
 import argparse
 import numpy as np
-from collections import defaultdict
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from gnn.metric import WeightedL1Loss, EarlyStopping
+from gnn.metric import EarlyStopping
 from torch.nn import CrossEntropyLoss
+from sklearn.metrics import f1_score, classification_report
 from gnn.model.hgat import HGAT
-from gnn.data.dataset import train_validation_test_split_test_with_all_bonds_of_mol
+from gnn.data.dataset import train_validation_test_split
 from gnn.data.electrolyte import ElectrolyteBondDatasetClassification
 from gnn.data.dataloader import DataLoaderBondClassification
 from gnn.data.grapher import HeteroMoleculeGraph
@@ -147,35 +147,46 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
     model.train()
 
     epoch_loss = 0.0
-    accuracy = 0.0
-    count = 0.0
+    all_pred_class = []
+    all_target_class = []
 
     for it, (bg, label) in enumerate(data_loader):
         feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-        bond_class = label["class"]
+        target_class = label["class"]
         bond_idx = label["indicator"]
         if device is not None:
             feats = {k: v.to(device) for k, v in feats.items()}
-            bond_class = bond_class.to(device)
+            target_class = target_class.to(device)
 
         pred = model(bg, feats)  # list of 2D tensor, each tensor for a molecule
         # pred of the current bond
         pred = torch.stack([x[i] for x, i in zip(pred, bond_idx)])
 
-        loss = loss_fn(pred, bond_class)
+        # update parameters
+        loss = loss_fn(pred, target_class)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-
-        # TODO accuracy needs to be redo
         epoch_loss += loss.detach().item()
-        # accuracy += metric_fn(pred, label_val, weight).detach().item()
-        count += 1
+
+        # retain data for score computation
+        pred_class = torch.argmax(pred, dim=1)
+        all_pred_class.append(pred_class.detach().numpy())
+        all_target_class.append(target_class.detach().numpy())
 
     epoch_loss /= it + 1
-    accuracy /= count
 
-    return epoch_loss, accuracy
+    # compute f1 score
+    all_pred_class = np.concatenate(all_pred_class)
+    all_target_class = np.concatenate(all_target_class)
+    if metric_fn == "f1_score":
+        score = f1_score(all_target_class, all_pred_class, average="weighted")
+    elif metric_fn == "classification_report":
+        score = classification_report(all_target_class, all_pred_class)
+    else:
+        raise ValueError("Unsupported metric `{}`".format(metric_fn))
+
+    return epoch_loss, score
 
 
 def evaluate(model, nodes, data_loader, metric_fn, device=None):
@@ -188,113 +199,38 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
     model.eval()
 
     with torch.no_grad():
-        accuracy = 0.0
-        count = 0.0
+
+        all_pred_class = []
+        all_target_class = []
 
         for bg, label, in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-            label_val = label["class"]
-            label_ind = label["indicator"]
+            target_class = label["class"]
+            bond_idx = label["indicator"]
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
-                label_val = label_val.to(device)
-                label_ind = label_ind.to(device)
 
             pred = model(bg, feats)
-            # accuracy += metric_fn(pred, label_val).detach().item()
-            count += 1
+            pred = model(bg, feats)  # list of 2D tensor, each tensor for a molecule
+            # pred of the current bond
+            pred = torch.stack([x[i] for x, i in zip(pred, bond_idx)])
 
-    return accuracy / count
+            # retain data for score computation
+            pred_class = torch.argmax(pred, dim=1)
+            all_pred_class.append(pred_class.detach().numpy())
+            all_target_class.append(target_class.numpy())
 
+    # compute f1 score
+    all_pred_class = np.concatenate(all_pred_class)
+    all_target_class = np.concatenate(all_target_class)
+    if metric_fn == "f1_score":
+        score = f1_score(all_target_class, all_pred_class, average="weighted")
+    elif metric_fn == "classification_report":
+        score = classification_report(all_target_class, all_pred_class)
+    else:
+        raise ValueError("Unsupported metric `{}`".format(metric_fn))
 
-# TODO we could pass smallest_n_score as the metric_fn
-def ordering_accuracy(model, nodes, data_loader, metric_fn, device=None):
-    """
-    Evaluate the accuracy of an validation set of test set.
-
-    Args:
-        metric_fn (function): the function should be using a `sum` reduction method.
-    """
-    model.eval()
-
-    ### prepare data
-
-    with torch.no_grad():
-
-        all_pred = []
-        all_val = []
-        all_ind = []
-        all_mol_source = []
-
-        for bg, label, scale in data_loader:
-            feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-            label_val = label["value"]
-            label_ind = label["indicator"]
-            label_mol_source = label["mol_source"]
-            label_length = label["length"]
-
-            if device is not None:
-                feats = {k: v.to(device) for k, v in feats.items()}
-            pred = model(bg, feats)
-
-            # each element of these list corresponds to a bond
-            all_val.extend(
-                [t.detach().numpy() for t in torch.split(label_val, label_length)]
-            )  # list of 1D array
-
-            all_ind.extend(
-                [t.detach().numpy() for t in torch.split(label_ind, label_length)]
-            )  # list of 1D array
-
-            all_mol_source.extend(label_mol_source)  # list of str
-
-            all_pred.extend(
-                [t.detach().numpy() for t in torch.split(pred, label_length)]
-            )  # list of 1D array
-
-    ### analyze accuracy of energy order
-    def smallest_n_score(source, target, n=2):
-        """
-        Measure how many smallest n elements of source are in that of the target.
-
-        Args:
-            source (1D array):
-            target (1D array):
-            n (int): the number of elements to consider
-
-        Returns:
-            A float of value {0,1/n, 2/n, ..., n/n}, depending the intersection of the
-            smallest n elements between source and target.
-        """
-        # first n args that will sort the array
-        s_args = list(np.argsort(source)[:n])
-        t_args = list(np.argsort(target)[:n])
-        intersection = set(s_args).intersection(set(t_args))
-        return len(intersection) / len(s_args)
-
-    # group by mol source
-    group = defaultdict(list)
-    for m, val, ind, pred in zip(all_mol_source, all_val, all_ind, all_pred):
-        i = np.argmax(ind)  # index of the value (bond) that has nonzero energy
-        group[m].append((i, val[i], pred[i]))
-
-    # analyzer order correctness for each group
-    scores = []
-    for mol_source, g in group.items():
-        data = np.asarray(g)
-        pred = data[:, 2]
-        val = data[:, 1]
-        s1 = smallest_n_score(pred, val, n=1)
-        s2 = smallest_n_score(pred, val, n=2)
-        s3 = smallest_n_score(pred, val, n=3)
-        scores.append([s1, s2, s3])
-    mean_score = np.mean(scores, axis=0)
-
-    # print(
-    #     "### mean score of predicting the intersection of smallest {} predictions: "
-    #     "{}".format(n_smallest, mean_score)
-    # )
-    return mean_score
+    return score
 
 
 def get_grapher():
@@ -323,7 +259,7 @@ def main(args):
         label_file=label_file,
         feature_file=feature_file,
     )
-    trainset, valset, testset = train_validation_test_split_test_with_all_bonds_of_mol(
+    trainset, valset, testset = train_validation_test_split(
         dataset, validation=0.15, test=0.15
     )
     print(
@@ -374,7 +310,7 @@ def main(args):
         fc_activation=args.fc_activation,
         fc_drop=args.fc_drop,
         readout_type=args.readout_type,
-        classification=True,
+        outdim=2,
     )
     print(model)
 
@@ -386,7 +322,6 @@ def main(args):
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
     loss_func = CrossEntropyLoss(reduction="mean")
-    metric = WeightedL1Loss(reduction="sum")
 
     ### learning rate scheduler and stopper
     scheduler = ReduceLROnPlateau(
@@ -403,38 +338,29 @@ def main(args):
             warnings.warn(str(e) + " Continue without loading checkpoints.")
             pass
 
-    print(
-        "\n\n# Epoch     Loss         TrainAcc        ValAcc        OrdAcc     Time ("
-        "s)"
-    )
+    print("\n\n# Epoch     Loss         TrainScore        ValScore     Time (s)")
     t0 = time.time()
-
     for epoch in range(args.epochs):
         ti = time.time()
 
         # train and evaluate accuracy
-        loss, train_acc = train(
-            optimizer, model, attn_order, train_loader, loss_func, metric, args.device
+        loss, train_score = train(
+            optimizer, model, attn_order, train_loader, loss_func, "f1_score", args.device
         )
-        val_acc = evaluate(model, attn_order, val_loader, metric, args.device)
+        val_score = evaluate(model, attn_order, val_loader, "f1_score", args.device)
 
-        # ordering_score = ordering_accuracy(
-        #     model, attn_order, test_loader, None, args.device
-        # )
-        ordering_score = 0.0
-
-        if stopper.step(val_acc, checkpoints_objs, msg="epoch " + str(epoch)):
+        if stopper.step(val_score, checkpoints_objs, msg="epoch " + str(epoch)):
             # save results for hyperparam tune
             pickle_dump(float(stopper.best_score), args.output_file)
             break
 
-        scheduler.step(val_acc)
+        scheduler.step(val_score)
 
         tt = time.time() - ti
 
         print(
-            "{:5d}   {:12.6e}   {:12.6e}   {:12.6e}   {}   {:.2f}".format(
-                epoch, loss, train_acc, val_acc, ordering_score, tt
+            "{:5d}   {:12.6e}   {:12.6e}   {:12.6e}   {:.2f}".format(
+                epoch, loss, train_score, val_score, tt
             )
         )
         if epoch % 10 == 0:
@@ -445,10 +371,13 @@ def main(args):
 
     # load best to calculate test accuracy
     load_checkpoints(checkpoints_objs)
-    test_acc = evaluate(model, attn_order, test_loader, metric, args.device)
+    score = evaluate(model, attn_order, val_loader, "classification_report", args.device)
+    print("\nValidation classification report:")
+    print(score)
+    score = evaluate(model, attn_order, test_loader, "classification_report", args.device)
+    print("\nTest classification report:")
+    print(score)
 
-    tt = time.time() - t0
-    print("\n#TestAcc: {:12.6e} | Total time (s): {:.2f}\n".format(test_acc, tt))
     print("\nFinish training at:", datetime.now())
 
 

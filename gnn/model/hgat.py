@@ -39,10 +39,8 @@ class HGAT(nn.Module):
         fc_drop (float, optional): dropout ratio for fc layer.
         readout_type (str): how to read out the features to bonds and then pass the fc
             layers. Options are {'bond', 'bond_cat_mean_max', 'bond_cat_mean_diff'}.
-        classification (bool): whether the model is to be used for classification. If
-            `True`, the output is of shape [N,3], where `N` is the number of data
-            points and 3 indicates the number of classes. If `False`, the output is of
-            shape [N,], each for the energy of one bond.
+        outdim (int): dimension of the output. For regression, choose 1 and for
+            classification, set it to the number of classes.
     """
 
     def __init__(
@@ -63,11 +61,11 @@ class HGAT(nn.Module):
         fc_activation="ELU",
         fc_drop=0.0,
         readout_type="bond",
-        classification=False,
+        outdim=1,
     ):
         super(HGAT, self).__init__()
 
-        self.classification = classification
+        self.outdim = outdim
 
         # activation fn
         if isinstance(gat_activation, str):
@@ -154,10 +152,7 @@ class HGAT(nn.Module):
             in_size = fc_hidden_size[i]
 
         # final output layer, mapping feature to the corresponding shape
-        if self.classification:
-            self.fc_layers.append(nn.Linear(in_size, 3))
-        else:
-            self.fc_layers.append(nn.Linear(in_size, 1))
+        self.fc_layers.append(nn.Linear(in_size, self.outdim))
 
     def forward(self, graph, feats, mol_energy=False):
         """
@@ -187,12 +182,12 @@ class HGAT(nn.Module):
         for layer in self.fc_layers:
             feats = layer(feats)
 
-        if self.classification:
-            res = self._split_batched_output(graph, feats)  # list of 2D tensor
-        else:
+        if self.outdim == 1:  # regression
             res = feats.view(-1)  # 1D tensor (N,)
             if mol_energy:
                 res = self._bond_energy_to_mol_energy(graph, res)  # 2D tensor (N, 1)
+        else:
+            res = self._split_batched_output(graph, feats)  # list of 2D tensor
 
         return res
 
