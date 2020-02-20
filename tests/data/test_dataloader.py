@@ -1,8 +1,15 @@
 import numpy as np
 import os
-from gnn.data.electrolyte import ElectrolyteBondDataset
+from gnn.data.electrolyte import (
+    ElectrolyteBondDataset,
+    ElectrolyteBondDatasetClassification,
+)
 from gnn.data.qm9 import QM9Dataset
-from gnn.data.dataloader import DataLoaderBond, DataLoaderMolecule
+from gnn.data.dataloader import (
+    DataLoaderBond,
+    DataLoaderMolecule,
+    DataLoaderBondClassification,
+)
 from gnn.data.grapher import HeteroMoleculeGraph, HomoCompleteGraph
 from gnn.data.featurizer import (
     AtomFeaturizer,
@@ -123,3 +130,31 @@ def test_dataloader_molecule():
                 assert np.allclose(scales, ref_scales)
             else:
                 assert scales is None
+
+
+# do not assert feature and graph struct, which is handled by dgl,
+# and it should be correct?
+# Here we mainly test the correctness of batch
+def test_dataloader_bond_classification():
+    ref_label_energies = [0, 1]
+    ref_label_indicators = [1, 2]
+
+    dataset = ElectrolyteBondDatasetClassification(
+        grapher=get_grapher_hetero(),
+        sdf_file=os.path.join(test_files, "EC_struct.sdf"),
+        label_file=os.path.join(test_files, "EC_label_classification.txt"),
+        feature_file=os.path.join(test_files, "EC_feature.yaml"),
+        feature_transformer=False,
+    )
+
+    # batch size 1 case (exactly the same as test_dataset)
+    data_loader = DataLoaderBondClassification(dataset, batch_size=1, shuffle=False)
+    for i, (graph, labels) in enumerate(data_loader):
+        assert np.allclose(labels["class"], ref_label_energies[i])
+        assert np.allclose(labels["indicator"], ref_label_indicators[i])
+
+    # batch size 2 case
+    data_loader = DataLoaderBondClassification(dataset, batch_size=2, shuffle=False)
+    for graph, labels in data_loader:
+        assert np.allclose(labels["class"], ref_label_energies)
+        assert np.allclose(labels["indicator"], ref_label_indicators)

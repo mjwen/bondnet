@@ -11,9 +11,9 @@ class DataLoaderBond(torch.utils.data.DataLoader):
             )
 
         def collate(samples):
-            if len(samples) == 1:
-                graph, label, scale = samples[0]
-                return graph, label, scale
+            # if len(samples) == 1:
+            #     graph, label, scale = samples[0]
+            #     return graph, label, scale
             graphs, labels, scales = map(list, zip(*samples))
             if hetero:
                 batched_graph = dgl.batch_hetero(graphs)
@@ -56,3 +56,35 @@ class DataLoaderMolecule(torch.utils.data.DataLoader):
             return batched_graph, labels, scales
 
         super(DataLoaderMolecule, self).__init__(dataset, collate_fn=collate, **kwargs)
+
+
+class DataLoaderBondClassification(torch.utils.data.DataLoader):
+    def __init__(self, dataset, hetero=True, **kwargs):
+        if "collate_fn" in kwargs:
+            raise ValueError(
+                "'collate_fn' provided internally by 'gnn.data', you need not to "
+                "provide one"
+            )
+
+        def collate(samples):
+            # if len(samples) == 1:
+            #     graph, label, scale = samples[0]
+            #     return graph, label, scale
+            graphs, labels, scales = map(list, zip(*samples))
+            if hetero:
+                batched_graph = dgl.batch_hetero(graphs)
+            else:
+                batched_graph = dgl.batch(graphs)
+            bond_class = torch.stack([la["class"] for la in labels])
+            indicators = [la["indicator"] for la in labels]
+            mol_sources = [la["mol_source"] for la in labels]
+            labels = {
+                "class": bond_class,
+                "indicator": indicators,
+                "mol_source": mol_sources,
+            }
+            return batched_graph, labels
+
+        super(DataLoaderBondClassification, self).__init__(
+            dataset, collate_fn=collate, **kwargs
+        )
