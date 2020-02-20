@@ -589,9 +589,9 @@ def create_struct_label_dataset_bond_based_classification(
         # struct_file="~/Applications/db_access/mol_builder/struct.sdf",
         # label_file="~/Applications/db_access/mol_builder/label.txt",
         # feature_file="~/Applications/db_access/mol_builder/feature.yaml",
-        struct_file="~/Applications/db_access/mol_builder/struct_n200.sdf",
-        label_file="~/Applications/db_access/mol_builder/label_n200.txt",
-        feature_file="~/Applications/db_access/mol_builder/feature_n200.yaml",
+        struct_file="~/Applications/db_access/mol_builder/struct_clfn_n200.sdf",
+        label_file="~/Applications/db_access/mol_builder/label_clfn_n200.txt",
+        feature_file="~/Applications/db_access/mol_builder/feature_clfn_n200.yaml",
         lowest_across_product_charge=lowest_energy,
         top_n=top_n,
     )

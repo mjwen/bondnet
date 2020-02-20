@@ -390,11 +390,11 @@ class ElectrolyteBondDatasetClassification(ElectrolyteBondDataset):
 
             # label
             dtype = getattr(torch, self.dtype)
-            bonds_class = torch.tensor(raw_value[i], dtype=torch.int32)
-            bonds_indicator = torch.tensor(raw_indicator[i], dtype=torch.int32)
+            bonds_class = torch.tensor(raw_value[i], dtype=torch.int64)
+            bonds_indicator = int(raw_indicator[i])
             bonds_mol_source = raw_mol_source[i]
             label = {
-                "class": bonds_class,  # int
+                "class": bonds_class,  # torch.int64
                 "indicator": bonds_indicator,  # int
                 "mol_source": bonds_mol_source,  # str
             }
@@ -431,6 +431,12 @@ class ElectrolyteBondDatasetClassification(ElectrolyteBondDataset):
                     line = line[: line.index("#")]
 
                 line = line.split()
+                if len(line) > 3:
+                    raise ValueError(
+                        "Incorrect label file: {}. Expect 3 items per "
+                        "line, {} provided.".format(self.label_file, len(line))
+                    )
+
                 value.append(int(line[0]))
                 bond_idx.append(int(line[1]))
                 mol_source.append(line[2])  # it could be a string

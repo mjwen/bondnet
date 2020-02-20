@@ -39,6 +39,10 @@ class HGAT(nn.Module):
         fc_drop (float, optional): dropout ratio for fc layer.
         readout_type (str): how to read out the features to bonds and then pass the fc
             layers. Options are {'bond', 'bond_cat_mean_max', 'bond_cat_mean_diff'}.
+        classification (bool): whether the model is to be used for classification. If
+            `True`, the output is of shape [N,3], where `N` is the number of data
+            points and 3 indicates the number of classes. If `False`, the output is of
+            shape [N,], each for the energy of one bond.
     """
 
     def __init__(
@@ -59,8 +63,11 @@ class HGAT(nn.Module):
         fc_activation="ELU",
         fc_drop=0.0,
         readout_type="bond",
+        classification=False,
     ):
         super(HGAT, self).__init__()
+
+        self.classification = classification
 
         # activation fn
         if isinstance(gat_activation, str):
@@ -146,8 +153,11 @@ class HGAT(nn.Module):
 
             in_size = fc_hidden_size[i]
 
-        # final output layer, mapping feature to size 1
-        self.fc_layers.append(nn.Linear(in_size, 1))
+        # final output layer, mapping feature to the corresponding shape
+        if self.classification:
+            self.fc_layers.append(nn.Linear(in_size, 3))
+        else:
+            self.fc_layers.append(nn.Linear(in_size, 1))
 
     def forward(self, graph, feats, mol_energy=False):
         """
@@ -161,6 +171,7 @@ class HGAT(nn.Module):
             1D Tensor: bond energies. If `mol_energy` is `True`, then return a 2D
                 tensor of shape (N, 1), where `N` is the number of molecules in the
                 batch of data.
+            list of 2D tensor: if classification if `True`.
         """
 
         # hgat layer
@@ -175,22 +186,35 @@ class HGAT(nn.Module):
         # fc, activation, and dropout
         for layer in self.fc_layers:
             feats = layer(feats)
-        res = feats.view(-1)  # reshape to 1D tensor to make each component a bond energy
 
-        if mol_energy:
-            res = self._bond_energy_to_mol_energy(graph, res)
+        if self.classification:
+            res = self._split_batched_output(graph, feats)  # list of 2D tensor
+        else:
+            res = feats.view(-1)  # 1D tensor (N,)
+            if mol_energy:
+                res = self._bond_energy_to_mol_energy(graph, res)  # 2D tensor (N, 1)
 
         return res
 
     @staticmethod
-    def _bond_energy_to_mol_energy(graph, bond_energy):
+    def _split_batched_output(graph, value):
+        """
+        Split a tensor into `num_graphs` chunks, the size of each chunk equals the
+        number of bonds in the graph.
+
+        Returns:
+            list of tensor.
+
+        """
         if isinstance(graph, BatchedDGLHeteroGraph):
             nbonds = graph.batch_num_nodes("bond")
-            mol_energy = [torch.sum(i) for i in torch.split(bond_energy, nbonds)]
-            mol_energy = torch.stack(mol_energy)
+            return torch.split(value, nbonds)
         else:
-            mol_energy = torch.sum(bond_energy)
-        mol_energy = mol_energy.view((-1, 1))  # return a 2D tensor
+            return [value]
+
+    def _bond_energy_to_mol_energy(self, graph, bond_energy):
+        bond_energy = self._split_batched_output(graph, bond_energy)
+        mol_energy = torch.stack([torch.sum(i) for i in bond_energy]).view((-1, 1))
         return mol_energy
 
     def feature_before_fc(self, graph, feats):
