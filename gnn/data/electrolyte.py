@@ -139,9 +139,9 @@ class ElectrolyteBondDataset(BaseDataset):
             bonds_indicator = torch.tensor(raw_indicator[i], dtype=dtype)
             bonds_mol_source = raw_mol_source[i]
             label = {
-                "value": bonds_energy,
-                "indicator": bonds_indicator,
-                "mol_source": bonds_mol_source,
+                "value": bonds_energy,  # 1D tensor
+                "indicator": bonds_indicator,  # 1D tensor
+                "mol_source": bonds_mol_source,  # str
             }
             self.labels.append(label)
 
@@ -324,6 +324,118 @@ class ElectrolyteBondDataset(BaseDataset):
         for ft, nm in self.feature_name.items():
             rst += "Feature: {}, name: {}\n".format(ft, nm)
         return rst
+
+
+class ElectrolyteBondDatasetClassification(ElectrolyteBondDataset):
+    def __init__(
+        self,
+        grapher,
+        sdf_file,
+        label_file,
+        feature_file=None,
+        feature_transformer=True,
+        pickle_dataset=False,
+        dtype="float32",
+    ):
+        super(ElectrolyteBondDatasetClassification, self).__init__(
+            grapher=grapher,
+            sdf_file=sdf_file,
+            label_file=label_file,
+            feature_file=feature_file,
+            feature_transformer=feature_transformer,
+            label_transformer=False,
+            pickle_dataset=pickle_dataset,
+            dtype=dtype,
+        )
+
+    def _load(self):
+
+        logger.info(
+            "Start loading dataset from files {}, {}...".format(
+                self.sdf_file, self.label_file
+            )
+        )
+
+        # get species of dataset
+        species = self._get_species()
+
+        # read graphs and label
+        raw_value, raw_indicator, raw_mol_source = self._read_label_file()
+
+        # additional features from file
+        if self.feature_file is not None:
+            features = self._read_feature_file()
+        else:
+            features = [None] * len(raw_value)
+
+        self.graphs = []
+        self.labels = []
+        supp = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
+
+        for i, mol in enumerate(supp):
+            if i % 100 == 0:
+                logger.info("Processing molecule {}/{}".format(i, len(raw_value)))
+
+            # bad mol
+            if mol is None:
+                continue
+
+            # graph
+            g = self.grapher.build_graph_and_featurize(
+                mol, extra_feats_info=features[i], dataset_species=species
+            )
+            # we add this for check purpose, because some entries in the sdf file may fail
+            g.graph_id = i
+            self.graphs.append(g)
+
+            # label
+            dtype = getattr(torch, self.dtype)
+            bonds_class = torch.tensor(raw_value[i], dtype=torch.int32)
+            bonds_indicator = torch.tensor(raw_indicator[i], dtype=torch.int32)
+            bonds_mol_source = raw_mol_source[i]
+            label = {
+                "class": bonds_class,  # int
+                "indicator": bonds_indicator,  # int
+                "mol_source": bonds_mol_source,  # str
+            }
+            self.labels.append(label)
+
+        # this should be called after grapher.build_graph_and_featurize,
+        # which initializes the feature name and size
+        self._feature_name = self.grapher.feature_name
+        self._feature_size = self.grapher.feature_size
+        logger.info("Feature name: {}".format(self.feature_name))
+        logger.info("Feature size: {}".format(self.feature_size))
+
+        # feature transformers
+        if self.feature_transformer:
+            feature_scaler = GraphFeatureStandardScaler()
+            self.graphs = feature_scaler(self.graphs)
+            logger.info("Feature scaler mean: {}".format(feature_scaler.mean))
+            logger.info("Feature scaler std: {}".format(feature_scaler.std))
+
+        logger.info("Finish loading {} graphs...".format(len(self.labels)))
+
+    def _read_label_file(self):
+        value = []
+        bond_idx = []
+        mol_source = []
+        with open(self.label_file, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("#"):
+                    continue
+
+                # remove inline comments
+                if "#" in line:
+                    line = line[: line.index("#")]
+
+                line = line.split()
+                value.append(int(line[0]))
+                bond_idx.append(int(line[1]))
+                mol_source.append(line[2])  # it could be a string
+
+        return value, bond_idx, mol_source
 
 
 class ElectrolyteMoleculeDataset(ElectrolyteBondDataset):

@@ -1,8 +1,11 @@
 import numpy as np
 import os
-from gnn.data.electrolyte import ElectrolyteBondDataset
+from gnn.data.electrolyte import (
+    ElectrolyteBondDataset,
+    ElectrolyteBondDatasetClassification,
+    ElectrolyteMoleculeDataset,
+)
 from gnn.data.qm9 import QM9Dataset
-from gnn.data.electrolyte import ElectrolyteMoleculeDataset
 from gnn.data.grapher import HeteroMoleculeGraph, HomoCompleteGraph
 from gnn.data.featurizer import (
     AtomFeaturizer,
@@ -144,3 +147,26 @@ def test_qm9_label():
 
     assert_label(False)
     assert_label(True)
+
+
+def test_electrolyte_bond_label_classification():
+
+    ref_label_energies = [0, 1]
+    ref_label_indicators = [1, 2]
+
+    dataset = ElectrolyteBondDatasetClassification(
+        grapher=get_grapher_hetero(),
+        sdf_file=os.path.join(test_files, "EC_struct.sdf"),
+        label_file=os.path.join(test_files, "EC_label_classification.txt"),
+        feature_file=os.path.join(test_files, "EC_feature.yaml"),
+        feature_transformer=True,
+    )
+
+    size = len(dataset)
+    assert size == 2
+
+    for i in range(size):
+        _, label, ts = dataset[i]
+        assert np.allclose(label["class"], ref_label_energies[i])
+        assert np.array_equal(label["indicator"], ref_label_indicators[i])
+        assert ts is None
