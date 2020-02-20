@@ -254,18 +254,18 @@ class ReactionsWithSameReactant:
         Returns:
             A dict of dict.
             The outer dict has bond indices (a tuple) as the key and the inner dict
-            have keys `energy`, `reaction`, `energy_order`. Their values are set to
+            have keys `energy`, `reaction`, `order`. Their values are set to
             `None` if there is no reaction associated with the bond.
         """
         if self._bonds_data is None:
             info = OrderedDict()
             for i, j, attr in self.reactant.bonds:
-                info[(i, j)] = {"energy_order": None, "energy": None, "reaction": None}
+                info[(i, j)] = {"order": None, "energy": None, "reaction": None}
 
             bond_energy_pair = []
             for rxn in self._reactions:
                 bond = rxn.get_broken_bond()
-                if bond in info:
+                if info[bond]["reaction"] is not None:
                     raise Exception(
                         "Reaction that breaks bond {} already exists! You may "
                         "want to remove reactions with the same products but "
@@ -279,7 +279,7 @@ class ReactionsWithSameReactant:
             # get bond energies order
             bond_energy_pair = sorted(bond_energy_pair, key=lambda pair: pair[1])
             for i, (bond, energy) in enumerate(bond_energy_pair):
-                info[bond]["energy_order"] = i
+                info[bond]["order"] = i
             self._bonds_data = info
         return self._bonds_data
 
@@ -661,7 +661,7 @@ class ReactionExtractor:
             filename (str): output filename
             molecules: an iterable of molecules, e.g. list, OrderedDict
         """
-        logger.info("Start writing to sdf file: {}".format(filename))
+        logger.info("Start writing sdf file: {}".format(filename))
         filename = expand_path(filename)
         create_directory(filename)
         with open(filename, "w") as f:
@@ -675,6 +675,8 @@ class ReactionExtractor:
                 m._ob_adaptor = None
                 sdf = m.write(file_format="sdf", message=msg)
                 f.write(sdf)
+
+        logger.info("Finish writing sdf file: {}".format(filename))
 
     @staticmethod
     def write_feature(reactions, use_reaction_feature=True, filename="feature.yaml"):
@@ -698,7 +700,117 @@ class ReactionExtractor:
 
         logger.info("Finish writing feature file: {}".format(filename))
 
-    def create_struct_label_dataset_bond_based(
+    def create_struct_label_dataset_bond_based_classification(
+        self,
+        struct_file="sturct.sdf",
+        label_file="label.txt",
+        feature_file=None,
+        lowest_across_product_charge=True,
+        top_n=2,
+    ):
+        """
+        Write the reaction class to files.
+
+        Also, this is based on the bond energy, i.e. each bond (that we have energies)
+        will have one line in the label file.
+
+        args:
+            struct_file (str): filename of the sdf structure file
+            label_file (str): filename of the label
+            feature_file (str): filename for the feature file, if `None`, do not write it
+            lowest_across_product_charge (bool): If `True` each reactant corresponds to
+                the lowest energy products. If `False`, find all 0->0+0 reactions,
+                i.e. the charge of reactant and products should all be zero.
+
+        """
+
+        def write_label(reactions, bond_idx, label_class, filename="label.txt"):
+            """
+            Write bond energy class to file.
+
+            See the text below on how the info is written.
+
+            Args:
+                reactions (list of Reaction):
+                bond_idx (list of int): the index of the broken bond in the reactant;
+                filename (str): name of the file to write the label
+            """
+
+            filename = expand_path(filename)
+            create_directory(filename)
+            with open(filename, "w") as f:
+                f.write(
+                    "# Each line lists the energy class of a bond in a molecule. "
+                    "Each line has three items: "
+                    "1st: an integer of of {0,1,2}, indicating the class of bond energy, "
+                    "0 stands for feasible reaction, 1 stands for nonfeasize reaction "
+                    "and 2 stands for unknown, i.e. we do not have info about the "
+                    "reaction."
+                    "2nd: index of the bond in the molecule {0,1,2,num_bonds-1}."
+                    "3rd: molecule idx from which the bond come.\n"
+                )
+
+                for i, (rxn, idx, lb) in enumerate(zip(reactions, bond_idx, label_class)):
+                    reactant = rxn.reactants[0]
+                    f.write("{} {} {}".format(lb, idx, rxn.reactants[0].id))
+
+                    # write other info (reactant and product info, and bond energy)
+                    attr = rxn.as_dict()
+                    f.write(
+                        "    # {} {} {} {}\n".format(
+                            attr["reactants"],
+                            attr["products"],
+                            reactant.graph_bond_idx_to_ob_bond_idx(attr["broken_bond"]),
+                            attr["bond_energy"],
+                        )
+                    )
+
+        if lowest_across_product_charge:
+            grouped_reactions = (
+                self.group_by_reactant_bond_keep_lowest_energy_across_products_charge()
+            )
+        else:
+            grouped_reactions = self.group_by_reactant_bond_keep_0_charge_of_products()
+
+        all_rxns = []
+        broken_bond_idx = []
+        label_class = []
+        for rsr in grouped_reactions:
+            reactant = rsr.reactant
+
+            # bond energies in the same order as in sdf file
+            sdf_bonds = reactant.get_sdf_bond_indices()
+            for ib, bond in enumerate(sdf_bonds):
+                # change index from ob to graph
+                bond = tuple(sorted(reactant.ob_bond_idx_to_graph_bond_idx(bond)))
+                data = rsr.reactant_bonds_data[bond]
+                rxn = data["reaction"]
+                if rxn is None:  # do not have reaction breaking bond
+                    continue
+                else:
+                    order = data["order"]
+                    if order is None:
+                        lb = 2
+                    elif order < top_n:
+                        lb = 0
+                    else:
+                        lb = 1
+                    label_class.append(lb)
+                    all_rxns.append(rxn)
+                    broken_bond_idx.append(ib)
+
+        # write label
+        write_label(all_rxns, broken_bond_idx, label_class, label_file)
+
+        # write sdf
+        reactants = [rxn.reactants[0] for rxn in all_rxns]
+        self.write_sdf(reactants, struct_file)
+
+        # write feature
+        if feature_file is not None:
+            self.write_feature(all_rxns, filename=feature_file)
+
+    def create_struct_label_dataset_bond_based_regressssion(
         self,
         struct_file="sturct.sdf",
         label_file="label.txt",
@@ -720,59 +832,47 @@ class ReactionExtractor:
                 i.e. the charge of reactant and products should all be zero.
 
         """
-        if lowest_across_product_charge:
-            grouped_reactions = (
-                self.group_by_reactant_bond_keep_lowest_energy_across_products_charge()
-            )
-        else:
-            grouped_reactions = self.group_by_reactant_bond_keep_0_charge_of_products()
 
-        # write label
-        all_rxns = []
-        label_file = expand_path(label_file)
-        create_directory(label_file)
-        with open(label_file, "w") as f:
-            f.write(
-                "# Each line lists the energy of a bond in a molecule. "
-                "The number of items in each line is equal to 2*N+1, where N is the "
-                "number bonds in the molecule. The first N items are bond energies and "
-                "the next N items are indicators (0 or 1) specifying whether the bond "
-                "energy exists. A value of 0 means the corresponding bond energy should "
-                "be ignored, whatever its value is. The last item specifies the molecule "
-                "from which the bond come.\n"
-            )
+        def write_label(reactions, bond_idx, filename="label.txt"):
+            """
+            Write bond energy to file.
 
-            for rsr in grouped_reactions:
-                reactant = rsr.reactant
+            See the text below on how the info is written.
 
-                # get a mapping between babel bond and reactions
-                rxns_by_ob_bond = dict()
-                for rxn in rsr.reactions:
-                    bond = rxn.get_broken_bond()
-                    bond = tuple(sorted(reactant.graph_bond_idx_to_ob_bond_idx(bond)))
-                    # we need this because the order of bond changes in sdf file
-                    rxns_by_ob_bond[bond] = rxn
+            Args:
+                reactions (list of Reaction):
+                bond_idx (list of int): the index of the broken bond in the reactant;
+                filename (str): name of the file to write the label
+            """
 
-                # write bond energies in the same order as sdf file
-                sdf_bonds = reactant.get_sdf_bond_indices()
-                for ib, bond in enumerate(sdf_bonds):
+            filename = expand_path(filename)
+            create_directory(filename)
+            with open(filename, "w") as f:
+                f.write(
+                    "# Each line lists the energy of a bond in a molecule. "
+                    "The number of items in each line is equal to 2*N+1, where N is the "
+                    "number bonds in the molecule. The first N items are bond energies "
+                    "and the next N items are indicators (0 or 1) specifying whether the "
+                    "bond energy exists. A value of 0 means the corresponding bond "
+                    "energy should be ignored, whatever its value is. The last item "
+                    "specifies the molecule from which the bond come.\n"
+                )
 
-                    if bond not in rxns_by_ob_bond:  # do not have reaction breaking bond
-                        continue
-                    rxn = rxns_by_ob_bond[bond]
-                    all_rxns.append(rxn)
+                for i, (rxn, idx) in enumerate(zip(reactions, bond_idx)):
+                    reactant = rxn.reactants[0]
+                    num_bonds = len(reactant.bonds)
 
                     # write bond energies
-                    for ii in range(len(sdf_bonds)):
-                        if ii == ib:
+                    for j in range(num_bonds):
+                        if j == idx:
                             f.write("{:.15g} ".format(rxn.get_reaction_free_energy()))
                         else:
                             f.write("0.0 ")
                     f.write("   ")
 
                     # write bond energy indicator
-                    for ii in range(len(sdf_bonds)):
-                        if ii == ib:
+                    for j in range(num_bonds):
+                        if j == idx:
                             f.write("1 ")
                         else:
                             f.write("0 ")
@@ -781,6 +881,7 @@ class ReactionExtractor:
                     f.write("    {}".format(reactant.id))
 
                     # write other info (reactant and product info, and bond energy)
+
                     attr = rxn.as_dict()
                     f.write(
                         "    # {} {} {} {}\n".format(
@@ -790,6 +891,34 @@ class ReactionExtractor:
                             attr["bond_energy"],
                         )
                     )
+
+        if lowest_across_product_charge:
+            grouped_reactions = (
+                self.group_by_reactant_bond_keep_lowest_energy_across_products_charge()
+            )
+        else:
+            grouped_reactions = self.group_by_reactant_bond_keep_0_charge_of_products()
+
+        all_rxns = []
+        broken_bond_idx = []
+        for rsr in grouped_reactions:
+            reactant = rsr.reactant
+
+            # bond energies in the same order as in sdf file
+            sdf_bonds = reactant.get_sdf_bond_indices()
+            for ib, bond in enumerate(sdf_bonds):
+                # change index from ob to graph
+                bond = tuple(sorted(reactant.ob_bond_idx_to_graph_bond_idx(bond)))
+                data = rsr.reactant_bonds_data[bond]
+                rxn = data["reaction"]
+                if rxn is None:  # do not have reaction breaking bond
+                    continue
+                else:
+                    all_rxns.append(rxn)
+                    broken_bond_idx.append(ib)
+
+        # write label
+        write_label(all_rxns, broken_bond_idx, label_file)
 
         # write sdf
         reactants = [rxn.reactants[0] for rxn in all_rxns]

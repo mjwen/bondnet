@@ -156,30 +156,30 @@ def check_bond_length_mol(mol):
     #
     # https://chem.libretexts.org/Bookshelves/Physical_and_Theoretical_Chemistry_Textbook_Maps/Supplemental_Modules_(Physical_and_Theoretical_Chemistry)/Chemical_Bonding/Fundamentals_of_Chemical_Bonding/Chemical_Bonds/Bond_Lengths_and_Energies
     # https://www.chem.tamu.edu/rgroup/connell/linkfiles/bonds.pdf
-    #
+    li_len = 2.8
     bond_length_limit = {
         # H
         ("H", "H"): 0.74,
         ("H", "C"): 1.09,
         ("H", "O"): 0.96,
-        ("H", "Li"): None,
+        ("H", "Li"): li_len,
         ("H", "F"): 0.92,
         ("H", "P"): 1.44,
         # C
         ("C", "C"): 1.54,
         ("C", "O"): 1.43,
-        ("C", "Li"): None,
+        ("C", "Li"): li_len,
         ("C", "F"): 1.35,
         ("C", "P"): 1.84,
         # O
         ("O", "O"): 1.48,
-        ("O", "Li"): None,
+        ("O", "Li"): li_len,
         ("O", "F"): 1.42,
         ("O", "P"): 1.63,
         # Li
-        ("Li", "Li"): None,
-        ("Li", "F"): None,
-        ("Li", "P"): None,
+        ("Li", "Li"): li_len,
+        ("Li", "F"): li_len,
+        ("Li", "P"): li_len,
         # F
         ("F", "F"): 1.42,
         ("F", "P"): 1.54,
@@ -303,7 +303,10 @@ def check_bond_length(
     return succeeded
 
 
-def check_all(filename="~/Applications/db_access/mol_builder/molecules_n200.pkl"):
+def check_all(
+    filename="~/Applications/db_access/mol_builder/molecules.pkl",
+    # filename="~/Applications/db_access/mol_builder/molecules_n200.pkl"
+):
     mols = pickle_load(filename)
 
     print("Number of mols before any check:", len(mols))
@@ -517,7 +520,7 @@ if __name__ == "__main__":
     # check_valence()
     # check_bond_species()
     # check_bond_length()
-    # check_all()
+    check_all()
 
     # plot_mol_graph()
-    compare_connectivity_across_graph_builder()
+    # compare_connectivity_across_graph_builder()

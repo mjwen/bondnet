@@ -522,10 +522,12 @@ def create_struct_label_dataset_mol_based():
     )
 
 
-def create_struct_label_dataset_bond_based_lowest_energy():
-    filename = "~/Applications/db_access/mol_builder/reactions_having_all.pkl"
-    # filename = "~/Applications/db_access/mol_builder/reactions.pkl"
-    # filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
+def create_struct_label_dataset_bond_based_regression(
+    # filename = "~/Applications/db_access/mol_builder/reactions.pkl",
+    filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
+    lowest_energy=False,
+):
+
     extractor = ReactionExtractor.from_file(filename)
 
     ##############
@@ -544,34 +546,32 @@ def create_struct_label_dataset_bond_based_lowest_energy():
     # ##############
     # extractor.filter_reactions_by_bond_type_and_order(bond_type=("C", "C"))
 
-    extractor.create_struct_label_dataset_bond_based(
-        struct_file="~/Applications/db_access/mol_builder/struct.sdf",
-        label_file="~/Applications/db_access/mol_builder/label.txt",
-        feature_file="~/Applications/db_access/mol_builder/feature.yaml",
-        # struct_file="~/Applications/db_access/mol_builder/struct_n200.sdf",
-        # label_file="~/Applications/db_access/mol_builder/label_n200.txt",
-        # feature_file="~/Applications/db_access/mol_builder/feature_n200.yaml",
+    extractor.create_struct_label_dataset_bond_based_regressssion(
+        # struct_file="~/Applications/db_access/mol_builder/struct.sdf",
+        # label_file="~/Applications/db_access/mol_builder/label.txt",
+        # feature_file="~/Applications/db_access/mol_builder/feature.yaml",
+        struct_file="~/Applications/db_access/mol_builder/struct_n200.sdf",
+        label_file="~/Applications/db_access/mol_builder/label_n200.txt",
+        feature_file="~/Applications/db_access/mol_builder/feature_n200.yaml",
         # struct_file="~/Applications/db_access/mol_builder/struct_charge1.sdf",
         # label_file="~/Applications/db_access/mol_builder/label_charge1.txt",
         # feature_file="~/Applications/db_access/mol_builder/feature_charge1.yaml",
-        # struct_file="~/Applications/db_access/mol_builder/struct_charge0_CC.sdf",
-        # label_file="~/Applications/db_access/mol_builder/label_charge0_CC.txt",
-        # feature_file="~/Applications/db_access/mol_builder/feature_charge0_CC.yaml",
-        # struct_file="~/Applications/db_access/mol_builder/struct_observe.sdf",
-        # label_file="~/Applications/db_access/mol_builder/label_observe.txt",
-        # feature_file="~/Applications/db_access/mol_builder/feature_observe.yaml",
+        lowest_across_product_charge=lowest_energy,
     )
 
 
-def create_struct_label_dataset_bond_based_0_charge():
-    # filename = "~/Applications/db_access/mol_builder/reactions.pkl"
-    # filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
-    filename = "~/Applications/db_access/mol_builder/reactions_quality_check.pkl"
+def create_struct_label_dataset_bond_based_classification(
+    # filename = "~/Applications/db_access/mol_builder/reactions.pkl",
+    filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
+    lowest_energy=False,
+    top_n=2,
+):
+
     extractor = ReactionExtractor.from_file(filename)
 
-    # ##############
-    # # filter by reactant attributes
-    # ##############
+    ##############
+    # filter by reactant attributes
+    ##############
     # extractor.filter_reactions_by_reactant_attribute(
     #     key="id", values=["5e2a05838eab11f1fa104e29", "5e2a05d28eab11f1fa107899"]
     # )
@@ -585,11 +585,15 @@ def create_struct_label_dataset_bond_based_0_charge():
     # ##############
     # extractor.filter_reactions_by_bond_type_and_order(bond_type=("C", "C"))
 
-    extractor.create_struct_label_dataset_bond_based(
-        struct_file="~/Applications/db_access/mol_builder/struct_qc.sdf",
-        label_file="~/Applications/db_access/mol_builder/label_qc.txt",
-        feature_file="~/Applications/db_access/mol_builder/feature_qc.yaml",
-        lowest_across_product_charge=False,
+    extractor.create_struct_label_dataset_bond_based_classification(
+        # struct_file="~/Applications/db_access/mol_builder/struct.sdf",
+        # label_file="~/Applications/db_access/mol_builder/label.txt",
+        # feature_file="~/Applications/db_access/mol_builder/feature.yaml",
+        struct_file="~/Applications/db_access/mol_builder/struct_n200.sdf",
+        label_file="~/Applications/db_access/mol_builder/label_n200.txt",
+        feature_file="~/Applications/db_access/mol_builder/feature_n200.yaml",
+        lowest_across_product_charge=lowest_energy,
+        top_n=top_n,
     )
 
 
@@ -708,9 +712,9 @@ if __name__ == "__main__":
 
     # reactants_bond_energies_to_file()
     # create_struct_label_dataset_mol_based()
-    # create_struct_label_dataset_bond_based_lowest_energy()
-    # create_struct_label_dataset_bond_based_0_charge()
+    # create_struct_label_dataset_bond_based_regression()
+    create_struct_label_dataset_bond_based_classification()
 
     # write_reaction_sdf_mol_png()
 
-    get_dataset()
+    # get_dataset()

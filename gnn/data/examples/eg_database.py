@@ -213,9 +213,9 @@ def get_single_atom_energy():
 
 if __name__ == "__main__":
     # pickle_db_entries()
-    # pickle_molecules()
+    pickle_molecules()
     # print_mol_property()
-    plot_molecules()
+    # plot_molecules()
     # plot_atom_distance_hist()
     # number_of_bonds()
 

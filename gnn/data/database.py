@@ -214,6 +214,7 @@ class BaseMoleculeWrapper:
         self._ob_adaptor = None
         self._fragments = None
         self._graph_idx_to_ob_idx_map = None
+        self._ob_idx_to_graph_idx_map = None
 
     @property
     def ob_adaptor(self):
@@ -319,16 +320,26 @@ class BaseMoleculeWrapper:
                     raise Exception("atom not found.")
         return self._graph_idx_to_ob_idx_map
 
-    def make_picklable(self):
-        self._ob_adaptor = None
-
     def graph_bond_idx_to_ob_bond_idx(self, bond):
-        """
-        Convert mol_graph bond indices to babel bond indices.
-        """
         idx0 = self.graph_idx_to_ob_idx_map[bond[0]]
         idx1 = self.graph_idx_to_ob_idx_map[bond[1]]
         return (idx0, idx1)
+
+    @property
+    def ob_idx_to_graph_idx_map(self):
+        if self._ob_idx_to_graph_idx_map is None:
+            self._ob_idx_to_graph_idx_map = dict()
+            for k, v in self.graph_idx_to_ob_idx_map.items():
+                self._ob_idx_to_graph_idx_map[v] = k
+        return self._ob_idx_to_graph_idx_map
+
+    def ob_bond_idx_to_graph_bond_idx(self, bond):
+        idx0 = self.ob_idx_to_graph_idx_map[bond[0]]
+        idx1 = self.ob_idx_to_graph_idx_map[bond[1]]
+        return (idx0, idx1)
+
+    def make_picklable(self):
+        self._ob_adaptor = None
 
     def get_sdf_bond_indices(self, sdf=None):
         sdf = sdf or self.write(file_format="sdf")
