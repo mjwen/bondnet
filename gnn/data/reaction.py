@@ -345,43 +345,38 @@ class ReactionExtractor:
 
         fcmap = self._get_formula_composition_map(self.molecules)
 
-        reaction_ids = []
         A2BC = []
         i = 0
-        for (formula_A, formula_B, formula_C) in itertools.product(buckets, repeat=3):
-            i += 1
-            if i % 10000 == 0:
-                print("@@flag A->B+C running bucket", i)
-
-            if not self._is_valid_A_to_B_C_composition(
-                fcmap[formula_A], fcmap[formula_B], fcmap[formula_C]
+        for formula_A in buckets:
+            for formula_B, formula_C in itertools.combinations_with_replacement(
+                buckets, 2
             ):
-                continue
+                i += 1
+                if i % 10000 == 0:
+                    print("@@flag A->B+C running bucket", i)
 
-            for (charge_A, charge_B, charge_C) in itertools.product(
-                buckets[formula_A], buckets[formula_B], buckets[formula_C],
-            ):
-                if not self._is_valid_A_to_B_C_charge(charge_A, charge_B, charge_C):
+                if not self._is_valid_A_to_B_C_composition(
+                    fcmap[formula_A], fcmap[formula_B], fcmap[formula_C]
+                ):
                     continue
 
-                for A, B, C in itertools.product(
-                    buckets[formula_A][charge_A],
-                    buckets[formula_B][charge_B],
-                    buckets[formula_C][charge_C],
+                for (charge_A, charge_B, charge_C) in itertools.product(
+                    buckets[formula_A], buckets[formula_B], buckets[formula_C],
                 ):
-                    bonds = is_valid_A_to_B_C_reaction(A, [B, C])
-                    if bonds is not None:
-                        # don't include repeating reactions (e.g. A->B+C and A->C+B)
-                        ids = {A.id, B.id, C.id}
-                        if ids not in reaction_ids:
-                            reaction_ids.append(ids)
+                    if not self._is_valid_A_to_B_C_charge(charge_A, charge_B, charge_C):
+                        continue
+
+                    for A, B, C in itertools.product(
+                        buckets[formula_A][charge_A],
+                        buckets[formula_B][charge_B],
+                        buckets[formula_C][charge_C],
+                    ):
+                        bonds = is_valid_A_to_B_C_reaction(A, [B, C])
+                        if bonds is not None:
                             for b in bonds:
                                 A2BC.append(Reaction([A], [B, C], b))
 
         self.reactions = A2BC
-
-        for rxn in A2BC:
-            print("@@@", rxn.as_dict())
 
         logger.info("{} A -> B + C style reactions extracted".format(len(A2BC)))
 
