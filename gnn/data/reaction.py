@@ -508,7 +508,9 @@ class ReactionExtractor:
                 if zero_charge:
                     rsr.add_reaction(rxn)
 
-            new_groups.append(rsr)
+            # add to new group only when at least has one reaction
+            if len(rsr.reactions) != 0:
+                new_groups.append(rsr)
 
         return new_groups
 
@@ -748,36 +750,23 @@ class ReactionExtractor:
                 # change index from ob to graph
                 bond = tuple(sorted(reactant.ob_bond_idx_to_graph_bond_idx(bond)))
                 data = rsr.reactant_bonds_data[bond]
-                rxn = data["reaction"]
 
                 # NOTE this will only write class 0 and class 1
-                if rxn is None:  # do not have reaction breaking bond
-                    continue
-                else:
-                    order = data["order"]
-                    if order is None:
-                        lb = 2
-                    elif order < top_n:
-                        lb = 0
-                    else:
-                        lb = 1
-                    all_reactants.append(rxn.reactants[0])
-                    broken_bond_idx.append(ib)
-                    broken_bond_pairs.append(bond)
-                    label_class.append(lb)
+                # rxn = data["reaction"]
+                # if rxn is None:  # do not have reaction breaking bond
+                #     continue
 
-                # # NOTE this cannot work for the case where we use feutures from the
-                # # reactions
-                # order = data["order"]
-                # if order is None:
-                #     lb = 2
-                # elif order < top_n:
-                #     lb = 0
-                # else:
-                #     lb = 1
-                # label_class.append(lb)
-                # all_rxns.append(rxn)
-                # broken_bond_idx.append(ib)
+                order = data["order"]
+                if order is None:
+                    lb = 2
+                elif order < top_n:
+                    lb = 0
+                else:
+                    lb = 1
+                all_reactants.append(reactant)
+                broken_bond_idx.append(ib)
+                broken_bond_pairs.append(bond)
+                label_class.append(lb)
 
         # write label
         write_label(all_reactants, broken_bond_idx, label_class, label_file)
@@ -880,6 +869,7 @@ class ReactionExtractor:
 
         all_rxns = []
         broken_bond_idx = []
+        broken_bond_pairs = []
         for rsr in grouped_reactions:
             reactant = rsr.reactant
 
@@ -890,22 +880,25 @@ class ReactionExtractor:
                 bond = tuple(sorted(reactant.ob_bond_idx_to_graph_bond_idx(bond)))
                 data = rsr.reactant_bonds_data[bond]
                 rxn = data["reaction"]
+
                 if rxn is None:  # do not have reaction breaking bond
                     continue
-                else:
-                    all_rxns.append(rxn)
-                    broken_bond_idx.append(ib)
+
+                all_rxns.append(rxn)
+                broken_bond_idx.append(ib)
+                broken_bond_pairs.append(bond)
+
+        all_reactants = [rxn.reactants[0] for rxn in all_rxns]
 
         # write label
         write_label(all_rxns, broken_bond_idx, label_file)
 
         # write sdf
-        reactants = [rxn.reactants[0] for rxn in all_rxns]
-        self.write_sdf(reactants, struct_file)
+        self.write_sdf(all_reactants, struct_file)
 
         # write feature
         if feature_file is not None:
-            self.write_feature(all_rxns, filename=feature_file)
+            self.write_feature(all_reactants, broken_bond_pairs, filename=feature_file)
 
     def create_struct_label_dataset_mol_based(
         self,

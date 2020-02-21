@@ -310,7 +310,7 @@ def main(args):
         fc_activation=args.fc_activation,
         fc_drop=args.fc_drop,
         readout_type=args.readout_type,
-        outdim=2,
+        outdim=3,
     )
     print(model)
 
