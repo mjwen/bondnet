@@ -43,7 +43,7 @@ def eg_extract_A_to_B():
     print("number of buckets", len(extractor.buckets))
 
     extractor.extract_A_to_B_style_reaction()
-    extractor.to_file(filename="~/Applications/db_access/mol_builder/reaction_A2B.pkl")
+    extractor.to_file(filename="~/Applications/db_access/mol_builder/reaction_n200.pkl")
 
 
 def eg_extract_A_to_B_C():
@@ -563,6 +563,7 @@ def create_struct_label_dataset_bond_based_regression(
 def create_struct_label_dataset_bond_based_classification(
     # filename = "~/Applications/db_access/mol_builder/reactions.pkl",
     filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
+    # filename="~/Applications/db_access/mol_builder/reactions_quality_check.pkl",
     lowest_energy=False,
     top_n=2,
 ):
@@ -589,9 +590,12 @@ def create_struct_label_dataset_bond_based_classification(
         # struct_file="~/Applications/db_access/mol_builder/struct.sdf",
         # label_file="~/Applications/db_access/mol_builder/label.txt",
         # feature_file="~/Applications/db_access/mol_builder/feature.yaml",
-        struct_file="~/Applications/db_access/mol_builder/struct_clfn_n200.sdf",
-        label_file="~/Applications/db_access/mol_builder/label_clfn_n200.txt",
-        feature_file="~/Applications/db_access/mol_builder/feature_clfn_n200.yaml",
+        # struct_file="~/Applications/db_access/mol_builder/struct_clfn_n200.sdf",
+        # label_file="~/Applications/db_access/mol_builder/label_clfn_n200.txt",
+        # feature_file="~/Applications/db_access/mol_builder/feature_clfn_n200.yaml",
+        struct_file="~/Applications/db_access/mol_builder/struct_clfn_qc.sdf",
+        label_file="~/Applications/db_access/mol_builder/label_clfn_qc.txt",
+        feature_file="~/Applications/db_access/mol_builder/feature_clfn_qc.yaml",
         lowest_across_product_charge=lowest_energy,
         top_n=top_n,
     )
@@ -698,7 +702,7 @@ if __name__ == "__main__":
     # eg_buckets()
     # eg_extract_A_to_B()
     # eg_extract_A_to_B_C()
-    # eg_extract_one_bond_break()
+    eg_extract_one_bond_break()
     # subselect_reactions()
 
     # plot_reaction_energy_difference_arcoss_reactant_charge()

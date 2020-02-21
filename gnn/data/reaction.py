@@ -239,10 +239,13 @@ class ReactionsWithSameReactant:
             for rxn in self._reactions:
                 bond = rxn.get_broken_bond()
                 if info[bond]["reaction"] is not None:
+                    msg = "Something fishy happens\n"
+                    msg += "Existing reaction: " + str(info[bond]["reaction"].as_dict())
+                    msg += "\nNew     reaction: " + str(rxn.as_dict())
                     raise Exception(
                         "Reaction that breaks bond {} already exists! You may "
                         "want to remove reactions with the same products but "
-                        "different charge first.".format(bond)
+                        "different charge first. {}. ".format(bond, msg,)
                     )
                 info[bond]["reaction"] = rxn
                 e = rxn.get_reaction_free_energy()
@@ -266,9 +269,7 @@ class ReactionExtractor:
     def __init__(self, molecules, reactions=None):
         self.molecules = molecules or self._get_molecules_from_reactions(reactions)
         self.reactions = reactions
-
         self.buckets = None
-        self.bucket_keys = None
 
     # def get_molecule_properties(self, keys):
     #     values = defaultdict(list)
@@ -302,7 +303,6 @@ class ReactionExtractor:
                     b.setdefault(v, {})
                 b = b[v]
 
-        self.bucket_keys = keys
         self.buckets = buckets
 
     def extract_A_to_B_style_reaction(self):
@@ -313,20 +313,23 @@ class ReactionExtractor:
 
         if self.buckets is None:
             self.bucket_molecules(keys=["formula", "charge"])
+        buckets = self.buckets
 
         A2B = []
         i = 0
-        for _, entries_formula in self.buckets.items():
+        for formula in buckets:
             i += 1
             if i % 10000 == 0:
                 print("@@flag A->B running bucket", i)
-            for _, entries_charges in entries_formula.items():
-                for A, B in itertools.permutations(entries_charges, 2):
+            for charge in buckets[formula]:
+                for A, B in itertools.permutations(buckets[formula][charge], 2):
                     bonds = is_valid_A_to_B_reaction(A, B)
                     if bonds is not None:
                         for b in bonds:
                             A2B.append(Reaction([A], [B], b))
         self.reactions = A2B
+
+        logger.info("{} A -> B style reactions extracted".format(len(A2B)))
 
         return A2B
 
@@ -338,55 +341,49 @@ class ReactionExtractor:
 
         if self.buckets is None:
             self.bucket_molecules(keys=["formula", "charge"])
+        buckets = self.buckets
 
         fcmap = self._get_formula_composition_map(self.molecules)
+
+        reaction_ids = []
         A2BC = []
         i = 0
-        for (
-            (formula_A, entries_formula_A),
-            (formula_B, entries_formula_B),
-            (formula_C, entries_formula_C),
-        ) in itertools.product(self.buckets.items(), repeat=3):
-
+        for (formula_A, formula_B, formula_C) in itertools.product(buckets, repeat=3):
             i += 1
             if i % 10000 == 0:
                 print("@@flag A->B+C running bucket", i)
 
-            composition_A = fcmap[formula_A]
-            composition_B = fcmap[formula_B]
-            composition_C = fcmap[formula_C]
-
             if not self._is_valid_A_to_B_C_composition(
-                composition_A, composition_B, composition_C
+                fcmap[formula_A], fcmap[formula_B], fcmap[formula_C]
             ):
                 continue
 
-            reaction_ids = []
-            for (
-                (charge_A, entries_charge_A),
-                (charge_B, entries_charge_B),
-                (charge_C, entries_charge_C),
-            ) in itertools.product(
-                entries_formula_A.items(),
-                entries_formula_B.items(),
-                entries_formula_C.items(),
+            for (charge_A, charge_B, charge_C) in itertools.product(
+                buckets[formula_A], buckets[formula_B], buckets[formula_C],
             ):
                 if not self._is_valid_A_to_B_C_charge(charge_A, charge_B, charge_C):
                     continue
 
                 for A, B, C in itertools.product(
-                    entries_charge_A, entries_charge_B, entries_charge_C
+                    buckets[formula_A][charge_A],
+                    buckets[formula_B][charge_B],
+                    buckets[formula_C][charge_C],
                 ):
                     bonds = is_valid_A_to_B_C_reaction(A, [B, C])
                     if bonds is not None:
+                        # don't include repeating reactions (e.g. A->B+C and A->C+B)
                         ids = {A.id, B.id, C.id}
-                        # remove repeating reactions (e.g. A->B+C and A->C+B)
                         if ids not in reaction_ids:
+                            reaction_ids.append(ids)
                             for b in bonds:
                                 A2BC.append(Reaction([A], [B, C], b))
-                                reaction_ids.append(ids)
 
         self.reactions = A2BC
+
+        for rxn in A2BC:
+            print("@@@", rxn.as_dict())
+
+        logger.info("{} A -> B + C style reactions extracted".format(len(A2BC)))
 
         return A2BC
 
@@ -999,20 +996,12 @@ class ReactionExtractor:
 
     @staticmethod
     def _is_valid_A_to_B_C_composition(composition1, composition2, composition3):
-        combined23 = defaultdict(float)
+        combined23 = defaultdict(int)
         for k, v in composition2.items():
             combined23[k] += v
         for k, v in composition3.items():
             combined23[k] += v
-
-        sorted1 = sorted(composition1.keys())
-        sorted23 = sorted(combined23.keys())
-        if sorted1 != sorted23:
-            return False
-        for k in sorted1:
-            if int(composition1[k]) != int(combined23[k]):
-                return False
-        return True
+        return composition1 == combined23
 
     @staticmethod
     def _get_molecules_from_reactions(reactions):

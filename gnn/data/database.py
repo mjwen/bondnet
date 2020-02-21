@@ -293,7 +293,8 @@ class BaseMoleculeWrapper:
 
     @property
     def composition_dict(self):
-        return self.pymatgen_mol.composition.as_dict()
+        d = self.pymatgen_mol.composition.as_dict()
+        return {k: int(v) for k, v in d.items()}
 
     @property
     def weight(self):
@@ -736,7 +737,7 @@ class DatabaseOperation:
 
         Args:
             db_collection (str): which database to query. Optionals are `mol_builder`
-                and `smd`.
+                and `task`.
             db_file (str): a json file storing the info of the database.
             num_entries (int): the number of entries to query, if `None`, get all.
 
@@ -786,7 +787,7 @@ class DatabaseOperation:
 
         Args:
             db_collection (str): which database to query. Optionals are `mol_builder`
-                and `smd`.
+                and `task`.
             sort (bool): If True, sort molecules by their formula.
 
         Returns:
@@ -797,15 +798,15 @@ class DatabaseOperation:
 
         if db_collection == "mol_builder":
             MW = MoleculeWrapperMolBuilder
-        elif db_collection == "smd":
-            MW = MoleculeWrapperSMD
+        elif db_collection == "task":
+            MW = MoleculeWrapperTaskCollection
         else:
             raise Exception("Unrecognized db_collection = {}".format(db_collection))
 
         unsuccessful = 0
         mols = []
         for i, entry in enumerate(entries):
-            if i // 100 == 0:
+            if i % 100 == 0:
                 logger.info(
                     "Converted {}/{} entries to molecules.".format(i, len(entries))
                 )
