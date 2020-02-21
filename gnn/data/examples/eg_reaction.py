@@ -26,10 +26,10 @@ def eg_buckets():
     print("number of moles:", len(molecules))
 
     extractor = ReactionExtractor(molecules)
-    extractor.bucket_molecules(keys=["formula", "charge", "spin_multiplicity"])
-    pprint(extractor.buckets)
-    extractor.bucket_molecules(keys=["formula"])
-    pprint(extractor.buckets)
+    buckets = extractor.bucket_molecules(keys=["formula", "charge", "spin_multiplicity"])
+    pprint(buckets)
+    buckets = extractor.bucket_molecules(keys=["formula"])
+    pprint(buckets)
 
 
 def eg_extract_A_to_B():
@@ -39,11 +39,10 @@ def eg_extract_A_to_B():
     print("number of moles:", len(molecules))
 
     extractor = ReactionExtractor(molecules)
-    extractor.bucket_molecules(keys=["formula", "charge"])
-    print("number of buckets", len(extractor.buckets))
-
     extractor.extract_A_to_B_style_reaction()
-    extractor.to_file(filename="~/Applications/db_access/mol_builder/reaction_n200.pkl")
+
+    filename = "~/Applications/db_access/mol_builder/reaction_n200.pkl"
+    extractor.to_file(filename)
 
 
 def eg_extract_A_to_B_C():
@@ -53,11 +52,10 @@ def eg_extract_A_to_B_C():
     print("number of moles:", len(molecules))
 
     extractor = ReactionExtractor(molecules)
-    extractor.bucket_molecules(keys=["formula", "charge"])
-    print("number of buckets", len(extractor.buckets))
-
     extractor.extract_A_to_B_C_style_reaction()
-    extractor.to_file(filename="~/Applications/db_access/mol_builder/reactions_A2BC.pkl")
+
+    filename = "~/Applications/db_access/mol_builder/reactions_A2BC.pkl"
+    extractor.to_file(filename)
 
 
 def eg_extract_one_bond_break():
@@ -67,9 +65,6 @@ def eg_extract_one_bond_break():
     print("number of moles:", len(molecules))
 
     extractor = ReactionExtractor(molecules)
-    extractor.bucket_molecules(keys=["formula", "charge"])
-    print("number of buckets:", len(extractor.buckets))
-
     extractor.extract_one_bond_break()
 
     # filename = "~/Applications/db_access/mol_builder/reactions.pkl"
@@ -562,8 +557,9 @@ def create_struct_label_dataset_bond_based_regression(
 
 def create_struct_label_dataset_bond_based_classification(
     # filename = "~/Applications/db_access/mol_builder/reactions.pkl",
-    filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
-    # filename="~/Applications/db_access/mol_builder/reactions_quality_check.pkl",
+    # filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
+    filename="~/Applications/db_access/mol_builder/reactions_quality_check.pkl",
+    # filename="~/Applications/db_access/mol_builder/reactions_quality_check_has_rxns_breaking_similar_type_bond.pkl",
     lowest_energy=False,
     top_n=2,
 ):
@@ -717,7 +713,7 @@ if __name__ == "__main__":
     # reactants_bond_energies_to_file()
     # create_struct_label_dataset_mol_based()
     # create_struct_label_dataset_bond_based_regression()
-    create_struct_label_dataset_bond_based_classification()
+    # create_struct_label_dataset_bond_based_classification()
 
     # write_reaction_sdf_mol_png()
 

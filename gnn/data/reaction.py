@@ -269,7 +269,6 @@ class ReactionExtractor:
     def __init__(self, molecules, reactions=None):
         self.molecules = molecules or self._get_molecules_from_reactions(reactions)
         self.reactions = reactions
-        self.buckets = None
 
     # def get_molecule_properties(self, keys):
     #     values = defaultdict(list)
@@ -303,7 +302,7 @@ class ReactionExtractor:
                     b.setdefault(v, {})
                 b = b[v]
 
-        self.buckets = buckets
+        return buckets
 
     def extract_A_to_B_style_reaction(self):
         """
@@ -311,9 +310,7 @@ class ReactionExtractor:
         """
         logger.info("Start extracting A -> B style reactions")
 
-        if self.buckets is None:
-            self.bucket_molecules(keys=["formula", "charge"])
-        buckets = self.buckets
+        buckets = self.bucket_molecules(keys=["formula", "charge"])
 
         A2B = []
         i = 0
@@ -339,9 +336,7 @@ class ReactionExtractor:
         """
         logger.info("Start extracting A -> B + C style reactions")
 
-        if self.buckets is None:
-            self.bucket_molecules(keys=["formula", "charge"])
-        buckets = self.buckets
+        buckets = self.bucket_molecules(keys=["formula", "charge"])
 
         fcmap = self._get_formula_composition_map(self.molecules)
 
@@ -353,13 +348,14 @@ class ReactionExtractor:
             ):
                 i += 1
                 if i % 10000 == 0:
-                    print("@@flag A->B+C running bucket", i)
+                    print("@@@flag A->B+C running bucket", i)
 
                 if not self._is_valid_A_to_B_C_composition(
                     fcmap[formula_A], fcmap[formula_B], fcmap[formula_C]
                 ):
                     continue
 
+                reaction_ids = []
                 for (charge_A, charge_B, charge_C) in itertools.product(
                     buckets[formula_A], buckets[formula_B], buckets[formula_C],
                 ):
@@ -371,8 +367,24 @@ class ReactionExtractor:
                         buckets[formula_B][charge_B],
                         buckets[formula_C][charge_C],
                     ):
+
+                        # exclude reactions that already considered
+                        # Since we use `combinations_with_replacement` to consider
+                        # products B and C of the same formula, buckets[formula_B] and
+                        # buckets[C] could be the same buckets. Then when we to
+                        # itertools.product to tranverse them, molecules (M, M') could
+                        # be either (B, C) or (C, B), appearing twice.
+                        # We can do combinations_with_replacement for the loop over
+                        # charge when formula_B and  formula_C are the same, but this
+                        # would complicate the code. So we use reaction_ids to keep
+                        # record and not include them.
+                        ids = {A.id, B.id, C.id}
+                        if ids in reaction_ids:
+                            continue
+
                         bonds = is_valid_A_to_B_C_reaction(A, [B, C])
                         if bonds is not None:
+                            reaction_ids.append(ids)
                             for b in bonds:
                                 A2BC.append(Reaction([A], [B, C], b))
 
