@@ -404,7 +404,7 @@ class BaseMoleculeWrapper:
         else:
             components = nx.weakly_connected_components(original.graph)
             nodes = [original.graph.subgraph(c).nodes for c in components]
-            mapping = tuple([list(sorted(list(n))) for n in nodes])
+            mapping = tuple([sorted(list(n)) for n in nodes])
             if len(mapping) != 2:
                 raise Exception("Mole not split into two parts")
             return mapping
@@ -669,7 +669,21 @@ class MoleculeWrapperMolBuilder(BaseMoleculeWrapper):
             raise UnsuccessfulEntryError
         self.mol_graph = MoleculeGraph.with_edges(self.pymatgen_mol, bonds)
 
-    def pack_features(self, use_obabel_idx=True):
+    def pack_features(self, use_obabel_idx=True, broken_bond=None):
+        """
+        Pack the features from QChem computations into a dict.
+
+        Args:
+            use_obabel_idx (bool): If `True`, atom level features (e.g. `resp`) will
+                use babel atom index, otherwise, use graph atom index.
+            broken_bond (tuple): If not `None`, include submolecule features, where
+                atom level features are assigned to submolecules upon bond breaking.
+                Note `broken_bond` should be given in graph atom index, regardless of
+                the value of `use_obabel_idx`.
+
+        Returns:
+            dict: features
+        """
         feats = dict()
 
         # molecule level
@@ -679,21 +693,33 @@ class MoleculeWrapperMolBuilder(BaseMoleculeWrapper):
         feats["charge"] = self.charge
         feats["spin_multiplicity"] = self.spin_multiplicity
 
+        if broken_bond is not None:
+            # submolecules level (upon bond breaking)
+            mappings = self.subgraph_atom_mapping(broken_bond)
+            sub_resp = []
+            sub_mulliken = []
+            sub_atom_spin = []
+            for mp in mappings:
+                sub_resp.append([self.resp[i] for i in mp])
+                sub_mulliken.append([self.mulliken[i] for i in mp])
+                sub_atom_spin.append([self.atom_spin[i] for i in mp])
+            feats["abs_resp_diff"] = abs(sum(sub_resp[0]) - sum(sub_resp[1]))
+            feats["abs_mulliken_diff"] = abs(sum(sub_mulliken[0]) - sum(sub_mulliken[1]))
+            feats["abs_atom_spin_diff"] = abs(
+                sum(sub_atom_spin[0]) - sum(sub_atom_spin[1])
+            )
+
         # atom level
         resp = [i for i in self.resp]
         mulliken = [i for i in self.mulliken]
         atom_spin = [i for i in self.atom_spin]
-
         if use_obabel_idx:
-            resp_old = copy.deepcopy(resp)
-            mulliken_old = copy.deepcopy(mulliken)
-            asm_old = copy.deepcopy(atom_spin)
             for graph_idx in range(len(self.atoms)):
                 ob_idx = self.graph_idx_to_ob_idx_map[graph_idx]
                 # -1 because ob index starts from 1
-                resp[ob_idx - 1] = resp_old[graph_idx]
-                mulliken[ob_idx - 1] = mulliken_old[graph_idx]
-                atom_spin[ob_idx - 1] = asm_old[graph_idx]
+                resp[ob_idx - 1] = self.resp[graph_idx]
+                mulliken[ob_idx - 1] = self.mulliken[graph_idx]
+                atom_spin[ob_idx - 1] = self.atom_spin[graph_idx]
 
         feats["resp"] = resp
         feats["mulliken"] = mulliken

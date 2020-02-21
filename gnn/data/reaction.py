@@ -77,33 +77,6 @@ class Reaction:
             energy += mol.free_energy
         return energy
 
-    def pack_features(self):
-        """
-        Prepare the features that may be used by ML model, e.g. partial charge on
-        subgraphs after a bond breaking.
-
-        Returns:
-            dict of features.
-        """
-
-        reactant = self.reactants[0]
-        broken_bond = self.get_broken_bond()
-        mappings = reactant.subgraph_atom_mapping(broken_bond)
-        resp = []
-        mulliken = []
-        atom_spin = []
-        for m in mappings:
-            resp.append([reactant.resp[i] for i in m])
-            mulliken.append([reactant.mulliken[i] for i in m])
-            atom_spin.append([reactant.atom_spin[i] for i in m])
-
-        feats = dict()
-        feats["abs_resp_diff"] = abs(sum(resp[0]) - sum(resp[1]))
-        feats["abs_mulliken_diff"] = abs(sum(mulliken[0]) - sum(mulliken[1]))
-        feats["abs_atom_spin_diff"] = abs(sum(atom_spin[0]) - sum(atom_spin[1]))
-
-        return feats
-
     def as_dict(self):
         d = {
             "reactants": [
@@ -679,22 +652,24 @@ class ReactionExtractor:
         logger.info("Finish writing sdf file: {}".format(filename))
 
     @staticmethod
-    def write_feature(reactions, use_reaction_feature=True, filename="feature.yaml"):
+    def write_feature(molecules, bond_indices=None, filename="feature.yaml"):
         """
         Write molecules features to file.
 
         Args:
-            reactions (list): a list of reactions
+            molecules (list): a list of MoleculeWrapper object
+            bond_indices (list of tuple): broken bond in the corresponding molecule
             filename (str): output filename
         """
         logger.info("Start writing feature file: {}".format(filename))
 
         all_feats = []
-        for rxn in reactions:
-            m = rxn.reactants[0]
-            feat = m.pack_features(use_obabel_idx=True)
-            if use_reaction_feature:
-                feat.update(rxn.pack_features())
+        for i, m in enumerate(molecules):
+            if bond_indices is None:
+                idx = None
+            else:
+                idx = bond_indices[i]
+            feat = m.pack_features(use_obabel_idx=True, broken_bond=idx)
             all_feats.append(feat)
         yaml_dump(all_feats, filename)
 
@@ -724,14 +699,14 @@ class ReactionExtractor:
 
         """
 
-        def write_label(reactions, bond_idx, label_class, filename="label.txt"):
+        def write_label(reactants, bond_idx, label_class, filename="label.txt"):
             """
             Write bond energy class to file.
 
             See the text below on how the info is written.
 
             Args:
-                reactions (list of Reaction):
+                reactants (list ): MoleculeWrapper objects
                 bond_idx (list of int): the index of the broken bond in the reactant;
                 filename (str): name of the file to write the label
             """
@@ -750,20 +725,8 @@ class ReactionExtractor:
                     "3rd: molecule idx from which the bond come.\n"
                 )
 
-                for i, (rxn, idx, lb) in enumerate(zip(reactions, bond_idx, label_class)):
-                    reactant = rxn.reactants[0]
-                    f.write("{} {} {}".format(lb, idx, rxn.reactants[0].id))
-
-                    # write other info (reactant and product info, and bond energy)
-                    attr = rxn.as_dict()
-                    f.write(
-                        "    # {} {} {} {}\n".format(
-                            attr["reactants"],
-                            attr["products"],
-                            reactant.graph_bond_idx_to_ob_bond_idx(attr["broken_bond"]),
-                            attr["bond_energy"],
-                        )
-                    )
+                for i, (m, idx, lb) in enumerate(zip(reactants, bond_idx, label_class)):
+                    f.write("{} {} {}\n".format(lb, idx, m.id))
 
         if lowest_across_product_charge:
             grouped_reactions = (
@@ -772,8 +735,9 @@ class ReactionExtractor:
         else:
             grouped_reactions = self.group_by_reactant_bond_keep_0_charge_of_products()
 
-        all_rxns = []
-        broken_bond_idx = []
+        all_reactants = []
+        broken_bond_idx = []  # int index in ob molecule
+        broken_bond_pairs = []  # a tuple index in graph molecule
         label_class = []
         for rsr in grouped_reactions:
             reactant = rsr.reactant
@@ -797,20 +761,33 @@ class ReactionExtractor:
                         lb = 0
                     else:
                         lb = 1
-                    label_class.append(lb)
-                    all_rxns.append(rxn)
+                    all_reactants.append(rxn.reactants[0])
                     broken_bond_idx.append(ib)
+                    broken_bond_pairs.append(bond)
+                    label_class.append(lb)
+
+                # # NOTE this cannot work for the case where we use feutures from the
+                # # reactions
+                # order = data["order"]
+                # if order is None:
+                #     lb = 2
+                # elif order < top_n:
+                #     lb = 0
+                # else:
+                #     lb = 1
+                # label_class.append(lb)
+                # all_rxns.append(rxn)
+                # broken_bond_idx.append(ib)
 
         # write label
-        write_label(all_rxns, broken_bond_idx, label_class, label_file)
+        write_label(all_reactants, broken_bond_idx, label_class, label_file)
 
         # write sdf
-        reactants = [rxn.reactants[0] for rxn in all_rxns]
-        self.write_sdf(reactants, struct_file)
+        self.write_sdf(all_reactants, struct_file)
 
         # write feature
         if feature_file is not None:
-            self.write_feature(all_rxns, filename=feature_file)
+            self.write_feature(all_reactants, broken_bond_pairs, filename=feature_file)
 
     def create_struct_label_dataset_bond_based_regressssion(
         self,
@@ -1011,7 +988,7 @@ class ReactionExtractor:
         # we just need one reaction for each group with the same reactant
         rxns = [rsr.reactions[0] for rsr in grouped_reactions]
         if feature_file is not None:
-            self.write_feature(rxns, use_reaction_feature=False, filename=feature_file)
+            self.write_feature(rxns, bond_indices=None, filename=feature_file)
 
     @staticmethod
     def _get_formula_composition_map(mols):
