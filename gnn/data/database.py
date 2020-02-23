@@ -521,8 +521,6 @@ class MoleculeWrapperTaskCollection(BaseMoleculeWrapper):
 
         self.id = str(db_entry["_id"])
 
-        self.free_energy = self._get_free_energy(db_entry, self.id)
-
         if optimized:
             if db_entry["state"] != "successful":
                 raise UnsuccessfulEntryError
@@ -553,6 +551,8 @@ class MoleculeWrapperTaskCollection(BaseMoleculeWrapper):
         if use_metal_edge_extender:
             self.mol_graph = metal_edge_extender(self.mol_graph)
 
+        self.free_energy = self._get_free_energy(db_entry, self.id, self.formula)
+
     def pack_features(self, use_obabel_idx=True):
         feats = dict()
 
@@ -566,23 +566,23 @@ class MoleculeWrapperTaskCollection(BaseMoleculeWrapper):
         return feats
 
     @staticmethod
-    def _get_free_energy(entry, mol_id, T=300):
+    def _get_free_energy(entry, mol_id, formula, T=300):
 
         try:
             energy = entry["output"]["energy"]
         except KeyError as e:
-            print(e, "energy", mol_id)
+            print(e, "energy", mol_id, formula)
 
         try:
             entropy = entry["output"]["entropy"]
         except KeyError as e:
-            print(e, "entropy", mol_id)
+            print(e, "entropy", mol_id, formula)
             raise UnsuccessfulEntryError
 
         try:
             enthalpy = entry["output"]["enthalpy"]
         except KeyError as e:
-            print(e, "enthalpy", mol_id)
+            print(e, "enthalpy", mol_id, formula)
             raise UnsuccessfulEntryError
 
         return energy * 27.21139 + enthalpy * 0.0433641 - T * entropy * 0.0000433641
@@ -593,30 +593,6 @@ class MoleculeWrapperMolBuilder(BaseMoleculeWrapper):
         super(MoleculeWrapperMolBuilder, self).__init__(db_entry)
 
         self.id = str(db_entry["_id"])
-
-        try:
-            self.free_energy = db_entry["free_energy"]
-        except KeyError as e:
-            print(self.__class__.__name__, e, "free energy", self.id)
-            raise UnsuccessfulEntryError
-
-        try:
-            self.resp = db_entry["resp"]
-        except KeyError as e:
-            print(self.__class__.__name__, e, "resp", self.id)
-            raise UnsuccessfulEntryError
-
-        try:
-            mulliken = db_entry["mulliken"]
-            if len(np.asarray(mulliken).shape) == 1:  # partial spin is 0
-                self.mulliken = [i for i in mulliken]
-                self.atom_spin = [0 for _ in mulliken]
-            else:
-                self.mulliken = [i[0] for i in mulliken]
-                self.atom_spin = [i[1] for i in mulliken]
-        except KeyError as e:
-            print(self.__class__.__name__, e, "mulliken", self.id)
-            raise UnsuccessfulEntryError
 
         try:
             self.pymatgen_mol = pymatgen.Molecule.from_dict(db_entry["molecule"])
@@ -636,15 +612,40 @@ class MoleculeWrapperMolBuilder(BaseMoleculeWrapper):
                     extend_structure=False,
                 )
             else:
-                print(self.__class__.__name__, e, "free energy", self.id)
+                print(self.__class__.__name__, e, "free energy", self.id, self.formula)
                 raise UnsuccessfulEntryError
+
+        try:
+            self.free_energy = db_entry["free_energy"]
+        except KeyError as e:
+            print(self.__class__.__name__, e, "free energy", self.id, self.formula)
+            raise UnsuccessfulEntryError
+
+        try:
+            self.resp = db_entry["resp"]
+        except KeyError as e:
+            print(self.__class__.__name__, e, "resp", self.id, self.formula)
+            raise UnsuccessfulEntryError
+
+        try:
+            mulliken = db_entry["mulliken"]
+            if len(np.asarray(mulliken).shape) == 1:  # partial spin is 0
+                self.mulliken = [i for i in mulliken]
+                self.atom_spin = [0 for _ in mulliken]
+            else:
+                self.mulliken = [i[0] for i in mulliken]
+                self.atom_spin = [i[1] for i in mulliken]
+        except KeyError as e:
+            print(self.__class__.__name__, e, "mulliken", self.id, self.formula)
+            raise UnsuccessfulEntryError
 
         # critic
         try:
             self.critic = db_entry["critic"]
         except KeyError as e:
-            print(self.__class__.__name__, e, "critic", self.id)
-            raise UnsuccessfulEntryError
+            if db_entry["nsites"] != 1:  # not single atom molecule
+                print(self.__class__.__name__, e, "critic", self.id, self.formula)
+                raise UnsuccessfulEntryError
 
     def convert_to_babel_mol_graph(self, use_metal_edge_extender=True):
         self._ob_adaptor = None
@@ -870,7 +871,7 @@ class DatabaseOperation:
                 else:
                     filtered.append(m)
 
-        print(
+        logger.info(
             "Num molecules: {}; unconnected: {}; isomorphic: {}; remaining: {}".format(
                 len(molecules), n_unconnected_mol, n_not_unique_mol, len(filtered)
             )

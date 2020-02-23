@@ -73,29 +73,37 @@ def eg_extract_one_bond_break():
 
 
 def subselect_reactions():
-    filename = "~/Applications/db_access/mol_builder/reactions.pkl"
+    filename = "~/Applications/db_access/mol_builder/reactions_qc_ws.pkl"
     extractor = ReactionExtractor.from_file(filename)
-    reactions = []
-
-    # for rxn in extractor.reactions:
-    #    if rxn.reactants[0].formula == "C5H8Li1O3":
-    #        reactions.append(rxn)
 
     ##############
     # filter reactant charge = 0
     ##############
-    extractor.filter_reactions_by_reactant_charge(charge=0)
+    # extractor.filter_reactions_by_reactant_attribute(key="charge", values=[0])
+
+    ##############
+    # filter charge 0 reactant and products
+    ##############
+    reactions = []
+    for rxn in extractor.reactions:
+        zero_charge = True
+        for m in rxn.reactants + rxn.products:
+            if m.charge != 0:
+                zero_charge = False
+                break
+        if zero_charge:
+            reactions.append(rxn)
+    extractor.reactions = reactions
 
     # ##############
     # # filter C-C bond
     # ##############
     # extractor.filter_reactions_by_bond_type_and_order(bond_type=("C", "C"))
 
-    extractor.reactions = reactions
+    reactions = extractor.reactions
     extractor.molecules = extractor._get_molecules_from_reactions(reactions)
-
     # filename = "~/Applications/db_access/mol_builder/reactions_C5H8Li1O3.pkl"
-    filename = "~/Applications/db_access/mol_builder/reactions_charge0.pkl"
+    filename = "~/Applications/db_access/mol_builder/reactions_qc_ws_charge0.pkl"
     extractor.to_file(filename)
 
 
@@ -129,23 +137,26 @@ def reactant_broken_bond_fraction():
 
     """
 
-    filename = "~/Applications/db_access/mol_builder/reactions_having_all.pkl"
-    # filename = "~/Applications/db_access/mol_builder/reactions.pkl"
     # filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
+    # filename = "~/Applications/db_access_newest/mol_builder/reactions.pkl"
+    # filename = "~/Applications/db_access_newest/mol_builder/reactions_qc.pkl"
+    # filename = "~/Applications/db_access/mol_builder/reactions_qc_ws.pkl"
+    filename = "~/Applications/db_access/mol_builder/reactions_qc_ws_charge0.pkl"
 
     extractor = ReactionExtractor.from_file(filename)
     groups = extractor.group_by_reactant_bond_and_charge()
 
     num_bonds = dict()
     frac = dict()
-    for reactant, reactions in groups.items():
+    for reactant in groups:
         val = 0
-        for bond, rxns in reactions.items():
+        for bond in groups[reactant]:
+            rxns = groups[reactant][bond]
             if rxns:
                 val += 1
-        frac[reactant] = val / len(reactions)
-        num_bonds[reactant] = len(reactions)
-
+        n = len(groups[reactant])
+        frac[reactant] = val / n
+        num_bonds[reactant] = n
     frac_list = [v for k, v in frac.items()]
     num_bonds_list = [v for k, v in num_bonds.items()]
 
@@ -155,11 +166,60 @@ def reactant_broken_bond_fraction():
     print("### broken bond ratio in dataset (median):", np.median(frac_list))
 
 
-def bond_energy_difference_in_molecule_nth_lowest():
+def bond_label_fraction(top_n=2):
+    """
+    Get the fraction of each type of label 0 (low energy), 1 (high energy),
+    and 2 (unknown) in the dataset.
+
+    Note, this requires that when extracting the reactions, all the reactions
+    related to a reactant (ignore symmetry) should be extracted.
+
+    Note, here we analyze on the 0,0,0 type reactions.
 
     """
-    Get the nth lowest bond energy difference in molecules.
+    # filename = "~/Applications/db_access/mol_builder/reactions.pkl"
+    # filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
+    # filename = "~/Applications/db_access/mol_builder/reactions_qc.pkl"
+    # filename = "~/Applications/db_access/mol_builder/reactions_qc_ws.pkl"
+    filename = "~/Applications/db_access/mol_builder/reactions_qc_ws_charge0.pkl"
 
+    extractor = ReactionExtractor.from_file(filename)
+    groups = extractor.group_by_reactant_bond_keep_0_charge_of_products()
+
+    num_bonds = []
+    frac = defaultdict(list)
+    for rsr in groups:
+        label0 = 0
+        label1 = 0
+        label2 = 0
+        for bond, data in rsr.reactant_bonds_data.items():
+            if data["order"] is None:
+                label2 += 1
+            else:
+                if data["order"] < top_n:
+                    label0 += 1
+                else:
+                    label1 += 1
+
+        n = len(rsr.reactant_bonds_data)
+        num_bonds.append(n)
+        frac["label0"].append(label0 / n)
+        frac["label1"].append(label1 / n)
+        frac["label2"].append(label2 / n)
+
+    print("### number of bonds in dataset (mean):", np.mean(num_bonds))
+    print("### number of bonds in dataset (median):", np.median(num_bonds))
+    print("### label0 bond ratio in dataset (mean):", np.mean(frac["label0"]))
+    print("### label0 bond ratio in dataset (mean):", np.median(frac["label0"]))
+    print("### label1 bond ratio in dataset (mean):", np.mean(frac["label1"]))
+    print("### label1 bond ratio in dataset (mean):", np.median(frac["label1"]))
+    print("### label2 bond ratio in dataset (mean):", np.mean(frac["label2"]))
+    print("### label2 bond ratio in dataset (mean):", np.median(frac["label2"]))
+
+
+def bond_energy_difference_in_molecule_nth_lowest():
+    """
+    Get the nth lowest bond energy difference in molecules.
     """
 
     def hist_analysis(data, xmin=0, xmax=1, num_bins=10, frac_all_data=True):
@@ -452,7 +512,7 @@ def plot_all_bond_length_hist(
 
 def plot_broken_bond_length_hist(
     # filename="~/Applications/db_access/mol_builder/reactions.pkl",
-    filename="~/Applications/db_access/mol_builder/reactions_quality_check.pkl",
+    filename="~/Applications/db_access/mol_builder/reactions_qc.pkl",
     # filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
 ):
     """
@@ -558,8 +618,8 @@ def create_struct_label_dataset_bond_based_regression(
 def create_struct_label_dataset_bond_based_classification(
     # filename = "~/Applications/db_access/mol_builder/reactions.pkl",
     # filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
-    filename="~/Applications/db_access/mol_builder/reactions_quality_check.pkl",
-    # filename="~/Applications/db_access/mol_builder/reactions_quality_check_has_rxns_breaking_similar_type_bond.pkl",
+    # filename="~/Applications/db_access/mol_builder/reactions_qc.pkl",
+    filename="~/Applications/db_access/mol_builder/reactions_qc_ws.pkl",
     lowest_energy=False,
     top_n=2,
 ):
@@ -698,7 +758,7 @@ if __name__ == "__main__":
     # eg_buckets()
     # eg_extract_A_to_B()
     # eg_extract_A_to_B_C()
-    eg_extract_one_bond_break()
+    # eg_extract_one_bond_break()
     # subselect_reactions()
 
     # plot_reaction_energy_difference_arcoss_reactant_charge()
@@ -708,12 +768,13 @@ if __name__ == "__main__":
     # plot_all_bond_length_hist()
 
     # reactant_broken_bond_fraction()
+    # bond_label_fraction()
     # bond_energy_difference_in_molecule_nth_lowest()
 
     # reactants_bond_energies_to_file()
     # create_struct_label_dataset_mol_based()
     # create_struct_label_dataset_bond_based_regression()
-    # create_struct_label_dataset_bond_based_classification()
+    create_struct_label_dataset_bond_based_classification()
 
     # write_reaction_sdf_mol_png()
 
