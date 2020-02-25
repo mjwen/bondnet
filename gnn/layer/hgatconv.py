@@ -250,6 +250,7 @@ class HGATConv(nn.Module):
         negative_slope (float, optional): [description]. Defaults to 0.2.
         residual (bool, optional): [description]. Defaults to False.
         batch_norm(bool): whether to apply batch norm to the output
+        activation (nn.Moldule or str): activation fn
     """
 
     def __init__(
@@ -263,8 +264,8 @@ class HGATConv(nn.Module):
         attn_drop=0.0,
         negative_slope=0.2,
         residual=False,
-        activation=None,
         batch_norm=False,
+        activation=None,
     ):
 
         super(HGATConv, self).__init__()

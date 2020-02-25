@@ -52,7 +52,17 @@ def parse_args():
     # parser.add_argument(
     #    "--residual", action="store_true", default=True, help="use residual connection"
     # )
-    parser.add_argument("--residual", type=int, default=1, help="use residual connection")
+    parser.add_argument(
+        "--gat-residual", type=int, default=1, help="residual connection for gat layer"
+    )
+
+    parser.add_argument(
+        "--gat-batch-norm", type=int, default=0, help="batch norm for gat layer"
+    )
+
+    parser.add_argument(
+        "--gat-activation", type=str, default="ELU", help="activation fn for gat layer"
+    )
 
     parser.add_argument(
         "--num-lstm-iters",
@@ -76,6 +86,15 @@ def parse_args():
         nargs="+",
         default=[128, 64, 32],
         help="number of hidden units of fc layers",
+    )
+    parser.add_argument(
+        "--fc-batch-norm", type=int, default=0, help="batch nonrm for fc layer"
+    )
+    parser.add_argument(
+        "--fc-activation", type=str, default="ELU", help="activation fn for fc layer"
+    )
+    parser.add_argument(
+        "--fc-drop", type=float, default=0.0, help="dropout rato for fc layer"
     )
 
     # training
@@ -240,7 +259,6 @@ def main(args):
         )
     )
 
-    # we use the QM9 dataloader, they as the same type of data
     train_loader = DataLoaderMolecule(
         trainset, hetero=True, batch_size=args.batch_size, shuffle=True
     )
@@ -278,14 +296,20 @@ def main(args):
         feat_drop=args.feat_drop,
         attn_drop=args.attn_drop,
         negative_slope=args.negative_slope,
-        residual=args.residual,
-        num_fc_layers=args.num_fc_layers,
-        fc_hidden_size=args.fc_hidden_size,
+        gat_residual=args.gat_residual,
+        gat_batch_norm=args.gat_batch_norm,
+        gat_activation=args.gat_activation,
         num_lstm_iters=args.num_lstm_iters,
         num_lstm_layers=args.num_lstm_layers,
         set2set_ntypes_direct=set2set_ntypes_direct,
+        num_fc_layers=args.num_fc_layers,
+        fc_hidden_size=args.fc_hidden_size,
+        fc_batch_norm=args.fc_batch_norm,
+        fc_activation=args.fc_activation,
+        fc_drop=args.fc_drop,
     )
     print(model)
+
     if args.device is not None:
         model.to(device=args.device)
 

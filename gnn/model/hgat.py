@@ -33,14 +33,14 @@ class HGAT(nn.Module):
         gat_residual (bool, optional): [description]. Defaults to False.
         gat_activation (torch activation): activation fn of gat layers
         gat_batch_norm(bool): whether to apply batch norm to gat layer.
+        readout_type (str): how to read out the features to bonds and then pass the fc
+            layers. Options are {'bond', 'bond_cat_mean_max', 'bond_cat_mean_diff'}.
         num_fc_layers (int): number of fc layers. Note this is the number of hidden
             layers, i.e. there is an additional fc layer to map feature size to 1.
         fc_hidden_size (list): hidden size of fc layers
         fc_batch_norm (bool): whether to apply batch norm to fc layer
         fc_activation (torch activation): activation fn of fc layers
         fc_drop (float, optional): dropout ratio for fc layer.
-        readout_type (str): how to read out the features to bonds and then pass the fc
-            layers. Options are {'bond', 'bond_cat_mean_max', 'bond_cat_mean_diff'}.
         outdim (int): dimension of the output. For regression, choose 1 and for
             classification, set it to the number of classes.
     """
@@ -59,12 +59,12 @@ class HGAT(nn.Module):
         gat_residual=True,
         gat_batch_norm=False,
         gat_activation="ELU",
+        readout_type="bond",
         num_fc_layers=3,
         fc_hidden_size=[128, 64, 32],
-        fc_activation="ELU",
         fc_batch_norm=False,
+        fc_activation="ELU",
         fc_drop=0.0,
-        readout_type="bond",
         outdim=1,
     ):
         super(HGAT, self).__init__()
@@ -140,7 +140,7 @@ class HGAT(nn.Module):
             warnings.showwarning = warn_stdout
             warnings.warn(
                 "`fc_drop = {}` provided for {} smaller than {}. "
-                "Ignore dropout.".format(feat_drop, self.__class__.__name__, delta)
+                "Ignore dropout.".format(fc_drop, self.__class__.__name__, delta)
             )
             apply_drop = False
         else:

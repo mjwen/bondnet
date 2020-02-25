@@ -64,6 +64,10 @@ def parse_args():
     )
 
     parser.add_argument(
+        "--readout-type", type=str, default="bond", help="type of readout bond feature"
+    )
+
+    parser.add_argument(
         "--num-fc-layers", type=int, default=3, help="number of feed-forward layers"
     )
     parser.add_argument(
@@ -81,10 +85,6 @@ def parse_args():
     )
     parser.add_argument(
         "--fc-drop", type=float, default=0.0, help="dropout rato for fc layer"
-    )
-
-    parser.add_argument(
-        "--readout-type", type=str, default="bond", help="type of readout bond feature"
     )
 
     # training
@@ -289,12 +289,13 @@ def main(args):
         gat_residual=args.gat_residual,
         gat_batch_norm=args.gat_batch_norm,
         gat_activation=args.gat_activation,
+        readout_type=args.readout_type,
         num_fc_layers=args.num_fc_layers,
         fc_hidden_size=args.fc_hidden_size,
         fc_batch_norm=args.fc_batch_norm,
         fc_activation=args.fc_activation,
         fc_drop=args.fc_drop,
-        readout_type=args.readout_type,
+        outdim=1,
     )
     print(model)
 

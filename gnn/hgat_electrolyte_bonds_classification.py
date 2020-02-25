@@ -37,10 +37,6 @@ def parse_args():
         help="number of hidden units of GAT layers",
     )
     parser.add_argument(
-        "--gat-activation", type=str, default="ELU", help="activation fn for gat layer"
-    )
-
-    parser.add_argument(
         "--num-heads", type=int, default=1, help="number of hidden attention heads"
     )
     parser.add_argument(
@@ -57,7 +53,21 @@ def parse_args():
     # parser.add_argument(
     #    "--residual", action="store_true", default=True, help="use residual connection"
     # )
-    parser.add_argument("--residual", type=int, default=1, help="use residual connection")
+    parser.add_argument(
+        "--gat-residual", type=int, default=1, help="residual connection for gat layer"
+    )
+
+    parser.add_argument(
+        "--gat-batch-norm", type=int, default=0, help="batch norm for gat layer"
+    )
+
+    parser.add_argument(
+        "--gat-activation", type=str, default="ELU", help="activation fn for gat layer"
+    )
+
+    parser.add_argument(
+        "--readout-type", type=str, default="bond", help="type of readout bond feature"
+    )
 
     parser.add_argument(
         "--num-fc-layers", type=int, default=3, help="number of feed-forward layers"
@@ -70,14 +80,13 @@ def parse_args():
         help="number of hidden units of fc layers",
     )
     parser.add_argument(
+        "--fc-batch-norm", type=int, default=0, help="batch nonrm for fc layer"
+    )
+    parser.add_argument(
         "--fc-activation", type=str, default="ELU", help="activation fn for fc layer"
     )
     parser.add_argument(
         "--fc-drop", type=float, default=0.0, help="dropout rato for fc layer"
-    )
-
-    parser.add_argument(
-        "--readout-type", type=str, default="bond", help="type of readout bond feature"
     )
 
     # training
@@ -298,17 +307,19 @@ def main(args):
         in_feats,
         num_gat_layers=args.num_gat_layers,
         gat_hidden_size=args.gat_hidden_size,
-        gat_activation=args.gat_activation,
         num_heads=args.num_heads,
         feat_drop=args.feat_drop,
         attn_drop=args.attn_drop,
         negative_slope=args.negative_slope,
-        residual=args.residual,
+        gat_residual=args.gat_residual,
+        gat_batch_norm=args.gat_batch_norm,
+        gat_activation=args.gat_activation,
+        readout_type=args.readout_type,
         num_fc_layers=args.num_fc_layers,
         fc_hidden_size=args.fc_hidden_size,
+        fc_batch_norm=args.fc_batch_norm,
         fc_activation=args.fc_activation,
         fc_drop=args.fc_drop,
-        readout_type=args.readout_type,
         outdim=3,
     )
     print(model)

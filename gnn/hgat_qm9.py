@@ -48,7 +48,17 @@ def parse_args():
     # parser.add_argument(
     #    "--residual", action="store_true", default=True, help="use residual connection"
     # )
-    parser.add_argument("--residual", type=int, default=1, help="use residual connection")
+    parser.add_argument(
+        "--gat-residual", type=int, default=1, help="residual connection for gat layer"
+    )
+
+    parser.add_argument(
+        "--gat-batch-norm", type=int, default=0, help="batch norm for gat layer"
+    )
+
+    parser.add_argument(
+        "--gat-activation", type=str, default="ELU", help="activation fn for gat layer"
+    )
 
     parser.add_argument(
         "--num-lstm-iters",
@@ -73,6 +83,15 @@ def parse_args():
         default=[128, 64, 32],
         help="number of hidden units of fc layers",
     )
+    parser.add_argument(
+        "--fc-batch-norm", type=int, default=0, help="batch nonrm for fc layer"
+    )
+    parser.add_argument(
+        "--fc-activation", type=str, default="ELU", help="activation fn for fc layer"
+    )
+    parser.add_argument(
+        "--fc-drop", type=float, default=0.0, help="dropout rato for fc layer"
+    )
 
     # training
     parser.add_argument("--gpu", type=int, default=-1, help="GPU index. -1 to use CPU.")
@@ -95,25 +114,8 @@ def parse_args():
     else:
         args.device = None
 
-    # if len(args.gat_hidden_size) == 1:
-    #     args.gat_hidden_size = args.gat_hidden_size * args.num_gat_layers
-    # else:
-    #     assert len(args.gat_hidden_size) == args.num_gat_layers, (
-    #         "length of `gat-hidden-size` should be equal to `num-gat-layers`, but got "
-    #         "{} and {}.".format(args.gat_hidden_size, args.num_gat_layers)
-    #     )
-    #
-    # if len(args.fc_hidden_size) == 1:
-    #     args.fc_hidden_size = args.fc_hidden_size * args.num_fc_layers
-    # else:
-    #     assert len(args.fc_hidden_size) == args.num_fc_layers, (
-    #     "length of `fc-hidden-size` should be equal to `num-fc-layers`, but got "
-    #     "{} and {}.".format(args.fc_hidden_size, args.num_fc_layers)
-    # )
-
     if len(args.gat_hidden_size) == 1:
-        val = args.gat_hidden_size[0]
-        args.gat_hidden_size = [val * 2 ** i for i in range(args.num_gat_layers)]
+        args.gat_hidden_size = args.gat_hidden_size * args.num_gat_layers
     else:
         assert len(args.gat_hidden_size) == args.num_gat_layers, (
             "length of `gat-hidden-size` should be equal to `num-gat-layers`, but got "
@@ -121,13 +123,30 @@ def parse_args():
         )
 
     if len(args.fc_hidden_size) == 1:
-        val = args.fc_hidden_size[0]
-        args.fc_hidden_size = [val // 2 ** i for i in range(args.num_fc_layers)]
+        args.fc_hidden_size = args.fc_hidden_size * args.num_fc_layers
     else:
         assert len(args.fc_hidden_size) == args.num_fc_layers, (
             "length of `fc-hidden-size` should be equal to `num-fc-layers`, but got "
             "{} and {}.".format(args.fc_hidden_size, args.num_fc_layers)
         )
+
+    # if len(args.gat_hidden_size) == 1:
+    #    val = args.gat_hidden_size[0]
+    #    args.gat_hidden_size = [val * 2 ** i for i in range(args.num_gat_layers)]
+    # else:
+    #    assert len(args.gat_hidden_size) == args.num_gat_layers, (
+    #        "length of `gat-hidden-size` should be equal to `num-gat-layers`, but got "
+    #        "{} and {}.".format(args.gat_hidden_size, args.num_gat_layers)
+    #    )
+
+    # if len(args.fc_hidden_size) == 1:
+    #    val = args.fc_hidden_size[0]
+    #    args.fc_hidden_size = [val // 2 ** i for i in range(args.num_fc_layers)]
+    # else:
+    #    assert len(args.fc_hidden_size) == args.num_fc_layers, (
+    #        "length of `fc-hidden-size` should be equal to `num-fc-layers`, but got "
+    #        "{} and {}.".format(args.fc_hidden_size, args.num_fc_layers)
+    #    )
 
     return args
 
@@ -229,6 +248,7 @@ def main(args):
         unit_conversion=True,
     )
     print(dataset)
+
     trainset, valset, testset = train_validation_test_split(
         dataset, validation=0.1, test=0.1
     )
@@ -255,6 +275,15 @@ def main(args):
         "global": {"edges": ["a2g", "b2g", "g2g"], "nodes": ["atom", "bond", "global"]},
     }
     attn_order = ["atom", "bond", "global"]
+    set2set_ntypes_direct = ["global"]
+
+    # attn_mechanism = {
+    #     "atom": {"edges": ["b2a", "a2a"], "nodes": ["bond", "atom"]},
+    #     "bond": {"edges": ["a2b", "b2b"], "nodes": ["atom", "bond"]},
+    # }
+    # attn_order = ["atom", "bond"]
+    # set2set_ntypes_direct = None
+
     in_feats = trainset.get_feature_size(attn_order)
     model = HGATMol(
         attn_mechanism,
@@ -266,13 +295,20 @@ def main(args):
         feat_drop=args.feat_drop,
         attn_drop=args.attn_drop,
         negative_slope=args.negative_slope,
-        residual=args.residual,
-        num_fc_layers=args.num_fc_layers,
-        fc_hidden_size=args.fc_hidden_size,
+        gat_residual=args.gat_residual,
+        gat_batch_norm=args.gat_batch_norm,
+        gat_activation=args.gat_activation,
         num_lstm_iters=args.num_lstm_iters,
         num_lstm_layers=args.num_lstm_layers,
+        set2set_ntypes_direct=set2set_ntypes_direct,
+        num_fc_layers=args.num_fc_layers,
+        fc_hidden_size=args.fc_hidden_size,
+        fc_batch_norm=args.fc_batch_norm,
+        fc_activation=args.fc_activation,
+        fc_drop=args.fc_drop,
     )
     print(model)
+
     if args.device is not None:
         model.to(device=args.device)
 
