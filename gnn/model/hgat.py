@@ -26,15 +26,17 @@ class HGAT(nn.Module):
         in_feats (list): input feature size for the corresponding node in `attn_order`.
         num_gat_layers (int): number of graph attention layer
         gat_hidden_size (list): hidden size of graph attention layers
-        gat_activation (torch activation): activation fn of gat layers
         num_heads (int): number of attention heads, the same for all nodes
         feat_drop (float, optional): [description]. Defaults to 0.0.
         attn_drop (float, optional): [description]. Defaults to 0.0.
         negative_slope (float, optional): [description]. Defaults to 0.2.
-        residual (bool, optional): [description]. Defaults to False.
+        gat_residual (bool, optional): [description]. Defaults to False.
+        gat_activation (torch activation): activation fn of gat layers
+        gat_batch_norm(bool): whether to apply batch norm to gat layer.
         num_fc_layers (int): number of fc layers. Note this is the number of hidden
             layers, i.e. there is an additional fc layer to map feature size to 1.
         fc_hidden_size (list): hidden size of fc layers
+        fc_batch_norm (bool): whether to apply batch norm to fc layer
         fc_activation (torch activation): activation fn of fc layers
         fc_drop (float, optional): dropout ratio for fc layer.
         readout_type (str): how to read out the features to bonds and then pass the fc
@@ -50,15 +52,17 @@ class HGAT(nn.Module):
         in_feats,
         num_gat_layers=3,
         gat_hidden_size=[32, 64, 128],
-        gat_activation="ELU",
         num_heads=4,
         feat_drop=0.0,
         attn_drop=0.0,
         negative_slope=0.2,
-        residual=True,
+        gat_residual=True,
+        gat_batch_norm=False,
+        gat_activation="ELU",
         num_fc_layers=3,
         fc_hidden_size=[128, 64, 32],
         fc_activation="ELU",
+        fc_batch_norm=False,
         fc_drop=0.0,
         readout_type="bond",
         outdim=1,
@@ -86,7 +90,8 @@ class HGAT(nn.Module):
                 feat_drop=0.0,
                 attn_drop=0.0,
                 negative_slope=negative_slope,
-                residual=residual,
+                residual=gat_residual,
+                batch_norm=gat_batch_norm,
                 activation=gat_activation,
             )
         )
@@ -104,7 +109,8 @@ class HGAT(nn.Module):
                     feat_drop=feat_drop,
                     attn_drop=attn_drop,
                     negative_slope=negative_slope,
-                    residual=residual,
+                    residual=gat_residual,
+                    batch_norm=gat_batch_norm,
                     activation=gat_activation,
                 )
             )
@@ -144,12 +150,18 @@ class HGAT(nn.Module):
         self.fc_layers = nn.ModuleList()
         in_size = readout_out_size
         for i in range(num_fc_layers):
-            self.fc_layers.append(nn.Linear(in_size, fc_hidden_size[i]))
+            out_size = fc_hidden_size[i]
+            self.fc_layers.append(nn.Linear(in_size, out_size))
+            # batch norm
+            if fc_batch_norm:
+                self.fc_layers.append(nn.BatchNorm1d(out_size))
+            # activation
             self.fc_layers.append(fc_activation)
+            # dropout
             if apply_drop:
                 self.fc_layers.append(nn.Dropout(fc_drop))
 
-            in_size = fc_hidden_size[i]
+            in_size = out_size
 
         # final output layer, mapping feature to the corresponding shape
         self.fc_layers.append(nn.Linear(in_size, self.outdim))
@@ -177,7 +189,6 @@ class HGAT(nn.Module):
         feats = self.readout_layer(graph, feats)
         feats = feats["bond"]
 
-        # TODO to be general, this could and should be passed in as argument
         # fc, activation, and dropout
         for layer in self.fc_layers:
             feats = layer(feats)

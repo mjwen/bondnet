@@ -76,8 +76,8 @@ class NodeAttentionLayer(nn.Module):
         attn_drop=0.0,
         negative_slope=0.2,
         residual=False,
-        activation=None,
         batch_norm=False,
+        activation=None,
     ):
 
         super(NodeAttentionLayer, self).__init__()
@@ -138,6 +138,12 @@ class NodeAttentionLayer(nn.Module):
             )
             self.attn_drop = nn.Identity()
 
+        # batch normalization
+        if batch_norm:
+            self.batch_norm_layer = nn.BatchNorm1d(num_features=out_feats * num_heads)
+        else:
+            self.batch_norm_layer = nn.Identity()
+
     def reset_parameters(self):
         """Reinitialize parameters."""
         gain = nn.init.calculate_gain("relu")
@@ -188,7 +194,7 @@ class NodeAttentionLayer(nn.Module):
             graph.apply_edges(fn.u_add_v("el", "er", "e"), etype=etype)
             e.append(self.leaky_relu(graph.edges[etype].data.pop("e")))
 
-        # softmax each component is of shape(Ne, H, 1)
+        # softmax, each component is of shape(Ne, H, 1)
         softmax = heterograph_edge_softmax(graph, self.edge_types, e)
 
         # apply attention dropout
@@ -210,9 +216,15 @@ class NodeAttentionLayer(nn.Module):
         if self.residual:
             rst = rst + master_feats
 
+        # batch normalization
+        rst = rst.view(-1, self.num_heads * self.out_feats)
+        rst = self.batch_norm_layer(rst)
+        rst = rst.view(-1, self.num_heads, self.out_feats)
+
         # activation
         if self.activation:
             rst = self.activation(rst)
+
         return rst
 
 
@@ -237,6 +249,7 @@ class HGATConv(nn.Module):
         attn_drop (float, optional): [description]. Defaults to 0.0.
         negative_slope (float, optional): [description]. Defaults to 0.2.
         residual (bool, optional): [description]. Defaults to False.
+        batch_norm(bool): whether to apply batch norm to the output
     """
 
     def __init__(
@@ -251,6 +264,7 @@ class HGATConv(nn.Module):
         negative_slope=0.2,
         residual=False,
         activation=None,
+        batch_norm=False,
     ):
 
         super(HGATConv, self).__init__()
@@ -275,6 +289,7 @@ class HGATConv(nn.Module):
                 negative_slope=negative_slope,
                 residual=residual,
                 activation=activation,
+                batch_norm=batch_norm,
             )
             in_feats_map[ntype] = num_heads * out_feats
 
