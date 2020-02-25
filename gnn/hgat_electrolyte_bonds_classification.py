@@ -210,7 +210,6 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
 
-            pred = model(bg, feats)
             pred = model(bg, feats)  # list of 2D tensor, each tensor for a molecule
             # pred of the current bond
             pred = torch.stack([x[i] for x, i in zip(pred, bond_idx)])
