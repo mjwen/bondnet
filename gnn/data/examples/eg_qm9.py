@@ -26,7 +26,7 @@ def plot_bond_distance_hist(
     filename="~/Documents/Dataset/qm9/gdb9.sdf",
 ):
     """
-    Plot the bond distance hist..
+    Plot the bond distance hist.
     """
 
     def plot_hist(data, filename):
@@ -94,6 +94,5 @@ def get_dataset_qm9(
 
 
 if __name__ == "__main__":
-    # plot_bond_distance_hist()
-
-    get_dataset_qm9()
+    plot_bond_distance_hist()
+    # get_dataset_qm9()

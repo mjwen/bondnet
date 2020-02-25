@@ -348,7 +348,7 @@ def main(args):
         )
         val_score = evaluate(model, attn_order, val_loader, "f1_score", args.device)
 
-        if stopper.step(val_score, checkpoints_objs, msg="epoch " + str(epoch)):
+        if stopper.step(-val_score, checkpoints_objs, msg="epoch " + str(epoch)):
             # save results for hyperparam tune
             pickle_dump(float(stopper.best_score), args.output_file)
             break

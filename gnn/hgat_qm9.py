@@ -202,7 +202,7 @@ def get_grapher():
         # length_featurizer="bin",
         # length_featurizer_args={"low": 0.7, "high": 2.5, "num_bins": 10},
         length_featurizer="rbf",
-        length_featurizer_args={"low": 0.0, "high": 4.0, "num_centers": 20},
+        length_featurizer_args={"low": 0.3, "high": 2.3, "num_centers": 20},
     )
     global_featurizer = MolWeightFeaturizer()
     grapher = HeteroMoleculeGraph(

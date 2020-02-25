@@ -626,9 +626,9 @@ def create_struct_label_dataset_bond_based_regression(
 
 def create_struct_label_dataset_bond_based_classification(
     # filename = "~/Applications/db_access/mol_builder/reactions.pkl",
-    # filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
+    filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
     # filename="~/Applications/db_access/mol_builder/reactions_qc.pkl",
-    filename="~/Applications/db_access/mol_builder/reactions_qc_ws.pkl",
+    # filename="~/Applications/db_access/mol_builder/reactions_qc_ws.pkl",
     lowest_energy=False,
     top_n=2,
 ):
@@ -655,12 +655,12 @@ def create_struct_label_dataset_bond_based_classification(
         # struct_file="~/Applications/db_access/mol_builder/struct.sdf",
         # label_file="~/Applications/db_access/mol_builder/label.txt",
         # feature_file="~/Applications/db_access/mol_builder/feature.yaml",
-        # struct_file="~/Applications/db_access/mol_builder/struct_clfn_n200.sdf",
-        # label_file="~/Applications/db_access/mol_builder/label_clfn_n200.txt",
-        # feature_file="~/Applications/db_access/mol_builder/feature_clfn_n200.yaml",
-        struct_file="~/Applications/db_access/mol_builder/struct_clfn_qc_ws.sdf",
-        label_file="~/Applications/db_access/mol_builder/label_clfn_qc_ws.txt",
-        feature_file="~/Applications/db_access/mol_builder/feature_clfn_qc_ws.yaml",
+        struct_file="~/Applications/db_access/mol_builder/struct_clfn_n200.sdf",
+        label_file="~/Applications/db_access/mol_builder/label_clfn_n200.txt",
+        feature_file="~/Applications/db_access/mol_builder/feature_clfn_n200.yaml",
+        # struct_file="~/Applications/db_access/mol_builder/struct_clfn_qc_ws.sdf",
+        # label_file="~/Applications/db_access/mol_builder/label_clfn_qc_ws.txt",
+        # feature_file="~/Applications/db_access/mol_builder/feature_clfn_qc_ws.yaml",
         lowest_across_product_charge=lowest_energy,
         top_n=top_n,
     )
@@ -732,9 +732,9 @@ def write_reaction_sdf_mol_png():
 
 
 def get_dataset(
-    struct_file="~/Applications/db_access/mol_builder/struct_qc.sdf",
-    label_file="~/Applications/db_access/mol_builder/label_qc.txt",
-    feature_file="~/Applications/db_access/mol_builder/feature_qc.yaml",
+    struct_file="~/Applications/db_access/mol_builder/struct_clfn_qc_ws.sdf",
+    label_file="~/Applications/db_access/mol_builder/label_clfn_qc_ws.txt",
+    feature_file="~/Applications/db_access/mol_builder/feature_clfn_qc_ws.yaml",
 ):
     """
     By running this, we observe the output to get a sense of the low and high values
@@ -747,7 +747,7 @@ def get_dataset(
             # length_featurizer="bin",
             # length_featurizer_args={"low": 0.7, "high": 2.5, "num_bins": 10},
             length_featurizer="rbf",
-            length_featurizer_args={"low": 0.0, "high": 2.6, "num_centers": 20},
+            length_featurizer_args={"low": 0.2, "high": 2.7, "num_centers": 20},
         ),
         global_featurizer=GlobalFeaturizerWithReactionInfo(),
         self_loop=True,
@@ -767,7 +767,7 @@ if __name__ == "__main__":
     # eg_buckets()
     # eg_extract_A_to_B()
     # eg_extract_A_to_B_C()
-    eg_extract_one_bond_break()
+    # eg_extract_one_bond_break()
     # subselect_reactions()
 
     # plot_reaction_energy_difference_arcoss_reactant_charge()
@@ -775,6 +775,7 @@ if __name__ == "__main__":
     # plot_bond_energy_hist()
     # plot_broken_bond_length_hist()
     # plot_all_bond_length_hist()
+    # get_dataset()
 
     # reactant_broken_bond_fraction()
     # bond_label_fraction()
@@ -786,5 +787,3 @@ if __name__ == "__main__":
     # create_struct_label_dataset_bond_based_classification()
 
     # write_reaction_sdf_mol_png()
-
-    # get_dataset()

@@ -77,6 +77,7 @@ class NodeAttentionLayer(nn.Module):
         negative_slope=0.2,
         residual=False,
         activation=None,
+        batch_norm=False,
     ):
 
         super(NodeAttentionLayer, self).__init__()
@@ -116,34 +117,26 @@ class NodeAttentionLayer(nn.Module):
         # here we use different dropout for each node type
         delta = 1e-3
         if feat_drop >= delta:
-            self.feat_drop = nn.ModuleDict(
-                {nt: nn.Dropout(feat_drop) for nt, _ in in_feats.items()}
-            )
+            self.feat_drop = nn.Dropout(feat_drop)
         else:
             warnings.showwarning = warn_stdout
-
             warnings.warn(
                 "`feat_drop = {}` provided for {} smaller than {}. "
                 "Ignore dropout.".format(feat_drop, self.__class__.__name__, delta)
             )
-            self.feat_drop = nn.ModuleDict(
-                {nt: nn.Identity() for nt, _ in in_feats.items()}
-            )
+            self.feat_drop = nn.Identity()
 
         # attn_drop is used for edge_types, not node types, so here we create dropout
         # using attn_nodes instead of in_feats as for feat_drop
         if attn_drop >= delta:
-            self.attn_drop = nn.ModuleDict(
-                {nt: nn.Dropout(attn_drop) for nt in attn_nodes}
-            )
+            self.attn_drop = nn.Dropout(attn_drop)
         else:
             warnings.showwarning = warn_stdout
-
             warnings.warn(
                 "`attn_drop = {}` provided for {} smaller than {}. "
                 "Ignore dropout.".format(attn_drop, self.__class__.__name__, delta)
             )
-            self.attn_drop = nn.ModuleDict({nt: nn.Identity() for nt in attn_nodes})
+            self.attn_drop = nn.Identity()
 
     def reset_parameters(self):
         """Reinitialize parameters."""
@@ -175,7 +168,7 @@ class NodeAttentionLayer(nn.Module):
 
         # assign data
         # master node
-        master_feats = self.feat_drop[self.master_node](master_feats)  # (N, in)
+        master_feats = self.feat_drop(master_feats)  # (N, in)
         master_feats = self.fc_layers[self.master_node](master_feats).view(
             -1, self.num_heads, self.out_feats
         )  # (N, H, out)
@@ -184,7 +177,7 @@ class NodeAttentionLayer(nn.Module):
 
         # attention node
         for ntype, feats in zip(self.attn_nodes, attn_feats):
-            feats = self.feat_drop[ntype](feats)
+            feats = self.feat_drop(feats)
             feats = self.fc_layers[ntype](feats).view(-1, self.num_heads, self.out_feats)
             el = (feats * self.attn_l).sum(dim=-1).unsqueeze(-1)
             graph.nodes[ntype].data.update({"ft": feats, "el": el})
@@ -200,8 +193,7 @@ class NodeAttentionLayer(nn.Module):
 
         # apply attention dropout
         for etype, a in zip(self.edge_types, softmax):
-            nt = etype[0]  # type of attention node
-            graph.edges[etype].data["a"] = self.attn_drop[nt](a)
+            graph.edges[etype].data["a"] = self.attn_drop(a)
 
         # message passing, "ft" is of shape(H, out), and "a" is of shape(H, 1)
         # computing the part inside the parathesis of eq. 4 of the GAT paper
