@@ -368,7 +368,7 @@ class ReactionExtractor:
                         buckets[formula_C][charge_C],
                     ):
 
-                        # exclude reactions that already considered
+                        # exclude reactions already considered
                         # Since we use `combinations_with_replacement` to consider
                         # products B and C of the same formula, buckets[formula_B] and
                         # buckets[C] could be the same buckets. Then when we to

@@ -1,10 +1,10 @@
 import sys
 import time
-from datetime import datetime
 import warnings
 import torch
 import argparse
 import numpy as np
+from datetime import datetime
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from gnn.metric import EarlyStopping
 from torch.nn import CrossEntropyLoss
@@ -203,7 +203,7 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
         all_pred_class = []
         all_target_class = []
 
-        for bg, label, in data_loader:
+        for bg, label in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
             target_class = label["class"]
             bond_idx = label["indicator"]
@@ -365,6 +365,10 @@ def main(args):
         )
         if epoch % 10 == 0:
             sys.stdout.flush()
+
+        # bad, we get nan
+        if np.isnan(train_score):
+            sys.exit(0)
 
     # save results for hyperparam tune
     pickle_dump(float(stopper.best_score), args.output_file)

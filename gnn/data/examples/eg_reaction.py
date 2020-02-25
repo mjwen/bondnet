@@ -192,14 +192,23 @@ def bond_label_fraction(top_n=2):
         label0 = 0
         label1 = 0
         label2 = 0
+        all_None = True
         for bond, data in rsr.reactant_bonds_data.items():
             if data["order"] is None:
                 label2 += 1
             else:
+                all_None = False
                 if data["order"] < top_n:
                     label0 += 1
                 else:
                     label1 += 1
+        if all_None:
+            print(
+                "reactant {} {} has not broken bond reaction; should never happen".format(
+                    rsr.reactant.id, rsr.reactant.formula
+                )
+            )
+            continue
 
         n = len(rsr.reactant_bonds_data)
         num_bonds.append(n)
@@ -649,9 +658,9 @@ def create_struct_label_dataset_bond_based_classification(
         # struct_file="~/Applications/db_access/mol_builder/struct_clfn_n200.sdf",
         # label_file="~/Applications/db_access/mol_builder/label_clfn_n200.txt",
         # feature_file="~/Applications/db_access/mol_builder/feature_clfn_n200.yaml",
-        struct_file="~/Applications/db_access/mol_builder/struct_clfn_qc.sdf",
-        label_file="~/Applications/db_access/mol_builder/label_clfn_qc.txt",
-        feature_file="~/Applications/db_access/mol_builder/feature_clfn_qc.yaml",
+        struct_file="~/Applications/db_access/mol_builder/struct_clfn_qc_ws.sdf",
+        label_file="~/Applications/db_access/mol_builder/label_clfn_qc_ws.txt",
+        feature_file="~/Applications/db_access/mol_builder/feature_clfn_qc_ws.yaml",
         lowest_across_product_charge=lowest_energy,
         top_n=top_n,
     )
@@ -758,7 +767,7 @@ if __name__ == "__main__":
     # eg_buckets()
     # eg_extract_A_to_B()
     # eg_extract_A_to_B_C()
-    # eg_extract_one_bond_break()
+    eg_extract_one_bond_break()
     # subselect_reactions()
 
     # plot_reaction_energy_difference_arcoss_reactant_charge()
@@ -773,8 +782,8 @@ if __name__ == "__main__":
 
     # reactants_bond_energies_to_file()
     # create_struct_label_dataset_mol_based()
-    # create_struct_label_dataset_bond_based_regression()
-    create_struct_label_dataset_bond_based_classification()
+    create_struct_label_dataset_bond_based_regression()
+    # create_struct_label_dataset_bond_based_classification()
 
     # write_reaction_sdf_mol_png()
 

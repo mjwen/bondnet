@@ -1,6 +1,7 @@
 import os
 import sys
 import hypertunity as ht
+from datetime import datetime
 
 domain = ht.Domain(
     {
@@ -38,6 +39,7 @@ batch_size = 162
 
 with ht.Scheduler(n_parallel=batch_size) as scheduler:
     for i in range(n_steps):
+        print(f"start step: {i} at {datetime.now()}")
         samples = optimiser.run_step(batch_size=batch_size, minimise=True)
         jobs = [
             ht.SlurmJob(
@@ -67,8 +69,8 @@ with ht.Scheduler(n_parallel=batch_size) as scheduler:
         ]
         optimiser.update(samples, evaluations)
         for s, e in zip(samples, evaluations):
-            print("sample: {}, evaluation: {}".format(s, e))
+            print(f"    sample: {s}, evaluation: {e}")
             sys.stdout.flush()
-            reporter.log((s, e), meta="decide layer, could be output dir")
+            # reporter.log((s, e), meta="decide layer, could be output dir")
 
-print(reporter.format(order="ascending"))
+# print(reporter.format(order="ascending"))

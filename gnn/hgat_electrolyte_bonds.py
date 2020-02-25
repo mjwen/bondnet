@@ -1,9 +1,10 @@
 import sys
 import time
-from datetime import datetime
 import warnings
 import torch
 import argparse
+import numpy as np
+from datetime import datetime
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from gnn.metric import WeightedMSELoss, WeightedL1Loss, EarlyStopping
 from gnn.model.hgat import HGAT
@@ -339,6 +340,10 @@ def main(args):
         )
         if epoch % 10 == 0:
             sys.stdout.flush()
+
+        # bad, we get nan
+        if np.isnan(train_acc):
+            sys.exit(0)
 
     # save results for hyperparam tune
     pickle_dump(float(stopper.best_score), args.output_file)
