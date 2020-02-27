@@ -11,7 +11,7 @@ domain = ht.Domain(
         # "--feat-drop":{0.0},
         # "--attn-drop":{0.0},
         # "--negative-slope":{0.2},
-        "--residual": {1},
+        "--gat-residual": {1},
         "--num-fc-layers": {2, 3, 4},
         "--fc-hidden-size": {32, 64, 128},
         # "--lr": [0.001, 0.01],

@@ -3,7 +3,7 @@ import copy
 import numpy as np
 import subprocess
 import itertools
-from gnn.data.utils import TexWriter
+from gnn.database.utils import TexWriter
 from gnn.utils import pickle_dump, pickle_load, expand_path
 
 

@@ -4,7 +4,6 @@ from rdkit import Chem
 from gnn.data.qm9 import QM9Dataset
 from gnn.utils import expand_path, create_directory
 from gnn.data.grapher import HeteroMoleculeGraph
-
 from gnn.data.featurizer import AtomFeaturizer, BondAsNodeFeaturizer, MolWeightFeaturizer
 
 

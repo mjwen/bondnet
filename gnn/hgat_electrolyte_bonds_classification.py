@@ -364,7 +364,7 @@ def main(args):
             pickle_dump(float(stopper.best_score), args.output_file)
             break
 
-        scheduler.step(val_score)
+        scheduler.step(-val_score)
 
         tt = time.time() - ti
 

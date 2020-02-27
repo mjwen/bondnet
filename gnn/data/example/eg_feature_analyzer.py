@@ -15,7 +15,7 @@ from gnn.data.feature_analyzer import (
     read_sdf,
 )
 from gnn.utils import expand_path
-from gnn.data.utils import TexWriter
+from gnn.database.utils import TexWriter
 
 
 def get_dataset_electrolyte():

@@ -4,7 +4,7 @@ import numpy as np
 import subprocess
 from matplotlib import pyplot as plt
 from rdkit import Chem
-from gnn.data.database import DatabaseOperation
+from gnn.database.database import DatabaseOperation
 from gnn.utils import pickle_dump, pickle_load, expand_path
 
 

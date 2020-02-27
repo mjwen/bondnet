@@ -206,7 +206,7 @@ class BabelMolAdaptor3(BabelMolAdaptor2):
 
 
 class BaseMoleculeWrapper:
-    def __init__(self, db_entry):
+    def __init__(self):
         self.id = None
         self.free_energy = None
         self.pymatgen_mol = None
@@ -517,7 +517,7 @@ class BaseMoleculeWrapper:
 class MoleculeWrapperTaskCollection(BaseMoleculeWrapper):
     def __init__(self, db_entry, use_metal_edge_extender=True, optimized=True):
 
-        super(MoleculeWrapperTaskCollection, self).__init__(db_entry)
+        super(MoleculeWrapperTaskCollection, self).__init__()
 
         self.id = str(db_entry["_id"])
 
@@ -590,7 +590,7 @@ class MoleculeWrapperTaskCollection(BaseMoleculeWrapper):
 
 class MoleculeWrapperMolBuilder(BaseMoleculeWrapper):
     def __init__(self, db_entry):
-        super(MoleculeWrapperMolBuilder, self).__init__(db_entry)
+        super(MoleculeWrapperMolBuilder, self).__init__()
 
         self.id = str(db_entry["_id"])
 
@@ -728,6 +728,24 @@ class MoleculeWrapperMolBuilder(BaseMoleculeWrapper):
         feats["atom_spin"] = atom_spin
 
         return feats
+
+
+class MoleculeWrapperFromAtomsAndBonds(BaseMoleculeWrapper):
+    """
+    A molecule wrapper class that creates molecules by giving species, coords,
+    and bonds. It will not have many properties, e.g. free_energy.
+    """
+
+    def __init__(self, species, coords, charge, bonds, mid=None):
+
+        super(MoleculeWrapperTaskCollection, self).__init__()
+
+        self.id = mid
+        self.pymatgen_mol = pymatgen.Molecule(species, coords, charge)
+
+        bonds = {tuple(sorted(b)): None for b in bonds}
+        self.mol_graph = MoleculeGraph.with_edges(self.pymatgen_mol, bonds)
+        self.free_energy = None
 
 
 class DatabaseOperation:

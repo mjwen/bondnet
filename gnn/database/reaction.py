@@ -4,7 +4,7 @@ from tqdm import tqdm
 import networkx as nx
 import networkx.algorithms.isomorphism as iso
 from collections import defaultdict, OrderedDict
-from gnn.data.database import DatabaseOperation
+from gnn.database.database import DatabaseOperation
 from gnn.utils import (
     create_directory,
     pickle_dump,
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class Reaction:
     """
     A reaction that only has one bond break or the type ``A -> B + C``
-    (break a bond not in a ring) or ``A -> D`` (break a bond in a ring)
+    (break a bond not in a ring) or ``A -> B`` (break a bond in a ring)
 
     Args:
         reactants: a list of Molecules
@@ -92,24 +92,6 @@ class Reaction:
             "bond_energy": self.get_reaction_free_energy(),
         }
         return d
-
-    def to_file(self, filename):
-        mols = self.reactants + self.products
-        for m in mols:
-            m.make_picklable()
-        d = {
-            "@module": self.__class__.__module__,
-            "@class": self.__class__.__name__,
-            "reactants": self.reactants,
-            "products": self.products,
-            "broken_bond": self.broken_bond,
-        }
-        pickle_dump(d, filename)
-
-    @classmethod
-    def from_file(cls, filename):
-        d = pickle_load(filename)
-        return cls(d["reactants"], d["products"], d["broken_bond"])
 
     @staticmethod
     def _order_molecules(mols):
@@ -201,9 +183,80 @@ class Reaction:
         raise RuntimeError("Cannot order molecules")
 
 
+class ReactionsWithSameBond:
+    """
+    A collection of reactions associated with the same bond in the reactant.
+
+    This is mainly to consider products with the same mol graph (i.e. isomorphic to
+    each other) but different charges.
+    """
+
+    def __init__(self, reactant):
+        self._reactant = reactant
+        self._reactions = []
+
+    @property
+    def reactant(self):
+        return self._reactant
+
+    @property
+    def reactions(self):
+        return self._reactions
+
+    @property
+    def broken_bond(self):
+        if self._reactions:
+            return self.reactions[0].get_broken_bond()
+        else:
+            return None
+
+    def add(self, rxn):
+        if rxn.reactants[0] != self.reactant:
+            raise ValueError(
+                "Cannot add reaction whose reactant is different from what already in "
+                "the collection."
+            )
+        self._reactions.append(rxn)
+
+    def create_fake_reactions(self):
+        """
+        Returns:
+            A list of Reactions.
+        """
+        charge = self.reactant.charge
+        f = self.reactant.fragments[self.broken_bond]
+
+        for rxn in self.reactants:
+            p = [x.mol_graph for x in rxn.products]
+
+            if len(f) == len(p) == 1 and f[0].isomorphic_to(p[0]):
+                pass
+
+            if len(f) == len(p) == 2:
+                if (f[0].isomorphic_to(p[0]) and f[1].isomorphic_to(p[1])) or (
+                    f[0].isomorphic_to(p[1]) and f[1].isomorphic_to(p[0])
+                ):
+                    pass
+
+    def order_reactions(self, fake_reactions=False):
+        """
+        Order reactions by energy.
+
+        Args:
+            fake_reactions (bool): If `False`, order the existing reactions only.
+                Otherwise, fake reactions are created based on and their reaction
+                energy is set to `None` and ordered as high energy reactions.
+                All reactions compatible with the product charge are created if not in
+                the existing charges.
+
+        Returns:
+
+        """
+
+
 class ReactionsWithSameReactant:
     """
-    A set of reactions that has the same reactant.
+    A collection of reactions that have the same reactant.
     """
 
     def __init__(self, reactant):
@@ -218,6 +271,14 @@ class ReactionsWithSameReactant:
     @property
     def reactions(self):
         return self._reactions
+
+    def add_reaction(self, rxn):
+        if rxn.reactants[0] != self.reactant:
+            raise Exception(
+                "Cannot add reaction whose reastant is different from what already in "
+                "the group."
+            )
+        self._reactions.append(rxn)
 
     @property
     def reactant_bonds_data(self):
@@ -244,8 +305,8 @@ class ReactionsWithSameReactant:
                     msg += "\nNew     reaction: " + str(rxn.as_dict())
                     raise Exception(
                         "Reaction that breaks bond {} already exists! You may "
-                        "want to remove reactions with the same products but "
-                        "different charge first. {}. ".format(bond, msg,)
+                        "want to remove reactions with the same product grpahs but "
+                        "different charges first. {}. ".format(bond, msg,)
                     )
                 info[bond]["reaction"] = rxn
                 e = rxn.get_reaction_free_energy()
@@ -258,11 +319,6 @@ class ReactionsWithSameReactant:
                 info[bond]["order"] = i
             self._bonds_data = info
         return self._bonds_data
-
-    def add_reaction(self, rxn):
-        if rxn.reactants[0] != self.reactant:
-            raise Exception("Cannot add reaction since its reactant is not the same.")
-        self._reactions.append(rxn)
 
 
 class ReactionExtractor:
@@ -1071,33 +1127,6 @@ class ReactionExtractor:
 
         return cls(mols, rxns)
 
-    @staticmethod
-    def isomorphic_atom_mapping(mol1, mol2):
-        """
-        Returns `None` is mol1 is not isomorphic to mol2, otherwise the atom mapping from
-        mol1 to mol2.
-        """
-        mol_g1 = mol1.mol_graph
-        mol_g2 = mol2.mol_graph
-        nx_g1 = mol1.nx_graph
-        nx_g2 = mol2.nx_graph
-        if len(mol_g1.molecule) != len(mol_g2.molecule):
-            return None
-        elif (
-            mol_g1.molecule.composition.alphabetical_formula
-            != mol_g2.molecule.composition.alphabetical_formula
-        ):
-            return None
-        elif len(nx_g1.edges()) != len(nx_g2.edges()):
-            return None
-        else:
-            nm = iso.categorical_node_match("specie", "ERROR")
-            GM = iso.GraphMatcher(nx_g1, nx_g2, node_match=nm)
-            if GM.is_isomorphic():
-                return GM.mapping
-            else:
-                return None
-
 
 def is_valid_A_to_B_reaction(reactant, product):
     """
@@ -1235,3 +1264,26 @@ def get_same_bond_breaking_reactions_between_two_reaction_groups(
                 ) or (mgs1[0].isomorphic_to(mgs2[1]) and mgs1[1].isomorphic_to(mgs2[0])):
                     res.append((group1[b1], group2[b2]))
     return res
+
+
+def isomorphic_atom_mapping(mol_g1, mol_g2):
+    """
+    Returns `None` is mol1 is not isomorphic to mol2, otherwise the atom mapping from
+    mol1 to mol2.
+    """
+    if len(mol_g1.molecule) != len(mol_g2.molecule):
+        return None
+    elif (
+        mol_g1.molecule.composition.alphabetical_formula
+        != mol_g2.molecule.composition.alphabetical_formula
+    ):
+        return None
+    elif len(mol_g1.graph.edges()) != len(mol_g2.graph.edges()):
+        return None
+    else:
+        nm = iso.categorical_node_match("specie", "ERROR")
+        GM = iso.GraphMatcher(mol_g1.graph, mol_g2.graph, node_match=nm)
+        if GM.is_isomorphic():
+            return GM.mapping
+        else:
+            return None

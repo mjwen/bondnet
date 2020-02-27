@@ -5,9 +5,9 @@ import numpy as np
 from collections import defaultdict
 import matplotlib as mpl
 from matplotlib import pyplot as plt
-from gnn.data.reaction import ReactionExtractor
+from gnn.database.reaction import ReactionExtractor
 from pprint import pprint
-from gnn.data.utils import TexWriter
+from gnn.database.utils import TexWriter
 from gnn.utils import pickle_load, expand_path, create_directory
 from gnn.data.feature_analyzer import read_sdf, read_label
 from gnn.data.grapher import HeteroMoleculeGraph
@@ -587,7 +587,7 @@ def create_struct_label_dataset_mol_based():
 
 
 def create_struct_label_dataset_bond_based_regression(
-    # filename = "~/Applications/db_access/mol_builder/reactions.pkl",
+    # filename="~/Applications/db_access/mol_builder/reactions_qc.pkl",
     filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
     lowest_energy=False,
 ):
@@ -617,9 +617,9 @@ def create_struct_label_dataset_bond_based_regression(
         struct_file="~/Applications/db_access/mol_builder/struct_n200.sdf",
         label_file="~/Applications/db_access/mol_builder/label_n200.txt",
         feature_file="~/Applications/db_access/mol_builder/feature_n200.yaml",
-        # struct_file="~/Applications/db_access/mol_builder/struct_charge1.sdf",
-        # label_file="~/Applications/db_access/mol_builder/label_charge1.txt",
-        # feature_file="~/Applications/db_access/mol_builder/feature_charge1.yaml",
+        # struct_file="~/Applications/db_access/mol_builder/struct_qc.sdf",
+        # label_file="~/Applications/db_access/mol_builder/label_qc.txt",
+        # feature_file="~/Applications/db_access/mol_builder/feature_qc.yaml",
         lowest_across_product_charge=lowest_energy,
     )
 
