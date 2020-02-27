@@ -63,15 +63,16 @@ def print_mol_property():
         print("{}: {}".format(prop, getattr(m, prop)))
 
     # using atom and bond
-    print("looping m.atoms")
+    print("\n\nlooping m.atoms")
     for idx, attr in m.atoms:
         print(idx, attr)
     print("direct access: m.atoms[0]:", m.atoms[0])
 
-    print("looping m.bonds")
+    print("\n\nlooping m.bonds")
     for i, j, attr in m.bonds:
         print(i, j, attr)
     bond = (i, j)
+    # the below line will throw error
     print("direct access: m.atoms[({},{})]:".format(i, j, m.bonds[(i, j)]))
 
 
@@ -214,12 +215,12 @@ def get_single_atom_energy():
 if __name__ == "__main__":
     # pickle_db_entries()
     # pickle_molecules()
-    # print_mol_property()
+    print_mol_property()
     # plot_molecules()
     # plot_atom_distance_hist()
     # number_of_bonds()
 
-    write_dataset()
+    # write_dataset()
     # detect_bad_mols()
 
     # write_group_isomorphic_to_file()

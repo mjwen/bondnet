@@ -1,7 +1,7 @@
 from rdkit import Chem
 
 
-def make_EC_mol():
+def make_a_mol():
     sdf = """5d1a79e59ab9e0c05b1de572
  OpenBabel11151914373D
 

@@ -276,15 +276,11 @@ class BaseMoleculeWrapper:
 
     @property
     def species(self):
-        return self._get_node_attr("specie")
+        return [v["specie"] for k, v in self.atoms]
 
     @property
     def coords(self):
-        return self._get_node_attr("coords")
-
-    @property
-    def bond_order(self):
-        return self._get_edge_attr("weight")
+        return np.asarray([v["coords"] for k, v in self.atoms])
 
     @property
     def formula(self):
@@ -352,12 +348,6 @@ class BaseMoleculeWrapper:
         for line in lines[4 + natoms : 4 + natoms + nbonds]:
             bonds.append(tuple(sorted([int(i) for i in line.split()[:2]])))
         return bonds
-
-    def _get_node_attr(self, attr):
-        return [a for _, a in self.graph.nodes.data(attr)]
-
-    def _get_edge_attr(self, attr):
-        return [a for _, _, a in self.graph.edges.data(attr)]
 
     def get_fragments(self, bonds=None):
         """
@@ -736,16 +726,16 @@ class MoleculeWrapperFromAtomsAndBonds(BaseMoleculeWrapper):
     and bonds. It will not have many properties, e.g. free_energy.
     """
 
-    def __init__(self, species, coords, charge, bonds, mid=None):
+    def __init__(self, species, coords, charge, bonds, mol_id=None, free_energy=None):
 
-        super(MoleculeWrapperTaskCollection, self).__init__()
+        super(MoleculeWrapperFromAtomsAndBonds, self).__init__()
 
-        self.id = mid
+        self.id = mol_id
         self.pymatgen_mol = pymatgen.Molecule(species, coords, charge)
 
         bonds = {tuple(sorted(b)): None for b in bonds}
         self.mol_graph = MoleculeGraph.with_edges(self.pymatgen_mol, bonds)
-        self.free_energy = None
+        self.free_energy = free_energy
 
 
 class DatabaseOperation:

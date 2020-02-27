@@ -9,11 +9,11 @@ from gnn.data.featurizer import (
     DistanceBins,
     RBF,
 )
-from .utils import make_EC_mol
+from .utils import make_a_mol
 
 
 def test_atom_featurizer():
-    m = make_EC_mol()
+    m = make_a_mol()
     species = list(set([a.GetSymbol() for a in m.GetAtoms()]))
     featurizer = AtomFeaturizer()
     feat = featurizer(m, dataset_species=species)
@@ -23,7 +23,7 @@ def test_atom_featurizer():
 
 
 def test_bond_as_node_featurizer():
-    m = make_EC_mol()
+    m = make_a_mol()
     featurizer = BondAsNodeFeaturizer(length_featurizer="bin")
     feat = featurizer(m)
     size = featurizer.feature_size
@@ -33,7 +33,7 @@ def test_bond_as_node_featurizer():
 
 def test_bond_as_edge_bidirected_featurizer():
     def assert_featurizer(self_loop):
-        m = make_EC_mol()
+        m = make_a_mol()
         featurizer = BondAsEdgeBidirectedFeaturizer(
             self_loop=self_loop, length_featurizer="bin"
         )
@@ -56,7 +56,7 @@ def test_bond_as_edge_bidirected_featurizer():
 
 def test_bond_as_edge_complete_featurizer():
     def assert_featurizer(self_loop):
-        m = make_EC_mol()
+        m = make_a_mol()
         featurizer = BondAsEdgeCompleteFeaturizer(
             self_loop=self_loop, length_featurizer="bin"
         )
@@ -93,7 +93,7 @@ def test_mol_charge_featurizer():
 
 
 def test_mol_weight_featurizer():
-    m = make_EC_mol()
+    m = make_a_mol()
     featurizer = MolWeightFeaturizer()
     feat = featurizer(m)
     size = featurizer.feature_size

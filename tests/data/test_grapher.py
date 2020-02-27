@@ -2,11 +2,11 @@ import numpy as np
 from collections import defaultdict
 from gnn.data.grapher import HomoBidirectedGraph, HomoCompleteGraph, HeteroMoleculeGraph
 from gnn.data.utils import get_atom_to_bond_map, get_bond_to_atom_map
-from .utils import make_EC_mol
+from .utils import make_a_mol
 
 
 def test_build_hetero_graph():
-    m = make_EC_mol()
+    m = make_a_mol()
     grapher = HeteroMoleculeGraph(self_loop=False)
     g = grapher.build_graph(m)
 
@@ -41,7 +41,7 @@ def test_build_hetero_graph():
 
 
 def test_build_hetero_graph_self_loop():
-    m = make_EC_mol()
+    m = make_a_mol()
     grapher = HeteroMoleculeGraph(self_loop=True)
     g = grapher.build_graph(m)
 
@@ -96,7 +96,7 @@ def test_build_hetero_graph_self_loop():
 
 def test_build_homo_bidirected_graph():
     def assert_graph(self_loop):
-        m = make_EC_mol()
+        m = make_a_mol()
         natoms = m.GetNumAtoms()
         nbonds = m.GetNumBonds()
         if self_loop:
@@ -131,7 +131,7 @@ def test_build_homo_bidirected_graph():
 
 def test_build_homo_complete_graph():
     def assert_graph(self_loop):
-        m = make_EC_mol()
+        m = make_a_mol()
         natoms = m.GetNumAtoms()
         if self_loop:
             nedges = natoms ** 2

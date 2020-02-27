@@ -34,6 +34,6 @@ def test_hgat_classification():
     attn_order = ["atom", "bond", "global"]
     in_feats = [feats[t].shape[1] for t in attn_order]
 
-    model = HGAT(attn_mechanism, attn_order, in_feats, classification=True)
+    model = HGAT(attn_mechanism, attn_order, in_feats, outdim=3)
     output = model(g, feats)
     assert tuple(output[0].shape) == (3, 3)

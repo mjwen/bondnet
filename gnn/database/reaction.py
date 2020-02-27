@@ -4,7 +4,7 @@ from tqdm import tqdm
 import networkx as nx
 import networkx.algorithms.isomorphism as iso
 from collections import defaultdict, OrderedDict
-from gnn.database.database import DatabaseOperation
+from gnn.database.database import DatabaseOperation, MoleculeWrapperFromAtomsAndBonds
 from gnn.utils import (
     create_directory,
     pickle_dump,
@@ -92,6 +92,25 @@ class Reaction:
             "bond_energy": self.get_reaction_free_energy(),
         }
         return d
+
+    def __expr__(self):
+        if len(self.products) == 1:
+            s = "A -> B style reaction\n"
+        else:
+            s = "A -> B + C style reaction\n"
+        s += f"reactants:\n    {self.reactants[0].formula} ({self.reactants[0].charge})\n"
+        s += "products:\n"
+        for p in self.products:
+            s += f"    {p.formula} ({p.charge})\n"
+
+        return s
+
+    def __eq__(self, other):
+        # this assumes all reactions are valid ones, i.e.
+        # A -> B and A -> B + B should not be both valid
+        self_ids = {m.id for m in self.reactants + self.products}
+        other_ids = {m.id for m in other.reactants + other.products}
+        return self_ids == other_ids
 
     @staticmethod
     def _order_molecules(mols):
@@ -223,20 +242,82 @@ class ReactionsWithSameBond:
         Returns:
             A list of Reactions.
         """
-        charge = self.reactant.charge
-        f = self.reactant.fragments[self.broken_bond]
 
-        for rxn in self.reactants:
-            p = [x.mol_graph for x in rxn.products]
+        def factor_integer(x, low, high, num=2):
+            """
+            Factor an integer to the sum of multiple integers that with in the
+            range of [low, high].
 
-            if len(f) == len(p) == 1 and f[0].isomorphic_to(p[0]):
-                pass
+            Args:
+                x (int): the integer to be factored
+                num (int): number of integers to sum
 
-            if len(f) == len(p) == 2:
-                if (f[0].isomorphic_to(p[0]) and f[1].isomorphic_to(p[1])) or (
-                    f[0].isomorphic_to(p[1]) and f[1].isomorphic_to(p[0])
-                ):
-                    pass
+            Returns:
+                set: factor values
+
+            Example:
+                >>> factor_integer(0, 1, -1, 2)
+                >>> [(-1, 1), (0, 0), (1, -1)]
+            """
+            if num == 1:
+                return {(x)}
+
+            elif num == 2:
+                res = []
+                for i, j in itertools.product(range(low, high + 1)):
+                    if i + j == x:
+                        res.append((i, j))
+
+                return set(res)
+            else:
+                raise Exception(f"not implemented for num={num} case.")
+
+        def get_node_attr(mol_graph, attr):
+            return [a for _, a in mol_graph.graph.nodes.data(attr)]
+
+        # find products charges
+        fragments = self.reactant.fragments[self.broken_bond]
+        N = len(fragments)
+
+        # A -> B reaction
+        if N == 1:
+            return []
+
+        # N == 2 case, i.e. A -> B + C reaction (B could be the same as C)
+        target_products_charge = factor_integer(
+            self.reactant.charge, low=-1, high=1, num=N
+        )
+        products_charge = []
+        for rxn in self.reactions:
+            products = [p.mol_graph for p in rxn.products]
+            charge = (p.charge for p in rxn.products)
+
+            # Do not use if else here to consider A->B+B reactions.
+            if fragments[0].isomorphic_to(
+                products[0]
+            ):  # implicitly indicates fragments[1].isomorphic_to(products[1])
+                products_charge.append(charge)
+            if fragments[0].isomorphic_to(
+                products[1]
+            ):  # implicitly indicates fragments[1].isomorphic_to(products[0])
+                products_charge.append((charge[1], charge[0]))
+        missing_charge = target_products_charge - set(products_charge)
+
+        # create new reactions
+        species = [[v["specie"] for k, v in fg.graph.nodes.data()] for fg in fragments]
+        coords = [[v["coords"] for k, v in fg.graph.nodes.data()] for fg in fragments]
+        bonds = [[(i, j) for i, j, v in fg.graph.edges.data()] for fg in fragments]
+
+        fake_rxns = []
+        for charge in missing_charge:
+            products = [
+                MoleculeWrapperFromAtomsAndBonds(species, coords, c, bonds)
+                for c in charge
+            ]
+            rxn = Reaction([self.reactant], products, broken_bond=self.broken_bond)
+            fake_rxns.append(rxn)
+
+        return fake_rxns
 
     def order_reactions(self, fake_reactions=False):
         """
@@ -426,12 +507,12 @@ class ReactionExtractor:
 
                         # exclude reactions already considered
                         # Since we use `combinations_with_replacement` to consider
-                        # products B and C of the same formula, buckets[formula_B] and
-                        # buckets[C] could be the same buckets. Then when we to
-                        # itertools.product to tranverse them, molecules (M, M') could
+                        # products B and C for the same formula, buckets[formula_B] and
+                        # buckets[C] could be the same buckets. Then when we use
+                        # itertools.product to loop over them, molecules (M, M') could
                         # be either (B, C) or (C, B), appearing twice.
                         # We can do combinations_with_replacement for the loop over
-                        # charge when formula_B and  formula_C are the same, but this
+                        # charge when formula_B and formula_C are the same, but this
                         # would complicate the code. So we use reaction_ids to keep
                         # record and not include them.
                         ids = {A.id, B.id, C.id}
