@@ -229,13 +229,13 @@ class ReactionsWithSameBond:
         else:
             return None
 
-    def add(self, rxn):
-        if rxn.reactants[0] != self.reactant:
+    def add(self, reaction):
+        if reaction.reactants[0] != self.reactant:
             raise ValueError(
                 "Cannot add reaction whose reactant is different from what already in "
                 "the collection."
             )
-        self._reactions.append(rxn)
+        self._reactions.append(reaction)
 
     def create_fake_reactions(self):
         """
@@ -264,16 +264,13 @@ class ReactionsWithSameBond:
 
             elif num == 2:
                 res = []
-                for i, j in itertools.product(range(low, high + 1)):
+                for i, j in itertools.product(range(low, high + 1), repeat=2):
                     if i + j == x:
                         res.append((i, j))
 
                 return set(res)
             else:
                 raise Exception(f"not implemented for num={num} case.")
-
-        def get_node_attr(mol_graph, attr):
-            return [a for _, a in mol_graph.graph.nodes.data(attr)]
 
         # find products charges
         fragments = self.reactant.fragments[self.broken_bond]
@@ -290,31 +287,37 @@ class ReactionsWithSameBond:
         products_charge = []
         for rxn in self.reactions:
             products = [p.mol_graph for p in rxn.products]
-            charge = (p.charge for p in rxn.products)
+            charge = [p.charge for p in rxn.products]
 
             # Do not use if else here to consider A->B+B reactions.
             if fragments[0].isomorphic_to(
                 products[0]
             ):  # implicitly indicates fragments[1].isomorphic_to(products[1])
-                products_charge.append(charge)
+                products_charge.append(tuple(charge))
             if fragments[0].isomorphic_to(
                 products[1]
             ):  # implicitly indicates fragments[1].isomorphic_to(products[0])
                 products_charge.append((charge[1], charge[0]))
         missing_charge = target_products_charge - set(products_charge)
 
-        # create new reactions
+        # fragments species, coords, and bonds (same for products)
         species = [[v["specie"] for k, v in fg.graph.nodes.data()] for fg in fragments]
         coords = [[v["coords"] for k, v in fg.graph.nodes.data()] for fg in fragments]
         bonds = [[(i, j) for i, j, v in fg.graph.edges.data()] for fg in fragments]
 
+        # create fake reactions
+        bb = self.broken_bond
         fake_rxns = []
         for charge in missing_charge:
-            products = [
-                MoleculeWrapperFromAtomsAndBonds(species, coords, c, bonds)
-                for c in charge
-            ]
-            rxn = Reaction([self.reactant], products, broken_bond=self.broken_bond)
+            products = []
+            for i, c in enumerate(charge):
+                mid = f"{self.reactant.id}-{bb[0]}-{bb[1]}-{i}-{c}"
+                products.append(
+                    MoleculeWrapperFromAtomsAndBonds(
+                        species[i], coords[i], c, bonds[i], mol_id=mid
+                    )
+                )
+            rxn = Reaction([self.reactant], products, broken_bond=bb)
             fake_rxns.append(rxn)
 
         return fake_rxns
@@ -406,13 +409,6 @@ class ReactionExtractor:
     def __init__(self, molecules, reactions=None):
         self.molecules = molecules or self._get_molecules_from_reactions(reactions)
         self.reactions = reactions
-
-    # def get_molecule_properties(self, keys):
-    #     values = defaultdict(list)
-    #     for m in self.molecules:
-    #         for k in keys:
-    #             values[k].append(getattr(m, k))
-    #     return values
 
     def bucket_molecules(self, keys=["formula", "charge"]):
         """

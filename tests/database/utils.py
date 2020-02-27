@@ -1,7 +1,8 @@
 from gnn.database.database import MoleculeWrapperFromAtomsAndBonds
+from gnn.database.reaction import Reaction
 
 
-def create_list_of_molecules():
+def create_molecules():
     """
     Create a list of molecules, such that the below reactions exists (w.r.t. graph
     connectivity and charge):
@@ -111,3 +112,19 @@ def create_list_of_molecules():
     )
 
     return mols
+
+
+def create_reactions():
+    """
+    Create a list of reactions, using the mols returned by create_mols.
+    """
+    mols = create_molecules()
+    A2B = [Reaction(reactants=[mols[0]], products=[mols[1]], broken_bond=(0, 1))]
+    A2BC = [
+        Reaction(reactants=[mols[0]], products=[mols[2], mols[4]], broken_bond=(2, 3)),
+        Reaction(reactants=[mols[0]], products=[mols[3], mols[5]], broken_bond=(2, 3)),
+        Reaction(reactants=[mols[7]], products=[mols[4], mols[4]], broken_bond=(0, 1)),
+        Reaction(reactants=[mols[7]], products=[mols[5], mols[6]], broken_bond=(0, 1)),
+    ]
+
+    return A2B, A2BC

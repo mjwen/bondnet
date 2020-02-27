@@ -1,20 +1,11 @@
-from gnn.database.reaction import Reaction
-from gnn.database.reaction import ReactionExtractor
-
-from .utils import create_list_of_molecules
+from gnn.database.reaction import ReactionExtractor, ReactionsWithSameBond
+from .utils import create_reactions, create_molecules
 
 
 def test_extract_reactions():
+    ref_A2B, ref_A2BC = create_reactions()
 
-    mols = create_list_of_molecules()
-    ref_A2B = [Reaction(reactants=[mols[0]], products=[mols[1]])]
-    ref_A2BC = [
-        Reaction(reactants=[mols[0]], products=[mols[2], mols[4]]),
-        Reaction(reactants=[mols[0]], products=[mols[3], mols[5]]),
-        Reaction(reactants=[mols[7]], products=[mols[4], mols[4]]),
-        Reaction(reactants=[mols[7]], products=[mols[5], mols[6]]),
-    ]
-
+    mols = create_molecules()
     extractor = ReactionExtractor(mols)
     A2B = extractor.extract_A_to_B_style_reaction()
     A2BC = extractor.extract_A_to_B_C_style_reaction()
@@ -33,3 +24,25 @@ def test_extract_reactions():
         assert rxn in A2BC
     for rxn in A2BC:
         assert rxn in ref_A2BC
+
+
+def test_reactions_with_same_bonds():
+    def assert_mol(m, formula, charge):
+        assert m.formula == formula
+        assert m.charge == charge
+
+    _, A2BC = create_reactions()
+    A2BC = A2BC[:2]  # break same bonds
+
+    reactant = A2BC[0].reactants[0]
+    rsb = ReactionsWithSameBond(reactant)
+    for rxn in A2BC:
+        rsb.add(rxn)
+
+    # generating fake reactions
+    fake_rxns = rsb.create_fake_reactions()
+    assert len(fake_rxns) == 1
+    rxn = fake_rxns[0]
+    assert_mol(rxn.reactants[0], "C3H1", 0)
+    assert_mol(rxn.products[0], "H1", -1)
+    assert_mol(rxn.products[1], "C3", 1)
