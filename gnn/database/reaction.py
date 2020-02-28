@@ -218,9 +218,11 @@ class ReactionsGroup:
     This is a base class, so use the derived class.
     """
 
-    def __init__(self, reactant):
+    def __init__(self, reactant, reactions=None):
         self._reactant = reactant
         self._reactions = []
+        if reactions is not None:
+            self.add(reactions)
 
     @property
     def reactant(self):
@@ -261,8 +263,8 @@ class ReactionsOfSameBond(ReactionsGroup):
     each other) but different charges.
     """
 
-    def __init__(self, reactant, broken_bond=None):
-        super(ReactionsOfSameBond, self).__init__(reactant)
+    def __init__(self, reactant, reactions=None, broken_bond=None):
+        super(ReactionsOfSameBond, self).__init__(reactant, reactions)
         self._broken_bond = broken_bond
 
     @property
@@ -395,7 +397,7 @@ class ReactionsOfSameBond(ReactionsGroup):
                 with existing ones.
 
         Returns:
-            list: reactions ordered by energy
+            list: a sequence of :class:`Reaction` ordered by energy
         """
         ordered_rxns = sorted(self._reactions, key=lambda rxn: rxn.get_free_energy())
         if complement_reactions:
@@ -468,7 +470,8 @@ class ReactionsMultiplePerBond(ReactionsGroup):
         Group reactions with same broken bond together.
 
         Returns:
-            list: a sequence of ReactionsOfSameBond, one for each bond of the reactant
+            list: a sequence of :class:`ReactionsOfSameBond`, one for each bond of the
+            reactant
         """
 
         # init an empty [] for each bond
@@ -505,7 +508,7 @@ class ReactionsMultiplePerBond(ReactionsGroup):
                 with existing ones.
 
         Returns:
-            list: reactions ordered by energy
+            list: a sequence of :class:`Reaction` ordered by energy
         """
 
         # sort reactions we have energy for
@@ -554,10 +557,20 @@ class ReactionExtractor:
 
         return buckets
 
-    def extract_A_to_B_style_reaction(self):
+    def extract_A_to_B_style_reaction(self, find_one=True):
         """
-        Return a list of A -> B reactions.
+        Extract a list of A -> B reactions.
+
+        Args:
+            find_one (bool): For a given reactant A and product B, there could be
+                multiple reactions between them (breaking different bonds of reactant
+                results in the same product). If `True`, for each A and B only get
+                one reaction between them. If `False` get all.
+
+        Returns:
+            list: a sequence of :class:`Reaction`.
         """
+
         logger.info("Start extracting A -> B style reactions")
 
         buckets = self.bucket_molecules(keys=["formula", "charge"])
@@ -567,23 +580,34 @@ class ReactionExtractor:
         for formula in buckets:
             i += 1
             if i % 10000 == 0:
-                print("@@flag A->B running bucket", i)
+                logger.info(f"A -> B running bucket {i}")
+
             for charge in buckets[formula]:
                 for A, B in itertools.permutations(buckets[formula][charge], 2):
-                    bonds = is_valid_A_to_B_reaction(A, B, first_only=True)
-                    # bonds = is_valid_A_to_B_reaction(A, B, first_only=False)
+                    bonds = is_valid_A_to_B_reaction(A, B, first_only=find_one)
                     for b in bonds:
                         A2B.append(Reaction([A], [B], b))
+
         self.reactions = A2B
 
         logger.info("{} A -> B style reactions extracted".format(len(A2B)))
 
         return A2B
 
-    def extract_A_to_B_C_style_reaction(self):
+    def extract_A_to_B_C_style_reaction(self, find_one=True):
         """
-        Return a list of A -> B + C reactions.
+        Extract a list of A -> B + C reactions (B and C can be the same molecule).
+
+        Args:
+            find_one (bool): For a given reactant A and product B, there could be
+                multiple reactions between them (breaking different bonds of reactant
+                results in the same product). If `True`, for each A and B only get
+                one reaction between them. If `False` get all.
+
+        Returns:
+            list: a sequence of :class:`Reaction`.
         """
+
         logger.info("Start extracting A -> B + C style reactions")
 
         buckets = self.bucket_molecules(keys=["formula", "charge"])
@@ -598,7 +622,7 @@ class ReactionExtractor:
             ):
                 i += 1
                 if i % 10000 == 0:
-                    print("@@@flag A->B+C running bucket", i)
+                    logger.info(f"A -> B + C running bucket {i}")
 
                 if not self._is_valid_A_to_B_C_composition(
                     fcmap[formula_A], fcmap[formula_B], fcmap[formula_C]
@@ -632,8 +656,7 @@ class ReactionExtractor:
                         if ids in reaction_ids:
                             continue
 
-                        bonds = is_valid_A_to_B_C_reaction(A, B, C, first_only=True)
-                        # bonds = is_valid_A_to_B_C_reaction(A, B, C, first_only=False)
+                        bonds = is_valid_A_to_B_C_reaction(A, B, C, first_only=find_one)
                         if bonds:
                             reaction_ids.append(ids)
                             for b in bonds:
@@ -672,6 +695,8 @@ class ReactionExtractor:
         for rxn in self.reactions:
             if getattr(rxn.reactants[0], key) in values:
                 reactions.append(rxn)
+
+        self.molecules = self._get_molecules_from_reactions(reactions)
         self.reactions = reactions
 
     def filter_reactions_by_bond_type_and_order(self, bond_type, bond_order=None):
@@ -695,14 +720,18 @@ class ReactionExtractor:
                     if order == bond_order:
                         reactions.append(rxn)
 
+        self.molecules = self._get_molecules_from_reactions(reactions)
         self.reactions = reactions
 
     def sort_reactions_by_reactant_formula(self):
-        self.reactions = sorted(self.reactions, key=lambda rxn: rxn.reactnats[0].formula)
+        self.reactions = sorted(self.reactions, key=lambda rxn: rxn.reactants[0].formula)
 
     def group_by_reactant(self):
         """
-        Return: a dict with reactant as the key and list of reactions as the value.
+        Group reactions that have the same reactant together.
+
+        Returns:
+            dict: with reactant as the key and list of :class:`Reaction` as the value
         """
         grouped_reactions = defaultdict(list)
         for rxn in self.reactions:
@@ -710,72 +739,51 @@ class ReactionExtractor:
             grouped_reactions[reactant].append(rxn)
         return grouped_reactions
 
-    def group_by_reactant_bond_and_charge(self):
+    def group_by_reactant_charge_0(self):
         """
-        Group all the reactions to nested dicts according to the reactant, bond, and
-        charge.
+        Group reactions that have the same reactant together, keeping charge 0
+        reactions (charges of reactant and products are all 0).
 
+        A group of reactions of the same reactant are put in to
+        :class:`ReactionsOnePerBond` container.
+        
         Returns:
-            A dict of dict of dict. The outer dict has reactant index as the key,
-            the middle dict has bond indices (a tuple) as the key and the inner dict
-            has charges (a tuple) as the key and bond attributes (a dict of energy,
-            bond order, ect.). as the value.
-        """
-        groups = self.group_by_reactant()
-
-        new_groups = OrderedDict()
-        for reactant in groups:
-
-            new_groups[reactant] = OrderedDict()
-            for i, j, _ in reactant.bonds:
-                bond = (i, j)
-                new_groups[reactant][bond] = dict()
-
-            for rxn in groups[reactant]:
-                charge = tuple([m.charge for m in rxn.reactants + rxn.products])
-                bond = rxn.get_broken_bond()
-                new_groups[reactant][bond][charge] = rxn.as_dict()
-
-        return new_groups
-
-    def group_by_reactant_bond_keep_0_charge_of_products(self):
-        """
-        Group reactions that have the same reactant together.
-        For reactions that have the same reactant and break the same bond, we keep the
-        reaction that the charge of the products are 0.
-
-        Returns:
-            A list of ReactionsOnePerBond.
+            list: a sequence of :class:`ReactionsOnePerBond`
         """
         groups = self.group_by_reactant()
 
         new_groups = []
         for reactant in groups:
 
-            rsr = ReactionsOnePerBond(reactant)
-
+            zero_charge_rxns = []
             for rxn in groups[reactant]:
                 zero_charge = True
-                for m in rxn.products:
+                for m in rxn.reactants + rxn.products:
                     if m.charge != 0:
                         zero_charge = False
                         break
                 if zero_charge:
-                    rsr.add(rxn)
+                    zero_charge_rxns.append(rxn)
 
             # add to new group only when at least has one reaction
-            if len(rsr.reactions) != 0:
+            if zero_charge_rxns:
+                rsr = ReactionsOnePerBond(reactant, zero_charge_rxns)
                 new_groups.append(rsr)
 
         return new_groups
 
-    def group_by_reactant_bond_keep_lowest_energy_across_products_charge(self):
+    def group_by_reactant_lowest_energy(self):
         """
         Group reactions that have the same reactant together.
-        For reactions that have the same reactant and break the same bond, we keep the
+
+        For reactions that have the same reactant and breaks the same bond, we keep the
         reaction that have the lowest energy across products charge.
+
+        A group of reactions of the same reactant are put in to
+        :class:`ReactionsOnePerBond` container.
+
         Returns:
-            A list of ReactionsOnePerBond.
+            list: a sequence of :class:`ReactionsOnePerBond`
         """
 
         groups = self.group_by_reactant()
@@ -795,16 +803,34 @@ class ReactionExtractor:
                     if e_new < e_old:
                         lowest_energy_reaction[bond] = rxn
 
-            rsr = ReactionsOnePerBond(reactant)
-            for bond, rxn in lowest_energy_reaction.items():
-                rsr.add(rxn)
+            rsr = ReactionsOnePerBond(reactant, lowest_energy_reaction.keys())
             new_groups.append(rsr)
 
         return new_groups
 
-    def group_by_reactant_charge(self):
+    def group_by_reactant_all(self):
         """
-        Group reactions whose reactant are isomorphic to each other together.
+        Group reactions that have the same reactant together.
+
+        A group of reactions of the same reactant are put in to
+        :class:`ReactionsMultiplePerBond` container.
+
+        Returns:
+            list: a sequence of :class:`ReactionsMulitplePerBond`
+        """
+
+        groups = self.group_by_reactant()
+        new_groups = [
+            ReactionsMultiplePerBond(reactant, rxns) for reactant, rxns in groups.items()
+        ]
+
+        return new_groups
+
+    def group_by_reactant_charge_pair(self):
+        """
+        Group reactions whose reactants are isomorphic to each other but have
+        different charges.
+
         Then create pairs of reactions where the reactant and products of one reaction is
         is isomorphic to those of the other reaction in a pair. The pair is indexed by
         the charges of the reactants of the pair.
@@ -815,9 +841,7 @@ class ReactionExtractor:
             have the same breaking bond.
         """
 
-        grouped_reactions = (
-            self.group_by_reactant_bond_keep_lowest_energy_across_products_charge()
-        )
+        grouped_reactions = self.group_by_reactant_lowest_energy()
 
         # groups is a list of list, where the elements of each inner list are
         # ReactionsOnePerBond instances and the corresponding reactants are
@@ -850,15 +874,28 @@ class ReactionExtractor:
                 result[(rsr1.reactant.charge, rsr2.reactant.charge)].extend(res)
         return result
 
+    def get_reactions_with_0_charge(self):
+        """
+        Get reactions the charges of reactant and products are all 0.
+
+        Returns:
+            list: a sequence of :class:`Reaction`.
+        """
+        groups = self.group_by_reactant_charge_0()
+        reactions = []
+        for rsr in groups:
+            reactions.extend(rsr.reactions)
+        return reactions
+
     def get_reactions_with_lowest_energy(self):
         """
         Get the reactions by removing higher energy ones. Higher energy is compared
         across product charge.
 
         Returns:
-            A list of Reaction.
+            list: a sequence of :class:`Reaction`.
         """
-        groups = self.group_by_reactant_bond_keep_lowest_energy_across_products_charge()
+        groups = self.group_by_reactant_lowest_energy()
         reactions = []
         for rsr in groups:
             reactions.extend(rsr.reactions)
@@ -986,11 +1023,9 @@ class ReactionExtractor:
                     f.write("{} {} {}\n".format(lb, idx, m.id))
 
         if lowest_across_product_charge:
-            grouped_reactions = (
-                self.group_by_reactant_bond_keep_lowest_energy_across_products_charge()
-            )
+            grouped_reactions = self.group_by_reactant_lowest_energy()
         else:
-            grouped_reactions = self.group_by_reactant_bond_keep_0_charge_of_products()
+            grouped_reactions = self.group_by_reactant_charge_0()
 
         all_reactants = []
         broken_bond_idx = []  # int index in ob molecule
@@ -1116,11 +1151,9 @@ class ReactionExtractor:
                     )
 
         if lowest_across_product_charge:
-            grouped_reactions = (
-                self.group_by_reactant_bond_keep_lowest_energy_across_products_charge()
-            )
+            grouped_reactions = self.group_by_reactant_lowest_energy()
         else:
-            grouped_reactions = self.group_by_reactant_bond_keep_0_charge_of_products()
+            grouped_reactions = self.group_by_reactant_charge_0()
 
         all_rxns = []
         broken_bond_idx = []
@@ -1174,14 +1207,12 @@ class ReactionExtractor:
             lowest_across_product_charge (bool): If `True` each reactant corresponds to
                 the lowest energy products. If `False`, find all 0->0+0 reactions,
                 i.e. the charge of reactant and products should all be zero.
-            
+
         """
         if lowest_across_product_charge:
-            grouped_reactions = (
-                self.group_by_reactant_bond_keep_lowest_energy_across_products_charge()
-            )
+            grouped_reactions = self.group_by_reactant_lowest_energy()
         else:
-            grouped_reactions = self.group_by_reactant_bond_keep_0_charge_of_products()
+            grouped_reactions = self.group_by_reactant_charge_0()
 
         # write label
         label_file = expand_path(label_file)
@@ -1292,35 +1323,6 @@ class ReactionExtractor:
             "{} reactions loaded from file: {}".format(len(d["reactions"]), filename)
         )
         return cls(d["molecules"], d["reactions"])
-
-    def to_file_by_ids(self, filename="rxns.yaml"):
-        logger.info("Start writing reactions by ids to file: {}".format(filename))
-        reaction_ids = []
-        for r in self.reactions:
-            reaction_ids.append(r.as_dict())
-        yaml_dump(reaction_ids, filename)
-
-    @classmethod
-    def from_file_by_ids(cls, filename, db_path):
-        logger.info("Start loading reactions by ids from file: {}".format(filename))
-
-        db = DatabaseOperation.from_file(db_path)
-        mols = db.to_molecules(purify=True)
-        id_to_mol_map = {m.id: m for m in mols}
-
-        reactions = yaml_load(filename)
-
-        rxns = []
-        for r in tqdm(reactions):
-            reactants = [id_to_mol_map[i] for i in r["reactants"]]
-            products = [id_to_mol_map[i] for i in r["products"]]
-            broken_bond = r["broken_bond"]
-            rxn = Reaction(reactants, products, broken_bond)
-            rxns.append(rxn)
-
-        logger.info("Finish loading {} reactions".format(len(reactions)))
-
-        return cls(mols, rxns)
 
 
 def is_valid_A_to_B_reaction(reactant, product, first_only=True):

@@ -3,11 +3,11 @@ import os
 import glob
 import numpy as np
 from collections import defaultdict
+from pprint import pprint
 import matplotlib as mpl
 from matplotlib import pyplot as plt
-from gnn.database.reaction import ReactionExtractor
-from pprint import pprint
 from gnn.database.utils import TexWriter
+from gnn.database.reaction import ReactionExtractor, ReactionsMultiplePerBond
 from gnn.utils import pickle_load, expand_path, create_directory
 from gnn.data.feature_analyzer import read_sdf, read_label
 from gnn.data.grapher import HeteroMoleculeGraph
@@ -137,33 +137,29 @@ def reactant_broken_bond_fraction():
 
     """
 
-    # filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
+    filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
     # filename = "~/Applications/db_access_newest/mol_builder/reactions.pkl"
     # filename = "~/Applications/db_access_newest/mol_builder/reactions_qc.pkl"
     # filename = "~/Applications/db_access/mol_builder/reactions_qc_ws.pkl"
-    filename = "~/Applications/db_access/mol_builder/reactions_qc_ws_charge0.pkl"
+    # filename = "~/Applications/db_access/mol_builder/reactions_qc_ws_charge0.pkl"
 
     extractor = ReactionExtractor.from_file(filename)
-    groups = extractor.group_by_reactant_bond_and_charge()
+    groups = extractor.group_by_reactant()
 
-    num_bonds = dict()
-    frac = dict()
-    for reactant in groups:
-        val = 0
-        for bond in groups[reactant]:
-            rxns = groups[reactant][bond]
-            if rxns:
-                val += 1
-        n = len(groups[reactant])
-        frac[reactant] = val / n
-        num_bonds[reactant] = n
-    frac_list = [v for k, v in frac.items()]
-    num_bonds_list = [v for k, v in num_bonds.items()]
+    num_bonds = []
+    frac = []
+    for reactant, rxns in groups.items():
+        rmb = ReactionsMultiplePerBond(reactant, rxns)
+        rsbs = rmb.group_by_bond()
+        tot = len(rsbs)
+        bond_has_rxn = [True if len(x.reactions) > 0 else False for x in rsbs]
+        num_bonds.append(tot)
+        frac.append(sum(bond_has_rxn) / tot)
 
-    print("### number of bonds in dataset (mean):", np.mean(num_bonds_list))
-    print("### number of bonds in dataset (median):", np.median(num_bonds_list))
-    print("### broken bond ratio in dataset (mean):", np.mean(frac_list))
-    print("### broken bond ratio in dataset (median):", np.median(frac_list))
+    print("### number of bonds in dataset (mean):", np.mean(num_bonds))
+    print("### number of bonds in dataset (median):", np.median(num_bonds))
+    print("### broken bond ratio in dataset (mean):", np.mean(frac))
+    print("### broken bond ratio in dataset (median):", np.median(frac))
 
 
 def bond_label_fraction(top_n=2):
@@ -184,7 +180,7 @@ def bond_label_fraction(top_n=2):
     filename = "~/Applications/db_access/mol_builder/reactions_qc_ws_charge0.pkl"
 
     extractor = ReactionExtractor.from_file(filename)
-    groups = extractor.group_by_reactant_bond_keep_0_charge_of_products()
+    groups = extractor.group_by_reactant_charge_0()
 
     num_bonds = []
     frac = defaultdict(list)
@@ -262,7 +258,7 @@ def bond_energy_difference_in_molecule_nth_lowest():
     all_nth = [1, 2, 3, 4]
 
     extractor = ReactionExtractor.from_file(filename)
-    groups = extractor.group_by_reactant_bond_keep_lowest_energy_across_products_charge()
+    groups = extractor.group_by_reactant_lowest_energy()
 
     for nth in all_nth:
         bond_energy_diff = dict()
@@ -307,7 +303,7 @@ def plot_reaction_energy_difference_arcoss_reactant_charge(
         fig.savefig(filename, bbox_inches="tight")
 
     def extract_one(extractor, s1=None, s2=None):
-        results = extractor.group_by_reactant_charge()
+        results = extractor.group_by_reactant_charge_pair()
         for charge in [(-1, 0), (-1, 1), (0, 1)]:
             reactions = results[charge]
             energies = []
@@ -777,13 +773,13 @@ if __name__ == "__main__":
     # plot_all_bond_length_hist()
     # get_dataset()
 
-    # reactant_broken_bond_fraction()
+    reactant_broken_bond_fraction()
     # bond_label_fraction()
     # bond_energy_difference_in_molecule_nth_lowest()
 
     # reactants_bond_energies_to_file()
     # create_struct_label_dataset_mol_based()
-    create_struct_label_dataset_bond_based_regression()
+    # create_struct_label_dataset_bond_based_regression()
     # create_struct_label_dataset_bond_based_classification()
 
     # write_reaction_sdf_mol_png()
