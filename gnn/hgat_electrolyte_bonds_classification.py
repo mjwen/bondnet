@@ -5,6 +5,7 @@ import torch
 import argparse
 import numpy as np
 from datetime import datetime
+from collections import Counter
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from gnn.metric import EarlyStopping
 from torch.nn import CrossEntropyLoss
@@ -241,6 +242,14 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
     return score
 
 
+def get_class_weight(data_loader):
+    target_class = np.concatenate([label["class"].numpy() for bg, label in data_loader])
+    counts = [v for k, v in sorted(Counter(target_class).items())]
+    s = sum(counts)
+    weight = torch.tensor([i / s for i in counts])
+    return weight
+
+
 def get_grapher():
     atom_featurizer = AtomFeaturizerWithReactionInfo()
     bond_featurizer = BondAsNodeFeaturizer(length_featurizer="bin")
@@ -331,7 +340,9 @@ def main(args):
     optimizer = torch.optim.Adam(
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
-    loss_func = CrossEntropyLoss(reduction="mean")
+
+    class_weight = get_class_weight(train_loader)
+    loss_func = CrossEntropyLoss(weight=class_weight, reduction="mean")
 
     ### learning rate scheduler and stopper
     scheduler = ReduceLROnPlateau(
@@ -349,6 +360,8 @@ def main(args):
             pass
 
     print("\n\n# Epoch     Loss         TrainScore        ValScore     Time (s)")
+    sys.stdout.flush()
+
     t0 = time.time()
     for epoch in range(args.epochs):
         ti = time.time()
