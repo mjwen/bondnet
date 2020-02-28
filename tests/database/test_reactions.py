@@ -39,8 +39,7 @@ def test_reactions_of_same_bond():
     A2BC = A2BC[:2]  # break same bonds
 
     reactant = A2BC[0].reactants[0]
-    rsb = ReactionsOfSameBond(reactant)
-    rsb.add(A2BC)
+    rsb = ReactionsOfSameBond(reactant, A2BC)
 
     # test create complement reactions
     comp_rxns = rsb.create_complement_reactions()
@@ -64,17 +63,13 @@ def test_reactions_of_same_bond():
 
 
 def test_reactions_multiple_per_bond():
-    def assert_mol(m, formula, charge):
-        assert m.formula == formula
-        assert m.charge == charge
 
     A2B, A2BC = create_reactions()
     # of same reactant
     reactions = A2B + A2BC[:2]
 
     reactant = reactions[0].reactants[0]
-    rmb = ReactionsMultiplePerBond(reactant)
-    rmb.add(reactions)
+    rmb = ReactionsMultiplePerBond(reactant, reactions)
 
     # test group by bond
     rsb_group = rmb.group_by_bond()
@@ -97,7 +92,7 @@ def test_reactions_multiple_per_bond():
     assert ordered_rxns[2] == A2BC[1]
 
     ordered_rxns = rmb.order_reactions(complement_reactions=True)
-    assert len(ordered_rxns) == 6
+    assert len(ordered_rxns) == 6  # 1 for each C-C bond in the ring, 3 for C-H bond
     assert ordered_rxns[0] == A2B[0]
     assert ordered_rxns[1] == A2BC[0]
     assert ordered_rxns[2] == A2BC[1]

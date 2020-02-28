@@ -107,10 +107,9 @@ def subselect_reactions():
     extractor.to_file(filename)
 
 
-def reactants_bond_energies_to_file():
-    filename = "~/Applications/db_access/mol_builder/reactions.pkl"
-    # filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
-    # filename = "~/Applications/db_access/mol_builder/reactions_C5H8Li1O3.pkl"
+def bond_energies_to_file():
+    # filename = "~/Applications/db_access/mol_builder/reactions.pkl"
+    filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
     extractor = ReactionExtractor.from_file(filename)
 
     # ##############
@@ -123,8 +122,8 @@ def reactants_bond_energies_to_file():
     # ##############
     # extractor.filter_reactions_by_bond_type_and_order(bond_type=("C", "C"))
 
-    filename = "~/Applications/db_access/mol_builder/bond_energies.yaml"
-    # filename = "~/Applications/db_access/mol_builder/bond_energies_n200.yaml"
+    # filename = "~/Applications/db_access/mol_builder/bond_energies.yaml"
+    filename = "~/Applications/db_access/mol_builder/bond_energies_n200.yaml"
     extractor.write_bond_energies(filename)
 
 
@@ -773,11 +772,11 @@ if __name__ == "__main__":
     # plot_all_bond_length_hist()
     # get_dataset()
 
-    reactant_broken_bond_fraction()
+    # reactant_broken_bond_fraction()
     # bond_label_fraction()
     # bond_energy_difference_in_molecule_nth_lowest()
 
-    # reactants_bond_energies_to_file()
+    bond_energies_to_file()
     # create_struct_label_dataset_mol_based()
     # create_struct_label_dataset_bond_based_regression()
     # create_struct_label_dataset_bond_based_classification()

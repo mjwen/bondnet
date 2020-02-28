@@ -1,17 +1,15 @@
 import itertools
 import logging
 from collections.abc import Iterable
-from tqdm import tqdm
 import networkx as nx
 import networkx.algorithms.isomorphism as iso
 from collections import defaultdict, OrderedDict
-from gnn.database.database import DatabaseOperation, MoleculeWrapperFromAtomsAndBonds
+from gnn.database.database import MoleculeWrapperFromAtomsAndBonds
 from gnn.utils import (
     create_directory,
     pickle_dump,
     pickle_load,
     yaml_dump,
-    yaml_load,
     expand_path,
 )
 
@@ -901,21 +899,25 @@ class ReactionExtractor:
             reactions.extend(rsr.reactions)
         return reactions
 
-    def write_bond_energies(self, filename, mode="reactant_bond_charge"):
-        if mode == "reactant_bond_charge":
-            groups = self.group_by_reactant_bond_and_charge()
-        elif mode == "reactant_charge_bond":
-            groups = self.group_by_reactant_charge_and_bond()
-        else:
-            raise RuntimeError("mode unsupported")
+    def write_bond_energies(self, filename):
         for m in self.molecules:
             m.make_picklable()
 
-        # change reactant (which is the key of the outer dict) to string
+        groups = self.group_by_reactant_all()
+
+        # convert to nested dict: new_groups[reactant_idx][bond][charge] = rxn
         new_groups = OrderedDict()
-        for m, v in groups.items():
-            idx = "{}_{}_{}_{}".format(m.formula, m.charge, m.id, m.free_energy)
-            new_groups[idx] = v
+        for rmb in groups:
+            m = rmb.reactant
+            key = "{}_{}_{}_{}".format(m.formula, m.charge, m.id, m.free_energy)
+            new_groups[key] = OrderedDict()
+            rsbs = rmb.group_by_bond()
+            for rsb in rsbs:
+                bond = rsb.broken_bond
+                new_groups[key][bond] = OrderedDict()
+                for rxn in rsb.reactions:
+                    charge = tuple([m.charge for m in rxn.products])
+                    new_groups[key][bond][charge] = rxn.as_dict()
 
         yaml_dump(new_groups, filename)
 
