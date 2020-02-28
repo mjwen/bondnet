@@ -1,5 +1,6 @@
 import itertools
 import logging
+from collections.abc import Iterable
 from tqdm import tqdm
 import networkx as nx
 import networkx.algorithms.isomorphism as iso
@@ -229,13 +230,27 @@ class ReactionsGroup:
     def reactions(self):
         return self._reactions
 
-    def add(self, reaction):
-        if reaction.reactants[0] != self.reactant:
+    def add(self, reactions):
+        """
+        Add one or more reactions to the collection.
+
+        Args:
+            reactions: A `Reaction` or a sequence of `Reaction`.
+
+        """
+        if isinstance(reactions, Iterable):
+            for rxn in reactions:
+                self._add_one(rxn)
+        else:
+            self._add_one(reactions)
+
+    def _add_one(self, rxn):
+        if rxn.reactants[0] != self.reactant:
             raise ValueError(
-                "Cannot add reaction whose reactant is different from what already in "
-                "the collection."
+                "Cannot add reaction whose reactant is different from what already "
+                "in the collection."
             )
-        self._reactions.append(reaction)
+        self._reactions.append(rxn)
 
 
 class ReactionsOfSameBond(ReactionsGroup):
@@ -246,12 +261,21 @@ class ReactionsOfSameBond(ReactionsGroup):
     each other) but different charges.
     """
 
+    def __init__(self, reactant, broken_bond=None):
+        super(ReactionsOfSameBond, self).__init__(reactant)
+        self._broken_bond = broken_bond
+
     @property
     def broken_bond(self):
-        if self._reactions:
-            return self.reactions[0].get_broken_bond()
-        else:
-            return None
+        if self._broken_bond is None:
+            if self._reactions:
+                self._broken_bond = self.reactions[0].get_broken_bond()
+            else:
+                raise RuntimeError(
+                    "Cannot get broken bond. You can either provide it at instantiation "
+                    "or add some reactions and then try again."
+                )
+        return self._broken_bond
 
     def create_complement_reactions(self):
         """
@@ -302,6 +326,7 @@ class ReactionsOfSameBond(ReactionsGroup):
         # A -> B reaction
         if N == 1:
             return []
+        # TODO need to modify since reactions could be empty
 
         # N == 2 case, i.e. A -> B + C reaction (B could be the same as C)
         target_products_charge = factor_integer(
@@ -349,8 +374,8 @@ class ReactionsOfSameBond(ReactionsGroup):
         """
         Order reactions by energy.
 
-        If complement reactions (whose energy is `None`) are used, they are ordered
-        after existing reactions.
+        If complement reactions (whose energy is `None`) are used, they are placed
+        after reactions having energies.
 
         Args:
             complement_reactions (bool): If `False`, order the existing reactions only.
@@ -363,9 +388,8 @@ class ReactionsOfSameBond(ReactionsGroup):
         ordered_rxns = sorted(self._reactions, key=lambda rxn: rxn.get_free_energy())
         if complement_reactions:
             comp_rxns = self.create_complement_reactions()
-        else:
-            comp_rxns = []
-        return ordered_rxns + comp_rxns
+            ordered_rxns += comp_rxns
+        return ordered_rxns
 
 
 class ReactionsOnePerBond(ReactionsGroup):
@@ -375,23 +399,21 @@ class ReactionsOnePerBond(ReactionsGroup):
     of charges (e.g. 0 -> 0 + 0) or lowest energy reaction across charges.
     """
 
-    def add(self, reaction):
-        if reaction.reactants[0] != self.reactant:
+    def _add_one(self, rxn):
+        if rxn.reactants[0] != self.reactant:
             raise ValueError(
                 "Cannot add reaction whose reactant is different from what already in "
                 "the collection."
             )
-
-        bond = reaction.get_broken_bond()
-        for rxn in self.reactions:
-            if rxn.get_broken_bond() == bond:
+        bond = rxn.get_broken_bond()
+        for r in self.reactions:
+            if r.get_broken_bond() == bond:
                 raise ValueError(
                     f"Reaction breaking bond {bond} already exists.\n"
-                    f"Existing reaction: {str(rxn.as_dict())}\n"
-                    f"New      reaction: {str(reaction.as_dict())}"
+                    f"Existing reaction: {str(r.as_dict())}\n"
+                    f"New      reaction: {str(rxn.as_dict())}"
                 )
-
-        self._reactions.append(reaction)
+        self._reactions.append(rxn)
 
     def order_reactions(self):
         """
@@ -418,6 +440,72 @@ class ReactionsOnePerBond(ReactionsGroup):
         bond_energy_pair = sorted(bond_energy_pair, key=lambda pair: pair[1])
         for i, (bond, energy) in enumerate(bond_energy_pair):
             ordered_rxns[bond]["order"] = i
+
+        return ordered_rxns
+
+
+class ReactionsMultiplePerBond(ReactionsGroup):
+    """
+    A collection of reactions for the same reactant.
+
+    Each bond can be associated with mutiple reactions of different charges.
+    """
+
+    def group_by_bond(self):
+        """
+        Group reactions with same broken bond together.
+
+        Returns:
+            list: a sequence of ReactionsOfSameBond, one for each bond of the reactant
+        """
+
+        # init an empty [] for each bond
+        # doing this instead of looping over self.reactions ensures bonds without
+        # reactions are correctly represented
+        bond_rxns_dict = OrderedDict()
+        for i, j, _ in self.reactant.bonds:
+            bond = (i, j)
+            bond_rxns_dict[bond] = []
+
+        # assign rxn to bond group
+        for rxn in self.reactions:
+            bond_rxns_dict[rxn.get_broken_bond()].append(rxn)
+
+        # create ReactionsOfSameBond instance
+        reactions = []
+        for bond, rxns in bond_rxns_dict.items():
+            rsb = ReactionsOfSameBond(self.reactant, broken_bond=bond)
+            rsb.add(rxns)
+            reactions.append(rsb)
+
+        return reactions
+
+    def order_reactions(self, complement_reactions=False):
+        """
+        Order reactions by energy.
+
+        If complement reactions (whose energy is `None`) are used, they are placed
+        after reactions having energies.
+
+        Args:
+            complement_reactions (bool): If `False`, order the existing reactions only.
+                Otherwise, complementary reactions are created and ordered together
+                with existing ones.
+
+        Returns:
+            list: reactions ordered by energy
+        """
+
+        # sort reactions we have energy for
+        ordered_rxns = sorted(self._reactions, key=lambda rxn: rxn.get_free_energy())
+
+        # add complementary reactions that we do not have energy
+        if complement_reactions:
+            rsb_group = self.group_by_bond()
+            for rsb in rsb_group:
+                b = rsb.broken_bond
+                comp_rxns = rsb.create_complement_reactions()
+                ordered_rxns.extend(comp_rxns)
 
         return ordered_rxns
 
@@ -904,7 +992,7 @@ class ReactionExtractor:
             for ib, bond in enumerate(sdf_bonds):
                 # change index from ob to graph
                 bond = tuple(sorted(reactant.ob_bond_idx_to_graph_bond_idx(bond)))
-                data = rsr.order_reactions[bond]
+                data = rsr.order_reactions()[bond]
 
                 # NOTE this will only write class 0 and class 1
                 # rxn = data["reaction"]
