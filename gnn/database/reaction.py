@@ -325,28 +325,40 @@ class ReactionsOfSameBond(ReactionsGroup):
 
         # A -> B reaction
         if N == 1:
-            return []
-        # TODO need to modify since reactions could be empty
+            # For N = 1 case, there could only be one reaction where the charges of
+            # the reactant and product are the same. If we already have one reaction,
+            # no need to find the complementary one.
+            if len(self.reactions) == 1:
+                return []
+            else:
+                missing_charge = [[self.reactant.charge]]
 
         # N == 2 case, i.e. A -> B + C reaction (B could be the same as C)
-        target_products_charge = factor_integer(
-            self.reactant.charge, low=-1, high=1, num=N
-        )
-        products_charge = []
-        for rxn in self.reactions:
-            products = [p.mol_graph for p in rxn.products]
-            charge = [p.charge for p in rxn.products]
+        else:
+            target_products_charge = factor_integer(
+                self.reactant.charge, low=-1, high=1, num=N
+            )
 
-            # Do not use if else here to consider A->B+B reactions.
-            if fragments[0].isomorphic_to(
-                products[0]
-            ):  # implicitly indicates fragments[1].isomorphic_to(products[1])
-                products_charge.append(tuple(charge))
-            if fragments[0].isomorphic_to(
-                products[1]
-            ):  # implicitly indicates fragments[1].isomorphic_to(products[0])
-                products_charge.append((charge[1], charge[0]))
-        missing_charge = target_products_charge - set(products_charge)
+            # all possible reactions are present
+            if len(target_products_charge) == len(self.reactions):
+                return []
+            else:
+                products_charge = []
+                for rxn in self.reactions:
+                    products = [p.mol_graph for p in rxn.products]
+                    charge = [p.charge for p in rxn.products]
+
+                    # Do not use if else here to consider A->B+B reactions.
+                    if fragments[0].isomorphic_to(
+                        products[0]
+                    ):  # implicitly indicates fragments[1].isomorphic_to(products[1])
+                        products_charge.append(tuple(charge))
+                    if fragments[0].isomorphic_to(
+                        products[1]
+                    ):  # implicitly indicates fragments[1].isomorphic_to(products[0])
+                        products_charge.append((charge[1], charge[0]))
+
+                missing_charge = target_products_charge - set(products_charge)
 
         # fragments species, coords, and bonds (same for products)
         species = [[v["specie"] for k, v in fg.graph.nodes.data()] for fg in fragments]
