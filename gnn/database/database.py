@@ -205,7 +205,16 @@ class BabelMolAdaptor3(BabelMolAdaptor2):
         return BabelMolAdaptor3(mol_graph)
 
 
-class BaseMoleculeWrapper:
+class MoleculeWrapper:
+    """
+    A wrapper arould pymatgen Molecule, MoleculeGraph, BabelAdaptor... to make it
+    easier to use molecules.
+
+    This is a base class, and typically you do not use this directly but instead using
+    the derived class, e.g. MoleculeWrapperMolBuilder, MoleculeWrapperTaskCollection,
+    MoleculeWrapperFromAtomsAndBonds.
+    """
+
     def __init__(self):
         self.id = None
         self.free_energy = None
@@ -504,7 +513,7 @@ class BaseMoleculeWrapper:
         subprocess.run(["rm", svg_name])
 
 
-class MoleculeWrapperTaskCollection(BaseMoleculeWrapper):
+class MoleculeWrapperTaskCollection(MoleculeWrapper):
     def __init__(self, db_entry, use_metal_edge_extender=True, optimized=True):
 
         super(MoleculeWrapperTaskCollection, self).__init__()
@@ -578,7 +587,7 @@ class MoleculeWrapperTaskCollection(BaseMoleculeWrapper):
         return energy * 27.21139 + enthalpy * 0.0433641 - T * entropy * 0.0000433641
 
 
-class MoleculeWrapperMolBuilder(BaseMoleculeWrapper):
+class MoleculeWrapperMolBuilder(MoleculeWrapper):
     def __init__(self, db_entry):
         super(MoleculeWrapperMolBuilder, self).__init__()
 
@@ -720,7 +729,7 @@ class MoleculeWrapperMolBuilder(BaseMoleculeWrapper):
         return feats
 
 
-class MoleculeWrapperFromAtomsAndBonds(BaseMoleculeWrapper):
+class MoleculeWrapperFromAtomsAndBonds(MoleculeWrapper):
     """
     A molecule wrapper class that creates molecules by giving species, coords,
     and bonds. It will not have many properties, e.g. free_energy.

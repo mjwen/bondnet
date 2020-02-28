@@ -1,4 +1,4 @@
-from gnn.database.reaction import ReactionExtractor, ReactionsWithSameBond
+from gnn.database.reaction import ReactionExtractor, ReactionsOfSameBond
 from .utils import create_reactions, create_molecules
 
 
@@ -35,7 +35,7 @@ def test_reactions_with_same_bonds():
     A2BC = A2BC[:2]  # break same bonds
 
     reactant = A2BC[0].reactants[0]
-    rsb = ReactionsWithSameBond(reactant)
+    rsb = ReactionsOfSameBond(reactant)
     for rxn in A2BC:
         rsb.add(rxn)
 

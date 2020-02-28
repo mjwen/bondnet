@@ -20,12 +20,12 @@ logger = logging.getLogger(__name__)
 class Reaction:
     """
     A reaction that only has one bond break or the type ``A -> B + C``
-    (break a bond not in a ring) or ``A -> B`` (break a bond in a ring)
+    (break a bond not in a ring) or ``A -> B`` (break a bond in a ring).
 
     Args:
-        reactants: a list of Molecules
-        products: a list of Molecules
-        broken_bond (tuple): index indicating the broken bond in the mol_graph
+        reactants (list): MoleculeWrapper instances
+        products (list): MoleculeWrapper instances
+        broken_bond (tuple): indices of atoms associated with the broken bond
     """
 
     # NOTE most methods in this class only works for A->B and A->B+C type reactions
@@ -37,21 +37,26 @@ class Reaction:
         # ordered products needed by `group_by_reactant_bond_and_charge(self)`
         # where we use charge as a dict key
         self.products = self._order_molecules(products)
-        self.broken_bond = broken_bond
+        self._broken_bond = broken_bond
 
     def get_broken_bond(self):
-        if self.broken_bond is None:
+        if self._broken_bond is None:
             if len(self.products) == 1:
-                bond = is_valid_A_to_B_reaction(self.reactants[0], self.products[0])
+                bonds = is_valid_A_to_B_reaction(
+                    self.reactants[0], self.products[0], first_only=True
+                )
             else:
-                bond = is_valid_A_to_B_C_reaction(self.reactants[0], self.products)
-            if bond is None:
+                bonds = is_valid_A_to_B_C_reaction(
+                    self.reactants[0], self.products[0], self.products[1], first_only=True
+                )
+            if not bonds:
                 raise RuntimeError(
                     "invalid reaction (cannot break a reactant bond to get products)"
                 )
-            self.broken_bond = bond
+            # only one element in `bonds` because of `first_only = True`
+            self._broken_bond = bonds[0]
 
-        return self.broken_bond
+        return self._broken_bond
 
     def get_broken_bond_attr(self):
         """
@@ -59,17 +64,15 @@ class Reaction:
         """
         reactant = self.reactants[0]
         u, v = self.get_broken_bond()
-        spec_u = reactant.species[u]
-        spec_v = reactant.species[v]
+        species = [reactant.species[u], reactant.species[v]]
         try:
-            order = reactant.graph.get_edge_data(u, v, key=0)[
-                "weight"
-            ]  # key=0 because of MultiGraph
+            # key=0 because of MultiGraph
+            order = reactant.graph.get_edge_data(u, v, key=0)["weight"]
         except KeyError:
             order = 0
-        return {"species": sorted([spec_u, spec_v]), "order": order}
+        return {"species": species, "order": order}
 
-    def get_reaction_free_energy(self):
+    def get_free_energy(self):
         energy = 0
         for mol in self.reactants:
             energy -= mol.free_energy
@@ -92,7 +95,7 @@ class Reaction:
             ],
             "charge": [m.charge for m in self.reactants + self.products],
             "broken_bond": self.get_broken_bond(),
-            "bond_energy": self.get_reaction_free_energy(),
+            "bond_energy": self.get_free_energy(),
         }
         return d
 
@@ -207,12 +210,11 @@ class Reaction:
         raise RuntimeError("Cannot order molecules")
 
 
-class ReactionsWithSameBond:
+class ReactionsGroup:
     """
-    A collection of reactions associated with the same bond in the reactant.
+    A group of reactions that have the same reactant.
 
-    This is mainly to consider products with the same mol graph (i.e. isomorphic to
-    each other) but different charges.
+    This is a base class, so use the derived class.
     """
 
     def __init__(self, reactant):
@@ -227,13 +229,6 @@ class ReactionsWithSameBond:
     def reactions(self):
         return self._reactions
 
-    @property
-    def broken_bond(self):
-        if self._reactions:
-            return self.reactions[0].get_broken_bond()
-        else:
-            return None
-
     def add(self, reaction):
         if reaction.reactants[0] != self.reactant:
             raise ValueError(
@@ -242,14 +237,30 @@ class ReactionsWithSameBond:
             )
         self._reactions.append(reaction)
 
+
+class ReactionsOfSameBond(ReactionsGroup):
+    """
+    A collection of reactions associated with the same bond in the reactant.
+
+    This is mainly to consider products with the same mol graph (i.e. isomorphic to
+    each other) but different charges.
+    """
+
+    @property
+    def broken_bond(self):
+        if self._reactions:
+            return self.reactions[0].get_broken_bond()
+        else:
+            return None
+
     def create_complement_reactions(self):
         """
         Create reactions to complement the ones present in the database such that each
         bond has reactions of all combination of charges.
 
         For example, if we have `A (0) -> B (0) + C (0)` and `A (0) -> B (1) + C (-1)`
-        in the database, this will create reaction `A (0) -> B (-1) + C (1)`.
-        This assumes molecule charges of {-1,0,1} are allowed.
+        in the database, this will create reaction `A (0) -> B (-1) + C (1)`,
+        assuming molecule charges {-1,0,1} are allowed.
 
         Returns:
             A list of Reactions.
@@ -349,9 +360,7 @@ class ReactionsWithSameBond:
         Returns:
             list: reactions ordered by energy
         """
-        ordered_rxns = sorted(
-            self._reactions, key=lambda rxn: rxn.get_reaction_free_energy()
-        )
+        ordered_rxns = sorted(self._reactions, key=lambda rxn: rxn.get_free_energy())
         if complement_reactions:
             comp_rxns = self.create_complement_reactions()
         else:
@@ -359,71 +368,58 @@ class ReactionsWithSameBond:
         return ordered_rxns + comp_rxns
 
 
-class ReactionsWithSameReactant:
+class ReactionsOnePerBond(ReactionsGroup):
     """
-    A collection of reactions that have the same reactant.
+    A collection of reactions for the same reactant.
+    There is at most one reaction associated with a bond, either a specific choice
+    of charges (e.g. 0 -> 0 + 0) or lowest energy reaction across charges.
     """
 
-    def __init__(self, reactant):
-        self._reactant = reactant
-        self._reactions = []
-        self._bonds_data = None
-
-    @property
-    def reactant(self):
-        return self._reactant
-
-    @property
-    def reactions(self):
-        return self._reactions
-
-    def add_reaction(self, rxn):
-        if rxn.reactants[0] != self.reactant:
-            raise Exception(
-                "Cannot add reaction whose reastant is different from what already in "
-                "the group."
+    def add(self, reaction):
+        if reaction.reactants[0] != self.reactant:
+            raise ValueError(
+                "Cannot add reaction whose reactant is different from what already in "
+                "the collection."
             )
-        self._reactions.append(rxn)
 
-    @property
-    def reactant_bonds_data(self):
+        bond = reaction.get_broken_bond()
+        for rxn in self.reactions:
+            if rxn.get_broken_bond() == bond:
+                raise ValueError(
+                    f"Reaction breaking bond {bond} already exists.\n"
+                    f"Existing reaction: {str(rxn.as_dict())}\n"
+                    f"New      reaction: {str(reaction.as_dict())}"
+                )
+
+        self._reactions.append(reaction)
+
+    def order_reactions(self):
         """
-        Get the info of the bonds in the reactant.
+        Order the reactions by charge.
 
         Returns:
-            A dict of dict.
-            The outer dict has bond indices (a tuple) as the key and the inner dict
-            have keys `energy`, `reaction`, `order`. Their values are set to
-            `None` if there is no reaction associated with the bond.
+            dict of dict: The outer dict has bond indices (a tuple) as the key and the
+                inner dict have keys `energy`, `reaction`, `order`. Their values are
+                set to `None` if there is no reaction associated with the bond.
         """
-        if self._bonds_data is None:
-            info = OrderedDict()
-            for i, j, attr in self.reactant.bonds:
-                info[(i, j)] = {"order": None, "energy": None, "reaction": None}
+        ordered_rxns = OrderedDict()
+        for i, j, attr in self.reactant.bonds:
+            ordered_rxns[(i, j)] = {"reaction": None, "order": None, "energy": None}
 
-            bond_energy_pair = []
-            for rxn in self._reactions:
-                bond = rxn.get_broken_bond()
-                if info[bond]["reaction"] is not None:
-                    msg = "Something fishy happens\n"
-                    msg += "Existing reaction: " + str(info[bond]["reaction"].as_dict())
-                    msg += "\nNew     reaction: " + str(rxn.as_dict())
-                    raise Exception(
-                        "Reaction that breaks bond {} already exists! You may "
-                        "want to remove reactions with the same product grpahs but "
-                        "different charges first. {}. ".format(bond, msg,)
-                    )
-                info[bond]["reaction"] = rxn
-                e = rxn.get_reaction_free_energy()
-                info[bond]["energy"] = e
-                bond_energy_pair.append((bond, e))
+        bond_energy_pair = []
+        for rxn in self._reactions:
+            bond = rxn.get_broken_bond()
+            ordered_rxns[bond]["reaction"] = rxn
+            e = rxn.get_free_energy()
+            ordered_rxns[bond]["energy"] = e
+            bond_energy_pair.append((bond, e))
 
-            # get bond energies order
-            bond_energy_pair = sorted(bond_energy_pair, key=lambda pair: pair[1])
-            for i, (bond, energy) in enumerate(bond_energy_pair):
-                info[bond]["order"] = i
-            self._bonds_data = info
-        return self._bonds_data
+        # get bond energies order
+        bond_energy_pair = sorted(bond_energy_pair, key=lambda pair: pair[1])
+        for i, (bond, energy) in enumerate(bond_energy_pair):
+            ordered_rxns[bond]["order"] = i
+
+        return ordered_rxns
 
 
 class ReactionExtractor:
@@ -474,10 +470,10 @@ class ReactionExtractor:
                 print("@@flag A->B running bucket", i)
             for charge in buckets[formula]:
                 for A, B in itertools.permutations(buckets[formula][charge], 2):
-                    bonds = is_valid_A_to_B_reaction(A, B)
-                    if bonds is not None:
-                        for b in bonds:
-                            A2B.append(Reaction([A], [B], b))
+                    bonds = is_valid_A_to_B_reaction(A, B, first_only=True)
+                    # bonds = is_valid_A_to_B_reaction(A, B, first_only=False)
+                    for b in bonds:
+                        A2B.append(Reaction([A], [B], b))
         self.reactions = A2B
 
         logger.info("{} A -> B style reactions extracted".format(len(A2B)))
@@ -536,8 +532,9 @@ class ReactionExtractor:
                         if ids in reaction_ids:
                             continue
 
-                        bonds = is_valid_A_to_B_C_reaction(A, [B, C])
-                        if bonds is not None:
+                        bonds = is_valid_A_to_B_C_reaction(A, B, C, first_only=True)
+                        # bonds = is_valid_A_to_B_C_reaction(A, B, C, first_only=False)
+                        if bonds:
                             reaction_ids.append(ids)
                             for b in bonds:
                                 A2BC.append(Reaction([A], [B, C], b))
@@ -589,7 +586,7 @@ class ReactionExtractor:
         reactions = []
         for rxn in self.reactions:
             attr = rxn.get_broken_bond_attr()
-            species = set(attr["species"])
+            species = attr["species"]
             order = attr["order"]
             if set(species) == set(bond_type):
                 if bond_order is None:
@@ -648,14 +645,14 @@ class ReactionExtractor:
         reaction that the charge of the products are 0.
 
         Returns:
-            A list of ReactionsWithSameReactant.
+            A list of ReactionsOnePerBond.
         """
         groups = self.group_by_reactant()
 
         new_groups = []
         for reactant in groups:
 
-            rsr = ReactionsWithSameReactant(reactant)
+            rsr = ReactionsOnePerBond(reactant)
 
             for rxn in groups[reactant]:
                 zero_charge = True
@@ -664,7 +661,7 @@ class ReactionExtractor:
                         zero_charge = False
                         break
                 if zero_charge:
-                    rsr.add_reaction(rxn)
+                    rsr.add(rxn)
 
             # add to new group only when at least has one reaction
             if len(rsr.reactions) != 0:
@@ -678,7 +675,7 @@ class ReactionExtractor:
         For reactions that have the same reactant and break the same bond, we keep the
         reaction that have the lowest energy across products charge.
         Returns:
-            A list of ReactionsWithSameReactant.
+            A list of ReactionsOnePerBond.
         """
 
         groups = self.group_by_reactant()
@@ -693,14 +690,14 @@ class ReactionExtractor:
                 if bond not in lowest_energy_reaction:
                     lowest_energy_reaction[bond] = rxn
                 else:
-                    e_old = lowest_energy_reaction[bond].get_reaction_free_energy()
-                    e_new = rxn.get_reaction_free_energy()
+                    e_old = lowest_energy_reaction[bond].get_free_energy()
+                    e_new = rxn.get_free_energy()
                     if e_new < e_old:
                         lowest_energy_reaction[bond] = rxn
 
-            rsr = ReactionsWithSameReactant(reactant)
+            rsr = ReactionsOnePerBond(reactant)
             for bond, rxn in lowest_energy_reaction.items():
-                rsr.add_reaction(rxn)
+                rsr.add(rxn)
             new_groups.append(rsr)
 
         return new_groups
@@ -723,7 +720,7 @@ class ReactionExtractor:
         )
 
         # groups is a list of list, where the elements of each inner list are
-        # ReactionsWithSameReactant instances and the corresponding reactants are
+        # ReactionsOnePerBond instances and the corresponding reactants are
         # isomorphic to each other
         groups = []
         for rsr in grouped_reactions:
@@ -907,7 +904,7 @@ class ReactionExtractor:
             for ib, bond in enumerate(sdf_bonds):
                 # change index from ob to graph
                 bond = tuple(sorted(reactant.ob_bond_idx_to_graph_bond_idx(bond)))
-                data = rsr.reactant_bonds_data[bond]
+                data = rsr.order_reactions[bond]
 
                 # NOTE this will only write class 0 and class 1
                 # rxn = data["reaction"]
@@ -991,7 +988,7 @@ class ReactionExtractor:
                     # write bond energies
                     for j in range(num_bonds):
                         if j == idx:
-                            f.write("{:.15g} ".format(rxn.get_reaction_free_energy()))
+                            f.write("{:.15g} ".format(rxn.get_free_energy()))
                         else:
                             f.write("0.0 ")
                     f.write("   ")
@@ -1036,7 +1033,7 @@ class ReactionExtractor:
             for ib, bond in enumerate(sdf_bonds):
                 # change index from ob to graph
                 bond = tuple(sorted(reactant.ob_bond_idx_to_graph_bond_idx(bond)))
-                data = rsr.reactant_bonds_data[bond]
+                data = rsr.order_reactions()[bond]
                 rxn = data["reaction"]
 
                 if rxn is None:  # do not have reaction breaking bond
@@ -1118,7 +1115,7 @@ class ReactionExtractor:
 
                     if bond in rxns_by_ob_bond:  # have reaction with breaking this bond
                         rxn = rxns_by_ob_bond[bond]
-                        energy.append(rxn.get_reaction_free_energy())
+                        energy.append(rxn.get_free_energy())
                         indicator.append(1)
                     else:
                         energy.append(0.0)
@@ -1226,104 +1223,81 @@ class ReactionExtractor:
         return cls(mols, rxns)
 
 
-def is_valid_A_to_B_reaction(reactant, product):
+def is_valid_A_to_B_reaction(reactant, product, first_only=True):
     """
-    A -> B
-
-    Determine by the first found reaction, at most one reations.
+    Check whether the reactant and product can form A -> B style reaction w.r.t.
+    isomorphism.
 
     Args:
-        reactant: mol
-        product: mol
+        reactant, product (MoleculeWrapper): molecules
+        first_only (bool): If `True`, only return the first found one. If `False`
+            return all.
 
     Returns:
-        A list of tuple of the bond indices, if this is valid reaction;
-        None, otherwise.
+        list: bonds of reactant (represented by a tuple of the two atoms associated
+            with the bond) by breaking which A -> B reaction is valid.
+            Could be empty if no such reaction can form.
     """
-    for edge, mgs in reactant.fragments.items():
+    bonds = []
+    for b, mgs in reactant.fragments.items():
         if len(mgs) == 1 and mgs[0].isomorphic_to(product.mol_graph):
-            return [edge]
-    return None
+            bonds.append(b)
+            if first_only:
+                return bonds
+    return bonds
 
 
-def is_valid_A_to_B_C_reaction(reactant, products):
+def is_valid_A_to_B_C_reaction(reactant, product1, product2, first_only=False):
     """
-    A -> B + C
-
-    Determine by the first found reaction, at most one reations.
+    Check whether the reactant and product can form A -> B + C style reaction w.r.t.
+    isomorphism.
 
     Args:
-        reactant: mol
-        products: list of mols
+        reactant, product1, product2 (MoleculeWrapper): molecules
+        first_only (bool): If `True`, only return the first found one. If `False`
+            return all.
 
     Returns:
-        A list of tuple of the bond indices, if this is valid reaction;
-        None, otherwise.
+        list: bonds of reactant (represented by a tuple of the two atoms associated
+            with the bond) by breaking which A -> B + C reaction is valid.
+            Could be empty if no such reaction can form.
     """
-    for edge, mgs in reactant.fragments.items():
+
+    bonds = []
+    for b, mgs in reactant.fragments.items():
         if len(mgs) == 2:
             if (
-                mgs[0].isomorphic_to(products[0].mol_graph)
-                and mgs[1].isomorphic_to(products[1].mol_graph)
+                mgs[0].isomorphic_to(product1.mol_graph)
+                and mgs[1].isomorphic_to(product2.mol_graph)
             ) or (
-                mgs[0].isomorphic_to(products[1].mol_graph)
-                and mgs[1].isomorphic_to(products[0].mol_graph)
+                mgs[0].isomorphic_to(product2.mol_graph)
+                and mgs[1].isomorphic_to(product1.mol_graph)
             ):
-                return [edge]
-    return None
+                bonds.append(b)
+                if first_only:
+                    return bonds
+    return bonds
 
 
-#
-# def is_valid_A_to_B_reaction(reactant, product):
-#     """
-#     A -> B
-#     Args:
-#         reactant: mol
-#         product: mol
-#
-#     Get all the broken bonds.
-#
-#     Returns:
-#         A list of tuple of the bond indices, if this is valid reaction;
-#         None, otherwise.
-#     """
-#     all_edges = []
-#     for edge, mgs in reactant.fragments.items():
-#         if len(mgs) == 1 and mgs[0].isomorphic_to(product.mol_graph):
-#             all_edges.append(edge)
-#     if all_edges:
-#         return all_edges
-#     else:
-#         return None
-#
-#
-# def is_valid_A_to_B_C_reaction(reactant, products):
-#     """
-#     A -> B + C
-#     Args:
-#         reactant: mol
-#         products: list of mols
-#
-#     Get all the broken bonds.
-#     Returns:
-#         A list of tuple of the bond indices, if this is valid reaction;
-#         None, otherwise.
-#     """
-#     all_edges = []
-#     for edge, mgs in reactant.fragments.items():
-#         if len(mgs) == 2:
-#             if (
-#                 mgs[0].isomorphic_to(products[0].mol_graph)
-#                 and mgs[1].isomorphic_to(products[1].mol_graph)
-#             ) or (
-#                 mgs[0].isomorphic_to(products[1].mol_graph)
-#                 and mgs[1].isomorphic_to(products[0].mol_graph)
-#             ):
-#                 all_edges.append(edge)
-#     if all_edges:
-#         return all_edges
-#     else:
-#         return None
+def atom_mapping(g1, g2):
+    """
+    Mapping the atoms from g1 to g2 based on isomorphism.
+
+    Args:
+        g1, g2 (MoleculeGraph):
+
+    Returns:
+        dict: atom mapping from g1 to g2, but `None` is g1 is not isomorphic to g2.
+
+    See Also:
+        https://networkx.github.io/documentation/stable/reference/algorithms/isomorphism.vf2.html
+    """
+    nm = iso.categorical_node_match("specie", "ERROR")
+    GM = iso.GraphMatcher(g1.graph, g2.graph, node_match=nm)
+    if GM.is_isomorphic():
+        return GM.mapping
+    else:
+        return None
 
 
 def get_same_bond_breaking_reactions_between_two_reaction_groups(
@@ -1362,26 +1336,3 @@ def get_same_bond_breaking_reactions_between_two_reaction_groups(
                 ) or (mgs1[0].isomorphic_to(mgs2[1]) and mgs1[1].isomorphic_to(mgs2[0])):
                     res.append((group1[b1], group2[b2]))
     return res
-
-
-def isomorphic_atom_mapping(mol_g1, mol_g2):
-    """
-    Returns `None` is mol1 is not isomorphic to mol2, otherwise the atom mapping from
-    mol1 to mol2.
-    """
-    if len(mol_g1.molecule) != len(mol_g2.molecule):
-        return None
-    elif (
-        mol_g1.molecule.composition.alphabetical_formula
-        != mol_g2.molecule.composition.alphabetical_formula
-    ):
-        return None
-    elif len(mol_g1.graph.edges()) != len(mol_g2.graph.edges()):
-        return None
-    else:
-        nm = iso.categorical_node_match("specie", "ERROR")
-        GM = iso.GraphMatcher(mol_g1.graph, mol_g2.graph, node_match=nm)
-        if GM.is_isomorphic():
-            return GM.mapping
-        else:
-            return None

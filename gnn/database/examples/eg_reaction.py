@@ -193,7 +193,7 @@ def bond_label_fraction(top_n=2):
         label1 = 0
         label2 = 0
         all_None = True
-        for bond, data in rsr.reactant_bonds_data.items():
+        for bond, data in rsr.order_reactions().items():
             if data["order"] is None:
                 label2 += 1
             else:
@@ -210,7 +210,7 @@ def bond_label_fraction(top_n=2):
             )
             continue
 
-        n = len(rsr.reactant_bonds_data)
+        n = len(rsr.order_reactions())
         num_bonds.append(n)
         frac["label0"].append(label0 / n)
         frac["label1"].append(label1 / n)
@@ -267,7 +267,7 @@ def bond_energy_difference_in_molecule_nth_lowest():
     for nth in all_nth:
         bond_energy_diff = dict()
         for rsr in groups:
-            energies = [rxn.get_reaction_free_energy() for rxn in rsr.reactions]
+            energies = [rxn.get_free_energy() for rxn in rsr.reactions]
             e_diff = [abs(i - j) for i, j in itertools.combinations(energies, 2)]
 
             # get nth lowest
@@ -312,7 +312,7 @@ def plot_reaction_energy_difference_arcoss_reactant_charge(
             reactions = results[charge]
             energies = []
             for rxn1, rxn2 in reactions:
-                e_diff = rxn2.get_reaction_free_energy() - rxn1.get_reaction_free_energy()
+                e_diff = rxn2.get_free_energy() - rxn1.get_free_energy()
                 energies.append(e_diff)
 
             outname = "~/Applications/db_access/mol_builder/reactant_e_diff/"
@@ -442,7 +442,7 @@ def plot_bond_energy_hist(
 
             energies = []
             for rxn in reactions:
-                energies.append(rxn.get_reaction_free_energy())
+                energies.append(rxn.get_free_energy())
 
             if ch is None:
                 if len(energies) == 0:
