@@ -74,7 +74,10 @@ class Reaction:
         for mol in self.reactants:
             energy -= mol.free_energy
         for mol in self.products:
-            energy += mol.free_energy
+            if mol.free_energy is None:
+                return None
+            else:
+                energy += mol.free_energy
         return energy
 
     def as_dict(self):
@@ -98,7 +101,9 @@ class Reaction:
             s = "A -> B style reaction\n"
         else:
             s = "A -> B + C style reaction\n"
-        s += f"reactants:\n    {self.reactants[0].formula} ({self.reactants[0].charge})\n"
+        s += "reactants:\n:"
+        for p in self.reactants:
+            s += f"    {p.formula} ({p.charge})\n"
         s += "products:\n"
         for p in self.products:
             s += f"    {p.formula} ({p.charge})\n"
@@ -237,8 +242,15 @@ class ReactionsWithSameBond:
             )
         self._reactions.append(reaction)
 
-    def create_fake_reactions(self):
+    def create_complement_reactions(self):
         """
+        Create reactions to complement the ones present in the database such that each
+        bond has reactions of all combination of charges.
+
+        For example, if we have `A (0) -> B (0) + C (0)` and `A (0) -> B (1) + C (-1)`
+        in the database, this will create reaction `A (0) -> B (-1) + C (1)`.
+        This assumes molecule charges of {-1,0,1} are allowed.
+
         Returns:
             A list of Reactions.
         """
@@ -305,9 +317,9 @@ class ReactionsWithSameBond:
         coords = [[v["coords"] for k, v in fg.graph.nodes.data()] for fg in fragments]
         bonds = [[(i, j) for i, j, v in fg.graph.edges.data()] for fg in fragments]
 
-        # create fake reactions
+        # create complementary reactions
         bb = self.broken_bond
-        fake_rxns = []
+        comp_rxns = []
         for charge in missing_charge:
             products = []
             for i, c in enumerate(charge):
@@ -318,24 +330,33 @@ class ReactionsWithSameBond:
                     )
                 )
             rxn = Reaction([self.reactant], products, broken_bond=bb)
-            fake_rxns.append(rxn)
+            comp_rxns.append(rxn)
 
-        return fake_rxns
+        return comp_rxns
 
-    def order_reactions(self, fake_reactions=False):
+    def order_reactions(self, complement_reactions=False):
         """
         Order reactions by energy.
 
+        If complement reactions (whose energy is `None`) are used, they are ordered
+        after existing reactions.
+
         Args:
-            fake_reactions (bool): If `False`, order the existing reactions only.
-                Otherwise, fake reactions are created based on and their reaction
-                energy is set to `None` and ordered as high energy reactions.
-                All reactions compatible with the product charge are created if not in
-                the existing charges.
+            complement_reactions (bool): If `False`, order the existing reactions only.
+                Otherwise, complementary reactions are created and ordered together
+                with existing ones.
 
         Returns:
-
+            list: reactions ordered by energy
         """
+        ordered_rxns = sorted(
+            self._reactions, key=lambda rxn: rxn.get_reaction_free_energy()
+        )
+        if complement_reactions:
+            comp_rxns = self.create_complement_reactions()
+        else:
+            comp_rxns = []
+        return ordered_rxns + comp_rxns
 
 
 class ReactionsWithSameReactant:

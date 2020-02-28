@@ -39,10 +39,17 @@ def test_reactions_with_same_bonds():
     for rxn in A2BC:
         rsb.add(rxn)
 
-    # generating fake reactions
-    fake_rxns = rsb.create_fake_reactions()
-    assert len(fake_rxns) == 1
-    rxn = fake_rxns[0]
+    # generating complete reactions
+    comp_rxns = rsb.create_complement_reactions()
+    assert len(comp_rxns) == 1
+    rxn = comp_rxns[0]
     assert_mol(rxn.reactants[0], "C3H1", 0)
     assert_mol(rxn.products[0], "H1", -1)
     assert_mol(rxn.products[1], "C3", 1)
+
+    # order reactions
+    ordered_rxns = rsb.order_reactions(complement_reactions=True)
+    assert len(ordered_rxns) == 3
+    assert ordered_rxns[0] == A2BC[0]
+    assert ordered_rxns[1] == A2BC[1]
+    assert ordered_rxns[2] == comp_rxns[0]

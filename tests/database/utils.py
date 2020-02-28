@@ -35,7 +35,12 @@ def create_molecules():
     bonds = [(0, 1), (0, 2), (1, 2), (2, 3)]
     mols.append(
         MoleculeWrapperFromAtomsAndBonds(
-            species=species, coords=coords, charge=charge, bonds=bonds, mol_id="m0"
+            species=species,
+            coords=coords,
+            charge=charge,
+            bonds=bonds,
+            mol_id="m0",
+            free_energy=0.0,
         )
     )
 
@@ -43,7 +48,12 @@ def create_molecules():
     bonds = [(0, 2), (1, 2), (2, 3)]
     mols.append(
         MoleculeWrapperFromAtomsAndBonds(
-            species=species, coords=coords, charge=charge, bonds=bonds, mol_id="m1"
+            species=species,
+            coords=coords,
+            charge=charge,
+            bonds=bonds,
+            mol_id="m1",
+            free_energy=1.0,
         )
     )
 
@@ -58,7 +68,12 @@ def create_molecules():
     bonds = [(0, 1), (0, 2), (1, 2)]
     mols.append(
         MoleculeWrapperFromAtomsAndBonds(
-            species=species, coords=coords, charge=charge, bonds=bonds, mol_id="m4"
+            species=species,
+            coords=coords,
+            charge=charge,
+            bonds=bonds,
+            mol_id="m2",
+            free_energy=2.0,
         )
     )
 
@@ -66,7 +81,12 @@ def create_molecules():
     charge = -1
     mols.append(
         MoleculeWrapperFromAtomsAndBonds(
-            species=species, coords=coords, charge=charge, bonds=bonds, mol_id="m5"
+            species=species,
+            coords=coords,
+            charge=charge,
+            bonds=bonds,
+            mol_id="m3",
+            free_energy=3.0,
         )
     )
 
@@ -77,7 +97,12 @@ def create_molecules():
     bonds = []
     mols.append(
         MoleculeWrapperFromAtomsAndBonds(
-            species=species, coords=coords, charge=charge, bonds=bonds, mol_id="m2"
+            species=species,
+            coords=coords,
+            charge=charge,
+            bonds=bonds,
+            mol_id="m4",
+            free_energy=4.0,
         )
     )
 
@@ -85,7 +110,12 @@ def create_molecules():
     charge = 1
     mols.append(
         MoleculeWrapperFromAtomsAndBonds(
-            species=species, coords=coords, charge=charge, bonds=bonds, mol_id="m3"
+            species=species,
+            coords=coords,
+            charge=charge,
+            bonds=bonds,
+            mol_id="m5",
+            free_energy=5.0,
         )
     )
 
@@ -93,7 +123,12 @@ def create_molecules():
     charge = -1
     mols.append(
         MoleculeWrapperFromAtomsAndBonds(
-            species=species, coords=coords, charge=charge, bonds=bonds, mol_id="m3"
+            species=species,
+            coords=coords,
+            charge=charge,
+            bonds=bonds,
+            mol_id="m6",
+            free_energy=6.0,
         )
     )
 
@@ -107,7 +142,12 @@ def create_molecules():
     bonds = [(0, 1)]
     mols.append(
         MoleculeWrapperFromAtomsAndBonds(
-            species=species, coords=coords, charge=charge, bonds=bonds, mol_id="m6"
+            species=species,
+            coords=coords,
+            charge=charge,
+            bonds=bonds,
+            mol_id="m7",
+            free_energy=7.0,
         )
     )
 
