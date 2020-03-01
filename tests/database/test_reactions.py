@@ -6,6 +6,16 @@ from gnn.database.reaction import (
 from .utils import create_reactions, create_molecules
 
 
+def test_reaction_atom_mapping():
+    ref_mapping = [{0: 0, 1: 2, 2: 1}, {0: 3}]
+
+    _, A2BC = create_reactions()
+    reaction = A2BC[0]
+    mapping = reaction.atom_mapping()
+
+    assert mapping == ref_mapping
+
+
 def test_extract_reactions():
     ref_A2B, ref_A2BC = create_reactions()
 
@@ -45,9 +55,9 @@ def test_reactions_of_same_bond():
     comp_rxns = rsb.create_complement_reactions()
     assert len(comp_rxns) == 1
     rxn = comp_rxns[0]
-    assert_mol(rxn.reactants[0], "C3H1", 0)
+    assert_mol(rxn.reactants[0], "C2H1O1", 0)
     assert_mol(rxn.products[0], "H1", -1)
-    assert_mol(rxn.products[1], "C3", 1)
+    assert_mol(rxn.products[1], "C2O1", 1)
 
     # test order reactions
     ordered_rxns = rsb.order_reactions(complement_reactions=False)

@@ -1,8 +1,10 @@
 import itertools
+import copy
 import logging
 from collections.abc import Iterable
 import networkx as nx
 import networkx.algorithms.isomorphism as iso
+from pymatgen.analysis.graphs import _isomorphic
 from collections import defaultdict, OrderedDict
 from gnn.database.database import MoleculeWrapperFromAtomsAndBonds
 from gnn.utils import (
@@ -38,6 +40,17 @@ class Reaction:
         self.products = self._order_molecules(products)
         self._broken_bond = broken_bond
 
+    def get_free_energy(self):
+        energy = 0
+        for mol in self.reactants:
+            energy -= mol.free_energy
+        for mol in self.products:
+            if mol.free_energy is None:
+                return None
+            else:
+                energy += mol.free_energy
+        return energy
+
     def get_broken_bond(self):
         if self._broken_bond is None:
             if len(self.products) == 1:
@@ -71,16 +84,71 @@ class Reaction:
             order = 0
         return {"species": species, "order": order}
 
-    def get_free_energy(self):
-        energy = 0
-        for mol in self.reactants:
-            energy -= mol.free_energy
-        for mol in self.products:
-            if mol.free_energy is None:
-                return None
+    def atom_mapping(self):
+        """
+        Find the atom mapping between products and reactant.
+
+        For example, suppose we have reactant
+
+              C 0
+             / \
+            /___\
+           O     N---H
+           1     2   3
+
+        and products
+               C 0
+             / \
+            /___\
+           O     N
+           1     2
+        and (note the index of H changes it 0)
+            H 0
+        The function will give use atom mapping:
+        [{0:0, 1:1, 2:2}, {0:3}]
+
+        Returns:
+            list: each element is a dict mapping the atoms from product to reactant
+        """
+
+        # get subgraphs of reactant by breaking the bond
+        # if A->B reaction, there is one element in sugraphs
+        # if A->B+C reaction, there are two
+        bond = self.get_broken_bond()
+        original = copy.deepcopy(self.reactants[0].mol_graph)
+        original.break_edge(bond[0], bond[1], allow_reverse=True)
+        components = nx.weakly_connected_components(original.graph)
+        subgraphs = [original.graph.subgraph(c) for c in components]
+
+        # correspondence between reactant subgraphs and products
+        N = len(subgraphs)
+        if N == 1:
+            corr = {0: 0}
+        else:
+            corr = dict()
+            products = [p.mol_graph for p in self.products]
+
+            # If A->B+B reactions, both correspondences are valid. Here either one
+            # would suffice
+
+            # implicitly indicates _isomorphic(subgraphs[1], products[1].graph)
+            if _isomorphic(subgraphs[0], products[0].graph):
+                corr[0] = 0
+                corr[1] = 1
             else:
-                energy += mol.free_energy
-        return energy
+                corr[0] = 1
+                corr[1] = 0
+
+        # atom mapping between products and reactant
+        mappings = []
+        for fidx, pidx in corr.items():
+            mp = nx_graph_atom_mapping(self.products[pidx].graph, subgraphs[fidx])
+            if mp is None:
+                raise RuntimeError(f"cannot find atom mapping for reaction {str(self)}")
+            else:
+                mappings.append(mp)
+
+        return mappings
 
     def as_dict(self):
         d = {
@@ -111,6 +179,9 @@ class Reaction:
             s += f"    {p.formula} ({p.charge})\n"
 
         return s
+
+    def __str__(self):
+        return self.__expr__()
 
     def __eq__(self, other):
         # this assumes all reactions are valid ones, i.e.
@@ -348,15 +419,18 @@ class ReactionsOfSameBond(ReactionsGroup):
                     products = [p.mol_graph for p in rxn.products]
                     charge = [p.charge for p in rxn.products]
 
-                    # Do not use if else here to consider A->B+B reactions.
-                    if fragments[0].isomorphic_to(
-                        products[0]
-                    ):  # implicitly indicates fragments[1].isomorphic_to(products[1])
-                        products_charge.append(tuple(charge))
-                    if fragments[0].isomorphic_to(
-                        products[1]
-                    ):  # implicitly indicates fragments[1].isomorphic_to(products[0])
+                    # A->B+B reaction
+                    if products[0].isomorphic_to(products[1]):
+                        products_charge.append((charge[0], charge[1]))
                         products_charge.append((charge[1], charge[0]))
+
+                    # A->B+C reaction
+                    else:
+                        # implicitly indicates fragments[1].isomorphic_to(products[1])
+                        if fragments[0].isomorphic_to(products[0]):
+                            products_charge.append((charge[0], charge[1]))
+                        else:
+                            products_charge.append((charge[1], charge[0]))
 
                 missing_charge = target_products_charge - set(products_charge)
 
@@ -814,7 +888,7 @@ class ReactionExtractor:
         :class:`ReactionsMultiplePerBond` container.
 
         Returns:
-            list: a sequence of :class:`ReactionsMulitplePerBond`
+            list: a sequence of :class:`ReactionsMultiplePerBond`
         """
 
         groups = self.group_by_reactant()
@@ -921,55 +995,80 @@ class ReactionExtractor:
 
         yaml_dump(new_groups, filename)
 
-    @staticmethod
-    def write_sdf(molecules, filename="molecules.sdf"):
-        """
-        Write molecules sdf to file.
+    def create_struct_label_dataset_reaction_based(
+        self,
+        struct_file="sturct.sdf",
+        label_file="label.txt",
+        feature_file=None,
+        complement_reactions=False,
+        top_n=2,
+    ):
 
-        Args:
-            filename (str): output filename
-            molecules: an iterable of molecules, e.g. list, OrderedDict
-        """
-        logger.info("Start writing sdf file: {}".format(filename))
-        filename = expand_path(filename)
-        create_directory(filename)
-        with open(filename, "w") as f:
-            for i, m in enumerate(molecules):
-                msg = "{}_{}_{}_{} int_id: {}".format(
-                    m.formula, m.charge, m.id, m.free_energy, i
-                )
-                # The same pybel mol will write different sdf file when it is called
-                # the first time and other times. We create a new one by setting
-                # `_ob_adaptor` to None here so that it will write the correct one.
-                m._ob_adaptor = None
-                sdf = m.write(file_format="sdf", message=msg)
-                f.write(sdf)
+        all_mols = []
+        all_labels = OrderedDict()  # one per reaction
 
-        logger.info("Finish writing sdf file: {}".format(filename))
+        rmb_list = self.group_by_reactant_all()
+        for rmb in rmb_list:  # reactions for a reactant
+            reactant = rmb.reactant
+            reactions = rmb.order_reactions(complement_reactions)
 
-    @staticmethod
-    def write_feature(molecules, bond_indices=None, filename="feature.yaml"):
-        """
-        Write molecules features to file.
+            for i, rxn in enumerate(reactions):  # reactions for a bond
+                mols = rxn.reactants + rxn.products
 
-        Args:
-            molecules (list): a list of MoleculeWrapper object
-            bond_indices (list of tuple): broken bond in the corresponding molecule
-            filename (str): output filename
-        """
-        logger.info("Start writing feature file: {}".format(filename))
+                all_mols.extend()
+                if i < top_n:
+                    lb = 0
+                else:
+                    energy = rxn.get_free_energy()
+                    if energy is not None:
+                        lb = 1
+                    else:
+                        lb = 2
+                all_labels["label"] = lb
+                all_labels["num_mols"] = len(mols)
+                am = [atom_mapping(p, reactant) for p in rxn.products]
+                all_labels["atom_mapping"] = am
 
-        all_feats = []
-        for i, m in enumerate(molecules):
-            if bond_indices is None:
-                idx = None
-            else:
-                idx = bond_indices[i]
-            feat = m.pack_features(use_obabel_idx=True, broken_bond=idx)
-            all_feats.append(feat)
-        yaml_dump(all_feats, filename)
+        all_reactants = []
+        broken_bond_idx = []  # int index in ob molecule
+        broken_bond_pairs = []  # a tuple index in graph molecule
+        label_class = []
+        for rsr in grouped_reactions:
+            reactant = rsr.reactant
 
-        logger.info("Finish writing feature file: {}".format(filename))
+            # bond energies in the same order as in sdf file
+            sdf_bonds = reactant.get_sdf_bond_indices()
+            for ib, bond in enumerate(sdf_bonds):
+                # change index from ob to graph
+                bond = tuple(sorted(reactant.ob_bond_idx_to_graph_bond_idx(bond)))
+                data = rsr.order_reactions()[bond]
+
+                # NOTE this will only write class 0 and class 1
+                # rxn = data["reaction"]
+                # if rxn is None:  # do not have reaction breaking bond
+                #     continue
+
+                order = data["order"]
+                if order is None:
+                    lb = 2
+                elif order < top_n:
+                    lb = 0
+                else:
+                    lb = 1
+                all_reactants.append(reactant)
+                broken_bond_idx.append(ib)
+                broken_bond_pairs.append(bond)
+                label_class.append(lb)
+
+        # write label
+        write_label(all_reactants, broken_bond_idx, label_class, label_file)
+
+        # write sdf
+        self.write_sdf(all_reactants, struct_file)
+
+        # write feature
+        if feature_file is not None:
+            self.write_feature(all_reactants, broken_bond_pairs, filename=feature_file)
 
     def create_struct_label_dataset_bond_based_classification(
         self,
@@ -985,7 +1084,7 @@ class ReactionExtractor:
         Also, this is based on the bond energy, i.e. each bond (that we have energies)
         will have one line in the label file.
 
-        args:
+        Args:
             struct_file (str): filename of the sdf structure file
             label_file (str): filename of the label
             feature_file (str): filename for the feature file, if `None`, do not write it
@@ -1272,6 +1371,57 @@ class ReactionExtractor:
             self.write_feature(rxns, bond_indices=None, filename=feature_file)
 
     @staticmethod
+    def write_sdf(molecules, filename="molecules.sdf"):
+        """
+        Write molecules sdf to file.
+
+        Args:
+            filename (str): output filename
+            molecules (list): a sequence of :class:`MoleculeWrapper`
+        """
+        logger.info("Start writing sdf file: {}".format(filename))
+
+        filename = expand_path(filename)
+        create_directory(filename)
+        with open(filename, "w") as f:
+            for i, m in enumerate(molecules):
+                msg = "{}_{}_{}_{} int_id: {}".format(
+                    m.formula, m.charge, m.id, m.free_energy, i
+                )
+                # The same pybel mol will write different sdf file when it is called
+                # the first time and other times. We create a new one by setting
+                # `_ob_adaptor` to None here so that it will write the correct one.
+                m._ob_adaptor = None
+                sdf = m.write(file_format="sdf", message=msg)
+                f.write(sdf)
+
+        logger.info("Finish writing sdf file: {}".format(filename))
+
+    @staticmethod
+    def write_feature(molecules, bond_indices=None, filename="feature.yaml"):
+        """
+        Write molecules features to file.
+
+        Args:
+            molecules (list): a sequence of :class:`MoleculeWrapper`
+            bond_indices (list of tuple): broken bond in the corresponding molecule
+            filename (str): output filename
+        """
+        logger.info("Start writing feature file: {}".format(filename))
+
+        all_feats = []
+        for i, m in enumerate(molecules):
+            if bond_indices is None:
+                idx = None
+            else:
+                idx = bond_indices[i]
+            feat = m.pack_features(use_obabel_idx=True, broken_bond=idx)
+            all_feats.append(feat)
+        yaml_dump(all_feats, filename)
+
+        logger.info("Finish writing feature file: {}".format(filename))
+
+    @staticmethod
     def _get_formula_composition_map(mols):
         fcmap = dict()
         for m in mols:
@@ -1351,7 +1501,7 @@ def is_valid_A_to_B_reaction(reactant, product, first_only=True):
     return bonds
 
 
-def is_valid_A_to_B_C_reaction(reactant, product1, product2, first_only=False):
+def is_valid_A_to_B_C_reaction(reactant, product1, product2, first_only=True):
     """
     Check whether the reactant and product can form A -> B + C style reaction w.r.t.
     isomorphism.
@@ -1383,12 +1533,12 @@ def is_valid_A_to_B_C_reaction(reactant, product1, product2, first_only=False):
     return bonds
 
 
-def atom_mapping(g1, g2):
+def nx_graph_atom_mapping(g1, g2):
     """
     Mapping the atoms from g1 to g2 based on isomorphism.
 
     Args:
-        g1, g2 (MoleculeGraph):
+        g1, g2: nx graph
 
     Returns:
         dict: atom mapping from g1 to g2, but `None` is g1 is not isomorphic to g2.
@@ -1397,7 +1547,7 @@ def atom_mapping(g1, g2):
         https://networkx.github.io/documentation/stable/reference/algorithms/isomorphism.vf2.html
     """
     nm = iso.categorical_node_match("specie", "ERROR")
-    GM = iso.GraphMatcher(g1.graph, g2.graph, node_match=nm)
+    GM = iso.GraphMatcher(g1.to_undirected(), g2.to_undirected(), node_match=nm)
     if GM.is_isomorphic():
         return GM.mapping
     else:

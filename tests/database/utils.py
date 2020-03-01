@@ -4,27 +4,62 @@ from gnn.database.reaction import Reaction
 
 def create_molecules():
     """
-    Create a list of molecules, such that the below reactions exists (w.r.t. graph
-    connectivity and charge):
+    Create a list of molecules:
 
-    m0 -> m1    C3H (0) -> C3H (0)
-    m0 -> m2 + m4   C3H (0) -> C3 (0) + H (0)
-    m0 -> m3 + m5   C3H (0) -> C3 (-1) + H (1)
+    m0: charge 0
+        C 0
+       / \
+      /___\
+     O     C---H
+     1     2   3
+
+    m1: charge 0
+        C 0
+         \
+       ___\
+     O     C---H
+     1     2   3
+
+    m2: charge 0 (note the atom index order between this and m0)
+        C 0
+       / \
+      /___\
+     O     C
+     2     1
+
+    m2: charge -1 (note the atom index order between this and m0)
+        C 0
+       / \
+      /___\
+     O     C
+     2     1
+
+    m4: charge 0
+    H
+
+    m5: charge 1
+    H
+
+    m6: charge -1
+    H
+
+    m7: charge 0
+    H--H
+
+
+    The below reactions exists (w.r.t. graph connectivity and charge):
+
+    m0 -> m1    C2HO (0) -> C2HO (0)
+    m0 -> m2 + m4   C2HO (0) -> C2O (0) + H (0)
+    m0 -> m3 + m5   C2HO (0) -> C2O (-1) + H (1)
     m7 -> m4 + m4   H2 (0) -> H (0) + H (0)
     m7 -> m5 + m6   H2 (0) -> H (1) + H (-1)
     """
 
-    #
-    #           C 0
-    #          / \
-    #         /___\
-    #        C     C---H
-    #        1     2   3
-
     mols = []
 
     # m0, charge 0
-    species = ["C", "C", "C", "H"]
+    species = ["C", "O", "C", "H"]
     coords = [
         [0.0, 1.0, 0.0],
         [-1.0, 0.0, 0.0],
@@ -58,7 +93,7 @@ def create_molecules():
     )
 
     # m2, m0 without H, charge 0
-    species = ["C", "C", "C"]
+    species = ["C", "C", "O"]
     coords = [
         [0.0, 1.0, 0.0],
         [-1.0, 0.0, 0.0],

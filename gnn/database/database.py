@@ -371,7 +371,7 @@ class MoleculeWrapper:
         sub_mols = {}
 
         if bonds is None:
-            bonds = self.graph.edges()
+            bonds = [(i, j) for i, j, _ in self.bonds]
         for edge in bonds:
             try:
                 new_mgs = self.mol_graph.split_molecule_subgraphs(
@@ -406,7 +406,7 @@ class MoleculeWrapper:
             nodes = [original.graph.subgraph(c).nodes for c in components]
             mapping = tuple([sorted(list(n)) for n in nodes])
             if len(mapping) != 2:
-                raise Exception("Mole not split into two parts")
+                raise Exception("Mol not split into two parts")
             return mapping
 
     def write(self, filename=None, file_format="sdf", message=None):
