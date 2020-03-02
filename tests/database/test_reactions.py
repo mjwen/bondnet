@@ -7,13 +7,53 @@ from .utils import create_reactions, create_molecules
 
 
 def test_reaction_atom_mapping():
-    ref_mapping = [{0: 0, 1: 2, 2: 1}, {0: 3}]
+    # {0:3} first because products are ordered
+    ref_mapping = [{0: 3}, {0: 0, 1: 2, 2: 1}]
 
     _, A2BC = create_reactions()
+
+    # m0 to m2 m4
     reaction = A2BC[0]
     mapping = reaction.atom_mapping()
 
     assert mapping == ref_mapping
+
+
+def test_reaction_bond_mapping_single_index():
+
+    ref_m0_to_m1_mapping = [{0: 1, 1: 2, 2: 3}]
+    # {} first because products are ordered
+    ref_m0_to_m2_m4_mapping = [{}, {0: 1, 1: 0, 2: 2}]
+    ref_m7_to_m4_m4_mapping = [{}, {}]
+
+    A2B, A2BC = create_reactions()
+
+    # m1 to m2
+    assert A2B[0].bond_mapping_by_single_index() == ref_m0_to_m1_mapping
+
+    # m0 to m2 m4
+    assert A2BC[0].bond_mapping_by_single_index() == ref_m0_to_m2_m4_mapping
+
+    # m7 to m4 m4
+    assert A2BC[3].bond_mapping_by_single_index() == ref_m7_to_m4_m4_mapping
+
+
+def test_reaction_bond_mapping_tuple_index():
+    ref_m0_to_m1_mapping = [{(0, 2): (0, 2), (1, 2): (1, 2), (2, 3): (2, 3)}]
+    # {} first because products are ordered
+    ref_m0_to_m2_m4_mapping = [{}, {(0, 1): (0, 2), (0, 2): (0, 1), (1, 2): (1, 2)}]
+    ref_m7_to_m4_m4_mapping = [{}, {}]
+
+    A2B, A2BC = create_reactions()
+
+    # m1 to m2
+    assert A2B[0].bond_mapping_by_tuple_index() == ref_m0_to_m1_mapping
+
+    # m0 to m2 m4
+    assert A2BC[0].bond_mapping_by_tuple_index() == ref_m0_to_m2_m4_mapping
+
+    # m7 to m4 m4
+    assert A2BC[3].bond_mapping_by_tuple_index() == ref_m7_to_m4_m4_mapping
 
 
 def test_extract_reactions():

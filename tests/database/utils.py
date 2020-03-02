@@ -8,23 +8,23 @@ def create_molecules():
 
     m0: charge 0
         C 0
-       / \
-      /___\
-     O     C---H
+     0 / \  1
+      /___\  3
+     O  2  C---H
      1     2   3
 
     m1: charge 0
         C 0
-         \
-       ___\
-     O     C---H
+         \ 0
+       ___\  2
+     O  1  C---H
      1     2   3
 
     m2: charge 0 (note the atom index order between this and m0)
         C 0
-       / \
+    1  / \ 0
       /___\
-     O     C
+     O  2  C
      2     1
 
     m2: charge -1 (note the atom index order between this and m0)

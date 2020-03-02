@@ -7,13 +7,7 @@ import networkx.algorithms.isomorphism as iso
 from pymatgen.analysis.graphs import _isomorphic
 from collections import defaultdict, OrderedDict
 from gnn.database.database import MoleculeWrapperFromAtomsAndBonds
-from gnn.utils import (
-    create_directory,
-    pickle_dump,
-    pickle_load,
-    yaml_dump,
-    expand_path,
-)
+from gnn.utils import create_directory, pickle_dump, pickle_load, yaml_dump, expand_path
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +90,7 @@ class Reaction:
            O     N---H
            1     2   3
 
-        and products
+        products
                C 0
              / \
             /___\
@@ -104,6 +98,7 @@ class Reaction:
            1     2
         and (note the index of H changes it 0)
             H 0
+
         The function will give use atom mapping:
         [{0:0, 1:1, 2:2}, {0:3}]
 
@@ -120,12 +115,16 @@ class Reaction:
         components = nx.weakly_connected_components(original.graph)
         subgraphs = [original.graph.subgraph(c) for c in components]
 
-        # correspondence between reactant subgraphs and products
+        # correspondence between products and reaxtant subgrpahs
+
         N = len(subgraphs)
         if N == 1:
             corr = {0: 0}
         else:
-            corr = dict()
+
+            # product idx as key and reactant subgraph idx as value
+            # order matters since mappings[0] (see below) corresponds to first product
+            corr = OrderedDict()
             products = [p.mol_graph for p in self.products]
 
             # If A->B+B reactions, both correspondences are valid. Here either one
@@ -141,7 +140,7 @@ class Reaction:
 
         # atom mapping between products and reactant
         mappings = []
-        for fidx, pidx in corr.items():
+        for pidx, fidx in corr.items():
             mp = nx_graph_atom_mapping(self.products[pidx].graph, subgraphs[fidx])
             if mp is None:
                 raise RuntimeError(f"cannot find atom mapping for reaction {str(self)}")
@@ -149,6 +148,128 @@ class Reaction:
                 mappings.append(mp)
 
         return mappings
+
+    def bond_mapping_by_single_index(self):
+
+        """
+        Find the bond mapping between products and reactant, using a single index (the
+        index of bond in MoleculeWrapper.bonds ) to denote the bond.
+
+        For example, suppose we have reactant
+
+              C 0
+           0 / \ 1
+            /___\  3   4
+           O  2  N---O---H
+           1     2   3  4
+
+        products
+              C 0
+           1 / \ 0
+            /___\
+           O  2  N
+           1     2
+        and (note the index of H changes it 0)
+              0
+            O---H
+            0   1
+        The function will give the bond mapping:
+        [{0:1, 1:0, 2:2}, {0:4}]
+
+
+        The mapping is done by finding correspondence between atoms indices of reactant
+        and products.
+
+        Returns:
+            list: each element is a dict mapping the bonds from product to reactant
+        """
+
+        # for the same bond, tuple index as key and integer index as value
+        reactants_mapping = [
+            {
+                (i, j): order
+                for m in self.reactants
+                for order, (i, j, _) in enumerate(m.bonds)
+            }
+        ]
+
+        # do not use list comprehension because we need to create empty dict for products
+        # with not bonds
+        products_mapping = []
+        for m in self.products:
+            mp = {}
+            for order, (i, j, _) in enumerate(m.bonds):
+                mp[(i, j)] = order
+            products_mapping.append(mp)
+
+        # we only have one reactant
+        r_mapping = reactants_mapping[0]
+
+        amp = self.atom_mapping()
+
+        bond_mapping = []
+        for p_idx, p_mp in enumerate(products_mapping):
+            bmp = {}
+            for bond, p_order in p_mp.items():
+                # atom mapping between product and reactant of the bond
+                bond_amp = [amp[p_idx][i] for i in bond]
+                r_order = r_mapping[tuple(sorted(bond_amp))]
+                bmp[p_order] = r_order
+            bond_mapping.append(bmp)
+
+        return bond_mapping
+
+    def bond_mapping_by_tuple_index(self):
+
+        """
+        Find the bond mapping between products and reactant, using a tuple index (atom
+        index) to denote the bond.
+
+        For example, suppose we have reactant
+
+              C 0
+           0 / \ 1
+            /___\  3   4
+           O  2  N---O---H
+           1     2   3  4
+
+        products
+              C 0
+           1 / \ 0
+            /___\
+           O  2  N
+           2     1
+        and (note the index of H changes it 0)
+              0
+            O---H
+            0   1
+        The function will give the bond mapping:
+        [{(0,1):(0,2), (0,2):(0,1), (1,2):(1,2)}, {(0,1):(3,4)}]
+
+
+        The mapping is done by finding correspondence between atoms indices of reactant
+        and products.
+
+        Returns:
+            list: each element is a dict mapping the bonds from product to reactant
+        """
+
+        atom_mp = self.atom_mapping()
+
+        bond_mapping = []
+        for p, amp in zip(self.products, atom_mp):
+
+            # do not use list comprehension because we need to create empty dict for
+            # products with not bonds
+            bmp = {}
+            for i, j, _ in p.bonds:
+                # atom mapping between product and reactant of the bond
+                b_product = (i, j)
+                b_reactant = tuple(sorted([amp[i], amp[j]]))
+                bmp[b_product] = b_reactant
+            bond_mapping.append(bmp)
+
+        return bond_mapping
 
     def as_dict(self):
         d = {
@@ -471,7 +592,7 @@ class ReactionsOfSameBond(ReactionsGroup):
         Returns:
             list: a sequence of :class:`Reaction` ordered by energy
         """
-        ordered_rxns = sorted(self._reactions, key=lambda rxn: rxn.get_free_energy())
+        ordered_rxns = sorted(self.reactions, key=lambda rxn: rxn.get_free_energy())
         if complement_reactions:
             comp_rxns = self.create_complement_reactions()
             ordered_rxns += comp_rxns
@@ -501,33 +622,42 @@ class ReactionsOnePerBond(ReactionsGroup):
                 )
         self._reactions.append(rxn)
 
-    def order_reactions(self):
+    def order_reactions(self, complement_reactions=True):
         """
         Order the reactions by charge.
+
+        Args:
+            complement_reactions (bool): If `False`, order the existing reactions only.
+                Otherwise, complementary reactions are created and ordered together
+                with existing ones.
 
         Returns:
             dict of dict: The outer dict has bond indices (a tuple) as the key and the
                 inner dict have keys `energy`, `reaction`, `order`. Their values are
                 set to `None` if there is no reaction associated with the bond.
         """
-        ordered_rxns = OrderedDict()
-        for i, j, attr in self.reactant.bonds:
-            ordered_rxns[(i, j)] = {"reaction": None, "order": None, "energy": None}
 
-        bond_energy_pair = []
-        for rxn in self._reactions:
-            bond = rxn.get_broken_bond()
-            ordered_rxns[bond]["reaction"] = rxn
-            e = rxn.get_free_energy()
-            ordered_rxns[bond]["energy"] = e
-            bond_energy_pair.append((bond, e))
+        ordered_rxns = sorted(self.reactions, key=lambda rxn: rxn.get_free_energy())
+        ordered_rxns_dict = dict()
+        for i, (bond, rxn) in enumerate(ordered_rxns):
+            ordered_rxns_dict[bond] = {
+                "reaction": rxn,
+                "order": i,
+                "energy": rxn.get_free_energy(),
+            }
 
-        # get bond energies order
-        bond_energy_pair = sorted(bond_energy_pair, key=lambda pair: pair[1])
-        for i, (bond, energy) in enumerate(bond_energy_pair):
-            ordered_rxns[bond]["order"] = i
+        if complement_reactions:
+            bonds_of_existing_rxns = [bond for bond, rxn in ordered_rxns]
+            for i, j, attr in self.reactant.bonds:
+                bond = (i, j)
+                if bond not in bonds_of_existing_rxns:
+                    ordered_rxns_dict[bond] = {
+                        "reaction": None,
+                        "order": None,
+                        "energy": None,
+                    }
 
-        return ordered_rxns
+        return ordered_rxns_dict
 
 
 class ReactionsMultiplePerBond(ReactionsGroup):
@@ -584,13 +714,12 @@ class ReactionsMultiplePerBond(ReactionsGroup):
         """
 
         # sort reactions we have energy for
-        ordered_rxns = sorted(self._reactions, key=lambda rxn: rxn.get_free_energy())
+        ordered_rxns = sorted(self.reactions, key=lambda rxn: rxn.get_free_energy())
 
         # add complementary reactions that we do not have energy
         if complement_reactions:
             rsb_group = self.group_by_bond()
             for rsb in rsb_group:
-                b = rsb.broken_bond
                 comp_rxns = rsb.create_complement_reactions()
                 ordered_rxns.extend(comp_rxns)
 
@@ -703,7 +832,7 @@ class ReactionExtractor:
 
                 reaction_ids = []
                 for (charge_A, charge_B, charge_C) in itertools.product(
-                    buckets[formula_A], buckets[formula_B], buckets[formula_C],
+                    buckets[formula_A], buckets[formula_B], buckets[formula_C]
                 ):
                     if not self._is_valid_A_to_B_C_charge(charge_A, charge_B, charge_C):
                         continue
@@ -818,7 +947,7 @@ class ReactionExtractor:
 
         A group of reactions of the same reactant are put in to
         :class:`ReactionsOnePerBond` container.
-        
+
         Returns:
             list: a sequence of :class:`ReactionsOnePerBond`
         """
@@ -1010,10 +1139,15 @@ class ReactionExtractor:
         rmb_list = self.group_by_reactant_all()
         for rmb in rmb_list:  # reactions for a reactant
             reactant = rmb.reactant
+            reactant_sdf_bonds = reactant.get_sdf_bond_indices()
+            reactant_bond = [
+                tuple(sorted(reactant.ob_bond_idx_to_graph_bond_idx(bond)))
+                for bond in reactant_sdf_bonds
+            ]
+
             reactions = rmb.order_reactions(complement_reactions)
 
             for i, rxn in enumerate(reactions):  # reactions for a bond
-                mols = rxn.reactants + rxn.products
 
                 all_mols.extend()
                 if i < top_n:
@@ -1025,9 +1159,12 @@ class ReactionExtractor:
                     else:
                         lb = 2
                 all_labels["label"] = lb
-                all_labels["num_mols"] = len(mols)
-                am = [atom_mapping(p, reactant) for p in rxn.products]
-                all_labels["atom_mapping"] = am
+                all_labels["num_mols"] = len(reactant + rxn.products)
+                all_labels["atom_mapping"] = rxn.atom_mapping()
+
+                products_sdf_bonds = [p.get_sdf_bond_indices() for p in rxn.products]
+
+                bond = tuple(sorted(reactant.ob_bond_idx_to_graph_bond_idx(bond)))
 
         all_reactants = []
         broken_bond_idx = []  # int index in ob molecule
@@ -1134,13 +1271,14 @@ class ReactionExtractor:
         label_class = []
         for rsr in grouped_reactions:
             reactant = rsr.reactant
+            ordered_reactions = rsr.order_reactions()
 
             # bond energies in the same order as in sdf file
             sdf_bonds = reactant.get_sdf_bond_indices()
             for ib, bond in enumerate(sdf_bonds):
                 # change index from ob to graph
                 bond = tuple(sorted(reactant.ob_bond_idx_to_graph_bond_idx(bond)))
-                data = rsr.order_reactions()[bond]
+                data = ordered_reactions[bond]
 
                 # NOTE this will only write class 0 and class 1
                 # rxn = data["reaction"]
