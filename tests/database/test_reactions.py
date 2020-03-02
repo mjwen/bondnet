@@ -19,8 +19,7 @@ def test_reaction_atom_mapping():
     assert mapping == ref_mapping
 
 
-def test_reaction_bond_mapping_single_index():
-
+def test_reaction_bond_mapping_int_index():
     ref_m0_to_m1_mapping = [{0: 1, 1: 2, 2: 3}]
     # {} first because products are ordered
     ref_m0_to_m2_m4_mapping = [{}, {0: 1, 1: 0, 2: 2}]
@@ -29,13 +28,13 @@ def test_reaction_bond_mapping_single_index():
     A2B, A2BC = create_reactions()
 
     # m1 to m2
-    assert A2B[0].bond_mapping_by_single_index() == ref_m0_to_m1_mapping
+    assert A2B[0].bond_mapping_by_int_index() == ref_m0_to_m1_mapping
 
     # m0 to m2 m4
-    assert A2BC[0].bond_mapping_by_single_index() == ref_m0_to_m2_m4_mapping
+    assert A2BC[0].bond_mapping_by_int_index() == ref_m0_to_m2_m4_mapping
 
     # m7 to m4 m4
-    assert A2BC[3].bond_mapping_by_single_index() == ref_m7_to_m4_m4_mapping
+    assert A2BC[3].bond_mapping_by_int_index() == ref_m7_to_m4_m4_mapping
 
 
 def test_reaction_bond_mapping_tuple_index():
@@ -54,6 +53,77 @@ def test_reaction_bond_mapping_tuple_index():
 
     # m7 to m4 m4
     assert A2BC[3].bond_mapping_by_tuple_index() == ref_m7_to_m4_m4_mapping
+
+
+def test_reaction_bond_mapping_sdf_int_index():
+    """
+ m0
+ OpenBabel03012020193D
+
+  4  4  0  0  0  0  0  0  0  0999 V2000
+    0.0000    1.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.0000    0.0000    0.0000 O   0  3  0  0  0  0  0  0  0  0  0  0
+    1.0000    0.0000    0.0000 C   0  5  0  0  0  0  0  0  0  0  0  0
+    1.0000    0.0000    1.0000 H   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  1  0  0  0  0
+  1  3  1  0  0  0  0
+  2  3  1  0  0  0  0
+  3  4  1  0  0  0  0
+
+
+  m1
+ OpenBabel03012020193D
+
+  4  3  0  0  0  0  0  0  0  0999 V2000
+    0.0000    1.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.0000    0.0000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+    1.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.0000    0.0000    1.0000 H   0  0  0  0  0  0  0  0  0  0  0  0
+  1  3  1  0  0  0  0
+  2  3  2  0  0  0  0
+  3  4  1  0  0  0  0
+
+ m2
+ OpenBabel03012020223D
+
+  3  3  0  0  0  0  0  0  0  0999 V2000
+    0.0000    1.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+   -1.0000    0.0000    0.0000 C   0  5  0  0  0  2  0  0  0  0  0  0
+    1.0000    0.0000    0.0000 O   0  3  0  0  0  0  0  0  0  0  0  0
+  1  2  1  0  0  0  0
+  1  3  1  0  0  0  0
+  2  3  1  0  0  0  0
+
+ m4
+ OpenBabel03012020203D
+
+  1  0  0  0  0  0  0  0  0  0999 V2000
+    1.0000    0.0000    1.0000 H   0  0  0  0  0  0  0  0  0  0  0  0
+
+
+ m7
+ OpenBabel03012020233D
+
+  2  1  0  0  0  0  0  0  0  0999 V2000
+    0.0000    0.0000    0.0000 H   0  0  0  0  0  0  0  0  0  0  0  0
+    1.0000    0.0000    0.0000 H   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  1  0  0  0  0
+    """
+    ref_m0_to_m1_mapping = [{0: 1, 1: 2, 2: 3}]
+    # {} first because products are ordered
+    ref_m0_to_m2_m4_mapping = [{}, {0: 1, 1: 0, 2: 2}]
+    ref_m7_to_m4_m4_mapping = [{}, {}]
+
+    A2B, A2BC = create_reactions()
+
+    # m1 to m2
+    assert A2B[0].bond_mapping_by_sdf_int_index() == ref_m0_to_m1_mapping
+
+    # m0 to m2 m4
+    assert A2BC[0].bond_mapping_by_sdf_int_index() == ref_m0_to_m2_m4_mapping
+
+    # m7 to m4 m4
+    assert A2BC[3].bond_mapping_by_sdf_int_index() == ref_m7_to_m4_m4_mapping
 
 
 def test_extract_reactions():

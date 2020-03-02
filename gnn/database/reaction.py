@@ -149,7 +149,7 @@ class Reaction:
 
         return mappings
 
-    def bond_mapping_by_single_index(self):
+    def bond_mapping_by_int_index(self):
 
         """
         Find the bond mapping between products and reactant, using a single index (the
@@ -268,6 +268,68 @@ class Reaction:
                 b_reactant = tuple(sorted([amp[i], amp[j]]))
                 bmp[b_product] = b_reactant
             bond_mapping.append(bmp)
+
+        return bond_mapping
+
+    def bond_mapping_by_sdf_int_index(self):
+        """
+        Bond mapping between products SDF bonds and reactant SDF bonds.
+
+        We do the below to get a mapping between product sdf int index and reactant
+        sdf int index:
+
+        product sdf int index
+        --> product sdf tuple index
+        --> product graph tuple index
+        --> reactant graph tuple index
+        --> reactant sdf tuple index
+        --> reactant sdf int index
+
+        Unlike the atom mapping (where atom index in graph and sdf are the same),
+        when sdf file are written, the ordering of bond may change. So we need to do
+        this mapping to ensure the correcting between products bonds and reactant bonds.
+
+
+        Returns:
+            list (dict): each dict is the mapping for one product, from sdf bond index
+                of product to sdf bond index of reactant
+        """
+        reactant = self.reactants[0]
+
+        # reactant sdf bond index (tuple) to sdf bond index (interger)
+        reactant_index_tuple2int = {
+            b: i for i, b in enumerate(reactant.get_sdf_bond_indices())
+        }
+
+        # bond mapping between product sdf and reactant sdf
+        bond_mapping = []
+        product_to_reactant_mapping = self.bond_mapping_by_tuple_index()
+        for p, p2r in zip(self.products, product_to_reactant_mapping):
+
+            mp = {}
+            # product sdf bond index (list of tuple)
+            psb = p.get_sdf_bond_indices()
+
+            # ib: product sdf bond index (int)
+            # b: product sdf bond index (tuple)
+            for ib, b in enumerate(psb):
+                # product graph bond index (tuple)
+                pgb = tuple(sorted(p.ob_bond_idx_to_graph_bond_idx(b)))
+
+                # reactant graph bond index (tuple)
+                rgb = p2r[pgb]
+
+                # reactant sdf bond index (tuple)
+                rsbt = reactant.graph_bond_idx_to_ob_bond_idx(rgb)
+
+                # reactant sdf bond index (int)
+                rsbi = reactant_index_tuple2int[rsbt]
+
+                # product sdf bond index (int) to reactant sdf bond index (int)
+                mp[ib] = rsbi
+
+            # list of dict, each dict for one product
+            bond_mapping.append(mp)
 
         return bond_mapping
 
@@ -1137,19 +1199,21 @@ class ReactionExtractor:
         all_labels = OrderedDict()  # one per reaction
 
         rmb_list = self.group_by_reactant_all()
-        for rmb in rmb_list:  # reactions for a reactant
+
+        # rmb: all reactions for a reactant
+        for rmb in rmb_list:
             reactant = rmb.reactant
-            reactant_sdf_bonds = reactant.get_sdf_bond_indices()
-            reactant_bond = [
-                tuple(sorted(reactant.ob_bond_idx_to_graph_bond_idx(bond)))
-                for bond in reactant_sdf_bonds
-            ]
+
+            # reactant sdf bond index (tuple) to sdf bond index (interger)
+            reactant_index_tuple2int = {
+                b: i for i, b in enumerate(reactant.get_sdf_bond_indices())
+            }
 
             reactions = rmb.order_reactions(complement_reactions)
 
-            for i, rxn in enumerate(reactions):  # reactions for a bond
+            # rxn: a reaction for one bond and a specific combination of charges
+            for i, rxn in enumerate(reactions):
 
-                all_mols.extend()
                 if i < top_n:
                     lb = 0
                 else:
@@ -1158,13 +1222,43 @@ class ReactionExtractor:
                         lb = 1
                     else:
                         lb = 2
+
+                # bond mapping between product sdf and reactant sdf
+                bond_mapping = []
+                product_to_reactant_mapping = rxn.bond_mapping_by_tuple_index()
+                for p, p2r in (rxn.products, product_to_reactant_mapping):
+
+                    mp = {}
+                    # product sdf bond index (list of tuple)
+                    psb = p.get_sdf_bond_indices()
+
+                    # ib: product sdf bond index (int)
+                    # b: product sdf bond index (tuple)
+                    for ib, b in enumerate(psb):
+
+                        # product graph bond index (tuple)
+                        pgb = tuple(sorted(p.ob_bond_idx_to_graph_bond_idx(b)))
+
+                        # reactant graph bond index (tuple)
+                        rgb = p2r[pgb]
+
+                        # reactant sdf bond index (tuple)
+                        rsbt = reactant.graph_bond_idx_to_ob_bond_idx(rgb)
+
+                        # reactant sdf bond index (int)
+                        rsbi = reactant_index_tuple2int[rsbt]
+
+                        # product sdf bond index (int) to reactant sdf bond index (int)
+                        mp[ib] = rsbi
+
+                    # list of dict, each dict for one product
+                    bond_mapping.append(mp)
+
+                all_mols.extend([rxn.reactants + rxn.products])
                 all_labels["label"] = lb
                 all_labels["num_mols"] = len(reactant + rxn.products)
                 all_labels["atom_mapping"] = rxn.atom_mapping()
-
-                products_sdf_bonds = [p.get_sdf_bond_indices() for p in rxn.products]
-
-                bond = tuple(sorted(reactant.ob_bond_idx_to_graph_bond_idx(bond)))
+                all_labels["bond_mapping"] = bond_mapping
 
         all_reactants = []
         broken_bond_idx = []  # int index in ob molecule
