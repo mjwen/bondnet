@@ -245,8 +245,13 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
 def get_class_weight(data_loader):
     target_class = np.concatenate([label["class"].numpy() for bg, label in data_loader])
     counts = [v for k, v in sorted(Counter(target_class).items())]
-    s = sum(counts)
-    weight = torch.tensor([i / s for i in counts])
+
+    # inverse proportional to the support
+    weight = [sum(counts) / i for i in counts]
+
+    # normalization
+    weight = torch.tensor([i / sum(weight) for i in weight])
+
     return weight
 
 
