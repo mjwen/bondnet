@@ -150,8 +150,7 @@ class Reaction:
         return mappings
 
     def bond_mapping_by_int_index(self):
-
-        """
+        r"""
         Find the bond mapping between products and reactant, using a single index (the
         index of bond in MoleculeWrapper.bonds ) to denote the bond.
 
@@ -220,8 +219,7 @@ class Reaction:
         return bond_mapping
 
     def bond_mapping_by_tuple_index(self):
-
-        """
+        r"""
         Find the bond mapping between products and reactant, using a tuple index (atom
         index) to denote the bond.
 
@@ -735,7 +733,9 @@ class ReactionsMultiplePerBond(ReactionsGroup):
 
         Returns:
             list: a sequence of :class:`ReactionsOfSameBond`, one for each bond of the
-            reactant
+            reactant. If there is not reactions associated with some bond of the
+            reactant, the corresponding :class:`ReactionsOfSameBond` is still created,
+            but initialized with empty reactions.
         """
 
         # init an empty [] for each bond
@@ -753,12 +753,15 @@ class ReactionsMultiplePerBond(ReactionsGroup):
         # create ReactionsOfSameBond instance
         reactions = []
         for bond, rxns in bond_rxns_dict.items():
-            rsb = ReactionsOfSameBond(self.reactant, broken_bond=bond)
-            rsb.add(rxns)
+            rsb = ReactionsOfSameBond(self.reactant, reactions=rxns, broken_bond=bond)
             reactions.append(rsb)
 
         return reactions
 
+    # TODO For classification, reactions with similar bond can be harmful if we include
+    #  all of them in the dataset, becuase reactions with the same reactants and
+    #  products having the same connectivity may be assigned different label.
+    #  Therefore, we need to filter out these reations. This can be done in group_by_bond.
     def order_reactions(self, complement_reactions=False):
         """
         Order reactions by energy.
@@ -931,7 +934,7 @@ class ReactionExtractor:
 
         return A2BC
 
-    def extract_one_bond_break(self):
+    def extract_one_bond_break(self, find_one=True):
         """
         Extract all reactions that only has one bond break or the type ``A -> B + C``
         (break a bond not in a ring) or ``A -> D`` (break a bond in a ring)
@@ -939,8 +942,8 @@ class ReactionExtractor:
         Returns:
             A list of reactions.
         """
-        A2B = self.extract_A_to_B_style_reaction()
-        A2BC = self.extract_A_to_B_C_style_reaction()
+        A2B = self.extract_A_to_B_style_reaction(find_one)
+        A2BC = self.extract_A_to_B_C_style_reaction(find_one)
         self.reactions = A2B + A2BC
 
         return A2B, A2BC
@@ -1207,14 +1210,14 @@ class ReactionExtractor:
             # rxn: a reaction for one bond and a specific combination of charges
             for i, rxn in enumerate(reactions):
                 mols = rxn.reactants + rxn.products
-                if i < top_n:
-                    lb = 0
-                else:
-                    energy = rxn.get_free_energy()
-                    if energy is not None:
-                        lb = 1
+                energy = rxn.get_free_energy()
+                if energy is not None:
+                    if i < top_n:
+                        lb = 0
                     else:
-                        lb = 2
+                        lb = 1
+                else:
+                    lb = 2
 
                 # bond mapping between product sdf and reactant sdf
                 all_mols.extend(mols)
@@ -1232,9 +1235,9 @@ class ReactionExtractor:
         # label file
         yaml_dump(all_labels, label_file)
 
-        # # write feature
-        # if feature_file is not None:
-        #     self.write_feature(all_reactants, broken_bond_pairs, filename=feature_file)
+        # write feature
+        if feature_file is not None:
+            self.write_feature(all_mols, bond_indices=None, filename=feature_file)
 
     def create_struct_label_dataset_bond_based_classification(
         self,
@@ -1741,8 +1744,8 @@ def get_same_bond_breaking_reactions_between_two_reaction_groups(
 
     bonds1 = [tuple(k) for k in group1]
     bonds2 = [tuple(k) for k in group2]
-    fragments1 = reactant1.get_fragments(bonds1)
-    fragments2 = reactant2.get_fragments(bonds2)
+    fragments1 = reactant1.fragments[bonds1]
+    fragments2 = reactant2.fragments[bonds2]
 
     res = []
     for b1, mgs1 in fragments1.items():

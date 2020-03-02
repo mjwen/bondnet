@@ -222,6 +222,7 @@ class MoleculeWrapper:
         self.mol_graph = None
         self._ob_adaptor = None
         self._fragments = None
+        self._iso_identical_bonds = None
         self._graph_idx_to_ob_idx_map = None
         self._ob_idx_to_graph_idx_map = None
 
@@ -270,9 +271,6 @@ class MoleculeWrapper:
 
     @property
     def graph(self):
-        return self.nx_graph()
-
-    def nx_graph(self):
         return self.mol_graph.graph
 
     @property
@@ -310,6 +308,62 @@ class MoleculeWrapper:
         if self._fragments is None:
             self._fragments = self.get_fragments()
         return self._fragments
+
+    @property
+    def iso_identical_bonds(self):
+        r"""
+        Find identical bonds w.r.t. graph isomorphism. For example, given the molecule
+              0  0  1
+          1 H----C----H  2
+                / \
+             2 /  \ 3
+              O----O
+             3  4  4
+        bond 0 and bond 1 are isomorphically identical, and bond 2 and bond 3 are also
+        isomorphically identical.
+
+        Returns:
+            list (set): each set contains the indices (tuple) of bonds that
+                are isomorphically identical. For the above example, this function
+                returns [{(0,1), (0,2)}, {(0,3), (0,4)}]
+        """
+
+        if self._iso_identical_bonds is None:
+            identical = []
+            for b1, b2 in itertools.combinations(self.fragments, 2):
+                frags1 = self.fragments[b1]
+                frags2 = self.fragments[b2]
+
+                if len(frags1) == len(frags2) == 1:
+                    if frags1[0].isomorphic_to(frags2[0]):
+                        identical.append([b1, b2])
+                elif len(frags1) == len(frags2) == 2:
+                    if (
+                        frags1[0].isomorphic_to(frags2[0])
+                        and frags1[1].isomorphic_to(frags2[1])
+                    ) or (
+                        frags1[0].isomorphic_to(frags2[1])
+                        and frags1[1].isomorphic_to(frags2[0])
+                    ):
+                        identical.append([b1, b2])
+
+            res = []
+            for b1, b2 in identical:
+                find_b1_or_b2 = False
+                for group in res:
+                    if b1 in group or b2 in group:
+                        group.extend([b1, b2])
+                        find_b1_or_b2 = True
+                        break
+                if not find_b1_or_b2:
+                    group = [b1, b2]
+                    res.append(group)
+
+            # remove duplicate in each group
+            res = [set(g) for g in res]
+            self._iso_identical_bonds = res
+
+        return self._iso_identical_bonds
 
     @property
     def graph_idx_to_ob_idx_map(self):
@@ -694,8 +748,8 @@ class MoleculeWrapperMolBuilder(MoleculeWrapper):
         feats["charge"] = self.charge
         feats["spin_multiplicity"] = self.spin_multiplicity
 
+        # submolecules level (upon bond breaking)
         if broken_bond is not None:
-            # submolecules level (upon bond breaking)
             mappings = self.subgraph_atom_mapping(broken_bond)
             sub_resp = []
             sub_mulliken = []

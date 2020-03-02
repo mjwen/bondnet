@@ -2,8 +2,41 @@ from gnn.database.database import MoleculeWrapperFromAtomsAndBonds
 from gnn.database.reaction import Reaction
 
 
-def create_molecules():
+def create_C2H4O1():
+    r"""
+                O 0
+              /  \
+         H---C----C---H
+         1  / 2  3 \  4
+           H       H
+           5       6
     """
+    species = ["O", "H", "C", "C", "H", "H", "H"]
+    coords = [
+        [0.0, 1.0, 0.0],
+        [-2.0, 0.0, 0.0],
+        [-1.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [2.0, 0.0, 0.0],
+        [-1.0, 0.0, 1.0],
+        [1.0, 0.0, 1.0],
+    ]
+    charge = 0
+    bonds = [(0, 2), (0, 3), (1, 2), (2, 3), (3, 4), (2, 5), (3, 6)]
+    m = MoleculeWrapperFromAtomsAndBonds(
+        species=species,
+        coords=coords,
+        charge=charge,
+        bonds=bonds,
+        mol_id="mol",
+        free_energy=0.0,
+    )
+
+    return m
+
+
+def create_molecules():
+    r"""
     Create a list of molecules:
 
     m0: charge 0
