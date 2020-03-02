@@ -661,6 +661,25 @@ def create_struct_label_dataset_bond_based_classification(
     )
 
 
+def create_struct_label_dataset_reaction_based_classification(
+    # filename = "~/Applications/db_access/mol_builder/reactions.pkl",
+    filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
+    # filename="~/Applications/db_access/mol_builder/reactions_qc.pkl",
+    # filename="~/Applications/db_access/mol_builder/reactions_qc_ws.pkl",
+    lowest_energy=False,
+    top_n=2,
+):
+
+    extractor = ReactionExtractor.from_file(filename)
+
+    extractor.create_struct_label_dataset_reaction_based(
+        struct_file="~/Applications/db_access/mol_builder/struct_rxn_clfn_n200.sdf",
+        label_file="~/Applications/db_access/mol_builder/label_rxn_clfn_n200.yaml",
+        feature_file="~/Applications/db_access/mol_builder/feature_rxn_clfn_n200.yaml",
+        top_n=top_n,
+    )
+
+
 def write_reaction_sdf_mol_png():
     """
     Write reactions to file, including its sdf file and png graphs.
@@ -776,9 +795,10 @@ if __name__ == "__main__":
     # bond_label_fraction()
     # bond_energy_difference_in_molecule_nth_lowest()
 
-    bond_energies_to_file()
+    # bond_energies_to_file()
     # create_struct_label_dataset_mol_based()
     # create_struct_label_dataset_bond_based_regression()
     # create_struct_label_dataset_bond_based_classification()
+    create_struct_label_dataset_reaction_based_classification()
 
     # write_reaction_sdf_mol_png()

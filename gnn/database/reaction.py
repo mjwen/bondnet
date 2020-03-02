@@ -1196,24 +1196,17 @@ class ReactionExtractor:
     ):
 
         all_mols = []
-        all_labels = OrderedDict()  # one per reaction
+        all_labels = []  # one per reaction
 
         rmb_list = self.group_by_reactant_all()
 
         # rmb: all reactions for a reactant
         for rmb in rmb_list:
-            reactant = rmb.reactant
-
-            # reactant sdf bond index (tuple) to sdf bond index (interger)
-            reactant_index_tuple2int = {
-                b: i for i, b in enumerate(reactant.get_sdf_bond_indices())
-            }
-
             reactions = rmb.order_reactions(complement_reactions)
 
             # rxn: a reaction for one bond and a specific combination of charges
             for i, rxn in enumerate(reactions):
-
+                mols = rxn.reactants + rxn.products
                 if i < top_n:
                     lb = 0
                 else:
@@ -1224,82 +1217,24 @@ class ReactionExtractor:
                         lb = 2
 
                 # bond mapping between product sdf and reactant sdf
-                bond_mapping = []
-                product_to_reactant_mapping = rxn.bond_mapping_by_tuple_index()
-                for p, p2r in (rxn.products, product_to_reactant_mapping):
-
-                    mp = {}
-                    # product sdf bond index (list of tuple)
-                    psb = p.get_sdf_bond_indices()
-
-                    # ib: product sdf bond index (int)
-                    # b: product sdf bond index (tuple)
-                    for ib, b in enumerate(psb):
-
-                        # product graph bond index (tuple)
-                        pgb = tuple(sorted(p.ob_bond_idx_to_graph_bond_idx(b)))
-
-                        # reactant graph bond index (tuple)
-                        rgb = p2r[pgb]
-
-                        # reactant sdf bond index (tuple)
-                        rsbt = reactant.graph_bond_idx_to_ob_bond_idx(rgb)
-
-                        # reactant sdf bond index (int)
-                        rsbi = reactant_index_tuple2int[rsbt]
-
-                        # product sdf bond index (int) to reactant sdf bond index (int)
-                        mp[ib] = rsbi
-
-                    # list of dict, each dict for one product
-                    bond_mapping.append(mp)
-
-                all_mols.extend([rxn.reactants + rxn.products])
-                all_labels["label"] = lb
-                all_labels["num_mols"] = len(reactant + rxn.products)
-                all_labels["atom_mapping"] = rxn.atom_mapping()
-                all_labels["bond_mapping"] = bond_mapping
-
-        all_reactants = []
-        broken_bond_idx = []  # int index in ob molecule
-        broken_bond_pairs = []  # a tuple index in graph molecule
-        label_class = []
-        for rsr in grouped_reactions:
-            reactant = rsr.reactant
-
-            # bond energies in the same order as in sdf file
-            sdf_bonds = reactant.get_sdf_bond_indices()
-            for ib, bond in enumerate(sdf_bonds):
-                # change index from ob to graph
-                bond = tuple(sorted(reactant.ob_bond_idx_to_graph_bond_idx(bond)))
-                data = rsr.order_reactions()[bond]
-
-                # NOTE this will only write class 0 and class 1
-                # rxn = data["reaction"]
-                # if rxn is None:  # do not have reaction breaking bond
-                #     continue
-
-                order = data["order"]
-                if order is None:
-                    lb = 2
-                elif order < top_n:
-                    lb = 0
-                else:
-                    lb = 1
-                all_reactants.append(reactant)
-                broken_bond_idx.append(ib)
-                broken_bond_pairs.append(bond)
-                label_class.append(lb)
-
-        # write label
-        write_label(all_reactants, broken_bond_idx, label_class, label_file)
+                all_mols.extend(mols)
+                data = {
+                    "class": lb,
+                    "num_mols": len(mols),
+                    "atom_mapping": rxn.atom_mapping(),
+                    "bond_mapping": rxn.bond_mapping_by_sdf_int_index(),
+                }
+                all_labels.append(data)
 
         # write sdf
-        self.write_sdf(all_reactants, struct_file)
+        self.write_sdf(all_mols, struct_file)
 
-        # write feature
-        if feature_file is not None:
-            self.write_feature(all_reactants, broken_bond_pairs, filename=feature_file)
+        # label file
+        yaml_dump(all_labels, label_file)
+
+        # # write feature
+        # if feature_file is not None:
+        #     self.write_feature(all_reactants, broken_bond_pairs, filename=feature_file)
 
     def create_struct_label_dataset_bond_based_classification(
         self,
