@@ -10,7 +10,7 @@ import pandas as pd
 from rdkit import Chem
 from gnn.data.dataset import BaseDataset
 from gnn.data.transformers import StandardScaler, GraphFeatureStandardScaler
-from gnn.utils import expand_path, yaml_load
+from gnn.utils import expand_path, yaml_load, np_split_by_size
 
 
 logger = logging.getLogger(__name__)
@@ -677,14 +677,28 @@ class ElectrolyteReactionDatasetClassification(ElectrolyteBondDataset):
         logger.info("Feature name: {}".format(self.feature_name))
         logger.info("Feature size: {}".format(self.feature_size))
 
+        # regroup graphs to reactions
+        num_mols = [lb["num_mols"] for lb in raw_labels]
+        reactions = np_split_by_size(graphs, num_mols)
+
+        self.graphs = []
+        self.labels = []
+        for rxn, lb in zip(reactions, raw_labels):
+            if None not in rxn:
+                self.graphs.append(rxn)
+                self.labels.append(lb)
+
         # transformers
         if self.feature_transformer:
             feature_scaler = GraphFeatureStandardScaler()
-            self.graphs = feature_scaler(self.graphs)
+            graphs = np.concatenate(self.graphs)
+            graphs = feature_scaler(graphs)
+            num_mols = [len(rxn) for rxn in self.graphs]
+            self.graphs = np_split_by_size(graphs, num_mols)
             logger.info("Feature scaler mean: {}".format(feature_scaler.mean))
             logger.info("Feature scaler std: {}".format(feature_scaler.std))
 
-        logger.info("Finish loading {} graphs...".format(len(self.labels)))
+        logger.info("Finish loading {} reactions...".format(len(self.labels)))
 
     def _read_label_file(self):
         """

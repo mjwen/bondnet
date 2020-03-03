@@ -56,9 +56,9 @@ def test_dataloader_bond():
 
         dataset = ElectrolyteBondDataset(
             grapher=get_grapher_hetero(),
-            sdf_file=os.path.join(test_files, "EC_struct.sdf"),
-            label_file=os.path.join(test_files, "EC_label.txt"),
-            feature_file=os.path.join(test_files, "EC_feature.yaml"),
+            sdf_file=os.path.join(test_files, "electrolyte_struct_bond.sdf"),
+            label_file=os.path.join(test_files, "electrolyte_label_bond.txt"),
+            feature_file=os.path.join(test_files, "electrolyte_feature_bond.yaml"),
             feature_transformer=False,
             label_transformer=lt,
         )
@@ -141,9 +141,9 @@ def test_dataloader_bond_classification():
 
     dataset = ElectrolyteBondDatasetClassification(
         grapher=get_grapher_hetero(),
-        sdf_file=os.path.join(test_files, "EC_struct.sdf"),
-        label_file=os.path.join(test_files, "EC_label_classification.txt"),
-        feature_file=os.path.join(test_files, "EC_feature.yaml"),
+        sdf_file=os.path.join(test_files, "electrolyte_struct_bond.sdf"),
+        label_file=os.path.join(test_files, "electrolyte_label_bond_clfn.txt"),
+        feature_file=os.path.join(test_files, "electrolyte_feature_bond.yaml"),
         feature_transformer=False,
     )
 

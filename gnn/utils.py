@@ -9,8 +9,41 @@ import dgl
 import logging
 import warnings
 import sys
+import numpy as np
 
 logger = logging.getLogger(__name__)
+
+
+def np_split_by_size(array, sizes, axis=0):
+    """
+    Split an array into `len(sizes)` chunks with size of each chunk in dim
+    according to `sizes`.
+
+    This is a convenient function over np.split(), where one need to give the indices at
+    which to split the array (not easy to work with).
+
+    Args:
+        array:
+        sections (list): size of each chunk.
+        axis (int): the axis along which to split the data
+
+    Returns:
+        list: a list of array.
+
+    Example:
+        >>> np_split_by_size([0,1,2,3,4,5], [1,2,3])
+        >>>[[0], [1,2], [3,4,5]]
+    """
+    array = np.asarray(array)
+    assert array.shape[axis] == sum(sizes), "array.shape[axis] not equal to sum(sizes)"
+
+    tot = 0
+    indices = []
+    for i in sizes:
+        tot += i
+        indices.append(tot)
+    indices = indices[:-1]
+    return np.split(array, indices, axis=axis)
 
 
 def expand_path(path):

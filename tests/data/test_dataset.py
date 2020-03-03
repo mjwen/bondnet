@@ -4,6 +4,7 @@ from gnn.data.electrolyte import (
     ElectrolyteBondDataset,
     ElectrolyteBondDatasetClassification,
     ElectrolyteMoleculeDataset,
+    ElectrolyteReactionDatasetClassification,
 )
 from gnn.data.qm9 import QM9Dataset
 from gnn.data.grapher import HeteroMoleculeGraph, HomoCompleteGraph
@@ -50,9 +51,9 @@ def test_electrolyte_bond_label():
 
         dataset = ElectrolyteBondDataset(
             grapher=get_grapher_hetero(),
-            sdf_file=os.path.join(test_files, "EC_struct.sdf"),
-            label_file=os.path.join(test_files, "EC_label.txt"),
-            feature_file=os.path.join(test_files, "EC_feature.yaml"),
+            sdf_file=os.path.join(test_files, "electrolyte_struct_bond.sdf"),
+            label_file=os.path.join(test_files, "electrolyte_label_bond.txt"),
+            feature_file=os.path.join(test_files, "electrolyte_feature_bond.yaml"),
             feature_transformer=True,
             label_transformer=lt,
         )
@@ -85,8 +86,8 @@ def test_electrolyte_molecule_label():
 
         dataset = ElectrolyteMoleculeDataset(
             grapher=get_grapher_homo(),
-            sdf_file=os.path.join(test_files, "electrolyte_mols_struct.sdf"),
-            label_file=os.path.join(test_files, "electrolyte_mols_label.csv"),
+            sdf_file=os.path.join(test_files, "electrolyte_struct_mol.sdf"),
+            label_file=os.path.join(test_files, "electrolyte_label_mol.csv"),
             properties=["atomization_energy"],
             unit_conversion=False,
             feature_transformer=True,
@@ -151,14 +152,14 @@ def test_qm9_label():
 
 def test_electrolyte_bond_label_classification():
 
-    ref_label_energies = [0, 1]
+    ref_label_class = [0, 1]
     ref_label_indicators = [1, 2]
 
     dataset = ElectrolyteBondDatasetClassification(
         grapher=get_grapher_hetero(),
-        sdf_file=os.path.join(test_files, "EC_struct.sdf"),
-        label_file=os.path.join(test_files, "EC_label_classification.txt"),
-        feature_file=os.path.join(test_files, "EC_feature.yaml"),
+        sdf_file=os.path.join(test_files, "electrolyte_struct_bond.sdf"),
+        label_file=os.path.join(test_files, "electrolyte_label_bond_clfn.txt"),
+        feature_file=os.path.join(test_files, "electrolyte_feature_bond.yaml"),
         feature_transformer=True,
     )
 
@@ -167,6 +168,29 @@ def test_electrolyte_bond_label_classification():
 
     for i in range(size):
         _, label, ts = dataset[i]
-        assert np.allclose(label["class"], ref_label_energies[i])
-        assert np.array_equal(label["indicator"], ref_label_indicators[i])
+        assert label["class"] == ref_label_class[i]
+        assert label["indicator"] == ref_label_indicators[i]
+        assert ts is None
+
+
+def test_electrolyte_reaction_label_classification():
+
+    ref_num_mols = [2, 3]
+    ref_label_class = [0, 0]
+
+    dataset = ElectrolyteReactionDatasetClassification(
+        grapher=get_grapher_hetero(),
+        sdf_file=os.path.join(test_files, "electrolyte_struct_rxn_clfn.sdf"),
+        label_file=os.path.join(test_files, "electrolyte_label_rxn_clfn.yaml"),
+        feature_file=os.path.join(test_files, "electrolyte_feature_rxn_clfn.yaml"),
+        feature_transformer=True,
+    )
+
+    size = len(dataset)
+    assert size == 2
+
+    for i in range(size):
+        rxn, label, ts = dataset[i]
+        assert len(rxn) == label["num_mols"] == ref_num_mols[i]
+        assert label["class"] == ref_label_class[i]
         assert ts is None
