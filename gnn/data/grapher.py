@@ -154,6 +154,8 @@ class HeteroMoleculeGraph(BaseGraph):
     Atom i corresponds to graph node (of type `atom`) i.
     Bond i corresponds to graph node (of type `bond`) i.
     There is only one global state node 0.
+
+    If no bonds (e.g. H+), create an artifact bond and connect it to the 1st atom
     """
 
     def __init__(
@@ -173,20 +175,27 @@ class HeteroMoleculeGraph(BaseGraph):
 
         # bonds
         num_bonds = mol.GetNumBonds()
-        bond_idx_to_atom_idx = dict()
-        for i in range(num_bonds):
-            bond = mol.GetBondWithIdx(i)
-            u = bond.GetBeginAtomIdx()
-            v = bond.GetEndAtomIdx()
-            bond_idx_to_atom_idx[i] = (u, v)
 
-        a2b = []
-        b2a = []
-        for a in range(num_atoms):
-            for b, bond in bond_idx_to_atom_idx.items():
-                if a in bond:
-                    b2a.append([b, a])
-                    a2b.append([a, b])
+        # If no bonds (e.g. H+), create an artifact bond and connect it to the 1st atom
+        if num_bonds == 0:
+            num_bonds == 1
+            a2b = [(0, 0)]
+            b2a = [(0, 0)]
+        else:
+            bond_idx_to_atom_idx = dict()
+            for i in range(num_bonds):
+                bond = mol.GetBondWithIdx(i)
+                u = bond.GetBeginAtomIdx()
+                v = bond.GetEndAtomIdx()
+                bond_idx_to_atom_idx[i] = (u, v)
+
+            a2b = []
+            b2a = []
+            for a in range(num_atoms):
+                for b, bond in bond_idx_to_atom_idx.items():
+                    if a in bond:
+                        b2a.append([b, a])
+                        a2b.append([a, b])
 
         a2g = [(a, 0) for a in range(num_atoms)]
         g2a = [(0, a) for a in range(num_atoms)]

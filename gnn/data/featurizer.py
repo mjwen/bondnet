@@ -115,40 +115,44 @@ class BondAsNodeFeaturizer(BondFeaturizer):
         -------
             Dictionary for bond features
         """
-        feats = []
 
         num_bonds = mol.GetNumBonds()
-        if num_bonds < 1:
-            warnings.warn("molecular has no bonds")
 
-        for u in range(num_bonds):
-            bond = mol.GetBondWithIdx(u)
-
-            ft = [
-                int(bond.GetIsAromatic()),
-                int(bond.IsInRing()),
-                int(bond.GetIsConjugated()),
-            ]
-
-            ft += one_hot_encoding(
-                bond.GetBondType(),
-                [
-                    Chem.rdchem.BondType.SINGLE,
-                    Chem.rdchem.BondType.DOUBLE,
-                    Chem.rdchem.BondType.TRIPLE,
-                    # Chem.rdchem.BondType.AROMATIC,
-                    # Chem.rdchem.BondType.IONIC,
-                ],
-            )
-
+        if num_bonds == 0:
+            ft = [0.0 for _ in range(6)]
             if self.length_featurizer:
-                at1 = bond.GetBeginAtomIdx()
-                at2 = bond.GetEndAtomIdx()
-                atoms_pos = mol.GetConformer().GetPositions()
-                bond_length = np.linalg.norm(atoms_pos[at1] - atoms_pos[at2])
-                ft += self.length_featurizer(bond_length)
+                ft += [0.0 for _ in range(len(self.length_featurizer.feature_name))]
+            feats = [ft]
+        else:
+            feats = []
+            for u in range(num_bonds):
+                bond = mol.GetBondWithIdx(u)
 
-            feats.append(ft)
+                ft = [
+                    int(bond.GetIsAromatic()),
+                    int(bond.IsInRing()),
+                    int(bond.GetIsConjugated()),
+                ]
+
+                ft += one_hot_encoding(
+                    bond.GetBondType(),
+                    [
+                        Chem.rdchem.BondType.SINGLE,
+                        Chem.rdchem.BondType.DOUBLE,
+                        Chem.rdchem.BondType.TRIPLE,
+                        # Chem.rdchem.BondType.AROMATIC,
+                        # Chem.rdchem.BondType.IONIC,
+                    ],
+                )
+
+                if self.length_featurizer:
+                    at1 = bond.GetBeginAtomIdx()
+                    at2 = bond.GetEndAtomIdx()
+                    atoms_pos = mol.GetConformer().GetPositions()
+                    bond_length = np.linalg.norm(atoms_pos[at1] - atoms_pos[at2])
+                    ft += self.length_featurizer(bond_length)
+
+                feats.append(ft)
 
         feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
         self._feature_size = feats.shape[1]
@@ -181,39 +185,40 @@ class BondAsNodeFeaturizerMinimum(BondFeaturizer):
         -------
             Dictionary for bond features
         """
-        feats = []
 
         num_bonds = mol.GetNumBonds()
-        if num_bonds < 1:
-            warnings.warn("molecular has no bonds")
 
-        for u in range(num_bonds):
-            bond = mol.GetBondWithIdx(u)
+        if num_bonds == 0:
+            feats = [[0.0 for _ in range(2)]]
+        else:
+            feats = []
+            for u in range(num_bonds):
+                bond = mol.GetBondWithIdx(u)
 
-            ft = [
-                # int(bond.GetIsAromatic()),
-                int(bond.IsInRing()),
-                # int(bond.GetIsConjugated()),
-            ]
+                ft = [
+                    # int(bond.GetIsAromatic()),
+                    int(bond.IsInRing()),
+                    # int(bond.GetIsConjugated()),
+                ]
 
-            # ft += one_hot_encoding(
-            #     bond.GetBondType(),
-            #     [
-            #         Chem.rdchem.BondType.SINGLE,
-            #         Chem.rdchem.BondType.DOUBLE,
-            #         Chem.rdchem.BondType.TRIPLE,
-            #         # Chem.rdchem.BondType.AROMATIC,
-            #         # Chem.rdchem.BondType.IONIC,
-            #     ],
-            # )
+                # ft += one_hot_encoding(
+                #     bond.GetBondType(),
+                #     [
+                #         Chem.rdchem.BondType.SINGLE,
+                #         Chem.rdchem.BondType.DOUBLE,
+                #         Chem.rdchem.BondType.TRIPLE,
+                #         # Chem.rdchem.BondType.AROMATIC,
+                #         # Chem.rdchem.BondType.IONIC,
+                #     ],
+                # )
 
-            at1 = bond.GetBeginAtomIdx()
-            at2 = bond.GetEndAtomIdx()
-            atoms_pos = mol.GetConformer().GetPositions()
-            bond_length = np.linalg.norm(atoms_pos[at1] - atoms_pos[at2])
-            ft.append(bond_length)
+                at1 = bond.GetBeginAtomIdx()
+                at2 = bond.GetEndAtomIdx()
+                atoms_pos = mol.GetConformer().GetPositions()
+                bond_length = np.linalg.norm(atoms_pos[at1] - atoms_pos[at2])
+                ft.append(bond_length)
 
-            feats.append(ft)
+                feats.append(ft)
 
         feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
         self._feature_size = feats.shape[1]
