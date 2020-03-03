@@ -685,6 +685,7 @@ class ElectrolyteReactionDatasetClassification(ElectrolyteBondDataset):
         self.labels = []
         for rxn, lb in zip(reactions, raw_labels):
             if None not in rxn:
+                lb["class"] = torch.tensor(lb["class"], dtype=torch.int64)
                 self.graphs.append(rxn)
                 self.labels.append(lb)
 
