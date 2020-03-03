@@ -656,9 +656,9 @@ def create_struct_label_dataset_bond_based_classification(
 
 def create_struct_label_dataset_reaction_based_classification(
     # filename = "~/Applications/db_access/mol_builder/reactions.pkl",
-    # filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
+    filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
     # filename="~/Applications/db_access/mol_builder/reactions_qc.pkl",
-    filename="~/Applications/db_access/mol_builder/reactions_qc_ws.pkl",
+    # filename="~/Applications/db_access/mol_builder/reactions_qc_ws.pkl",
     lowest_energy=False,
     top_n=2,
 ):
@@ -666,12 +666,12 @@ def create_struct_label_dataset_reaction_based_classification(
     extractor = ReactionExtractor.from_file(filename)
 
     extractor.create_struct_label_dataset_reaction_based(
-        # struct_file="~/Applications/db_access/mol_builder/struct_rxn_clfn_n200.sdf",
-        # label_file="~/Applications/db_access/mol_builder/label_rxn_clfn_n200.yaml",
-        # feature_file="~/Applications/db_access/mol_builder/feature_rxn_clfn_n200.yaml",
-        struct_file="~/Applications/db_access/mol_builder/struct_rxn_clfn_qc_ws.sdf",
-        label_file="~/Applications/db_access/mol_builder/label_rxn_clfn_qc_ws.yaml",
-        feature_file="~/Applications/db_access/mol_builder/feature_rxn_clfn_qc_ws.yaml",
+        struct_file="~/Applications/db_access/mol_builder/struct_rxn_clfn_n200.sdf",
+        label_file="~/Applications/db_access/mol_builder/label_rxn_clfn_n200.yaml",
+        feature_file="~/Applications/db_access/mol_builder/feature_rxn_clfn_n200.yaml",
+        # struct_file="~/Applications/db_access/mol_builder/struct_rxn_clfn_qc_ws.sdf",
+        # label_file="~/Applications/db_access/mol_builder/label_rxn_clfn_qc_ws.yaml",
+        # feature_file="~/Applications/db_access/mol_builder/feature_rxn_clfn_qc_ws.yaml",
         top_n=top_n,
     )
 
@@ -745,7 +745,7 @@ if __name__ == "__main__":
     # eg_buckets()
     # eg_extract_A_to_B()
     # eg_extract_A_to_B_C()
-    eg_extract_one_bond_break()
+    # eg_extract_one_bond_break()
     # subselect_reactions()
 
     # plot_reaction_energy_difference_arcoss_reactant_charge()
@@ -762,6 +762,6 @@ if __name__ == "__main__":
     # create_struct_label_dataset_mol_based()
     # create_struct_label_dataset_bond_based_regression()
     # create_struct_label_dataset_bond_based_classification()
-    # create_struct_label_dataset_reaction_based_classification()
+    create_struct_label_dataset_reaction_based_classification()
 
     # write_reaction_sdf_mol_png()

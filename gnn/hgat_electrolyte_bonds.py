@@ -8,7 +8,7 @@ from datetime import datetime
 from collections import defaultdict
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from gnn.metric import WeightedMSELoss, WeightedL1Loss, EarlyStopping
-from gnn.model.hgat import HGAT
+from gnn.model.hgat_bond import HGATBond
 from gnn.data.dataset import train_validation_test_split_test_with_all_bonds_of_mol
 from gnn.data.electrolyte import ElectrolyteBondDataset
 from gnn.data.dataloader import DataLoaderBond
@@ -22,7 +22,7 @@ from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="HGAT")
+    parser = argparse.ArgumentParser(description="HGATBond")
 
     # model
     parser.add_argument(
@@ -367,7 +367,7 @@ def main(args):
     # attn_order = ["atom", "bond"]
 
     in_feats = trainset.get_feature_size(attn_order)
-    model = HGAT(
+    model = HGATBond(
         attn_mechanism,
         attn_order,
         in_feats,

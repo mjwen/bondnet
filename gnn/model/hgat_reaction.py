@@ -1,5 +1,5 @@
 """
-Graph Attention Networks for heterograph.
+Heterogeneous Graph Attention Networks on reaction level property.
 """
 
 import torch
@@ -11,7 +11,7 @@ import warnings
 from gnn.utils import warn_stdout
 
 
-class HGAT(nn.Module):
+class HGATReaction(nn.Module):
     """
     Heterograph attention network.
 
@@ -67,7 +67,7 @@ class HGAT(nn.Module):
         fc_drop=0.0,
         outdim=1,
     ):
-        super(HGAT, self).__init__()
+        super(HGATReaction, self).__init__()
 
         self.outdim = outdim
 

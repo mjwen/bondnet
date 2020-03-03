@@ -8,7 +8,7 @@ from datetime import datetime
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.nn import MSELoss
 from gnn.metric import WeightedL1Loss, EarlyStopping
-from gnn.model.hgatmol import HGATMol
+from gnn.model.hgat_mol import HGATMol
 from gnn.data.dataset import train_validation_test_split
 from gnn.data.qm9 import QM9Dataset
 from gnn.data.dataloader import DataLoaderMolecule
@@ -18,7 +18,7 @@ from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="HGAT")
+    parser = argparse.ArgumentParser(description="HGATMol")
 
     # model
     parser.add_argument(

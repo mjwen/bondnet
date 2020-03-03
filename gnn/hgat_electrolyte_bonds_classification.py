@@ -10,7 +10,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from gnn.metric import EarlyStopping
 from torch.nn import CrossEntropyLoss
 from sklearn.metrics import f1_score, classification_report
-from gnn.model.hgat import HGAT
+from gnn.model.hgat_bond import HGATBond
 from gnn.data.dataset import train_validation_test_split
 from gnn.data.electrolyte import ElectrolyteBondDatasetClassification
 from gnn.data.dataloader import DataLoaderBondClassification
@@ -24,7 +24,7 @@ from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="HGAT")
+    parser = argparse.ArgumentParser(description="HGATBond")
 
     # model
     parser.add_argument(
@@ -315,7 +315,7 @@ def main(args):
     # attn_order = ["atom", "bond"]
 
     in_feats = trainset.get_feature_size(attn_order)
-    model = HGAT(
+    model = HGATBond(
         attn_mechanism,
         attn_order,
         in_feats,

@@ -1,5 +1,5 @@
 """
-Graph Attention Networks for heterograph on molecular level property.
+Heterogeneous Graph Attention Networks on molecule level property.
 """
 
 import torch.nn as nn
