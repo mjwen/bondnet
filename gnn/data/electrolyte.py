@@ -608,3 +608,87 @@ class ElectrolyteMoleculeDataset(ElectrolyteBondDataset):
             rst = np.multiply(rst, convert)
 
         return rst, extensive
+
+
+class ElectrolyteReactionDatasetClassification(ElectrolyteBondDataset):
+    def __init__(
+        self,
+        grapher,
+        sdf_file,
+        label_file,
+        feature_file=None,
+        feature_transformer=True,
+        pickle_dataset=False,
+        dtype="float32",
+    ):
+        super(ElectrolyteReactionDatasetClassification, self).__init__(
+            grapher=grapher,
+            sdf_file=sdf_file,
+            label_file=label_file,
+            feature_file=feature_file,
+            feature_transformer=feature_transformer,
+            label_transformer=False,
+            pickle_dataset=pickle_dataset,
+            dtype=dtype,
+        )
+
+    def _load(self):
+
+        logger.info(
+            f"Start loading dataset from files {self.sdf_file}, {self.label_file}, "
+            f"and { self.feature_file} ..."
+        )
+
+        # get species of dataset
+        species = self._get_species()
+
+        # read mol graphs and label
+        raw_labels = self._read_label_file()
+
+        # additional features from file
+        if self.feature_file is not None:
+            features = self._read_feature_file()
+        else:
+            features = [None] * len(raw_labels)
+
+        # build graph for mols from sdf file
+        graphs = []
+        supp = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
+
+        for i, (mol, feats) in enumerate(zip(supp, features)):
+            if i % 100 == 0:
+                logger.info(f"Processing molecule {i}/{len(raw_labels)}")
+
+            if mol is not None:
+                # graph
+                g = self.grapher.build_graph_and_featurize(
+                    mol, extra_feats_info=feats, dataset_species=species
+                )
+                # add this for check purpose; some entries in the sdf file may fail
+                g.graph_id = i
+            else:
+                g = None
+            graphs.append(g)
+
+        # this should be called after grapher.build_graph_and_featurize,
+        # which initializes the feature name and size
+        self._feature_name = self.grapher.feature_name
+        self._feature_size = self.grapher.feature_size
+        logger.info("Feature name: {}".format(self.feature_name))
+        logger.info("Feature size: {}".format(self.feature_size))
+
+        # transformers
+        if self.feature_transformer:
+            feature_scaler = GraphFeatureStandardScaler()
+            self.graphs = feature_scaler(self.graphs)
+            logger.info("Feature scaler mean: {}".format(feature_scaler.mean))
+            logger.info("Feature scaler std: {}".format(feature_scaler.std))
+
+        logger.info("Finish loading {} graphs...".format(len(self.labels)))
+
+    def _read_label_file(self):
+        """
+        Returns:
+            list: a sequence of dict, each for one reaction
+        """
+        return yaml_load(self.label_file)

@@ -116,12 +116,10 @@ class Reaction:
         subgraphs = [original.graph.subgraph(c) for c in components]
 
         # correspondence between products and reaxtant subgrpahs
-
         N = len(subgraphs)
         if N == 1:
             corr = {0: 0}
         else:
-
             # product idx as key and reactant subgraph idx as value
             # order matters since mappings[0] (see below) corresponds to first product
             corr = OrderedDict()
@@ -349,10 +347,10 @@ class Reaction:
 
     def __expr__(self):
         if len(self.products) == 1:
-            s = "A -> B style reaction\n"
+            s = "\nA -> B style reaction\n"
         else:
-            s = "A -> B + C style reaction\n"
-        s += "reactants:\n:"
+            s = "\nA -> B + C style reaction\n"
+        s += "reactants:\n"
         for p in self.reactants:
             s += f"    {p.formula} ({p.charge})\n"
         s += "products:\n"
@@ -597,6 +595,7 @@ class ReactionsOfSameBond(ReactionsGroup):
             else:
                 products_charge = []
                 for rxn in self.reactions:
+                    x = len(self.reactions)
                     products = [p.mol_graph for p in rxn.products]
                     charge = [p.charge for p in rxn.products]
 
@@ -727,15 +726,26 @@ class ReactionsMultiplePerBond(ReactionsGroup):
     Each bond can be associated with mutiple reactions of different charges.
     """
 
-    def group_by_bond(self):
+    def group_by_bond(self, find_one=True):
         """
         Group reactions with same broken bond together.
 
+        If there is not reactions associated with a bond of the reactant, the
+        corresponding :class:`ReactionsOfSameBond` is still created, but initialized
+        with empty reactions.
+
+        Args:
+            find_one (bool): If `True`, keep one reaction for each isomorphic bond
+                group. If `False`, keep all.
+                Note, if set to `True`, this expects that `find_one=False` in
+                :method:`ReactionExtractor..extract_one_bond_break` so that all bonds
+                in an isomorphic group have exactly the same reactions.
+                In such, we just need to retain a random bond and its associated
+                reactions in each group.
+
         Returns:
             list: a sequence of :class:`ReactionsOfSameBond`, one for each bond of the
-            reactant. If there is not reactions associated with some bond of the
-            reactant, the corresponding :class:`ReactionsOfSameBond` is still created,
-            but initialized with empty reactions.
+            reactant.
         """
 
         # init an empty [] for each bond
@@ -745,10 +755,16 @@ class ReactionsMultiplePerBond(ReactionsGroup):
         for i, j, _ in self.reactant.bonds:
             bond = (i, j)
             bond_rxns_dict[bond] = []
-
         # assign rxn to bond group
         for rxn in self.reactions:
             bond_rxns_dict[rxn.get_broken_bond()].append(rxn)
+
+        # remove duplicate isomorphic bonds
+        if find_one:
+            for group in self.reactant.isomorphic_bonds:
+                # keep the first bond in each group and remove others
+                for i in range(1, len(group)):
+                    bond_rxns_dict.pop(group[i])
 
         # create ReactionsOfSameBond instance
         reactions = []
@@ -758,11 +774,7 @@ class ReactionsMultiplePerBond(ReactionsGroup):
 
         return reactions
 
-    # TODO For classification, reactions with similar bond can be harmful if we include
-    #  all of them in the dataset, becuase reactions with the same reactants and
-    #  products having the same connectivity may be assigned different label.
-    #  Therefore, we need to filter out these reations. This can be done in group_by_bond.
-    def order_reactions(self, complement_reactions=False):
+    def order_reactions(self, complement_reactions=False, one_per_iso_bond_group=True):
         """
         Order reactions by energy.
 
@@ -773,20 +785,32 @@ class ReactionsMultiplePerBond(ReactionsGroup):
             complement_reactions (bool): If `False`, order the existing reactions only.
                 Otherwise, complementary reactions are created and ordered together
                 with existing ones.
+            one_per_iso_bond_group (bool): If `True`, keep one reaction for each
+                isomorphic bond group. If `False`, keep all.
+                Note, if set to `True`, this expects that `find_one=False` in
+                :method:`ReactionExtractor.extract_one_bond_break` so that all bonds
+                in an isomorphic bond group have exactly the same reactions.
 
         Returns:
             list: a sequence of :class:`Reaction` ordered by energy
         """
 
-        # sort reactions we have energy for
-        ordered_rxns = sorted(self.reactions, key=lambda rxn: rxn.get_free_energy())
+        # NOTE, we need to get existing_rxns from rsb instead of self.reactions because
+        # we may need to remove duplicate isomorphic bond, which is handled in
+        # self.group_by_bonds.
 
-        # add complementary reactions that we do not have energy
+        existing_rxns = []
+        comp_rxns = []
+        rsb_group = self.group_by_bond(find_one=one_per_iso_bond_group)
+        for rsb in rsb_group:
+            existing_rxns.extend(rsb.reactions)
+            comp_rxns.extend(rsb.create_complement_reactions())
+
+        # sort reactions we have energy for
+        ordered_rxns = sorted(existing_rxns, key=lambda rxn: rxn.get_free_energy())
+
         if complement_reactions:
-            rsb_group = self.group_by_bond()
-            for rsb in rsb_group:
-                comp_rxns = rsb.create_complement_reactions()
-                ordered_rxns.extend(comp_rxns)
+            ordered_rxns += comp_rxns
 
         return ordered_rxns
 

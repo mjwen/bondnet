@@ -10,13 +10,6 @@ from gnn.database.utils import TexWriter
 from gnn.database.reaction import ReactionExtractor, ReactionsMultiplePerBond
 from gnn.utils import pickle_load, expand_path, create_directory
 from gnn.data.feature_analyzer import read_sdf, read_label
-from gnn.data.grapher import HeteroMoleculeGraph
-from gnn.data.featurizer import (
-    AtomFeaturizerWithReactionInfo,
-    BondAsNodeFeaturizer,
-    GlobalFeaturizerWithReactionInfo,
-)
-from gnn.data.electrolyte import ElectrolyteBondDataset
 
 
 def eg_buckets():
@@ -39,7 +32,7 @@ def eg_extract_A_to_B():
     print("number of moles:", len(molecules))
 
     extractor = ReactionExtractor(molecules)
-    extractor.extract_A_to_B_style_reaction()
+    extractor.extract_A_to_B_style_reaction(find_one=False)
 
     filename = "~/Applications/db_access/mol_builder/reaction_n200.pkl"
     extractor.to_file(filename)
@@ -52,7 +45,7 @@ def eg_extract_A_to_B_C():
     print("number of moles:", len(molecules))
 
     extractor = ReactionExtractor(molecules)
-    extractor.extract_A_to_B_C_style_reaction()
+    extractor.extract_A_to_B_C_style_reaction(fine_one=False)
 
     filename = "~/Applications/db_access/mol_builder/reactions_A2BC.pkl"
     extractor.to_file(filename)
@@ -65,7 +58,7 @@ def eg_extract_one_bond_break():
     print("number of moles:", len(molecules))
 
     extractor = ReactionExtractor(molecules)
-    extractor.extract_one_bond_break()
+    extractor.extract_one_bond_break(find_one=False)
 
     # filename = "~/Applications/db_access/mol_builder/reactions.pkl"
     filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
@@ -663,9 +656,9 @@ def create_struct_label_dataset_bond_based_classification(
 
 def create_struct_label_dataset_reaction_based_classification(
     # filename = "~/Applications/db_access/mol_builder/reactions.pkl",
-    filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
+    # filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
     # filename="~/Applications/db_access/mol_builder/reactions_qc.pkl",
-    # filename="~/Applications/db_access/mol_builder/reactions_qc_ws.pkl",
+    filename="~/Applications/db_access/mol_builder/reactions_qc_ws.pkl",
     lowest_energy=False,
     top_n=2,
 ):
@@ -673,9 +666,12 @@ def create_struct_label_dataset_reaction_based_classification(
     extractor = ReactionExtractor.from_file(filename)
 
     extractor.create_struct_label_dataset_reaction_based(
-        struct_file="~/Applications/db_access/mol_builder/struct_rxn_clfn_n200.sdf",
-        label_file="~/Applications/db_access/mol_builder/label_rxn_clfn_n200.yaml",
-        feature_file="~/Applications/db_access/mol_builder/feature_rxn_clfn_n200.yaml",
+        # struct_file="~/Applications/db_access/mol_builder/struct_rxn_clfn_n200.sdf",
+        # label_file="~/Applications/db_access/mol_builder/label_rxn_clfn_n200.yaml",
+        # feature_file="~/Applications/db_access/mol_builder/feature_rxn_clfn_n200.yaml",
+        struct_file="~/Applications/db_access/mol_builder/struct_rxn_clfn_qc_ws.sdf",
+        label_file="~/Applications/db_access/mol_builder/label_rxn_clfn_qc_ws.yaml",
+        feature_file="~/Applications/db_access/mol_builder/feature_rxn_clfn_qc_ws.yaml",
         top_n=top_n,
     )
 
@@ -745,43 +741,11 @@ def write_reaction_sdf_mol_png():
         f.write(TexWriter.tail())
 
 
-def get_dataset(
-    struct_file="~/Applications/db_access/mol_builder/struct_clfn_qc_ws.sdf",
-    label_file="~/Applications/db_access/mol_builder/label_clfn_qc_ws.txt",
-    feature_file="~/Applications/db_access/mol_builder/feature_clfn_qc_ws.yaml",
-):
-    """
-    By running this, we observe the output to get a sense of the low and high values
-    for bond length featurizer.
-
-    """
-    grapher = HeteroMoleculeGraph(
-        atom_featurizer=AtomFeaturizerWithReactionInfo(),
-        bond_featurizer=BondAsNodeFeaturizer(
-            # length_featurizer="bin",
-            # length_featurizer_args={"low": 0.7, "high": 2.5, "num_bins": 10},
-            length_featurizer="rbf",
-            length_featurizer_args={"low": 0.2, "high": 2.7, "num_centers": 20},
-        ),
-        global_featurizer=GlobalFeaturizerWithReactionInfo(),
-        self_loop=True,
-    )
-
-    dataset = ElectrolyteBondDataset(
-        grapher=grapher,
-        sdf_file=struct_file,
-        label_file=label_file,
-        feature_file=feature_file,
-    )
-
-    return dataset
-
-
 if __name__ == "__main__":
     # eg_buckets()
     # eg_extract_A_to_B()
     # eg_extract_A_to_B_C()
-    # eg_extract_one_bond_break()
+    eg_extract_one_bond_break()
     # subselect_reactions()
 
     # plot_reaction_energy_difference_arcoss_reactant_charge()
@@ -789,7 +753,6 @@ if __name__ == "__main__":
     # plot_bond_energy_hist()
     # plot_broken_bond_length_hist()
     # plot_all_bond_length_hist()
-    # get_dataset()
 
     # reactant_broken_bond_fraction()
     # bond_label_fraction()
@@ -799,6 +762,6 @@ if __name__ == "__main__":
     # create_struct_label_dataset_mol_based()
     # create_struct_label_dataset_bond_based_regression()
     # create_struct_label_dataset_bond_based_classification()
-    create_struct_label_dataset_reaction_based_classification()
+    # create_struct_label_dataset_reaction_based_classification()
 
     # write_reaction_sdf_mol_png()

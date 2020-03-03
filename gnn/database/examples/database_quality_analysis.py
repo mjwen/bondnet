@@ -317,7 +317,7 @@ def check_all(
 
     print("Number of mols after check:", len(mols))
 
-    filename = "~/Applications/db_access/mol_builder/molecules_quality_check.pkl"
+    filename = "~/Applications/db_access/mol_builder/molecules_qc.pkl"
     pickle_dump(mols, filename)
 
 
