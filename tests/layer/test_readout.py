@@ -5,11 +5,11 @@ from gnn.layer.readout import (
     Set2Set,
     Set2SetThenCat,
 )
-from ..utils import make_hetero_graph, make_batched_hetero_graph
+from ..utils import make_hetero_CH2O, make_batched_hetero_CH2O
 
 
 def test_concatenate_mean_max():
-    g, feats = make_hetero_graph()
+    g, feats = make_hetero_CH2O()
 
     etypes = [("bond", "b2a", "atom")]
     layer = ConcatenateMeanMax(etypes)
@@ -26,7 +26,7 @@ def test_concatenate_mean_max():
 
 
 def test_concatenate_mean_abs_diff():
-    g, feats = make_hetero_graph()
+    g, feats = make_hetero_CH2O()
 
     etypes = [("atom", "a2b", "bond")]
     layer = ConcatenateMeanAbsDiff(etypes)
@@ -43,7 +43,7 @@ def test_concatenate_mean_abs_diff():
 
 def test_set2set():
     nbatch = 3
-    g, feats = make_batched_hetero_graph(nbatch)
+    g, feats = make_batched_hetero_CH2O(nbatch)
 
     in_feat = 2
     ntype = "atom"
@@ -54,7 +54,7 @@ def test_set2set():
 
 def test_set2set_then_cat():
     nbatch = 3
-    g, feats = make_batched_hetero_graph(nbatch)
+    g, feats = make_batched_hetero_CH2O(nbatch)
 
     layer = Set2SetThenCat(
         n_iters=2,

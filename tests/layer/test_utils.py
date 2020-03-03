@@ -1,11 +1,11 @@
 import torch
 import numpy as np
 from gnn.layer.utils import sum_nodes, softmax_nodes, broadcast_nodes
-from ..utils import make_batched_hetero_graph
+from ..utils import make_batched_hetero_CH2O
 
 
 def test_sum_nodes():
-    g, feats = make_batched_hetero_graph()
+    g, feats = make_batched_hetero_CH2O()
     rst = sum_nodes(g, "atom", "feat")
 
     num_nodes = 4
@@ -15,7 +15,7 @@ def test_sum_nodes():
 
 
 def test_softmax_nodes():
-    g, feats = make_batched_hetero_graph()
+    g, feats = make_batched_hetero_CH2O()
     rst = softmax_nodes(g, "atom", "feat")
 
     num_nodes = 4
@@ -27,7 +27,7 @@ def test_softmax_nodes():
 
 
 def test_broadcast_nodes():
-    g, feats = make_batched_hetero_graph()
+    g, feats = make_batched_hetero_CH2O()
     h = torch.tensor(
         np.arange(g.batch_size * 2).reshape(g.batch_size, 2), dtype=torch.float32
     )

@@ -681,11 +681,15 @@ class ElectrolyteReactionDatasetClassification(ElectrolyteBondDataset):
         num_mols = [lb["num_mols"] for lb in raw_labels]
         reactions = np_split_by_size(graphs, num_mols)
 
+        # global feat mapping
+        global_mapping = [[{0: 0} for _ in range(n)] for n in num_mols]
+
         self.graphs = []
         self.labels = []
-        for rxn, lb in zip(reactions, raw_labels):
+        for rxn, lb, gmp in zip(reactions, raw_labels, global_mapping):
             if None not in rxn:
                 lb["class"] = torch.tensor(lb["class"], dtype=torch.int64)
+                lb["global_mapping"] = gmp
                 self.graphs.append(rxn)
                 self.labels.append(lb)
 

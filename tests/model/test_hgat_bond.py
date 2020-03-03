@@ -1,13 +1,13 @@
 """
 Test the Heterograph conv.
 """
-from ..utils import make_hetero_graph
+from ..utils import make_hetero_CH2O
 from gnn.model.hgat_bond import HGATBond
 
 
 def test_hgat():
 
-    g, feats = make_hetero_graph()
+    g, feats = make_hetero_CH2O()
 
     attn_mechanism = {
         "atom": {"edges": ["b2a", "g2a"], "nodes": ["bond", "global"]},
@@ -24,7 +24,7 @@ def test_hgat():
 
 def test_hgat_classification():
 
-    g, feats = make_hetero_graph()
+    g, feats = make_hetero_CH2O()
 
     attn_mechanism = {
         "atom": {"edges": ["b2a", "g2a"], "nodes": ["bond", "global"]},

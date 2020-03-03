@@ -2,7 +2,7 @@ import numpy as np
 from collections import defaultdict
 from gnn.data.transformers import StandardScaler, GraphFeatureStandardScaler
 import torch
-from ..utils import make_homo_graph, make_hetero_graph
+from ..utils import make_homo_CH2O, make_hetero_CH2O
 
 
 def test_standard_scaler():
@@ -18,8 +18,8 @@ def test_standard_scaler():
 
 
 def test_standard_scaler_hetero_graph():
-    g1, feats1 = make_hetero_graph()
-    g2, feats2 = make_hetero_graph()
+    g1, feats1 = make_hetero_CH2O()
+    g2, feats2 = make_hetero_CH2O()
     graphs = [g1, g2]
 
     # ntypes = ["atom", "bond", "global"]
@@ -46,8 +46,8 @@ def test_standard_scaler_hetero_graph():
 
 
 def test_standard_scaler_homo_graph():
-    g1, feats1 = make_homo_graph()
-    g2, feats2 = make_homo_graph()
+    g1, feats1 = make_homo_CH2O()
+    g2, feats2 = make_homo_CH2O()
     graphs = [g1, g2]
 
     ref_feats = {

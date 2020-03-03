@@ -6,7 +6,7 @@ from gnn.layer.hgatconv import (
     HGATConv,
     heterograph_edge_softmax,
 )
-from ..utils import make_hetero_graph
+from ..utils import make_hetero_CH2O
 
 
 def test_unify_size():
@@ -22,7 +22,7 @@ def test_unify_size():
 
 def test_edge_softmax():
 
-    g, _ = make_hetero_graph()
+    g, _ = make_hetero_CH2O()
 
     master_node = "atom"
     attn_nodes = ["bond", "global"]
@@ -38,7 +38,7 @@ def test_edge_softmax():
         )
         edge_data.append(torch.from_numpy(d))
 
-    edge_types  = [(n, e, master_node) for n, e in zip(attn_nodes, attn_edges)]
+    edge_types = [(n, e, master_node) for n, e in zip(attn_nodes, attn_edges)]
 
     a = heterograph_edge_softmax(g, edge_types, edge_data)
 
@@ -62,7 +62,7 @@ def test_node_attn_layer():
     out_feats = 8
     num_heads = 2
 
-    g, _ = make_hetero_graph()
+    g, _ = make_hetero_CH2O()
     natoms = g.number_of_nodes("atom")
     nbonds = g.number_of_nodes("bond")
     atom_feats = torch.randn(natoms, in_feats)
@@ -93,7 +93,7 @@ def test_hgat_conv_layer():
     }
     attn_order = ["atom", "bond", "global"]
 
-    g, feats = make_hetero_graph()
+    g, feats = make_hetero_CH2O()
     num_nodes = {}
     in_feats = []
     for ntype in attn_order:
