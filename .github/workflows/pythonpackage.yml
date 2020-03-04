@@ -37,4 +37,5 @@ jobs:
     - name: Test with pytest
       run: |
         pip install pytest
-        pytest
+        # ignore the tests/database/ directory, where we need custom pymatgen
+        pytest --ignore tests/database/
