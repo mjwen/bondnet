@@ -49,9 +49,6 @@ def parse_args():
         help="the negative slope of leaky relu",
     )
 
-    # parser.add_argument(
-    #    "--residual", action="store_true", default=True, help="use residual connection"
-    # )
     parser.add_argument(
         "--gat-residual", type=int, default=1, help="residual connection for gat layer"
     )
@@ -335,8 +332,9 @@ def main(args):
         label_file=label_file,
         feature_file=feature_file,
     )
+
     trainset, valset, testset = train_validation_test_split_test_with_all_bonds_of_mol(
-        dataset, validation=0.15, test=0.15
+        dataset, validation=0.1, test=0.1
     )
     print(
         "Trainset size: {}, valset size: {}: testset size: {}.".format(
@@ -397,6 +395,7 @@ def main(args):
     optimizer = torch.optim.Adam(
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
+
     loss_func = WeightedMSELoss(reduction="mean")
     metric = WeightedL1Loss(reduction="sum")
 

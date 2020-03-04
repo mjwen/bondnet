@@ -16,7 +16,7 @@ from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import (
     AtomFeaturizerWithReactionInfo,
     BondAsNodeFeaturizer,
-    GlobalFeaturizer,
+    GlobalFeaturizerChargeSpin,
 )
 from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
@@ -49,9 +49,6 @@ def parse_args():
         help="the negative slope of leaky relu",
     )
 
-    # parser.add_argument(
-    #    "--residual", action="store_true", default=True, help="use residual connection"
-    # )
     parser.add_argument(
         "--gat-residual", type=int, default=1, help="residual connection for gat layer"
     )
@@ -222,7 +219,7 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
 def get_grapher():
     atom_featurizer = AtomFeaturizerWithReactionInfo()
     bond_featurizer = BondAsNodeFeaturizer(length_featurizer="bin")
-    global_featurizer = GlobalFeaturizer()
+    global_featurizer = GlobalFeaturizerChargeSpin()
     grapher = HeteroMoleculeGraph(
         atom_featurizer=atom_featurizer,
         bond_featurizer=bond_featurizer,
@@ -248,7 +245,6 @@ def main(args):
         properties=["atomization_energy"],
         unit_conversion=True,
     )
-    print(dataset)
 
     trainset, valset, testset = train_validation_test_split(
         dataset, validation=0.1, test=0.1
@@ -307,6 +303,7 @@ def main(args):
         fc_batch_norm=args.fc_batch_norm,
         fc_activation=args.fc_activation,
         fc_drop=args.fc_drop,
+        outdim=1,
     )
     print(model)
 
@@ -317,6 +314,7 @@ def main(args):
     optimizer = torch.optim.Adam(
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
+
     loss_func = MSELoss(reduction="mean")
     metric = WeightedL1Loss(reduction="sum")
 
