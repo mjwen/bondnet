@@ -556,123 +556,6 @@ def plot_broken_bond_length_hist(
     plot_hist(data, filename)
 
 
-def create_struct_label_dataset_mol_based():
-    filename = "~/Applications/db_access/mol_builder/reactions.pkl"
-    # filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
-    # filename = "~/Applications/db_access/mol_builder/reactions_charge0.pkl"
-
-    extractor = ReactionExtractor.from_file(filename)
-    extractor.create_struct_label_dataset_mol_based(
-        struct_file="~/Applications/db_access/mol_builder/struct_mol_based.sdf",
-        label_file="~/Applications/db_access/mol_builder/label_mol_based.txt",
-        feature_file="~/Applications/db_access/mol_builder/feature_mol_based.yaml",
-        # struct_file="~/Applications/db_access/mol_builder/struct_n200.sdf",
-        # label_file="~/Applications/db_access/mol_builder/label_n200.txt",
-        # feature_file="~/Applications/db_access/mol_builder/feature_n200.yaml",
-        # struct_file="~/Applications/db_access/mol_builder/struct_charge0.sdf",
-        # label_file="~/Applications/db_access/mol_builder/label_charge0.txt",
-    )
-
-
-def create_struct_label_dataset_bond_based_regression(
-    # filename="~/Applications/db_access/mol_builder/reactions_qc.pkl",
-    filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
-):
-
-    extractor = ReactionExtractor.from_file(filename)
-
-    ##############
-    # filter by reactant attributes
-    ##############
-    # extractor.filter_reactions_by_reactant_attribute(
-    #     key="id", values=["5e2a05838eab11f1fa104e29", "5e2a05d28eab11f1fa107899"]
-    # )
-    # extractor.filter_reactions_by_reactant_attribute(
-    #     key="formula", values=["C3H4O3", "C3H3O3"]
-    # )
-    # extractor.filter_reactions_by_reactant_attribute(key="charge", values=[1])
-
-    # ##############
-    # # filter C-C bond
-    # ##############
-    # extractor.filter_reactions_by_bond_type_and_order(bond_type=("C", "C"))
-
-    extractor.create_struct_label_dataset_bond_based_regressssion(
-        # struct_file="~/Applications/db_access/mol_builder/struct.sdf",
-        # label_file="~/Applications/db_access/mol_builder/label.txt",
-        # feature_file="~/Applications/db_access/mol_builder/feature.yaml",
-        struct_file="~/Applications/db_access/mol_builder/struct_n200.sdf",
-        label_file="~/Applications/db_access/mol_builder/label_n200.txt",
-        feature_file="~/Applications/db_access/mol_builder/feature_n200.yaml",
-        # struct_file="~/Applications/db_access/mol_builder/struct_qc.sdf",
-        # label_file="~/Applications/db_access/mol_builder/label_qc.txt",
-        # feature_file="~/Applications/db_access/mol_builder/feature_qc.yaml",
-        lowest_across_product_charge=False,
-    )
-
-
-def create_struct_label_dataset_bond_based_classification(
-    # filename = "~/Applications/db_access/mol_builder/reactions.pkl",
-    filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
-    # filename="~/Applications/db_access/mol_builder/reactions_qc.pkl",
-    # filename="~/Applications/db_access/mol_builder/reactions_qc_ws.pkl",
-):
-
-    extractor = ReactionExtractor.from_file(filename)
-
-    ##############
-    # filter by reactant attributes
-    ##############
-    # extractor.filter_reactions_by_reactant_attribute(
-    #     key="id", values=["5e2a05838eab11f1fa104e29", "5e2a05d28eab11f1fa107899"]
-    # )
-    # extractor.filter_reactions_by_reactant_attribute(
-    #     key="formula", values=["C3H4O3", "C3H3O3"]
-    # )
-    # extractor.filter_reactions_by_reactant_attribute(key="charge", values=[1])
-
-    # ##############
-    # # filter C-C bond
-    # ##############
-    # extractor.filter_reactions_by_bond_type_and_order(bond_type=("C", "C"))
-
-    extractor.create_struct_label_dataset_bond_based_classification(
-        # struct_file="~/Applications/db_access/mol_builder/struct.sdf",
-        # label_file="~/Applications/db_access/mol_builder/label.txt",
-        # feature_file="~/Applications/db_access/mol_builder/feature.yaml",
-        struct_file="~/Applications/db_access/mol_builder/struct_clfn_n200.sdf",
-        label_file="~/Applications/db_access/mol_builder/label_clfn_n200.txt",
-        feature_file="~/Applications/db_access/mol_builder/feature_clfn_n200.yaml",
-        # struct_file="~/Applications/db_access/mol_builder/struct_clfn_qc_ws.sdf",
-        # label_file="~/Applications/db_access/mol_builder/label_clfn_qc_ws.txt",
-        # feature_file="~/Applications/db_access/mol_builder/feature_clfn_qc_ws.yaml",
-        lowest_across_product_charge=False,
-        top_n=2,
-    )
-
-
-def create_struct_label_dataset_reaction_based_classification(
-    # filename = "~/Applications/db_access/mol_builder/reactions.pkl",
-    filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
-    # filename="~/Applications/db_access/mol_builder/reactions_qc.pkl",
-    # filename="~/Applications/db_access/mol_builder/reactions_qc_ws.pkl",
-):
-
-    extractor = ReactionExtractor.from_file(filename)
-
-    extractor.create_struct_label_dataset_reaction_based(
-        struct_file="~/Applications/db_access/mol_builder/struct_rxn_clfn_n200.sdf",
-        label_file="~/Applications/db_access/mol_builder/label_rxn_clfn_n200.yaml",
-        feature_file="~/Applications/db_access/mol_builder/feature_rxn_clfn_n200.yaml",
-        # struct_file="~/Applications/db_access/mol_builder/struct_rxn_clfn_qc_ws.sdf",
-        # label_file="~/Applications/db_access/mol_builder/label_rxn_clfn_qc_ws.yaml",
-        # feature_file="~/Applications/db_access/mol_builder/feature_rxn_clfn_qc_ws.yaml",
-        complement_reactions=True,
-        one_per_iso_bond_group=True,
-        top_n=2,
-    )
-
-
 def write_reaction_sdf_mol_png():
     """
     Write reactions to file, including its sdf file and png graphs.
@@ -738,6 +621,106 @@ def write_reaction_sdf_mol_png():
         f.write(TexWriter.tail())
 
 
+def create_struct_label_dataset_mol_based():
+    filename = "~/Applications/db_access/mol_builder/reactions.pkl"
+    # filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
+    # filename = "~/Applications/db_access/mol_builder/reactions_charge0.pkl"
+
+    extractor = ReactionExtractor.from_file(filename)
+    extractor.create_struct_label_dataset_mol_based(
+        struct_file="~/Applications/db_access/mol_builder/struct_mol_based.sdf",
+        label_file="~/Applications/db_access/mol_builder/label_mol_based.txt",
+        feature_file="~/Applications/db_access/mol_builder/feature_mol_based.yaml",
+        # struct_file="~/Applications/db_access/mol_builder/struct_n200.sdf",
+        # label_file="~/Applications/db_access/mol_builder/label_n200.txt",
+        # feature_file="~/Applications/db_access/mol_builder/feature_n200.yaml",
+        # struct_file="~/Applications/db_access/mol_builder/struct_charge0.sdf",
+        # label_file="~/Applications/db_access/mol_builder/label_charge0.txt",
+    )
+
+
+def create_struct_label_dataset_bond_based_regression(
+    # filename="~/Applications/db_access/mol_builder/reactions_qc.pkl",
+    filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
+):
+
+    extractor = ReactionExtractor.from_file(filename)
+
+    ##############
+    # filter by reactant attributes
+    ##############
+    # extractor.filter_reactions_by_reactant_attribute(
+    #     key="id", values=["5e2a05838eab11f1fa104e29", "5e2a05d28eab11f1fa107899"]
+    # )
+    # extractor.filter_reactions_by_reactant_attribute(
+    #     key="formula", values=["C3H4O3", "C3H3O3"]
+    # )
+    # extractor.filter_reactions_by_reactant_attribute(key="charge", values=[1])
+
+    # ##############
+    # # filter C-C bond
+    # ##############
+    # extractor.filter_reactions_by_bond_type_and_order(bond_type=("C", "C"))
+
+    extractor.create_struct_label_dataset_bond_based_regressssion(
+        # struct_file="~/Applications/db_access/mol_builder/struct.sdf",
+        # label_file="~/Applications/db_access/mol_builder/label.txt",
+        # feature_file="~/Applications/db_access/mol_builder/feature.yaml",
+        struct_file="~/Applications/db_access/mol_builder/struct_n200.sdf",
+        label_file="~/Applications/db_access/mol_builder/label_n200.txt",
+        feature_file="~/Applications/db_access/mol_builder/feature_n200.yaml",
+        # struct_file="~/Applications/db_access/mol_builder/struct_qc.sdf",
+        # label_file="~/Applications/db_access/mol_builder/label_qc.txt",
+        # feature_file="~/Applications/db_access/mol_builder/feature_qc.yaml",
+        lowest_across_product_charge=False,
+    )
+
+
+def create_struct_label_dataset_bond_based_classification(
+    # filename = "~/Applications/db_access/mol_builder/reactions.pkl",
+    filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
+    # filename="~/Applications/db_access/mol_builder/reactions_qc.pkl",
+    # filename="~/Applications/db_access/mol_builder/reactions_qc_ws.pkl",
+):
+
+    extractor = ReactionExtractor.from_file(filename)
+
+    extractor.create_struct_label_dataset_bond_based_classification(
+        struct_file="~/Applications/db_access/mol_builder/struct_bond_clfn_n200.sdf",
+        label_file="~/Applications/db_access/mol_builder/label_bond_clfn_n200.txt",
+        feature_file="~/Applications/db_access/mol_builder/feature_bond_clfn_n200.yaml",
+        # struct_file="~/Applications/db_access/mol_builder/struct_bond_clfn_qc_ws.sdf",
+        # label_file="~/Applications/db_access/mol_builder/label_bond_clfn_qc_ws.txt",
+        # feature_file="~/Applications/db_access/mol_builder/feature_bond_clfn_qc_ws.yaml",
+        lowest_across_product_charge=False,
+        top_n=2,
+        one_per_iso_bond_group=True,
+        complement_reactions=True,
+    )
+
+
+def create_struct_label_dataset_reaction_based_classification(
+    # filename = "~/Applications/db_access/mol_builder/reactions.pkl",
+    filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
+    # filename="~/Applications/db_access/mol_builder/reactions_qc.pkl",
+    # filename="~/Applications/db_access/mol_builder/reactions_qc_ws.pkl",
+):
+
+    extractor = ReactionExtractor.from_file(filename)
+
+    extractor.create_struct_label_dataset_reaction_based(
+        struct_file="~/Applications/db_access/mol_builder/struct_rxn_clfn_n200.sdf",
+        label_file="~/Applications/db_access/mol_builder/label_rxn_clfn_n200.yaml",
+        feature_file="~/Applications/db_access/mol_builder/feature_rxn_clfn_n200.yaml",
+        # struct_file="~/Applications/db_access/mol_builder/struct_rxn_clfn_qc_ws.sdf",
+        # label_file="~/Applications/db_access/mol_builder/label_rxn_clfn_qc_ws.yaml",
+        # feature_file="~/Applications/db_access/mol_builder/feature_rxn_clfn_qc_ws.yaml",
+        top_n=2,
+        complement_reactions=True,
+        one_per_iso_bond_group=True,
+    )
+
+
 if __name__ == "__main__":
     # eg_buckets()
     # eg_extract_A_to_B()
@@ -756,9 +739,10 @@ if __name__ == "__main__":
     # bond_energy_difference_in_molecule_nth_lowest()
 
     # bond_energies_to_file()
+
+    # write_reaction_sdf_mol_png()
+
     # create_struct_label_dataset_mol_based()
     # create_struct_label_dataset_bond_based_regression()
     # create_struct_label_dataset_bond_based_classification()
     create_struct_label_dataset_reaction_based_classification()
-
-    # write_reaction_sdf_mol_png()

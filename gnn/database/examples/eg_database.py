@@ -22,17 +22,17 @@ def pickle_molecules():
     # db_collection = "task"
     db_collection = "mol_builder"
     entries = DatabaseOperation.query_db_entries(
-        db_collection=db_collection, num_entries=2000
+        db_collection=db_collection, num_entries=None
     )
 
     mols = DatabaseOperation.to_molecules(entries, db_collection=db_collection)
-    # filename = "~/Applications/db_access/mol_builder/molecules_unfiltered.pkl"
-    filename = "~/Applications/db_access/mol_builder/molecules_n200_unfiltered.pkl"
+    filename = "~/Applications/db_access/mol_builder/molecules_unfiltered.pkl"
+    # filename = "~/Applications/db_access/mol_builder/molecules_n200_unfiltered.pkl"
     pickle_dump(mols, filename)
 
     mols = DatabaseOperation.filter_molecules(mols, connectivity=True, isomorphism=True)
-    # filename = "~/Applications/db_access/mol_builder/molecules.pkl"
-    filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
+    filename = "~/Applications/db_access/mol_builder/molecules.pkl"
+    # filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
     pickle_dump(mols, filename)
 
 
@@ -214,8 +214,8 @@ def get_single_atom_energy():
 
 if __name__ == "__main__":
     # pickle_db_entries()
-    # pickle_molecules()
-    print_mol_property()
+    pickle_molecules()
+    # print_mol_property()
     # plot_molecules()
     # plot_atom_distance_hist()
     # number_of_bonds()

@@ -26,13 +26,20 @@ class Reaction:
     # NOTE most methods in this class only works for A->B and A->B+C type reactions
 
     def __init__(self, reactants, products, broken_bond=None):
+
         assert len(reactants) == 1, "incorrect number of reactants, should be 1"
         assert 1 <= len(products) <= 2, "incorrect number of products, should be 1 or 2"
+
         self.reactants = reactants
         # ordered products needed by `group_by_reactant_bond_and_charge(self)`
         # where we use charge as a dict key
         self.products = self._order_molecules(products)
+
         self._broken_bond = broken_bond
+        self._atom_mapping = None
+        self._bond_mapping_by_int_index = None
+        self._bond_mapping_by_tuple_index = None
+        self._bond_mapping_by_sdf_int_index = None
 
     def get_free_energy(self):
         energy = 0
@@ -105,6 +112,8 @@ class Reaction:
         Returns:
             list: each element is a dict mapping the atoms from product to reactant
         """
+        if self._atom_mapping is not None:
+            return self._atom_mapping
 
         # get subgraphs of reactant by breaking the bond
         # if A->B reaction, there is one element in sugraphs
@@ -145,7 +154,8 @@ class Reaction:
             else:
                 mappings.append(mp)
 
-        return mappings
+        self._atom_mapping = mappings
+        return self._atom_mapping
 
     def bond_mapping_by_int_index(self):
         r"""
@@ -181,6 +191,9 @@ class Reaction:
             list: each element is a dict mapping the bonds from product to reactant
         """
 
+        if self._bond_mapping_by_int_index is not None:
+            return self._bond_mapping_by_int_index
+
         # for the same bond, tuple index as key and integer index as value
         reactants_mapping = [
             {
@@ -214,7 +227,8 @@ class Reaction:
                 bmp[p_order] = r_order
             bond_mapping.append(bmp)
 
-        return bond_mapping
+        self._bond_mapping_by_int_index = bond_mapping
+        return self._bond_mapping_by_int_index
 
     def bond_mapping_by_tuple_index(self):
         r"""
@@ -250,6 +264,9 @@ class Reaction:
             list: each element is a dict mapping the bonds from product to reactant
         """
 
+        if self._bond_mapping_by_tuple_index is not None:
+            return self._bond_mapping_by_tuple_index
+
         atom_mp = self.atom_mapping()
 
         bond_mapping = []
@@ -265,7 +282,8 @@ class Reaction:
                 bmp[b_product] = b_reactant
             bond_mapping.append(bmp)
 
-        return bond_mapping
+        self._bond_mapping_by_tuple_index = bond_mapping
+        return self._bond_mapping_by_tuple_index
 
     def bond_mapping_by_sdf_int_index(self):
         """
@@ -290,6 +308,10 @@ class Reaction:
             list (dict): each dict is the mapping for one product, from sdf bond index
                 of product to sdf bond index of reactant
         """
+
+        if self._bond_mapping_by_sdf_int_index is not None:
+            return self._bond_mapping_by_sdf_int_index
+
         reactant = self.reactants[0]
 
         # reactant sdf bond index (tuple) to sdf bond index (interger)
@@ -327,7 +349,8 @@ class Reaction:
             # list of dict, each dict for one product
             bond_mapping.append(mp)
 
-        return bond_mapping
+        self._bond_mapping_by_sdf_int_index = bond_mapping
+        return self._bond_mapping_by_sdf_int_index
 
     def as_dict(self):
         d = {
@@ -688,7 +711,7 @@ class ReactionsOnePerBond(ReactionsGroup):
                 )
         self._reactions.append(rxn)
 
-    def order_reactions(self, complement_reactions=True):
+    def order_reactions(self, complement_reactions=True, one_per_iso_bond_group=True):
         """
         Order the reactions by charge.
 
@@ -696,6 +719,11 @@ class ReactionsOnePerBond(ReactionsGroup):
             complement_reactions (bool): If `False`, order the existing reactions only.
                 Otherwise, complementary reactions are created and ordered together
                 with existing ones.
+            one_per_iso_bond_group (bool): If `True`, keep one reaction for each
+                isomorphic bond group. If `False`, keep all.
+                Note, if set to `True`, this expects that `find_one=False` in
+                :method:`ReactionExtractor.extract_one_bond_break` so that all bonds
+                in an isomorphic bond group have exactly the same reactions.
 
         Returns:
             dict of dict: The outer dict has bond indices (a tuple) as the key and the
@@ -704,8 +732,11 @@ class ReactionsOnePerBond(ReactionsGroup):
         """
 
         ordered_rxns = sorted(self.reactions, key=lambda rxn: rxn.get_free_energy())
+        bonds_of_existing_rxns = []
         ordered_rxns_dict = dict()
-        for i, (bond, rxn) in enumerate(ordered_rxns):
+        for i, rxn in enumerate(ordered_rxns):
+            bond = rxn.get_broken_bond()
+            bonds_of_existing_rxns.append(bond)
             ordered_rxns_dict[bond] = {
                 "reaction": rxn,
                 "order": i,
@@ -713,7 +744,6 @@ class ReactionsOnePerBond(ReactionsGroup):
             }
 
         if complement_reactions:
-            bonds_of_existing_rxns = [bond for bond, rxn in ordered_rxns]
             for i, j, attr in self.reactant.bonds:
                 bond = (i, j)
                 if bond not in bonds_of_existing_rxns:
@@ -722,6 +752,13 @@ class ReactionsOnePerBond(ReactionsGroup):
                         "order": None,
                         "energy": None,
                     }
+
+        # remove duplicate isomorphic bonds
+        if one_per_iso_bond_group:
+            for group in self.reactant.isomorphic_bonds:
+                # keep the first bond in each group and remove others
+                for i in range(1, len(group)):
+                    ordered_rxns_dict.pop(group[i])
 
         return ordered_rxns_dict
 
@@ -803,7 +840,7 @@ class ReactionsMultiplePerBond(ReactionsGroup):
         """
 
         # NOTE, we need to get existing_rxns from rsb instead of self.reactions because
-        # we may need to remove duplicate isomorphic bond, which is handled in
+        # we may need to remove duplicate isomorphic-bond rxn, which is handled in
         # self.group_by_bonds.
 
         existing_rxns = []
@@ -1064,8 +1101,8 @@ class ReactionExtractor:
 
             # add to new group only when at least has one reaction
             if zero_charge_rxns:
-                rsr = ReactionsOnePerBond(reactant, zero_charge_rxns)
-                new_groups.append(rsr)
+                ropb = ReactionsOnePerBond(reactant, zero_charge_rxns)
+                new_groups.append(ropb)
 
         return new_groups
 
@@ -1100,8 +1137,8 @@ class ReactionExtractor:
                     if e_new < e_old:
                         lowest_energy_reaction[bond] = rxn
 
-            rsr = ReactionsOnePerBond(reactant, lowest_energy_reaction.keys())
-            new_groups.append(rsr)
+            ropb = ReactionsOnePerBond(reactant, lowest_energy_reaction.keys())
+            new_groups.append(ropb)
 
         return new_groups
 
@@ -1225,9 +1262,9 @@ class ReactionExtractor:
         struct_file="sturct.sdf",
         label_file="label.txt",
         feature_file=None,
+        top_n=2,
         complement_reactions=False,
         one_per_iso_bond_group=True,
-        top_n=2,
     ):
 
         all_mols = []
@@ -1276,8 +1313,10 @@ class ReactionExtractor:
         struct_file="sturct.sdf",
         label_file="label.txt",
         feature_file=None,
-        lowest_across_product_charge=True,
+        lowest_across_product_charge=False,
         top_n=2,
+        complement_reactions=True,
+        one_per_iso_bond_group=True,
     ):
         """
         Write the reaction class to files.
@@ -1333,23 +1372,24 @@ class ReactionExtractor:
         broken_bond_idx = []  # int index in ob molecule
         broken_bond_pairs = []  # a tuple index in graph molecule
         label_class = []
-        for rsr in grouped_reactions:
-            reactant = rsr.reactant
-            ordered_reactions = rsr.order_reactions()
+        for ropb in grouped_reactions:
+            reactant = ropb.reactant
+            ordered_reactions = ropb.order_reactions(
+                complement_reactions, one_per_iso_bond_group
+            )
 
             # bond energies in the same order as in sdf file
             sdf_bonds = reactant.get_sdf_bond_indices()
             for ib, bond in enumerate(sdf_bonds):
+
                 # change index from ob to graph
                 bond = tuple(sorted(reactant.ob_bond_idx_to_graph_bond_idx(bond)))
-                data = ordered_reactions[bond]
 
-                # NOTE this will only write class 0 and class 1
-                # rxn = data["reaction"]
-                # if rxn is None:  # do not have reaction breaking bond
-                #     continue
+                # when one_per_iso_bond_group is True, some bonds may not exist any more
+                if bond not in ordered_reactions:
+                    continue
 
-                order = data["order"]
+                order = ordered_reactions[bond]["order"]
                 if order is None:
                     lb = 2
                 elif order < top_n:

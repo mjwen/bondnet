@@ -326,12 +326,11 @@ class MoleculeWrapper:
     def isomorphic_bonds(self):
         r"""
         Find isomorphic bonds. For example, given the molecule
-              0  0  1
-          1 H----C----H  2
-                / \
-             2 /  \ 3
-              O----O
-             3  4  4
+
+            H1---C0---H2
+                /  \
+              O3---O4
+
         bond 0 and bond 1 are isomorphically identical, and bond 2 and bond 3 are also
         isomorphically identical.
 
