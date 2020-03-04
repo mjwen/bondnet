@@ -275,20 +275,32 @@ class MoleculeWrapper:
 
     @property
     def atoms(self):
+        """
+        Sorted atoms of in the molecule.
+        
+        Returns:
+            list: each component is a dict of atom attributes.
+        """
         nodes = self.graph.nodes.data()
-        return sorted(nodes, key=lambda pair: pair[0])
+        return [v for k, v in sorted(nodes, key=lambda pair: pair[0])]
 
     @property
     def bonds(self):
+        """
+        Returns:
+            Iterable: a sequence of (i,j,attr), where i and j are indices of atoms
+                forming the bond, and attr is the bond attribute.
+
+        """
         return self.graph.edges.data()
 
     @property
     def species(self):
-        return [v["specie"] for k, v in self.atoms]
+        return [v["specie"] for v in self.atoms]
 
     @property
     def coords(self):
-        return np.asarray([v["coords"] for k, v in self.atoms])
+        return np.asarray([v["coords"] for v in self.atoms])
 
     @property
     def formula(self):

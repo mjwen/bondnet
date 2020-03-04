@@ -64,8 +64,8 @@ def print_mol_property():
 
     # using atom and bond
     print("\n\nlooping m.atoms")
-    for idx, attr in m.atoms:
-        print(idx, attr)
+    for attr in m.atoms:
+        print(attr)
     print("direct access: m.atoms[0]:", m.atoms[0])
 
     print("\n\nlooping m.bonds")
@@ -214,8 +214,8 @@ def get_single_atom_energy():
 
 if __name__ == "__main__":
     # pickle_db_entries()
-    pickle_molecules()
-    # print_mol_property()
+    # pickle_molecules()
+    print_mol_property()
     # plot_molecules()
     # plot_atom_distance_hist()
     # number_of_bonds()

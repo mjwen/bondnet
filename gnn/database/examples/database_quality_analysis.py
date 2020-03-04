@@ -55,7 +55,7 @@ def check_valence_mol(mol):
             where `bonded_atom_species` is a list.
             Each tuple represents an atom and its bonds.
         """
-        res = [(attr["specie"], []) for _, attr in m.atoms]
+        res = [(attr["specie"], []) for attr in m.atoms]
         for a1, a2, _ in m.bonds:
             s1 = m.atoms[a1]["specie"]
             s2 = m.atoms[a2]["specie"]
