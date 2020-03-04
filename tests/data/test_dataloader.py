@@ -22,7 +22,7 @@ from gnn.data.featurizer import (
     AtomFeaturizer,
     BondAsNodeFeaturizer,
     BondAsEdgeCompleteFeaturizer,
-    GlobalFeaturizer,
+    GlobalFeaturizerChargeSpin,
 )
 
 
@@ -33,7 +33,7 @@ def get_grapher_hetero():
     return HeteroMoleculeGraph(
         atom_featurizer=AtomFeaturizer(),
         bond_featurizer=BondAsNodeFeaturizer(),
-        global_featurizer=GlobalFeaturizer(),
+        global_featurizer=GlobalFeaturizerChargeSpin(),
         self_loop=True,
     )
 

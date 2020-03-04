@@ -20,6 +20,8 @@ class BaseFeaturizer:
                 "`dtype` should be `float32` or `float64`, but got `{}`.".format(dtype)
             )
         self.dtype = dtype
+        self._feature_size = None
+        self._feature_name = None
 
     @property
     def feature_size(self):
@@ -27,7 +29,7 @@ class BaseFeaturizer:
         Returns:
             an int of the feature size.
         """
-        raise NotImplementedError
+        return self._feature_size
 
     @property
     def feature_name(self):
@@ -36,7 +38,8 @@ class BaseFeaturizer:
             a list of the names of each feature. Should be of the same length as
             `feature_size`.
         """
-        raise NotImplementedError
+
+        return self._feature_name
 
     def __call__(self, mol, **kwargs):
         """
@@ -82,14 +85,6 @@ class BondFeaturizer(BaseFeaturizer):
             raise ValueError(
                 "Unsupported bond length featurizer: {}".format(length_featurizer)
             )
-
-    @property
-    def feature_size(self):
-        return self._feature_size
-
-    @property
-    def feature_name(self):
-        return self._feature_name
 
 
 class BondAsNodeFeaturizer(BondFeaturizer):
@@ -439,19 +434,6 @@ class AtomFeaturizer(BaseFeaturizer):
     The atom indices will be preserved, i.e. feature i corresponds to atom i.
     """
 
-    def __init__(self, dtype="float32"):
-        super(AtomFeaturizer, self).__init__(dtype)
-        self._feature_size = None
-        self._feature_name = None
-
-    @property
-    def feature_size(self):
-        return self._feature_size
-
-    @property
-    def feature_name(self):
-        return self._feature_name
-
     def __call__(self, mol, **kwargs):
         """
         Parameters
@@ -565,19 +547,6 @@ class AtomFeaturizerWithReactionInfo(BaseFeaturizer):
     The atom indices will be preserved, i.e. feature i corresponds to atom i.
     """
 
-    def __init__(self, dtype="float32"):
-        super(AtomFeaturizerWithReactionInfo, self).__init__(dtype)
-        self._feature_size = None
-        self._feature_name = None
-
-    @property
-    def feature_size(self):
-        return self._feature_size
-
-    @property
-    def feature_name(self):
-        return self._feature_name
-
     def __call__(self, mol, **kwargs):
         """
         Args:
@@ -644,19 +613,6 @@ class AtomFeaturizerMinimum(BaseFeaturizer):
     The atom indices will be preserved, i.e. feature i corresponds to atom i.
     """
 
-    def __init__(self, dtype="float32"):
-        super(AtomFeaturizerMinimum, self).__init__(dtype)
-        self._feature_size = None
-        self._feature_name = None
-
-    @property
-    def feature_size(self):
-        return self._feature_size
-
-    @property
-    def feature_name(self):
-        return self._feature_name
-
     def __call__(self, mol, **kwargs):
         """
         Args:
@@ -713,23 +669,33 @@ class AtomFeaturizerMinimum(BaseFeaturizer):
         return {"feat": feats}
 
 
-class GlobalFeaturizer(BaseFeaturizer):
+class GlobalFeaturizerCharge(BaseFeaturizer):
+    """
+    Featurize the global state of a molecules using charge only.
+    """
+
+    def __call__(self, mol, **kwargs):
+
+        try:
+            feats_info = kwargs["extra_feats_info"]
+        except KeyError as e:
+            raise KeyError(
+                "{} `extra_feats_info` needed for {}.".format(e, self.__class__.__name__)
+            )
+
+        g = [feats_info["charge"]]
+        g += one_hot_encoding(feats_info["charge"], [-1, 0, 1])
+
+        feats = torch.tensor([g], dtype=getattr(torch, self.dtype))
+        self._feature_size = feats.shape[1]
+        self._feature_name = ["charge"] + ["charge one hot"] * 3
+        return {"feat": feats}
+
+
+class GlobalFeaturizerChargeSpin(BaseFeaturizer):
     """
     Featurize the global state of a molecules using charge and spin multiplicity.
     """
-
-    def __init__(self, dtype="float32"):
-        super(GlobalFeaturizer, self).__init__(dtype)
-        self._feature_size = None
-        self._feature_name = None
-
-    @property
-    def feature_size(self):
-        return self._feature_size
-
-    @property
-    def feature_name(self):
-        return self._feature_name
 
     def __call__(self, mol, **kwargs):
 
@@ -756,19 +722,6 @@ class GlobalFeaturizerWithReactionInfo(BaseFeaturizer):
     """
     Featurize the global state of a molecules using charge and spin multiplicity.
     """
-
-    def __init__(self, dtype="float32"):
-        super(GlobalFeaturizerWithReactionInfo, self).__init__(dtype)
-        self._feature_size = None
-        self._feature_name = None
-
-    @property
-    def feature_size(self):
-        return self._feature_size
-
-    @property
-    def feature_name(self):
-        return self._feature_name
 
     def __call__(self, mol, **kwargs):
 
@@ -804,19 +757,6 @@ class MolWeightFeaturizer(BaseFeaturizer):
     Featurize the global state of a molecules using number of atoms, number of bonds,
     and its weight.
     """
-
-    def __init__(self, dtype="float32"):
-        super(MolWeightFeaturizer, self).__init__(dtype)
-        self._feature_size = None
-        self._feature_name = None
-
-    @property
-    def feature_size(self):
-        return self._feature_size
-
-    @property
-    def feature_name(self):
-        return self._feature_name
 
     def __call__(self, mol, **kwargs):
 

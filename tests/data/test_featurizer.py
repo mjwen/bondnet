@@ -4,7 +4,7 @@ from gnn.data.featurizer import (
     BondAsNodeFeaturizer,
     BondAsEdgeBidirectedFeaturizer,
     BondAsEdgeCompleteFeaturizer,
-    GlobalFeaturizer,
+    GlobalFeaturizerChargeSpin,
     MolWeightFeaturizer,
     DistanceBins,
     RBF,
@@ -77,7 +77,7 @@ def test_bond_as_edge_complete_featurizer():
 
 
 def test_mol_charge_featurizer():
-    featurizer = GlobalFeaturizer()
+    featurizer = GlobalFeaturizerChargeSpin()
     feat = featurizer(
         None,
         extra_feats_info={

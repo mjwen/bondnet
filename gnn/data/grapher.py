@@ -178,7 +178,7 @@ class HeteroMoleculeGraph(BaseGraph):
 
         # If no bonds (e.g. H+), create an artifact bond and connect it to the 1st atom
         if num_bonds == 0:
-            num_bonds == 1
+            num_bonds = 1
             a2b = [(0, 0)]
             b2a = [(0, 0)]
         else:
