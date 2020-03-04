@@ -2,18 +2,18 @@
 Heterogeneous Graph Attention Networks on bond level property.
 """
 
+import warnings
 import torch
+from dgl import BatchedDGLHeteroGraph
 import torch.nn as nn
 from gnn.layer.hgatconv import HGATConv
 from gnn.layer.readout import ConcatenateMeanMax, ConcatenateMeanAbsDiff
-from dgl import BatchedDGLHeteroGraph
-import warnings
 from gnn.utils import warn_stdout
 
 
 class HGATBond(nn.Module):
     """
-    Heterograph attention network.
+    Heterograph attention network for bonds.
 
 
     Args:
@@ -31,8 +31,8 @@ class HGATBond(nn.Module):
         attn_drop (float, optional): [description]. Defaults to 0.0.
         negative_slope (float, optional): [description]. Defaults to 0.2.
         gat_residual (bool, optional): [description]. Defaults to False.
-        gat_activation (torch activation): activation fn of gat layers
         gat_batch_norm(bool): whether to apply batch norm to gat layer.
+        gat_activation (torch activation): activation fn of gat layers
         readout_type (str): how to read out the features to bonds and then pass the fc
             layers. Options are {'bond', 'bond_cat_mean_max', 'bond_cat_mean_diff'}.
         num_fc_layers (int): number of fc layers. Note this is the number of hidden
@@ -164,7 +164,7 @@ class HGATBond(nn.Module):
             in_size = out_size
 
         # final output layer, mapping feature to the corresponding shape
-        self.fc_layers.append(nn.Linear(in_size, self.outdim))
+        self.fc_layers.append(nn.Linear(in_size, outdim))
 
     def forward(self, graph, feats, mol_energy=False):
         """

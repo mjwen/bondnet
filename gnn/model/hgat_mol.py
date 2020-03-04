@@ -2,16 +2,16 @@
 Heterogeneous Graph Attention Networks on molecule level property.
 """
 
+import warnings
 import torch.nn as nn
 from gnn.layer.hgatconv import HGATConv
 from gnn.layer.readout import Set2SetThenCat
-import warnings
 from gnn.utils import warn_stdout
 
 
 class HGATMol(nn.Module):
     """
-    Heterograph attention network.
+    Heterograph attention network for molecules.
 
 
     Args:
@@ -29,14 +29,16 @@ class HGATMol(nn.Module):
         attn_drop (float, optional): [description]. Defaults to 0.0.
         negative_slope (float, optional): [description]. Defaults to 0.2.
         gat_residual (bool, optional): [description]. Defaults to False.
-        gat_batch_norm (bool, optional): [description]. Defaults to False.
+        gat_batch_norm(bool): whether to apply batch norm to gat layer.
         gat_activation (torch activation): activation fn of gat layers
         num_fc_layers (int): number of fc layers. Note this is the number of hidden
             layers, i.e. there is an additional fc layer to map feature size to 1.
         fc_hidden_size (list): hidden size of fc layers
-        fc_dropout (float): dropout for fc layer
+        fc_batch_norm (bool): whether to apply batch norm to fc layer
         fc_activation (torch activation): activation fn of fc layers
-        fc_drop (float): dropout for fc layer
+        fc_drop (float, optional): dropout ratio for fc layer.
+        outdim (int): dimension of the output. For regression, choose 1 and for
+            classification, set it to the number of classes.
     """
 
     def __init__(
@@ -52,15 +54,16 @@ class HGATMol(nn.Module):
         negative_slope=0.2,
         gat_residual=True,
         gat_batch_norm=False,
-        gat_activation=nn.ELU(),
+        gat_activation="ELU",
         num_lstm_iters=5,
         num_lstm_layers=3,
         set2set_ntypes_direct=["global"],
         num_fc_layers=3,
         fc_hidden_size=[128, 64, 32],
         fc_batch_norm=False,
-        fc_activation=nn.ELU(),
+        fc_activation="ELU",
         fc_drop=0.0,
+        outdim=1,
     ):
         super(HGATMol, self).__init__()
 
@@ -72,7 +75,7 @@ class HGATMol(nn.Module):
 
         self.gat_layers = nn.ModuleList()
 
-        # input projection (no dropout, no residual)
+        # input projection (no dropout)
         self.gat_layers.append(
             HGATConv(
                 attn_mechanism=attn_mechanism,
@@ -108,6 +111,7 @@ class HGATMol(nn.Module):
                 )
             )
 
+        # set2set readout layer
         ntypes = ["atom", "bond"]
         in_size = [gat_hidden_size[-1] * num_heads for _ in attn_order]
 
@@ -118,6 +122,15 @@ class HGATMol(nn.Module):
             in_feats=in_size,
             ntypes_direct_cat=set2set_ntypes_direct,
         )
+
+        # for atom and bond feat (# *2 because Set2Set used in Set2SetThenCat has out
+        # feature twice the the size  of in feature)
+        readout_out_size = (
+            gat_hidden_size[-1] * num_heads * 2 + gat_hidden_size[-1] * num_heads * 2
+        )
+        # for global feat
+        if set2set_ntypes_direct is not None:
+            readout_out_size += gat_hidden_size[-1] * num_heads
 
         # need dropout?
         delta = 1e-3
@@ -131,17 +144,9 @@ class HGATMol(nn.Module):
         else:
             apply_drop = True
 
-        # for atom and bond feat (# *2 because Set2Set used in Set2SetThenCat has out
-        # feature twice the the size  of in feature)
-        in_size = (
-            gat_hidden_size[-1] * num_heads * 2 + gat_hidden_size[-1] * num_heads * 2
-        )
-        # for global feat
-        if set2set_ntypes_direct is not None:
-            in_size += gat_hidden_size[-1] * num_heads
-
         # fc layer to map to feature to bond energy
         self.fc_layers = nn.ModuleList()
+        in_size = readout_out_size
         for i in range(num_fc_layers):
             out_size = fc_hidden_size[i]
             self.fc_layers.append(nn.Linear(in_size, out_size))
@@ -156,8 +161,8 @@ class HGATMol(nn.Module):
 
             in_size = out_size
 
-        # final output layer, mapping feature to size 1
-        self.fc_layers.append(nn.Linear(in_size, 1))
+        # final output layer, mapping feature to the corresponding shape
+        self.fc_layers.append(nn.Linear(in_size, outdim))
 
     def forward(self, graph, feats):
         h = feats
