@@ -275,7 +275,8 @@ class MoleculeWrapper:
 
     @property
     def atoms(self):
-        return self.graph.nodes.data()
+        nodes = self.graph.nodes.data()
+        return sorted(nodes, key=lambda pair: pair[0])
 
     @property
     def bonds(self):
@@ -799,6 +800,12 @@ class MoleculeWrapperFromAtomsAndBonds(MoleculeWrapper):
         bonds = {tuple(sorted(b)): None for b in bonds}
         self.mol_graph = MoleculeGraph.with_edges(self.pymatgen_mol, bonds)
         self.free_energy = free_energy
+
+    def pack_features(self, use_obabel_idx=True, broken_bond=None):
+        feats = dict()
+        feats["charge"] = self.charge
+
+        return feats
 
 
 class DatabaseOperation:

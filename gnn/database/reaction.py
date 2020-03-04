@@ -615,9 +615,16 @@ class ReactionsOfSameBond(ReactionsGroup):
                 missing_charge = target_products_charge - set(products_charge)
 
         # fragments species, coords, and bonds (same for products)
-        species = [[v["specie"] for k, v in fg.graph.nodes.data()] for fg in fragments]
-        coords = [[v["coords"] for k, v in fg.graph.nodes.data()] for fg in fragments]
-        bonds = [[(i, j) for i, j, v in fg.graph.edges.data()] for fg in fragments]
+        species = []
+        coords = []
+        bonds = []
+        for fg in fragments:
+            nodes = fg.graph.nodes.data()
+            nodes = sorted(nodes, key=lambda pair: pair[0])
+            species.append([v["specie"] for k, v in nodes])
+            coords.append([v["coords"] for k, v in nodes])
+            edges = fg.graph.edges.data()
+            bonds.append([(i, j) for i, j, v in edges])
 
         # create complementary reactions
         bb = self.broken_bond
@@ -1219,6 +1226,7 @@ class ReactionExtractor:
         label_file="label.txt",
         feature_file=None,
         complement_reactions=False,
+        one_per_iso_bond_group=True,
         top_n=2,
     ):
 
@@ -1229,7 +1237,7 @@ class ReactionExtractor:
 
         # rmb: all reactions for a reactant
         for rmb in rmb_list:
-            reactions = rmb.order_reactions(complement_reactions)
+            reactions = rmb.order_reactions(complement_reactions, one_per_iso_bond_group)
 
             # rxn: a reaction for one bond and a specific combination of charges
             for i, rxn in enumerate(reactions):
@@ -1598,7 +1606,8 @@ class ReactionExtractor:
 
         Args:
             molecules (list): a sequence of :class:`MoleculeWrapper`
-            bond_indices (list of tuple): broken bond in the corresponding molecule
+            bond_indices (list of tuple or None): broken bond in the corresponding
+                molecule
             filename (str): output filename
         """
         logger.info("Start writing feature file: {}".format(filename))

@@ -45,7 +45,7 @@ def eg_extract_A_to_B_C():
     print("number of moles:", len(molecules))
 
     extractor = ReactionExtractor(molecules)
-    extractor.extract_A_to_B_C_style_reaction(fine_one=False)
+    extractor.extract_A_to_B_C_style_reaction(find_one=False)
 
     filename = "~/Applications/db_access/mol_builder/reactions_A2BC.pkl"
     extractor.to_file(filename)
@@ -577,7 +577,6 @@ def create_struct_label_dataset_mol_based():
 def create_struct_label_dataset_bond_based_regression(
     # filename="~/Applications/db_access/mol_builder/reactions_qc.pkl",
     filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
-    lowest_energy=False,
 ):
 
     extractor = ReactionExtractor.from_file(filename)
@@ -608,7 +607,7 @@ def create_struct_label_dataset_bond_based_regression(
         # struct_file="~/Applications/db_access/mol_builder/struct_qc.sdf",
         # label_file="~/Applications/db_access/mol_builder/label_qc.txt",
         # feature_file="~/Applications/db_access/mol_builder/feature_qc.yaml",
-        lowest_across_product_charge=lowest_energy,
+        lowest_across_product_charge=False,
     )
 
 
@@ -617,8 +616,6 @@ def create_struct_label_dataset_bond_based_classification(
     filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
     # filename="~/Applications/db_access/mol_builder/reactions_qc.pkl",
     # filename="~/Applications/db_access/mol_builder/reactions_qc_ws.pkl",
-    lowest_energy=False,
-    top_n=2,
 ):
 
     extractor = ReactionExtractor.from_file(filename)
@@ -649,8 +646,8 @@ def create_struct_label_dataset_bond_based_classification(
         # struct_file="~/Applications/db_access/mol_builder/struct_clfn_qc_ws.sdf",
         # label_file="~/Applications/db_access/mol_builder/label_clfn_qc_ws.txt",
         # feature_file="~/Applications/db_access/mol_builder/feature_clfn_qc_ws.yaml",
-        lowest_across_product_charge=lowest_energy,
-        top_n=top_n,
+        lowest_across_product_charge=False,
+        top_n=2,
     )
 
 
@@ -659,8 +656,6 @@ def create_struct_label_dataset_reaction_based_classification(
     filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
     # filename="~/Applications/db_access/mol_builder/reactions_qc.pkl",
     # filename="~/Applications/db_access/mol_builder/reactions_qc_ws.pkl",
-    lowest_energy=False,
-    top_n=2,
 ):
 
     extractor = ReactionExtractor.from_file(filename)
@@ -672,7 +667,9 @@ def create_struct_label_dataset_reaction_based_classification(
         # struct_file="~/Applications/db_access/mol_builder/struct_rxn_clfn_qc_ws.sdf",
         # label_file="~/Applications/db_access/mol_builder/label_rxn_clfn_qc_ws.yaml",
         # feature_file="~/Applications/db_access/mol_builder/feature_rxn_clfn_qc_ws.yaml",
-        top_n=top_n,
+        complement_reactions=True,
+        one_per_iso_bond_group=True,
+        top_n=2,
     )
 
 
