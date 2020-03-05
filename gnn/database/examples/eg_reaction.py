@@ -693,23 +693,23 @@ def create_struct_label_dataset_bond_based_classification(
 
 def create_struct_label_dataset_reaction_based_classification(
     # filename = "~/Applications/db_access/mol_builder/reactions.pkl",
-    # filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
+    filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
     # filename="~/Applications/db_access/mol_builder/reactions_qc.pkl",
-    filename="~/Applications/db_access/mol_builder/reactions_qc_wib.pkl",
+    # filename="~/Applications/db_access/mol_builder/reactions_qc_wib.pkl",
 ):
 
     extractor = ReactionExtractor.from_file(filename)
 
     extractor.create_struct_label_dataset_reaction_based_classification(
-        # struct_file="~/Applications/db_access/mol_builder/struct_rxn_clfn_n200.sdf",
-        # label_file="~/Applications/db_access/mol_builder/label_rxn_clfn_n200.yaml",
-        # feature_file="~/Applications/db_access/mol_builder/feature_rxn_clfn_n200.yaml",
-        struct_file="~/Applications/db_access/mol_builder/struct_rxn_clfn_qc.sdf",
-        label_file="~/Applications/db_access/mol_builder/label_rxn_clfn_qc.yaml",
-        feature_file="~/Applications/db_access/mol_builder/feature_rxn_clfn_qc.yaml",
+        struct_file="~/Applications/db_access/mol_builder/struct_rxn_clfn_n200.sdf",
+        label_file="~/Applications/db_access/mol_builder/label_rxn_clfn_n200.yaml",
+        feature_file="~/Applications/db_access/mol_builder/feature_rxn_clfn_n200.yaml",
+        # struct_file="~/Applications/db_access/mol_builder/struct_rxn_clfn_qc.sdf",
+        # label_file="~/Applications/db_access/mol_builder/label_rxn_clfn_qc.yaml",
+        # feature_file="~/Applications/db_access/mol_builder/feature_rxn_clfn_qc.yaml",
         group_mode="charge_0",
         top_n=2,
-        complement_reactions=False,
+        complement_reactions=True,
         one_per_iso_bond_group=True,
     )
 

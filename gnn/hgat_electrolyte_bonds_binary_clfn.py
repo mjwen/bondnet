@@ -403,7 +403,11 @@ def main(args):
         )
         val_score = evaluate(model, attn_order, val_loader, "prfs", args.device)
 
-        recall = val_score[1][1]  # recall of the 1 class
+        try:
+            recall = val_score[1][1]  # recall of the 1 class
+        except IndexError:
+            pass
+
         if stopper.step(-recall, checkpoints_objs, msg="epoch " + str(epoch)):
             # save results for hyperparam tune
             pickle_dump(float(stopper.best_score), args.output_file)
