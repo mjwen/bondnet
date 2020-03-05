@@ -610,7 +610,7 @@ class ElectrolyteMoleculeDataset(ElectrolyteBondDataset):
         return rst, extensive
 
 
-class ElectrolyteReactionDatasetClassification(ElectrolyteBondDataset):
+class ElectrolyteReactionDataset(ElectrolyteBondDataset):
     def __init__(
         self,
         grapher,
@@ -621,7 +621,7 @@ class ElectrolyteReactionDatasetClassification(ElectrolyteBondDataset):
         pickle_dataset=False,
         dtype="float32",
     ):
-        super(ElectrolyteReactionDatasetClassification, self).__init__(
+        super(ElectrolyteReactionDataset, self).__init__(
             grapher=grapher,
             sdf_file=sdf_file,
             label_file=label_file,
@@ -688,7 +688,7 @@ class ElectrolyteReactionDatasetClassification(ElectrolyteBondDataset):
         self.labels = []
         for rxn, lb, gmp in zip(reactions, raw_labels, global_mapping):
             if None not in rxn:
-                lb["class"] = torch.tensor(lb["class"], dtype=torch.int64)
+                lb["value"] = torch.tensor(lb["value"], dtype=torch.int64)
                 lb["global_mapping"] = gmp
                 self.graphs.append(rxn)
                 self.labels.append(lb)

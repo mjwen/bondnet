@@ -8,14 +8,14 @@ import os
 from gnn.data.electrolyte import (
     ElectrolyteBondDataset,
     ElectrolyteBondDatasetClassification,
-    ElectrolyteReactionDatasetClassification,
+    ElectrolyteReactionDataset,
 )
 from gnn.data.qm9 import QM9Dataset
 from gnn.data.dataloader import (
     DataLoaderBond,
     DataLoaderMolecule,
     DataLoaderBondClassification,
-    DataLoaderReactionClassification,
+    DataLoaderReaction,
 )
 from gnn.data.grapher import HeteroMoleculeGraph, HomoCompleteGraph
 from gnn.data.featurizer import (
@@ -159,11 +159,11 @@ def test_dataloader_bond_classification():
         assert np.allclose(labels["indicator"], ref_label_indicators)
 
 
-def test_dataloader_bond_classification():
+def test_dataloader_reaction():
     ref_label_class = [0, 0]
     ref_num_mols = [2, 3]
 
-    dataset = ElectrolyteReactionDatasetClassification(
+    dataset = ElectrolyteReactionDataset(
         grapher=get_grapher_hetero(),
         sdf_file=os.path.join(test_files, "electrolyte_struct_rxn_clfn.sdf"),
         label_file=os.path.join(test_files, "electrolyte_label_rxn_clfn.yaml"),
@@ -172,13 +172,13 @@ def test_dataloader_bond_classification():
     )
 
     # batch size 1 case (exactly the same as test_dataset)
-    data_loader = DataLoaderReactionClassification(dataset, batch_size=1, shuffle=False)
+    data_loader = DataLoaderReaction(dataset, batch_size=1, shuffle=False)
     for i, (graph, labels) in enumerate(data_loader):
-        assert np.allclose(labels["class"], ref_label_class[i])
+        assert np.allclose(labels["value"], ref_label_class[i])
         assert np.allclose(labels["num_mols"], ref_num_mols[i])
 
     # batch size 2 case
-    data_loader = DataLoaderReactionClassification(dataset, batch_size=2, shuffle=False)
+    data_loader = DataLoaderReaction(dataset, batch_size=2, shuffle=False)
     for graph, labels in data_loader:
-        assert np.allclose(labels["class"], ref_label_class)
+        assert np.allclose(labels["value"], ref_label_class)
         assert np.allclose(labels["num_mols"], ref_num_mols)

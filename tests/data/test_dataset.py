@@ -4,7 +4,7 @@ from gnn.data.electrolyte import (
     ElectrolyteBondDataset,
     ElectrolyteBondDatasetClassification,
     ElectrolyteMoleculeDataset,
-    ElectrolyteReactionDatasetClassification,
+    ElectrolyteReactionDataset,
 )
 from gnn.data.qm9 import QM9Dataset
 from gnn.data.grapher import HeteroMoleculeGraph, HomoCompleteGraph
@@ -173,12 +173,12 @@ def test_electrolyte_bond_label_classification():
         assert ts is None
 
 
-def test_electrolyte_reaction_label_classification():
+def test_electrolyte_reaction_label():
 
     ref_num_mols = [2, 3]
     ref_label_class = [0, 0]
 
-    dataset = ElectrolyteReactionDatasetClassification(
+    dataset = ElectrolyteReactionDataset(
         grapher=get_grapher_hetero(),
         sdf_file=os.path.join(test_files, "electrolyte_struct_rxn_clfn.sdf"),
         label_file=os.path.join(test_files, "electrolyte_label_rxn_clfn.yaml"),
@@ -192,5 +192,5 @@ def test_electrolyte_reaction_label_classification():
     for i in range(size):
         rxn, label, ts = dataset[i]
         assert len(rxn) == label["num_mols"] == ref_num_mols[i]
-        assert label["class"] == ref_label_class[i]
+        assert label["value"] == ref_label_class[i]
         assert ts is None

@@ -13,8 +13,9 @@
     3: 6
     4: 0
     5: 4
-  class: 0
+  value: 0
   num_mols: 2
+  id: 1
 - atom_mapping:
   - 0: 11
     1: 5
@@ -42,5 +43,6 @@
     5: 2
     6: 3
     7: 11
-  class: 0
+  value: 0
   num_mols: 3
+  id: 2

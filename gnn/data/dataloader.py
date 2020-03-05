@@ -91,7 +91,7 @@ class DataLoaderBondClassification(torch.utils.data.DataLoader):
         )
 
 
-class DataLoaderReactionClassification(torch.utils.data.DataLoader):
+class DataLoaderReaction(torch.utils.data.DataLoader):
     def __init__(self, dataset, hetero=True, **kwargs):
         if "collate_fn" in kwargs:
             raise ValueError(
@@ -113,14 +113,14 @@ class DataLoaderReactionClassification(torch.utils.data.DataLoader):
             else:
                 batched_graph = dgl.batch(graphs)
 
-            target_class = torch.stack([la["class"] for la in labels])
+            target_class = torch.stack([la["value"] for la in labels])
             atom_mapping = [la["atom_mapping"] for la in labels]
             bond_mapping = [la["bond_mapping"] for la in labels]
             global_mapping = [la["global_mapping"] for la in labels]
             identifier = [la["id"] for la in labels]
             num_mols = [la["num_mols"] for la in labels]
             labels = {
-                "class": target_class,
+                "value": target_class,
                 "atom_mapping": atom_mapping,
                 "bond_mapping": bond_mapping,
                 "global_mapping": global_mapping,
@@ -129,6 +129,4 @@ class DataLoaderReactionClassification(torch.utils.data.DataLoader):
             }
             return batched_graph, labels
 
-        super(DataLoaderReactionClassification, self).__init__(
-            dataset, collate_fn=collate, **kwargs
-        )
+        super(DataLoaderReaction, self).__init__(dataset, collate_fn=collate, **kwargs)

@@ -1306,17 +1306,88 @@ class ReactionExtractor:
             for i, rxn in enumerate(reactions):
                 mols = rxn.reactants + rxn.products
                 energy = rxn.get_free_energy()
+
+                # determine class of each reaction
                 if energy is None:
-                    lb = 2
+                    cls = 2
                 elif i < top_n:
-                    lb = 1
+                    cls = 1
                 else:
-                    lb = 0
+                    cls = 0
 
                 # bond mapping between product sdf and reactant sdf
                 all_mols.extend(mols)
                 data = {
-                    "class": lb,
+                    "value": cls,
+                    "num_mols": len(mols),
+                    "atom_mapping": rxn.atom_mapping(),
+                    "bond_mapping": rxn.bond_mapping_by_sdf_int_index(),
+                    "id": rxn.get_id(),
+                }
+                all_labels.append(data)
+
+        # write sdf
+        self.write_sdf(all_mols, struct_file)
+
+        # label file
+        yaml_dump(all_labels, label_file)
+
+        # write feature
+        if feature_file is not None:
+            self.write_feature(all_mols, bond_indices=None, filename=feature_file)
+
+    def create_struct_label_dataset_reaction_based_regression(
+        self,
+        struct_file="sturct.sdf",
+        label_file="label.txt",
+        feature_file=None,
+        group_mode="all",
+        one_per_iso_bond_group=True,
+    ):
+        """
+        Write the reaction
+
+        Also, this is based on the bond energy, i.e. each bond (that we have energies)
+        will have one line in the label file.
+
+        Args:
+            struct_file (str): filename of the sdf structure file
+            label_file (str): filename of the label
+            feature_file (str): filename for the feature file, if `None`, do not write it
+            group_mode (str): the method to group reactions, different mode result in
+                different reactions to be retained, e.g. `charge_0` keeps all charge 0
+                reactions.
+            one_per_iso_bond_group (bool): whether to keep just one reaction from each
+                iso bond group.
+        """
+
+        if group_mode == "all":
+            grouped_rxns = self.group_by_reactant_all()
+        elif group_mode == "charge_0":
+            grouped_rxns = self.group_by_reactant_charge_0()
+        elif group_mode == "energy_lowest":
+            grouped_rxns = self.group_by_reactant_lowest_energy()
+        else:
+            raise ValueError(
+                f"group_mode ({group_mode}) not supported. Options are: 'all', "
+                f"'charge_0', and 'energy_lowest'."
+            )
+
+        all_mols = []
+        all_labels = []  # one per reaction
+
+        for grp in grouped_rxns:
+            reactions = grp.order_reactions(False, one_per_iso_bond_group)
+
+            # rxn: a reaction for one bond and a specific combination of charges
+            for i, rxn in enumerate(reactions):
+                mols = rxn.reactants + rxn.products
+                energy = rxn.get_free_energy()
+
+                # bond mapping between product sdf and reactant sdf
+                all_mols.extend(mols)
+                data = {
+                    "value": energy,
                     "num_mols": len(mols),
                     "atom_mapping": rxn.atom_mapping(),
                     "bond_mapping": rxn.bond_mapping_by_sdf_int_index(),

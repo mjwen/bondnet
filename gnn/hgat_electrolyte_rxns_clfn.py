@@ -16,8 +16,8 @@ from sklearn.metrics import (
 from gnn.metric import EarlyStopping
 from gnn.model.hgat_reaction import HGATReaction
 from gnn.data.dataset import train_validation_test_split
-from gnn.data.electrolyte import ElectrolyteReactionDatasetClassification
-from gnn.data.dataloader import DataLoaderReactionClassification
+from gnn.data.electrolyte import ElectrolyteReactionDataset
+from gnn.data.dataloader import DataLoaderReaction
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import (
     AtomFeaturizer,
@@ -172,7 +172,7 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
 
     for it, (bg, label) in enumerate(data_loader):
         feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-        target_class = label["class"]
+        target_class = label["value"]
         if device is not None:
             feats = {k: v.to(device) for k, v in feats.items()}
             target_class = target_class.to(device)
@@ -231,7 +231,7 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
 
         for bg, label in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-            target_class = label["class"]
+            target_class = label["value"]
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
 
@@ -280,7 +280,7 @@ def score_to_string(score, metric_fn="prfs"):
 
 
 def get_class_weight(data_loader):
-    target_class = np.concatenate([label["class"].numpy() for bg, label in data_loader])
+    target_class = np.concatenate([label["value"].numpy() for bg, label in data_loader])
     counts = [v for k, v in sorted(Counter(target_class).items())]
 
     # inverse proportional to the support
@@ -294,7 +294,7 @@ def get_class_weight(data_loader):
 
 def get_grapher():
     atom_featurizer = AtomFeaturizer()
-    bond_featurizer = BondAsNodeFeaturizer(length_featurizer="rbf")
+    bond_featurizer = BondAsNodeFeaturizer(length_featurizer=None)
     global_featurizer = GlobalFeaturizerCharge()
     grapher = HeteroMoleculeGraph(
         atom_featurizer=atom_featurizer,
@@ -313,7 +313,7 @@ def main(args):
     label_file = "~/Applications/db_access/mol_builder/label_rxn_clfn_n200.yaml"
     feature_file = "~/Applications/db_access/mol_builder/feature_rxn_clfn_n200.yaml"
 
-    dataset = ElectrolyteReactionDatasetClassification(
+    dataset = ElectrolyteReactionDataset(
         grapher=get_grapher(),
         sdf_file=sdf_file,
         label_file=label_file,
@@ -328,15 +328,13 @@ def main(args):
         )
     )
 
-    train_loader = DataLoaderReactionClassification(
-        trainset, batch_size=args.batch_size, shuffle=True
-    )
+    train_loader = DataLoaderReaction(trainset, batch_size=args.batch_size, shuffle=True)
     # larger val and test set batch_size is faster but needs more memory
     # adjust the batch size of to fit memory
     bs = max(len(valset) // 10, 1)
-    val_loader = DataLoaderReactionClassification(valset, batch_size=bs, shuffle=False)
+    val_loader = DataLoaderReaction(valset, batch_size=bs, shuffle=False)
     bs = max(len(testset) // 10, 1)
-    test_loader = DataLoaderReactionClassification(testset, batch_size=bs, shuffle=False)
+    test_loader = DataLoaderReaction(testset, batch_size=bs, shuffle=False)
 
     ### model
     attn_mechanism = {
