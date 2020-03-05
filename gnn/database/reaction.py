@@ -368,6 +368,11 @@ class Reaction:
         }
         return d
 
+    def get_id(self):
+        ids = [m.id for m in self.reactants + self.products]
+        str_ids = "-".join(ids)
+        return str_ids
+
     def __expr__(self):
         if len(self.products) == 1:
             s = "\nA -> B style reaction\n"
@@ -1254,19 +1259,48 @@ class ReactionExtractor:
         struct_file="sturct.sdf",
         label_file="label.txt",
         feature_file=None,
+        group_mode="all",
         top_n=2,
         complement_reactions=False,
         one_per_iso_bond_group=True,
     ):
+        """
+        Write the reaction
+
+        Also, this is based on the bond energy, i.e. each bond (that we have energies)
+        will have one line in the label file.
+
+        Args:
+            struct_file (str): filename of the sdf structure file
+            label_file (str): filename of the label
+            feature_file (str): filename for the feature file, if `None`, do not write it
+            group_mode (str): the method to group reactions, different mode result in
+                different reactions to be retained, e.g. `charge_0` keeps all charge 0
+                reactions.
+            top_n (int): the top n reactions with smallest energies are
+                categorized as the same class.
+            complement_reactions (bool): whether to extract complement reactions.
+            one_per_iso_bond_group (bool): whether to keep just one reaction from each
+                iso bond group.
+        """
+
+        if group_mode == "all":
+            grouped_rxns = self.group_by_reactant_all()
+        elif group_mode == "charge_0":
+            grouped_rxns = self.group_by_reactant_charge_0()
+        elif group_mode == "energy_lowest":
+            grouped_rxns = self.group_by_reactant_lowest_energy()
+        else:
+            raise ValueError(
+                f"group_mode ({group_mode}) not supported. Options are: 'all', "
+                f"'charge_0', and 'energy_lowest'."
+            )
 
         all_mols = []
         all_labels = []  # one per reaction
 
-        rmb_list = self.group_by_reactant_all()
-
-        # rmb: all reactions for a reactant
-        for rmb in rmb_list:
-            reactions = rmb.order_reactions(complement_reactions, one_per_iso_bond_group)
+        for grp in grouped_rxns:
+            reactions = grp.order_reactions(complement_reactions, one_per_iso_bond_group)
 
             # rxn: a reaction for one bond and a specific combination of charges
             for i, rxn in enumerate(reactions):
@@ -1286,6 +1320,7 @@ class ReactionExtractor:
                     "num_mols": len(mols),
                     "atom_mapping": rxn.atom_mapping(),
                     "bond_mapping": rxn.bond_mapping_by_sdf_int_index(),
+                    "id": rxn.get_id(),
                 }
                 all_labels.append(data)
 
@@ -1304,7 +1339,7 @@ class ReactionExtractor:
         struct_file="sturct.sdf",
         label_file="label.txt",
         feature_file=None,
-        lowest_across_product_charge=False,
+        group_mode="charge_0",
         top_n=2,
         complement_reactions=True,
         one_per_iso_bond_group=True,
@@ -1319,10 +1354,14 @@ class ReactionExtractor:
             struct_file (str): filename of the sdf structure file
             label_file (str): filename of the label
             feature_file (str): filename for the feature file, if `None`, do not write it
-            lowest_across_product_charge (bool): If `True` each reactant corresponds to
-                the lowest energy products. If `False`, find all 0->0+0 reactions,
-                i.e. the charge of reactant and products should all be zero.
-
+            group_mode (str): the method to group reactions, different mode result in
+                different reactions to be retained, e.g. `charge_0` keeps all charge 0
+                reactions.
+            top_n (int): the top n reactions with smallest energies are
+                categorized as the same class.
+            complement_reactions (bool): whether to extract complement reactions.
+            one_per_iso_bond_group (bool): whether to keep just one reaction from each
+                iso bond group.
         """
 
         def write_label(reactants, bond_idx, label_class, filename="label.txt"):
@@ -1354,22 +1393,30 @@ class ReactionExtractor:
                 for i, (m, idx, lb) in enumerate(zip(reactants, bond_idx, label_class)):
                     f.write("{} {} {}\n".format(lb, idx, m.id))
 
-        if lowest_across_product_charge:
-            grouped_reactions = self.group_by_reactant_lowest_energy()
+        if group_mode == "all":
+            grouped_rxns = self.group_by_reactant_all()
+        elif group_mode == "charge_0":
+            grouped_rxns = self.group_by_reactant_charge_0()
+        elif group_mode == "energy_lowest":
+            grouped_rxns = self.group_by_reactant_lowest_energy()
         else:
-            grouped_reactions = self.group_by_reactant_charge_0()
+            raise ValueError(
+                f"group_mode ({group_mode}) not supported. Options are: 'all', "
+                f"'charge_0', and 'energy_lowest'."
+            )
 
         all_reactants = []
         broken_bond_idx = []  # int index in ob molecule
         broken_bond_pairs = []  # a tuple index in graph molecule
         label_class = []
-        for ropb in grouped_reactions:
-            reactant = ropb.reactant
-            ordered_reactions = ropb.order_reactions(
+        for grp in grouped_rxns:
+            reactant = grp.reactant
+
+            ordered_rxns = grp.order_reactions(
                 complement_reactions, one_per_iso_bond_group
             )
-            reactions_dict = {
-                rxn.get_broken_bond(): (i, rxn) for i, rxn in enumerate(ordered_reactions)
+            rxns_dict = {
+                rxn.get_broken_bond(): (i, rxn) for i, rxn in enumerate(ordered_rxns)
             }
 
             # bond energies in the same order as in sdf file
@@ -1380,11 +1427,12 @@ class ReactionExtractor:
                 bond = tuple(sorted(reactant.ob_bond_idx_to_graph_bond_idx(bond)))
 
                 # when one_per_iso_bond_group is `True`, some bonds are deleted
-                if bond not in reactions_dict:
+                if bond not in rxns_dict:
                     continue
 
-                i, rxn = reactions_dict[bond]
+                i, rxn = rxns_dict[bond]
                 energy = rxn.get_free_energy()
+
                 if energy is None:
                     lb = 2
                 elif i < top_n:
@@ -1412,7 +1460,8 @@ class ReactionExtractor:
         struct_file="sturct.sdf",
         label_file="label.txt",
         feature_file=None,
-        lowest_across_product_charge=True,
+        group_mode="charge_0",
+        one_per_iso_bond_group=True,
     ):
         """
         Write the reactions to files.
@@ -1424,9 +1473,11 @@ class ReactionExtractor:
             struct_file (str): filename of the sdf structure file
             label_file (str): filename of the label
             feature_file (str): filename for the feature file, if `None`, do not write it
-            lowest_across_product_charge (bool): If `True` each reactant corresponds to
-                the lowest energy products. If `False`, find all 0->0+0 reactions,
-                i.e. the charge of reactant and products should all be zero.
+            group_mode (str): the method to group reactions, different mode result in
+                different reactions to be retained, e.g. `charge_0` keeps all charge 0
+                reactions.
+            one_per_iso_bond_group (bool): whether to keep just one reaction from each
+                iso bond group.
 
         """
 
@@ -1489,27 +1540,40 @@ class ReactionExtractor:
                         )
                     )
 
-        if lowest_across_product_charge:
-            grouped_reactions = self.group_by_reactant_lowest_energy()
+        if group_mode == "all":
+            grouped_rxns = self.group_by_reactant_all()
+        elif group_mode == "charge_0":
+            grouped_rxns = self.group_by_reactant_charge_0()
+        elif group_mode == "energy_lowest":
+            grouped_rxns = self.group_by_reactant_lowest_energy()
         else:
-            grouped_reactions = self.group_by_reactant_charge_0()
+            raise ValueError(
+                f"group_mode ({group_mode}) not supported. Options are: 'all', "
+                f"'charge_0', and 'energy_lowest'."
+            )
 
         all_rxns = []
         broken_bond_idx = []
         broken_bond_pairs = []
-        for rsr in grouped_reactions:
-            reactant = rsr.reactant
+        for grp in grouped_rxns:
+            reactant = grp.reactant
+
+            ordered_rxns = grp.order_reactions(False, one_per_iso_bond_group)
+            rxns_dict = {
+                rxn.get_broken_bond(): (i, rxn) for i, rxn in enumerate(ordered_rxns)
+            }
 
             # bond energies in the same order as in sdf file
             sdf_bonds = reactant.get_sdf_bond_indices()
             for ib, bond in enumerate(sdf_bonds):
                 # change index from ob to graph
                 bond = tuple(sorted(reactant.ob_bond_idx_to_graph_bond_idx(bond)))
-                data = rsr.order_reactions()[bond]
-                rxn = data["reaction"]
 
-                if rxn is None:  # do not have reaction breaking bond
+                # when one_per_iso_bond_group is `True`, some bonds are deleted
+                if bond not in rxns_dict:
                     continue
+
+                _, rxn = rxns_dict[bond]
 
                 all_rxns.append(rxn)
                 broken_bond_idx.append(ib)

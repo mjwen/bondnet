@@ -117,6 +117,7 @@ class DataLoaderReactionClassification(torch.utils.data.DataLoader):
             atom_mapping = [la["atom_mapping"] for la in labels]
             bond_mapping = [la["bond_mapping"] for la in labels]
             global_mapping = [la["global_mapping"] for la in labels]
+            identifier = [la["id"] for la in labels]
             num_mols = [la["num_mols"] for la in labels]
             labels = {
                 "class": target_class,
@@ -124,6 +125,7 @@ class DataLoaderReactionClassification(torch.utils.data.DataLoader):
                 "bond_mapping": bond_mapping,
                 "global_mapping": global_mapping,
                 "num_mols": num_mols,
+                "id": identifier,
             }
             return batched_graph, labels
 
