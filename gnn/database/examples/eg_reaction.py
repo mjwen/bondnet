@@ -176,42 +176,36 @@ def bond_label_fraction(top_n=2):
 
     num_bonds = []
     frac = defaultdict(list)
-    for rsr in groups:
-        label0 = 0
-        label1 = 0
-        label2 = 0
-        all_None = True
-        for bond, data in rsr.order_reactions().items():
-            if data["order"] is None:
-                label2 += 1
+    for ropb in groups:
+        counts = np.asarry([0, 0, 0])
+        all_none = True
+        for i, rxn in enumerate(ropb.order_reactions()):
+            energy = rxn.get_free_energy()
+            if energy is None:
+                counts[2] += 1
             else:
-                all_None = False
-                if data["order"] < top_n:
-                    label0 += 1
+                all_none = False
+                if i < top_n:
+                    counts[1] += 1
                 else:
-                    label1 += 1
-        if all_None:
+                    counts[0] += 1
+        if all_none:
             print(
                 "reactant {} {} has not broken bond reaction; should never happen".format(
-                    rsr.reactant.id, rsr.reactant.formula
+                    ropb.reactant.id, ropb.reactant.formula
                 )
             )
             continue
 
-        n = len(rsr.order_reactions())
+        n = len(ropb.order_reactions())
         num_bonds.append(n)
-        frac["label0"].append(label0 / n)
-        frac["label1"].append(label1 / n)
-        frac["label2"].append(label2 / n)
+        frac = counts / n
 
     print("### number of bonds in dataset (mean):", np.mean(num_bonds))
     print("### number of bonds in dataset (median):", np.median(num_bonds))
-    print("### label0 bond ratio in dataset (mean):", np.mean(frac["label0"]))
-    print("### label0 bond ratio in dataset (mean):", np.median(frac["label0"]))
-    print("### label1 bond ratio in dataset (mean):", np.mean(frac["label1"]))
-    print("### label1 bond ratio in dataset (mean):", np.median(frac["label1"]))
-    print("### label2 bond ratio in dataset (mean):", np.mean(frac["label2"]))
-    print("### label2 bond ratio in dataset (mean):", np.median(frac["label2"]))
+    for i, fr in enumerate(frac):
+        print(f"### label{i} bond ratio in dataset (mean): {np.mean(fr)}",)
+        print(f"### label{i} bond ratio in dataset (mean): {np.median(fr)}")
 
 
 def bond_energy_difference_in_molecule_nth_lowest():
@@ -695,7 +689,7 @@ def create_struct_label_dataset_bond_based_classification(
         lowest_across_product_charge=False,
         top_n=2,
         one_per_iso_bond_group=True,
-        complement_reactions=True,
+        complement_reactions=False,
     )
 
 
@@ -708,7 +702,7 @@ def create_struct_label_dataset_reaction_based_classification(
 
     extractor = ReactionExtractor.from_file(filename)
 
-    extractor.create_struct_label_dataset_reaction_based(
+    extractor.create_struct_label_dataset_reaction_based_classification(
         struct_file="~/Applications/db_access/mol_builder/struct_rxn_clfn_n200.sdf",
         label_file="~/Applications/db_access/mol_builder/label_rxn_clfn_n200.yaml",
         feature_file="~/Applications/db_access/mol_builder/feature_rxn_clfn_n200.yaml",
@@ -744,5 +738,5 @@ if __name__ == "__main__":
 
     # create_struct_label_dataset_mol_based()
     # create_struct_label_dataset_bond_based_regression()
-    # create_struct_label_dataset_bond_based_classification()
-    create_struct_label_dataset_reaction_based_classification()
+    create_struct_label_dataset_bond_based_classification()
+    # create_struct_label_dataset_reaction_based_classification()

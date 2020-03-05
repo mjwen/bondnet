@@ -550,7 +550,7 @@ class ReactionsOfSameBond(ReactionsGroup):
                 )
         return self._broken_bond
 
-    def create_complement_reactions(self):
+    def create_complement_reactions(self, allowed_charge=[-1, 0, 1]):
         """
         Create reactions to complement the ones present in the database such that each
         bond has reactions of all combination of charges.
@@ -559,17 +559,21 @@ class ReactionsOfSameBond(ReactionsGroup):
         in the database, this will create reaction `A (0) -> B (-1) + C (1)`,
         assuming molecule charges {-1,0,1} are allowed.
 
+        Args:
+            allowed_charge (list): allowed charges for molecules (products).
+
+
         Returns:
             A list of Reactions.
         """
 
-        def factor_integer(x, low, high, num=2):
+        def factor_integer(x, allowed, num=2):
             """
-            Factor an integer to the sum of multiple integers that with in the
-            range of [low, high].
+            Factor an integer to the sum of multiple integers.
 
             Args:
                 x (int): the integer to be factored
+                allowed (list of int): allowed values for factoring.
                 num (int): number of integers to sum
 
             Returns:
@@ -584,7 +588,7 @@ class ReactionsOfSameBond(ReactionsGroup):
 
             elif num == 2:
                 res = []
-                for i, j in itertools.product(range(low, high + 1), repeat=2):
+                for i, j in itertools.product(allowed, repeat=2):
                     if i + j == x:
                         res.append((i, j))
 
@@ -609,7 +613,7 @@ class ReactionsOfSameBond(ReactionsGroup):
         # N == 2 case, i.e. A -> B + C reaction (B could be the same as C)
         else:
             target_products_charge = factor_integer(
-                self.reactant.charge, low=-1, high=1, num=N
+                self.reactant.charge, allowed_charge, num=N
             )
 
             # all possible reactions are present
@@ -618,7 +622,6 @@ class ReactionsOfSameBond(ReactionsGroup):
             else:
                 products_charge = []
                 for rxn in self.reactions:
-                    x = len(self.reactions)
                     products = [p.mol_graph for p in rxn.products]
                     charge = [p.charge for p in rxn.products]
 
@@ -688,81 +691,6 @@ class ReactionsOfSameBond(ReactionsGroup):
         return ordered_rxns
 
 
-class ReactionsOnePerBond(ReactionsGroup):
-    """
-    A collection of reactions for the same reactant.
-    There is at most one reaction associated with a bond, either a specific choice
-    of charges (e.g. 0 -> 0 + 0) or lowest energy reaction across charges.
-    """
-
-    def _add_one(self, rxn):
-        if rxn.reactants[0] != self.reactant:
-            raise ValueError(
-                "Cannot add reaction whose reactant is different from what already in "
-                "the collection."
-            )
-        bond = rxn.get_broken_bond()
-        for r in self.reactions:
-            if r.get_broken_bond() == bond:
-                raise ValueError(
-                    f"Reaction breaking bond {bond} already exists.\n"
-                    f"Existing reaction: {str(r.as_dict())}\n"
-                    f"New      reaction: {str(rxn.as_dict())}"
-                )
-        self._reactions.append(rxn)
-
-    def order_reactions(self, complement_reactions=True, one_per_iso_bond_group=True):
-        """
-        Order the reactions by charge.
-
-        Args:
-            complement_reactions (bool): If `False`, order the existing reactions only.
-                Otherwise, complementary reactions are created and ordered together
-                with existing ones.
-            one_per_iso_bond_group (bool): If `True`, keep one reaction for each
-                isomorphic bond group. If `False`, keep all.
-                Note, if set to `True`, this expects that `find_one=False` in
-                :method:`ReactionExtractor.extract_one_bond_break` so that all bonds
-                in an isomorphic bond group have exactly the same reactions.
-
-        Returns:
-            dict of dict: The outer dict has bond indices (a tuple) as the key and the
-                inner dict have keys `energy`, `reaction`, `order`. Their values are
-                set to `None` if there is no reaction associated with the bond.
-        """
-
-        ordered_rxns = sorted(self.reactions, key=lambda rxn: rxn.get_free_energy())
-        bonds_of_existing_rxns = []
-        ordered_rxns_dict = dict()
-        for i, rxn in enumerate(ordered_rxns):
-            bond = rxn.get_broken_bond()
-            bonds_of_existing_rxns.append(bond)
-            ordered_rxns_dict[bond] = {
-                "reaction": rxn,
-                "order": i,
-                "energy": rxn.get_free_energy(),
-            }
-
-        if complement_reactions:
-            for i, j, attr in self.reactant.bonds:
-                bond = (i, j)
-                if bond not in bonds_of_existing_rxns:
-                    ordered_rxns_dict[bond] = {
-                        "reaction": None,
-                        "order": None,
-                        "energy": None,
-                    }
-
-        # remove duplicate isomorphic bonds
-        if one_per_iso_bond_group:
-            for group in self.reactant.isomorphic_bonds:
-                # keep the first bond in each group and remove others
-                for i in range(1, len(group)):
-                    ordered_rxns_dict.pop(group[i])
-
-        return ordered_rxns_dict
-
-
 class ReactionsMultiplePerBond(ReactionsGroup):
     """
     A collection of reactions for the same reactant.
@@ -795,10 +723,8 @@ class ReactionsMultiplePerBond(ReactionsGroup):
         # init an empty [] for each bond
         # doing this instead of looping over self.reactions ensures bonds without
         # reactions are correctly represented
-        bond_rxns_dict = OrderedDict()
-        for i, j, _ in self.reactant.bonds:
-            bond = (i, j)
-            bond_rxns_dict[bond] = []
+        bond_rxns_dict = {(i, j): [] for i, j, _ in self.reactant.bonds}
+
         # assign rxn to bond group
         for rxn in self.reactions:
             bond_rxns_dict[rxn.get_broken_bond()].append(rxn)
@@ -844,16 +770,82 @@ class ReactionsMultiplePerBond(ReactionsGroup):
         # self.group_by_bonds.
 
         existing_rxns = []
-        comp_rxns = []
         rsb_group = self.group_by_bond(find_one=one_per_iso_bond_group)
         for rsb in rsb_group:
             existing_rxns.extend(rsb.reactions)
-            comp_rxns.extend(rsb.create_complement_reactions())
 
         # sort reactions we have energy for
         ordered_rxns = sorted(existing_rxns, key=lambda rxn: rxn.get_free_energy())
 
         if complement_reactions:
+            comp_rxns = []
+            for rsb in rsb_group:
+                comp_rxns.extend(rsb.create_complement_reactions())
+            ordered_rxns += comp_rxns
+
+        return ordered_rxns
+
+
+class ReactionsOnePerBond(ReactionsMultiplePerBond):
+    """
+    A collection of reactions for the same reactant.
+    There is at most one reaction associated with a bond, either a specific choice
+    of charges (e.g. 0 -> 0 + 0) or lowest energy reaction across charges.
+    """
+
+    def _add_one(self, rxn):
+        if rxn.reactants[0] != self.reactant:
+            raise ValueError(
+                "Cannot add reaction whose reactant is different from what already in "
+                "the collection."
+            )
+        bond = rxn.get_broken_bond()
+        for r in self.reactions:
+            if r.get_broken_bond() == bond:
+                raise ValueError(
+                    f"Reaction breaking bond {bond} already exists.\n"
+                    f"Existing reaction: {str(r.as_dict())}\n"
+                    f"New      reaction: {str(rxn.as_dict())}"
+                )
+        self._reactions.append(rxn)
+
+    def order_reactions(self, complement_reactions=False, one_per_iso_bond_group=True):
+        """
+        Order reactions by energy.
+
+        If complement reactions (whose energy is `None`) are used, they are placed
+        after reactions having energies.
+
+        Args:
+            complement_reactions (bool): If `False`, order the existing reactions only.
+                Otherwise, complementary reactions are created and ordered together
+                with existing ones.
+            one_per_iso_bond_group (bool): If `True`, keep one reaction for each
+                isomorphic bond group. If `False`, keep all.
+                Note, if set to `True`, this expects that `find_one=False` in
+                :method:`ReactionExtractor.extract_one_bond_break` so that all bonds
+                in an isomorphic bond group have exactly the same reactions.
+
+        Returns:
+            list: a sequence of :class:`Reaction` ordered by energy
+        """
+
+        # NOTE, we need to get existing_rxns from rsb instead of self.reactions because
+        # we may need to remove duplicate isomorphic-bond rxn, which is handled in
+        # self.group_by_bonds.
+
+        existing_rxns = []
+        rsb_group = self.group_by_bond(find_one=one_per_iso_bond_group)
+        for rsb in rsb_group:
+            existing_rxns.extend(rsb.reactions)
+
+        # sort reactions we have energy for
+        ordered_rxns = sorted(existing_rxns, key=lambda rxn: rxn.get_free_energy())
+
+        if complement_reactions:
+            comp_rxns = []
+            for rsb in rsb_group:
+                comp_rxns.extend(rsb.create_complement_reactions(allowed_charge=[0]))
             ordered_rxns += comp_rxns
 
         return ordered_rxns
@@ -1257,7 +1249,7 @@ class ReactionExtractor:
 
         yaml_dump(new_groups, filename)
 
-    def create_struct_label_dataset_reaction_based(
+    def create_struct_label_dataset_reaction_based_classification(
         self,
         struct_file="sturct.sdf",
         label_file="label.txt",
@@ -1280,13 +1272,12 @@ class ReactionExtractor:
             for i, rxn in enumerate(reactions):
                 mols = rxn.reactants + rxn.products
                 energy = rxn.get_free_energy()
-                if energy is not None:
-                    if i < top_n:
-                        lb = 0
-                    else:
-                        lb = 1
-                else:
+                if energy is None:
                     lb = 2
+                elif i < top_n:
+                    lb = 1
+                else:
+                    lb = 0
 
                 # bond mapping between product sdf and reactant sdf
                 all_mols.extend(mols)
@@ -1377,6 +1368,9 @@ class ReactionExtractor:
             ordered_reactions = ropb.order_reactions(
                 complement_reactions, one_per_iso_bond_group
             )
+            reactions_dict = {
+                rxn.get_broken_bond(): (i, rxn) for i, rxn in enumerate(ordered_reactions)
+            }
 
             # bond energies in the same order as in sdf file
             sdf_bonds = reactant.get_sdf_bond_indices()
@@ -1385,17 +1379,19 @@ class ReactionExtractor:
                 # change index from ob to graph
                 bond = tuple(sorted(reactant.ob_bond_idx_to_graph_bond_idx(bond)))
 
-                # when one_per_iso_bond_group is True, some bonds may not exist any more
-                if bond not in ordered_reactions:
+                # when one_per_iso_bond_group is `True`, some bonds are deleted
+                if bond not in reactions_dict:
                     continue
 
-                order = ordered_reactions[bond]["order"]
-                if order is None:
+                i, rxn = reactions_dict[bond]
+                energy = rxn.get_free_energy()
+                if energy is None:
                     lb = 2
-                elif order < top_n:
-                    lb = 0
-                else:
+                elif i < top_n:
                     lb = 1
+                else:
+                    lb = 0
+
                 all_reactants.append(reactant)
                 broken_bond_idx.append(ib)
                 broken_bond_pairs.append(bond)
