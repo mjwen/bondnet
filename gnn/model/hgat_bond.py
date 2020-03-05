@@ -66,10 +66,17 @@ class HGATBond(nn.Module):
         fc_activation="ELU",
         fc_drop=0.0,
         outdim=1,
+        classification=False,
     ):
         super(HGATBond, self).__init__()
 
-        self.outdim = outdim
+        # assert input
+        self.classification = classification
+        if not self.classification:
+            assert outdim == 1, (
+                f"outdim ({outdim}) should be 1 for regression in "
+                f"{self.__class__.__name__}"
+            )
 
         # activation fn
         if isinstance(gat_activation, str):
@@ -193,12 +200,14 @@ class HGATBond(nn.Module):
         for layer in self.fc_layers:
             feats = layer(feats)
 
-        if self.outdim == 1:  # regression
-            res = feats.view(-1)  # 1D tensor (N,)
-            if mol_energy:
-                res = self._bond_energy_to_mol_energy(graph, res)  # 2D tensor (N, 1)
-        else:
+        if self.classification:
             res = self._split_batched_output(graph, feats)  # list of 2D tensor
+        else:
+            if mol_energy:
+                res = feats.view(-1)
+                res = self._bond_energy_to_mol_energy(graph, res)  # 2D tensor (N, 1)
+            else:
+                res = feats.view(-1)  # 1D tensor (Nb,), Nb is the number of bonds
 
         return res
 
