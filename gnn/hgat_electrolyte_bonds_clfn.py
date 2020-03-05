@@ -8,7 +8,11 @@ from datetime import datetime
 from collections import Counter
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.nn import CrossEntropyLoss
-from sklearn.metrics import f1_score, classification_report
+from sklearn.metrics import (
+    f1_score,
+    classification_report,
+    precision_recall_fscore_support,
+)
 from gnn.metric import EarlyStopping
 from gnn.model.hgat_bond import HGATBond
 from gnn.data.dataset import train_validation_test_split
@@ -187,7 +191,9 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
     all_pred_class = np.concatenate(all_pred_class)
     all_target_class = np.concatenate(all_target_class)
     if metric_fn == "f1_score":
-        score = f1_score(all_target_class, all_pred_class, average="weighted")
+        score = f1_score(all_target_class, all_pred_class)
+    elif metric_fn == "prfs":
+        score = precision_recall_fscore_support(all_target_class, all_pred_class)
     elif metric_fn == "classification_report":
         score = classification_report(all_target_class, all_pred_class)
     else:
@@ -230,13 +236,30 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
     all_pred_class = np.concatenate(all_pred_class)
     all_target_class = np.concatenate(all_target_class)
     if metric_fn == "f1_score":
-        score = f1_score(all_target_class, all_pred_class, average="weighted")
+        score = f1_score(all_target_class, all_pred_class)
+    elif metric_fn == "prfs":
+        score = precision_recall_fscore_support(all_target_class, all_pred_class)
     elif metric_fn == "classification_report":
         score = classification_report(all_target_class, all_pred_class)
     else:
         raise ValueError("Unsupported metric `{}`".format(metric_fn))
 
     return score
+
+
+def score_to_string(score, metric_fn="prfs"):
+    if metric_fn == "prfs":
+        res = ""
+        for i, line in enumerate(score):
+            # do not use support
+            if i < 3:
+                res += " ["
+                for j in line:
+                    res += "{:.2f} ".format(j)
+                res = res[:-1] + "]"
+        return res
+    else:
+        return str(score)
 
 
 def get_class_weight(data_loader):
@@ -269,9 +292,9 @@ def main(args):
     print("\n\nStart training at:", datetime.now())
 
     ### dataset
-    sdf_file = "~/Applications/db_access/mol_builder/struct_clfn_n200.sdf"
-    label_file = "~/Applications/db_access/mol_builder/label_clfn_n200.txt"
-    feature_file = "~/Applications/db_access/mol_builder/feature_clfn_n200.yaml"
+    sdf_file = "~/Applications/db_access/mol_builder/struct_bond_clfn_n200.sdf"
+    label_file = "~/Applications/db_access/mol_builder/label_bond_clfn_n200.txt"
+    feature_file = "~/Applications/db_access/mol_builder/feature_bond_clfn_n200.yaml"
     dataset = ElectrolyteBondDatasetClassification(
         grapher=get_grapher(),
         sdf_file=sdf_file,
@@ -362,7 +385,10 @@ def main(args):
             warnings.warn(str(e) + " Continue without loading checkpoints.")
             pass
 
-    print("\n\n# Epoch     Loss         TrainScore        ValScore     Time (s)")
+    print(
+        "\n\n# Epoch     Loss         TrainScore(prec,recall,f1)        ValScore("
+        "pred,recall,f1)     Time (s)"
+    )
     sys.stdout.flush()
 
     t0 = time.time()
@@ -371,29 +397,30 @@ def main(args):
 
         # train and evaluate accuracy
         loss, train_score = train(
-            optimizer, model, attn_order, train_loader, loss_func, "f1_score", args.device
+            optimizer, model, attn_order, train_loader, loss_func, "prfs", args.device
         )
-        val_score = evaluate(model, attn_order, val_loader, "f1_score", args.device)
+        val_score = evaluate(model, attn_order, val_loader, "prfs", args.device)
 
-        if stopper.step(-val_score, checkpoints_objs, msg="epoch " + str(epoch)):
+        recall = val_score[1][1]  # recall of the 1 class
+        if stopper.step(-recall, checkpoints_objs, msg="epoch " + str(epoch)):
             # save results for hyperparam tune
             pickle_dump(float(stopper.best_score), args.output_file)
             break
 
-        scheduler.step(-val_score)
+        scheduler.step(-recall)
 
         tt = time.time() - ti
 
         print(
-            "{:5d}   {:12.6e}   {:12.6e}   {:12.6e}   {:.2f}".format(
-                epoch, loss, train_score, val_score, tt
+            "{:5d}   {:12.6e}   {}   {}   {:.2f}".format(
+                epoch, loss, score_to_string(train_score), score_to_string(val_score), tt
             )
         )
         if epoch % 10 == 0:
             sys.stdout.flush()
 
         # bad, we get nan
-        if np.isnan(train_score):
+        if np.isnan(loss):
             sys.exit(0)
 
     # save results for hyperparam tune
@@ -401,10 +428,7 @@ def main(args):
 
     # load best to calculate test accuracy
     load_checkpoints(checkpoints_objs)
-    score = evaluate(model, attn_order, val_loader, "classification_report", args.device)
-    print("\nValidation classification report:")
-    print(score)
-    score = evaluate(model, attn_order, test_loader, "classification_report", args.device)
+    score = evaluate(model, attn_order, test_loader, "prfs", args.device)
     print("\nTest classification report:")
     print(score)
 

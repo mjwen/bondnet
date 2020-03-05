@@ -247,6 +247,21 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
     return score
 
 
+def score_to_string(score, metric_fn="prfs"):
+    if metric_fn == "prfs":
+        res = ""
+        for i, line in enumerate(score):
+            # do not use support
+            if i < 3:
+                res += " ["
+                for j in line:
+                    res += "{:.2f} ".format(j)
+                res = res[:-1] + "]"
+        return res
+    else:
+        return str(score)
+
+
 def get_class_weight(data_loader):
     """
     Return a 1D tensor of the weight for positive example (class 1), which is set to
@@ -398,23 +413,9 @@ def main(args):
 
         tt = time.time() - ti
 
-        val = ""
-        for i, line in enumerate(train_score):
-            # do not use support
-            if i < 3:
-                val += " [{:.2f}, {:.2f}]".format(line[0], line[1])
-        train_score = val
-
-        val = ""
-        for i, line in enumerate(val_score):
-            # do not use support
-            if i < 3:
-                val += " [{:.2f}, {:.2f}]".format(line[0], line[1])
-        val_score = val
-
         print(
             "{:5d}   {:12.6e}   {}   {}   {:.2f}".format(
-                epoch, loss, train_score, val_score, tt
+                epoch, loss, score_to_string(train_score), score_to_string(val_score), tt
             )
         )
         if epoch % 10 == 0:
