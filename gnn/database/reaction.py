@@ -1277,12 +1277,24 @@ class ReactionExtractor:
             group_mode (str): the method to group reactions, different mode result in
                 different reactions to be retained, e.g. `charge_0` keeps all charge 0
                 reactions.
-            top_n (int): the top n reactions with smallest energies are
-                categorized as the same class.
+            top_n (int): the top n reactions with smallest energies are categorized as
+                the same class (calss 1), reactions with higher energies another class
+                (class 0), and reactions without energies another class (class 2).
+                If `top_n=None`, a different method to assign class is used: reactions
+                with energies is categorized as class 1 and reactions without energies
+                as class 0.
             complement_reactions (bool): whether to extract complement reactions.
             one_per_iso_bond_group (bool): whether to keep just one reaction from each
                 iso bond group.
+
         """
+
+        # check arguments compatibility
+        if top_n is None and not complement_reactions:
+            raise ValueError(
+                f"complement_reactions {False} should be `True` when top_n is set "
+                f"to `False`"
+            )
 
         if group_mode == "all":
             grouped_rxns = self.group_by_reactant_all()
@@ -1308,12 +1320,18 @@ class ReactionExtractor:
                 energy = rxn.get_free_energy()
 
                 # determine class of each reaction
-                if energy is None:
-                    cls = 2
-                elif i < top_n:
-                    cls = 1
+                if top_n is not None:
+                    if energy is None:
+                        cls = 2
+                    elif i < top_n:
+                        cls = 1
+                    else:
+                        cls = 0
                 else:
-                    cls = 0
+                    if energy is None:
+                        cls = 0
+                    else:
+                        cls = 1
 
                 # bond mapping between product sdf and reactant sdf
                 all_mols.extend(mols)
@@ -1428,8 +1446,12 @@ class ReactionExtractor:
             group_mode (str): the method to group reactions, different mode result in
                 different reactions to be retained, e.g. `charge_0` keeps all charge 0
                 reactions.
-            top_n (int): the top n reactions with smallest energies are
-                categorized as the same class.
+            top_n (int): the top n reactions with smallest energies are categorized as
+                the same class (calss 1), reactions with higher energies another class
+                (class 0), and reactions without energies another class (class 2).
+                If `top_n=None`, a different method to assign class is used: reactions
+                with energies is categorized as class 1 and reactions without energies
+                as class 0
             complement_reactions (bool): whether to extract complement reactions.
             one_per_iso_bond_group (bool): whether to keep just one reaction from each
                 iso bond group.
@@ -1463,6 +1485,13 @@ class ReactionExtractor:
 
                 for i, (m, idx, lb) in enumerate(zip(reactants, bond_idx, label_class)):
                     f.write("{} {} {}\n".format(lb, idx, m.id))
+
+        # check arguments compatibility
+        if top_n is None and not complement_reactions:
+            raise ValueError(
+                f"complement_reactions {False} should be `True` when top_n is set "
+                f"to `False`"
+            )
 
         if group_mode == "all":
             grouped_rxns = self.group_by_reactant_all()
@@ -1504,17 +1533,24 @@ class ReactionExtractor:
                 i, rxn = rxns_dict[bond]
                 energy = rxn.get_free_energy()
 
-                if energy is None:
-                    lb = 2
-                elif i < top_n:
-                    lb = 1
+                # determine class of each reaction
+                if top_n is not None:
+                    if energy is None:
+                        cls = 2
+                    elif i < top_n:
+                        cls = 1
+                    else:
+                        cls = 0
                 else:
-                    lb = 0
+                    if energy is None:
+                        cls = 0
+                    else:
+                        cls = 1
 
                 all_reactants.append(reactant)
                 broken_bond_idx.append(ib)
                 broken_bond_pairs.append(bond)
-                label_class.append(lb)
+                label_class.append(cls)
 
         # write label
         write_label(all_reactants, broken_bond_idx, label_class, label_file)

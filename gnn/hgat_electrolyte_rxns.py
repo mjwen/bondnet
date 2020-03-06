@@ -182,6 +182,7 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
             label["bond_mapping"],
             label["global_mapping"],
         )
+        pred = pred.view(-1)
 
         loss = loss_fn(pred, target)
         optimizer.zero_grad()
@@ -228,6 +229,7 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
                 label["bond_mapping"],
                 label["global_mapping"],
             )
+            pred = pred.view(-1)
 
             accuracy += metric_fn(pred, target, scale).detach().item()
             count += len(target)
