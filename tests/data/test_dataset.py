@@ -174,23 +174,35 @@ def test_electrolyte_bond_label_classification():
 
 
 def test_electrolyte_reaction_label():
+    def assert_label(lt):
+        ref_num_mols = [2, 3]
+        ref_label_class = [0, 1]
 
-    ref_num_mols = [2, 3]
-    ref_label_class = [0, 0]
+        if lt:
+            mean = np.mean(ref_label_class)
+            std = np.std(ref_label_class)
+            ref_label_class = (ref_label_class - mean) / std
+            ref_ts = std
 
-    dataset = ElectrolyteReactionDataset(
-        grapher=get_grapher_hetero(),
-        sdf_file=os.path.join(test_files, "electrolyte_struct_rxn_clfn.sdf"),
-        label_file=os.path.join(test_files, "electrolyte_label_rxn_clfn.yaml"),
-        feature_file=os.path.join(test_files, "electrolyte_feature_rxn_clfn.yaml"),
-        feature_transformer=True,
-    )
+        dataset = ElectrolyteReactionDataset(
+            grapher=get_grapher_hetero(),
+            sdf_file=os.path.join(test_files, "electrolyte_struct_rxn_clfn.sdf"),
+            label_file=os.path.join(test_files, "electrolyte_label_rxn_clfn.yaml"),
+            feature_file=os.path.join(test_files, "electrolyte_feature_rxn_clfn.yaml"),
+            feature_transformer=True,
+            label_transformer=lt,
+        )
 
-    size = len(dataset)
-    assert size == 2
+        size = len(dataset)
+        assert size == 2
 
-    for i in range(size):
-        rxn, label, ts = dataset[i]
-        assert len(rxn) == label["num_mols"] == ref_num_mols[i]
-        assert label["value"] == ref_label_class[i]
-        assert ts is None
+        for i in range(size):
+            rxn, label = dataset[i]
+            assert len(rxn) == label["num_mols"] == ref_num_mols[i]
+            assert label["value"] == ref_label_class[i]
+
+            if lt:
+                assert label["label_scaler"] == ref_ts
+
+    assert_label(False)
+    assert_label(True)

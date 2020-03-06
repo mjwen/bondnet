@@ -138,6 +138,9 @@ class ElectrolyteBondDataset(BaseDataset):
             bonds_energy = torch.tensor(raw_value[i], dtype=dtype)
             bonds_indicator = torch.tensor(raw_indicator[i], dtype=dtype)
             bonds_mol_source = raw_mol_source[i]
+
+            # TODO make indicator an integer as in BondClassification, and add num_mols.
+            #  Then we can combine these dataset. Also, see Reaction dataset.
             label = {
                 "value": bonds_energy,  # 1D tensor
                 "indicator": bonds_indicator,  # 1D tensor
@@ -162,7 +165,7 @@ class ElectrolyteBondDataset(BaseDataset):
         # labels are standardized by y' = (y - mean(y))/std(y), the model will be
         # trained on this scaled value. However for metric measure (e.g. MAE) we need
         # to convert y' back to y, i.e. y = y' * std(y) + mean(y), the model
-        # predition is then y^ = y'^ *std(y) + mean(y), where ^ means predictions.
+        # prediction is then y^ = y'^ *std(y) + mean(y), where ^ means predictions.
         # Then MAE is |y^-y| = |y'^ - y'| *std(y), i.e. we just need to multiple
         # standard deviation to get back to the original scale. Similar analysis
         # applies to RMSE.
@@ -611,26 +614,9 @@ class ElectrolyteMoleculeDataset(ElectrolyteBondDataset):
 
 
 class ElectrolyteReactionDataset(ElectrolyteBondDataset):
-    def __init__(
-        self,
-        grapher,
-        sdf_file,
-        label_file,
-        feature_file=None,
-        feature_transformer=True,
-        pickle_dataset=False,
-        dtype="float32",
-    ):
-        super(ElectrolyteReactionDataset, self).__init__(
-            grapher=grapher,
-            sdf_file=sdf_file,
-            label_file=label_file,
-            feature_file=feature_file,
-            feature_transformer=feature_transformer,
-            label_transformer=False,
-            pickle_dataset=pickle_dataset,
-            dtype=dtype,
-        )
+    def __getitem__(self, item):
+        g, lb, = self.graphs[item], self.labels[item]
+        return g, lb
 
     def _load(self):
 
@@ -688,7 +674,7 @@ class ElectrolyteReactionDataset(ElectrolyteBondDataset):
         self.labels = []
         for rxn, lb, gmp in zip(reactions, raw_labels, global_mapping):
             if None not in rxn:
-                lb["value"] = torch.tensor(lb["value"], dtype=torch.int64)
+                lb["value"] = torch.tensor(lb["value"], dtype=getattr(torch, self.dtype))
                 lb["global_mapping"] = gmp
                 self.graphs.append(rxn)
                 self.labels.append(lb)
@@ -702,6 +688,32 @@ class ElectrolyteReactionDataset(ElectrolyteBondDataset):
             self.graphs = np_split_by_size(graphs, num_mols)
             logger.info("Feature scaler mean: {}".format(feature_scaler.mean))
             logger.info("Feature scaler std: {}".format(feature_scaler.std))
+
+        # labels are standardized by y' = (y - mean(y))/std(y), the model will be
+        # trained on this scaled value. However for metric measure (e.g. MAE) we need
+        # to convert y' back to y, i.e. y = y' * std(y) + mean(y), the model
+        # prediction is then y^ = y'^ *std(y) + mean(y), where ^ means predictions.
+        # Then MAE is |y^-y| = |y'^ - y'| *std(y), i.e. we just need to multiple
+        # standard deviation to get back to the original scale. Similar analysis
+        # applies to RMSE.
+        if self.label_transformer:
+
+            # normalization
+            values = [lb["value"] for lb in self.labels]  # list of 0D tensor
+            # np and torch compute slightly differently std (depending on `ddof` of np)
+            # here we choose to use np
+            mean = float(np.mean(values))
+            std = float(np.std(values))
+            values = (torch.stack(values) - mean) / std
+            std = torch.tensor(std, dtype=getattr(torch, self.dtype))
+
+            # update label
+            for i, lb in enumerate(values):
+                self.labels[i]["value"] = lb
+                self.labels[i]["label_scaler"] = std
+
+            logger.info("Label scaler mean: {}".format(mean))
+            logger.info("Label scaler std: {}".format(std))
 
         logger.info("Finish loading {} reactions...".format(len(self.labels)))
 

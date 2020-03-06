@@ -172,7 +172,7 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
 
     for it, (bg, label) in enumerate(data_loader):
         feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-        target_class = label["value"]
+        target_class = label["value"].to(torch.int64)
         if device is not None:
             feats = {k: v.to(device) for k, v in feats.items()}
             target_class = target_class.to(device)
@@ -231,7 +231,7 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
 
         for bg, label in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-            target_class = label["value"]
+            target_class = label["value"].to(torch.int64)
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
 
@@ -318,6 +318,7 @@ def main(args):
         sdf_file=sdf_file,
         label_file=label_file,
         feature_file=feature_file,
+        label_transformer=False,
     )
     trainset, valset, testset = train_validation_test_split(
         dataset, validation=0.1, test=0.1

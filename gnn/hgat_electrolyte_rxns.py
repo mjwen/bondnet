@@ -8,21 +8,21 @@ from datetime import datetime
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.nn import MSELoss
 from gnn.metric import WeightedL1Loss, EarlyStopping
-from gnn.model.hgat_mol import HGATMol
+from gnn.model.hgat_reaction import HGATReaction
 from gnn.data.dataset import train_validation_test_split
-from gnn.data.electrolyte import ElectrolyteMoleculeDataset
-from gnn.data.dataloader import DataLoaderMolecule
+from gnn.data.electrolyte import ElectrolyteReactionDataset
+from gnn.data.dataloader import DataLoaderReaction
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import (
-    AtomFeaturizerWithReactionInfo,
+    AtomFeaturizer,
     BondAsNodeFeaturizer,
-    GlobalFeaturizerChargeSpin,
+    GlobalFeaturizerCharge,
 )
 from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="HGATMol")
+    parser = argparse.ArgumentParser(description="HGATReaction")
 
     # model
     parser.add_argument(
@@ -164,23 +164,33 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
     accuracy = 0.0
     count = 0.0
 
-    for it, (bg, label, scale) in enumerate(data_loader):
+    for it, (bg, label) in enumerate(data_loader):
         feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-        if device is not None:
-            feats = {k: v.to(device=device) for k, v in feats.items()}
-            label = label.to(device=device)
-            if scale is not None:
-                scale = scale.to(device=device)
+        target = label["value"]
+        scale = label["label_scaler"]
 
-        pred = model(bg, feats)
-        loss = loss_fn(pred, label)
+        if device is not None:
+            feats = {k: v.to(device) for k, v in feats.items()}
+            target = target.to(device)
+            scale = scale.to(device)
+
+        pred = model(
+            bg,
+            feats,
+            label["num_mols"],
+            label["atom_mapping"],
+            label["bond_mapping"],
+            label["global_mapping"],
+        )
+
+        loss = loss_fn(pred, target)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
         epoch_loss += loss.detach().item()
-        accuracy += metric_fn(pred, label, scale).detach().item()
-        count += len(label)
+        accuracy += metric_fn(pred, target, scale).detach().item()
+        count += len(target)
 
     epoch_loss /= it + 1
     accuracy /= count
@@ -201,25 +211,34 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
         accuracy = 0.0
         count = 0.0
 
-        for bg, label, scale in data_loader:
+        for bg, label in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
+            target = label["value"]
+            scale = label["label_scaler"]
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
-                label = label.to(device=device)
-                if scale is not None:
-                    scale = scale.to(device=device)
+                target = target.to(device)
+                scale = scale.to(device)
 
-            pred = model(bg, feats)
-            accuracy += metric_fn(pred, label, scale).detach().item()
-            count += len(label)
+            pred = model(
+                bg,
+                feats,
+                label["num_mols"],
+                label["atom_mapping"],
+                label["bond_mapping"],
+                label["global_mapping"],
+            )
+
+            accuracy += metric_fn(pred, target, scale).detach().item()
+            count += len(target)
 
     return accuracy / count
 
 
 def get_grapher():
-    atom_featurizer = AtomFeaturizerWithReactionInfo()
-    bond_featurizer = BondAsNodeFeaturizer(length_featurizer="bin")
-    global_featurizer = GlobalFeaturizerChargeSpin()
+    atom_featurizer = AtomFeaturizer()
+    bond_featurizer = BondAsNodeFeaturizer(length_featurizer=None)
+    global_featurizer = GlobalFeaturizerCharge()
     grapher = HeteroMoleculeGraph(
         atom_featurizer=atom_featurizer,
         bond_featurizer=bond_featurizer,
@@ -233,17 +252,15 @@ def main(args):
     print("\n\nStart training at:", datetime.now())
 
     ### dataset
-    sdf_file = "~/Applications/db_access/mol_builder/struct_mols_n200.sdf"
-    label_file = "~/Applications/db_access/mol_builder/label_mols_n200.csv"
-    feature_file = "~/Applications/db_access/mol_builder/feature_mols_n200.yaml"
+    sdf_file = "~/Applications/db_access/mol_builder/struct_rxn_rgrn_n200.sdf"
+    label_file = "~/Applications/db_access/mol_builder/label_rxn_rgrn_n200.yaml"
+    feature_file = "~/Applications/db_access/mol_builder/feature_rxn_rgrn_n200.yaml"
 
-    dataset = ElectrolyteMoleculeDataset(
+    dataset = ElectrolyteReactionDataset(
         grapher=get_grapher(),
         sdf_file=sdf_file,
         label_file=label_file,
         feature_file=feature_file,
-        properties=["atomization_energy"],
-        unit_conversion=True,
     )
 
     trainset, valset, testset = train_validation_test_split(
@@ -255,15 +272,13 @@ def main(args):
         )
     )
 
-    train_loader = DataLoaderMolecule(
-        trainset, hetero=True, batch_size=args.batch_size, shuffle=True
-    )
+    train_loader = DataLoaderReaction(trainset, batch_size=args.batch_size, shuffle=True)
     # larger val and test set batch_size is faster but needs more memory
     # adjust the batch size of to fit memory
     bs = max(len(valset) // 10, 1)
-    val_loader = DataLoaderMolecule(valset, hetero=True, batch_size=bs, shuffle=False)
+    val_loader = DataLoaderReaction(valset, batch_size=bs, shuffle=False)
     bs = max(len(testset) // 10, 1)
-    test_loader = DataLoaderMolecule(testset, hetero=True, batch_size=bs, shuffle=False)
+    test_loader = DataLoaderReaction(testset, batch_size=bs, shuffle=False)
 
     ### model
     attn_mechanism = {
@@ -282,7 +297,7 @@ def main(args):
     # set2set_ntypes_direct = None
 
     in_feats = trainset.get_feature_size(attn_order)
-    model = HGATMol(
+    model = HGATReaction(
         attn_mechanism,
         attn_order,
         in_feats,
@@ -337,6 +352,7 @@ def main(args):
     sys.stdout.flush()
 
     t0 = time.time()
+
     for epoch in range(args.epochs):
         ti = time.time()
 

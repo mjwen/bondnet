@@ -418,6 +418,8 @@ def main(args):
         "\n\n# Epoch     Loss         TrainAcc        ValAcc        OrdAcc     Time ("
         "s)"
     )
+    sys.stdout.flush()
+
     t0 = time.time()
 
     for epoch in range(args.epochs):
@@ -451,7 +453,7 @@ def main(args):
             sys.stdout.flush()
 
         # bad, we get nan
-        if np.isnan(train_acc):
+        if np.isnan(loss):
             sys.exit(0)
 
     # save results for hyperparam tune

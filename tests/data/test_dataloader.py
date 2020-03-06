@@ -116,7 +116,9 @@ def test_dataloader_molecule():
         )
 
         # batch size 1 case (exactly the same as test_dataset)
-        data_loader = DataLoaderMolecule(dataset, batch_size=1, shuffle=False)
+        data_loader = DataLoaderMolecule(
+            dataset, hetero=False, batch_size=1, shuffle=False
+        )
         for i, (graph, labels, scales) in enumerate(data_loader):
             assert np.allclose(labels, [ref_labels[i]])
             if lt:
@@ -125,13 +127,18 @@ def test_dataloader_molecule():
                 assert scales is None
 
         # batch size 2 case
-        data_loader = DataLoaderMolecule(dataset, batch_size=2, shuffle=False)
+        data_loader = DataLoaderMolecule(
+            dataset, hetero=False, batch_size=2, shuffle=False
+        )
         for graph, labels, scales in data_loader:
             assert np.allclose(labels, ref_labels)
             if lt:
                 assert np.allclose(scales, ref_scales)
             else:
                 assert scales is None
+
+    assert_label(False)
+    assert_label(True)
 
 
 def test_dataloader_bond_classification():
@@ -160,7 +167,7 @@ def test_dataloader_bond_classification():
 
 
 def test_dataloader_reaction():
-    ref_label_class = [0, 0]
+    ref_label_class = [0, 1]
     ref_num_mols = [2, 3]
 
     dataset = ElectrolyteReactionDataset(
@@ -169,6 +176,7 @@ def test_dataloader_reaction():
         label_file=os.path.join(test_files, "electrolyte_label_rxn_clfn.yaml"),
         feature_file=os.path.join(test_files, "electrolyte_feature_rxn_clfn.yaml"),
         feature_transformer=False,
+        label_transformer=False,
     )
 
     # batch size 1 case (exactly the same as test_dataset)
