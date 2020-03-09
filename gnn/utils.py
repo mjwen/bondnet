@@ -3,12 +3,12 @@ import time
 import pickle
 import yaml
 import random
-import numpy as np
 import torch
 import dgl
 import logging
 import warnings
 import sys
+import itertools
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -37,12 +37,9 @@ def np_split_by_size(array, sizes, axis=0):
     array = np.asarray(array)
     assert array.shape[axis] == sum(sizes), "array.shape[axis] not equal to sum(sizes)"
 
-    tot = 0
-    indices = []
-    for i in sizes:
-        tot += i
-        indices.append(tot)
+    indices = list(itertools.accumulate(sizes))
     indices = indices[:-1]
+
     return np.split(array, indices, axis=axis)
 
 

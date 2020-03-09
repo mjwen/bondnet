@@ -73,11 +73,11 @@ class BondFeaturizer(BaseFeaturizer):
 
         if length_featurizer == "bin":
             if length_featurizer_args is None:
-                length_featurizer_args = {"low": 0.74, "high": 2.5, "num_bins": 10}
+                length_featurizer_args = {"low": 0.0, "high": 2.5, "num_bins": 10}
             self.length_featurizer = DistanceBins(**length_featurizer_args)
         elif length_featurizer == "rbf":
             if length_featurizer_args is None:
-                length_featurizer_args = {"low": 0.0, "high": 4.0, "num_centers": 20}
+                length_featurizer_args = {"low": 0.0, "high": 2.5, "num_centers": 10}
             self.length_featurizer = RBF(**length_featurizer_args)
         elif length_featurizer is None:
             self.length_featurizer = None
