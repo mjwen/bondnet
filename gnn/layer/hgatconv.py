@@ -202,7 +202,7 @@ class NodeAttentionLayer(nn.Module):
             graph.edges[etype].data["a"] = self.attn_drop(a)
 
         # message passing, "ft" is of shape(H, out), and "a" is of shape(H, 1)
-        # computing the part inside the parathesis of eq. 4 of the GAT paper
+        # computing the part inside the parenthesis of eq. 4 of the GAT paper
         graph.multi_update_all(
             {
                 etype: (fn.u_mul_e("ft", "a", "m"), fn.sum("m", "ft"))
@@ -345,29 +345,18 @@ def heterograph_edge_softmax(graph, edge_types, edge_data):
     """
     g = graph.local_var()
 
-    # assign data
+    # find max e
     max_e = 0.0
-    for etype, edata in zip(edge_types, edge_data):
-        g.edges[etype].data["e"] = edata
+    for edata in edge_data:
         m = torch.max(edata)
         max_e = m if m > max_e else max_e
 
-    # The softmax trick, making the exponential stable if the exponent is large.
-    # This will not change the softmax value
-    # see
+    # apply the softmax trick and assign exponential data
+    # The softmax trick makes the exponential stable for large exponent value.
     # https://jamesmccaffrey.wordpress.com/2016/03/04/the-max-trick-when-computing-softmax
-    if max_e > 32:
-        # e max (fn.max operates on the axis of features from different nodes)
-        g.multi_update_all(
-            {etype: (fn.copy_e("e", "m"), fn.max("m", "emax")) for etype in edge_types},
-            "max",
-        )
-        # subtract max and compute exponential
-        for etype in edge_types:
-            g.apply_edges(fn.e_sub_v("e", "emax", "e"), etype=etype)
-
-    for etype in edge_types:
-        g.edges[etype].data["out"] = torch.exp(g.edges[etype].data["e"])
+    for etype, edata in zip(edge_types, edge_data):
+        edata = edata - max_e
+        g.edges[etype].data["out"] = torch.exp(edata)
 
     # e sum
     g.multi_update_all(
@@ -379,4 +368,5 @@ def heterograph_edge_softmax(graph, edge_types, edge_data):
     for etype in edge_types:
         g.apply_edges(fn.e_div_v("out", "out_sum", "a"), etype=etype)
         a.append(g.edges[etype].data["a"])
+
     return a
