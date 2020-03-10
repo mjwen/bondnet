@@ -2,6 +2,7 @@ import numpy as np
 from gnn.data.featurizer import (
     AtomFeaturizer,
     BondAsNodeFeaturizer,
+    BondAsNodeCompleteFeaturizer,
     BondAsEdgeBidirectedFeaturizer,
     BondAsEdgeCompleteFeaturizer,
     GlobalFeaturizerChargeSpin,
@@ -28,6 +29,18 @@ def test_bond_as_node_featurizer():
     feat = featurizer(m)
     size = featurizer.feature_size
     assert np.array_equal(feat["feat"].shape, (m.GetNumBonds(), size))
+    assert len(featurizer.feature_name) == size
+
+
+def test_bond_as_node_complete_featurizer():
+    m = make_a_mol()
+    natoms = m.GetNumAtoms()
+    nbonds = natoms * (natoms - 1) // 2
+
+    featurizer = BondAsNodeCompleteFeaturizer(length_featurizer="bin")
+    feat = featurizer(m)
+    size = featurizer.feature_size
+    assert np.array_equal(feat["feat"].shape, (nbonds, size))
     assert len(featurizer.feature_name) == size
 
 

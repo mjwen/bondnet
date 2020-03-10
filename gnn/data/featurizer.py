@@ -5,6 +5,7 @@ Featurize a molecule heterograph of atom, bond, and global nodes with RDkit.
 import torch
 import os
 import warnings
+import itertools
 from collections import defaultdict
 import numpy as np
 from rdkit import Chem
@@ -218,6 +219,50 @@ class BondAsNodeFeaturizerMinimum(BondFeaturizer):
         feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
         self._feature_size = feats.shape[1]
         self._feature_name = ["is in ring", "length"]
+
+        return {"feat": feats}
+
+
+class BondAsNodeCompleteFeaturizer(BondFeaturizer):
+    """
+    Featurize all bonds in a molecule.
+
+    Bonds is different from the typical notion. Here we assume there is a bond between
+    every atom pairs.
+
+    The order of the bonds are (0,1), (0,2), ... , (0, N-1), (1,2), (1,3), ...,
+    (N-2, N-1), where N is the number of atoms.
+    """
+
+    def __call__(self, mol, **kwargs):
+        """
+        Parameters
+        ----------
+        mol : rdkit.Chem.rdchem.Mol
+            RDKit molecule object
+
+        Returns
+        -------
+            Dictionary for bond features
+        """
+        if not self.length_featurizer:
+            raise ValueError(
+                f"length_featurizer (None) needs to be provided for "
+                f"{self.__class__.__name__}, which is the only feature."
+            )
+
+        num_atoms = mol.GetNumAtoms()
+
+        feats = []
+        for u, v in itertools.combinations(range(num_atoms), 2):
+            atoms_pos = mol.GetConformer().GetPositions()
+            bond_length = np.linalg.norm(atoms_pos[u] - atoms_pos[v])
+            ft = self.length_featurizer(bond_length)
+            feats.append(ft)
+
+        feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
+        self._feature_size = feats.shape[1]
+        self._feature_name = self.length_featurizer.feature_name
 
         return {"feat": feats}
 
