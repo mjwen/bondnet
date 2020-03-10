@@ -1,6 +1,7 @@
 """
 Build molecule graph and then featurize it.
 """
+import itertools
 import dgl
 
 
@@ -182,20 +183,92 @@ class HeteroMoleculeGraph(BaseGraph):
             a2b = [(0, 0)]
             b2a = [(0, 0)]
         else:
-            bond_idx_to_atom_idx = dict()
-            for i in range(num_bonds):
-                bond = mol.GetBondWithIdx(i)
-                u = bond.GetBeginAtomIdx()
-                v = bond.GetEndAtomIdx()
-                bond_idx_to_atom_idx[i] = (u, v)
-
             a2b = []
             b2a = []
-            for a in range(num_atoms):
-                for b, bond in bond_idx_to_atom_idx.items():
-                    if a in bond:
-                        b2a.append([b, a])
-                        a2b.append([a, b])
+            for b in range(num_bonds):
+                bond = mol.GetBondWithIdx(b)
+                u = bond.GetBeginAtomIdx()
+                v = bond.GetEndAtomIdx()
+                b2a.extend([[b, u], [b, v]])
+                a2b.extend([[u, b], [v, b]])
+
+        a2g = [(a, 0) for a in range(num_atoms)]
+        g2a = [(0, a) for a in range(num_atoms)]
+        b2g = [(b, 0) for b in range(num_bonds)]
+        g2b = [(0, b) for b in range(num_bonds)]
+
+        edges_dict = {
+            ("atom", "a2b", "bond"): a2b,
+            ("bond", "b2a", "atom"): b2a,
+            ("atom", "a2g", "global"): a2g,
+            ("global", "g2a", "atom"): g2a,
+            ("bond", "b2g", "global"): b2g,
+            ("global", "g2b", "bond"): g2b,
+        }
+        if self.self_loop:
+            a2a = [(i, i) for i in range(num_atoms)]
+            b2b = [(i, i) for i in range(num_bonds)]
+            g2g = [(0, 0)]
+            edges_dict.update(
+                {
+                    ("atom", "a2a", "atom"): a2a,
+                    ("bond", "b2b", "bond"): b2b,
+                    ("global", "g2g", "global"): g2g,
+                }
+            )
+        g = dgl.heterograph(edges_dict)
+
+        return g
+
+    def featurize(self, g, mol, **kwargs):
+
+        if self.atom_featurizer is not None:
+            g.nodes["atom"].data.update(self.atom_featurizer(mol, **kwargs))
+        if self.bond_featurizer is not None:
+            g.nodes["bond"].data.update(self.bond_featurizer(mol, **kwargs))
+        if self.global_featurizer is not None:
+            g.nodes["global"].data.update(self.global_featurizer(mol, **kwargs))
+
+        return g
+
+
+class HeteroCompleteGraph(BaseGraph):
+    """
+    Convert a RDKit molecule to a DGLHeteroGraph and featurize for it.
+    Each atom is connected to all other atoms (i.e. a complete graph is constructed).
+
+    Atom, bonds, and global states are all represented as nodes in the graph.
+    Atom i corresponds to graph node (of type `atom`) i.
+    There is only one global state node 0.
+
+    Bonds is different from the typical notion. Here we assume there is a bond between
+    every atom pairs.
+
+    The order of the bonds are (0,1), (0,2), ... , (0, N-1), (1,2), (1,3), ...,
+    (N-2, N-1), where N is the number of atoms.
+    """
+
+    def __init__(
+        self,
+        atom_featurizer=None,
+        bond_featurizer=None,
+        global_featurizer=None,
+        self_loop=True,
+    ):
+        super(HeteroCompleteGraph, self).__init__(
+            atom_featurizer, bond_featurizer, self_loop
+        )
+        self.global_featurizer = global_featurizer
+
+    def build_graph(self, mol):
+        num_atoms = mol.GetNumAtoms()
+        num_bonds = num_atoms * (num_atoms - 1) // 2
+
+        a2b = []
+        b2a = []
+        for b, (u, v) in enumerate(itertools.combinations(range(num_atoms), 2)):
+            b2a.extend([[b, u], [b, v]])
+            a2b.extend([[u, b], [v, b]])
 
         a2g = [(a, 0) for a in range(num_atoms)]
         g2a = [(0, a) for a in range(num_atoms)]

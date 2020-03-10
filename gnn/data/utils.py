@@ -1,6 +1,8 @@
-import numpy as np
-from beautifultable import BeautifulTable
-from collections import defaultdict
+import warnings
+import itertools
+from rdkit import Chem
+from collections import defaultdict, OrderedDict
+from gnn.utils import expand_path, yaml_dump
 
 
 def graph_struct_list_representation(g):
@@ -77,3 +79,67 @@ def get_atom_to_bond_map(g):
         bonds = g.successors(i, "a2b")
         atom_to_bond_map[i] = sorted(list(bonds))
     return atom_to_bond_map
+
+
+def create_edge_label_based_on_bond(
+    filename, sdf_filename="mols.sdf", label_filename="bond_label.yaml"
+):
+    """
+    For a molecule from SDF file, creating complete graph for atoms and label the edges
+    based on whether its an actual bond or not.
+
+    The order of the edges are (0,1), (0,2), ... , (0, N-1), (1,2), (1,3), ...,
+    (N-2, N-1), where N is the number of atoms.
+
+    Args:
+        filename (str): name of the input sdf file
+        sdf_filename (str): name of the output sdf file
+        label_filename (str): name of the output label file
+    """
+
+    def read_sdf(filename):
+        filename = expand_path(filename)
+        supp = Chem.SDMolSupplier(filename, sanitize=True, removeHs=False)
+        all_mols = []
+        for i, mol in enumerate(supp):
+            if mol is None:
+                print("bad mol:", i)
+            else:
+                all_mols.append(mol)
+        print("{} molecules read from sdf file".format(len(all_mols)))
+        return all_mols
+
+    def get_bond_label(m):
+        """
+        Get to know whether an edge in a complete graph is a bond.
+
+        Returns:
+            OrderedDict: with bond index as key and a bool indicating whether it's a
+                bond as value.
+
+        """
+
+        num_bonds = m.GetNumBonds()
+        if num_bonds < 1:
+            warnings.warn("molecular has no bonds")
+
+        num_atoms = m.GetNumAtoms()
+        bond_label = OrderedDict()
+        for u, v in itertools.combinations(range(num_atoms), 2):
+            bond = m.GetBondBetweenAtoms(u, v)
+            if bond is not None:
+                bond_label[tuple(sorted([u, v]))] = True
+            else:
+                bond_label[tuple(sorted([u, v]))] = False
+
+        return bond_label
+
+    mols = read_sdf(filename)
+
+    labels = []
+    with open(sdf_filename, "w") as f:
+        for m in mols:
+            labels.append(get_bond_label(m))
+            sdf = Chem.MolToMolBlock(m)
+            f.write(sdf + "$$$$\n")
+    yaml_dump(labels, label_filename)

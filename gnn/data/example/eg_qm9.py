@@ -5,6 +5,7 @@ from gnn.data.qm9 import QM9Dataset
 from gnn.utils import expand_path, create_directory
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import AtomFeaturizer, BondAsNodeFeaturizer, MolWeightFeaturizer
+from gnn.data.utils import create_edge_label_based_on_bond
 
 
 def load_mols(filename):
@@ -92,6 +93,17 @@ def get_dataset_qm9(
     return dataset
 
 
+def write_edge_label_based_on_molecule_bond():
+    sdf_file = "~/Documents/Dataset/qm9/gdb9_n200.sdf"
+
+    create_edge_label_based_on_bond(
+        sdf_file,
+        sdf_filename="/Users/mjwen/Applications/db_access/qm9/gdb9_n200-processed.sdf",
+        label_filename="/Users/mjwen/Applications/db_access/qm9/gdb9_n200_label.yaml",
+    )
+
+
 if __name__ == "__main__":
-    plot_bond_distance_hist()
+    # plot_bond_distance_hist()
     # get_dataset_qm9()
+    write_edge_label_based_on_molecule_bond()
