@@ -345,18 +345,29 @@ def heterograph_edge_softmax(graph, edge_types, edge_data):
     """
     g = graph.local_var()
 
-    # find max e
+    # assign data
     max_e = 0.0
-    for edata in edge_data:
+    for etype, edata in zip(edge_types, edge_data):
+        g.edges[etype].data["e"] = edata
         m = torch.max(edata)
         max_e = m if m > max_e else max_e
 
-    # apply the softmax trick and assign exponential data
-    # The softmax trick makes the exponential stable for large exponent value.
+    # The softmax trick, making the exponential stable if the exponent is large.
+    # This will not change the softmax value
+    # see
     # https://jamesmccaffrey.wordpress.com/2016/03/04/the-max-trick-when-computing-softmax
-    for etype, edata in zip(edge_types, edge_data):
-        edata = edata - max_e
-        g.edges[etype].data["out"] = torch.exp(edata)
+    if max_e > 32:
+        # e max (fn.max operates on the axis of features from different nodes)
+        g.multi_update_all(
+            {etype: (fn.copy_e("e", "m"), fn.max("m", "emax")) for etype in edge_types},
+            "max",
+        )
+        # subtract max and compute exponential
+        for etype in edge_types:
+            g.apply_edges(fn.e_sub_v("e", "emax", "e"), etype=etype)
+
+    for etype in edge_types:
+        g.edges[etype].data["out"] = torch.exp(g.edges[etype].data["e"])
 
     # e sum
     g.multi_update_all(
