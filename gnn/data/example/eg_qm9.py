@@ -1,11 +1,10 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from rdkit import Chem
-from gnn.data.qm9 import QM9Dataset
+from gnn.data.qm9 import QM9Dataset, create_edge_label_based_on_bond
 from gnn.utils import expand_path, create_directory
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import AtomFeaturizer, BondAsNodeFeaturizer, MolWeightFeaturizer
-from gnn.data.utils import create_edge_label_based_on_bond
 
 
 def load_mols(filename):
@@ -98,8 +97,9 @@ def write_edge_label_based_on_molecule_bond():
 
     create_edge_label_based_on_bond(
         sdf_file,
-        sdf_filename="/Users/mjwen/Applications/db_access/qm9/gdb9_n200-processed.sdf",
-        label_filename="/Users/mjwen/Applications/db_access/qm9/gdb9_n200_label.yaml",
+        sdf_filename="/Users/mjwen/Applications/db_access/qm9/struct_gdb9_bond_annotation.sdf",
+        label_filename="/Users/mjwen/Applications/db_access/qm9/label_gdb9_bond_annotation.yaml",
+        feature_filename="/Users/mjwen/Applications/db_access/qm9/feature_gdb9_bond_annotation.yaml",
     )
 
 

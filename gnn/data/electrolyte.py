@@ -202,10 +202,11 @@ class ElectrolyteBondDatasetClassification(BaseDataset):
             }
             self.labels.append(label)
 
-        # this should be called after grapher.build_graph_and_featurize,
-        # which initializes the feature name and size
+        # Should after grapher.build_graph_and_featurize, which initializes the
+        # feature name and size
         self._feature_name = self.grapher.feature_name
         self._feature_size = self.grapher.feature_size
+
         logger.info("Feature name: {}".format(self.feature_name))
         logger.info("Feature size: {}".format(self.feature_size))
 

@@ -5,15 +5,25 @@ import torch
 import argparse
 import numpy as np
 from datetime import datetime
+from collections import Counter
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.nn import MSELoss
-from gnn.metric import WeightedL1Loss, EarlyStopping
+from torch.nn import BCEWithLogitsLoss
+from sklearn.metrics import (
+    f1_score,
+    classification_report,
+    precision_recall_fscore_support,
+)
+from gnn.metric import EarlyStopping
 from gnn.model.hgat_bond import HGATBond
 from gnn.data.dataset import train_validation_test_split
-from gnn.data.qm9 import QM9Dataset
-from gnn.data.dataloader import DataLoader
-from gnn.data.grapher import HeteroMoleculeGraph
-from gnn.data.featurizer import AtomFeaturizer, BondAsNodeFeaturizer, MolWeightFeaturizer
+from gnn.data.bond_annotation import BondAnnotationDataset
+from gnn.data.dataloader import DataLoaderBond
+from gnn.data.grapher import HeteroCompleteGraph
+from gnn.data.featurizer import (
+    AtomFeaturizer,
+    BondAsNodeCompleteFeaturizer,
+    GlobalFeaturizerCharge,
+)
 from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
 
@@ -28,7 +38,7 @@ def parse_args():
         "--gat-hidden-size",
         type=int,
         nargs="+",
-        default=[24, 32, 64],
+        default=[32, 32, 64],
         help="number of hidden units of GAT layers",
     )
     parser.add_argument(
@@ -45,9 +55,6 @@ def parse_args():
         help="the negative slope of leaky relu",
     )
 
-    # parser.add_argument(
-    #    "--residual", action="store_true", default=True, help="use residual connection"
-    # )
     parser.add_argument(
         "--gat-residual", type=int, default=1, help="residual connection for gat layer"
     )
@@ -151,37 +158,45 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
     model.train()
 
     epoch_loss = 0.0
-    accuracy = 0.0
-    count = 0.0
+    all_pred_class = []
+    all_target_class = []
 
     for it, (bg, label) in enumerate(data_loader):
         feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-        target = label["value"]
-        try:
-            scale = label["label_class"]
-        except KeyError:
-            scale = None
-
+        target_class = label["value"].to(torch.float32)
         if device is not None:
             feats = {k: v.to(device) for k, v in feats.items()}
-            target = target.to(device)
-            if scale is not None:
-                scale = scale.to(device=device)
+            target_class = target_class.to(device)
 
-        pred = model(bg, feats, mol_based=True)
-        loss = loss_fn(pred, target)
+        pred = model(bg, feats)
+
+        # update parameters
+        loss = loss_fn(pred, target_class)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-
         epoch_loss += loss.detach().item()
-        accuracy += metric_fn(pred, target, scale).detach().item()
-        count += len(target)
+
+        # retain data for score computation
+        pred_class = [1 if i >= 0.5 else 0 for i in pred]
+        all_pred_class.append(pred_class)
+        all_target_class.append(target_class.detach().numpy())
 
     epoch_loss /= it + 1
-    accuracy /= count
 
-    return epoch_loss, accuracy
+    # compute f1 score
+    all_pred_class = np.concatenate(all_pred_class)
+    all_target_class = np.concatenate(all_target_class)
+    if metric_fn == "f1_score":
+        score = f1_score(all_target_class, all_pred_class)
+    elif metric_fn == "prfs":
+        score = precision_recall_fscore_support(all_target_class, all_pred_class)
+    elif metric_fn == "classification_report":
+        score = classification_report(all_target_class, all_pred_class)
+    else:
+        raise ValueError("Unsupported metric `{}`".format(metric_fn))
+
+    return epoch_loss, score
 
 
 def evaluate(model, nodes, data_loader, metric_fn, device=None):
@@ -194,40 +209,73 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
     model.eval()
 
     with torch.no_grad():
-        accuracy = 0.0
-        count = 0.0
+
+        all_pred_class = []
+        all_target_class = []
 
         for bg, label in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-            target = label["value"]
-            try:
-                scale = label["label_class"]
-            except KeyError:
-                scale = None
-
+            target_class = label["value"].to(torch.float32)
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
-                target = target.to(device)
-                if scale is not None:
-                    scale = scale.to(device=device)
 
-            pred = model(bg, feats, mol_based=True)
-            accuracy += metric_fn(pred, target, scale).detach().item()
-            count += len(target)
+            pred = model(bg, feats)
 
-    return accuracy / count
+            # retain data for score computation
+            pred_class = [1 if i >= 0.5 else 0 for i in pred]
+            all_pred_class.append(pred_class)
+            all_target_class.append(target_class.numpy())
+
+    # compute f1 score
+    all_pred_class = np.concatenate(all_pred_class)
+    all_target_class = np.concatenate(all_target_class)
+    if metric_fn == "f1_score":
+        score = f1_score(all_target_class, all_pred_class)
+    elif metric_fn == "prfs":
+        score = precision_recall_fscore_support(all_target_class, all_pred_class)
+    elif metric_fn == "classification_report":
+        score = classification_report(all_target_class, all_pred_class)
+    else:
+        raise ValueError("Unsupported metric `{}`".format(metric_fn))
+
+    return score
+
+
+def score_to_string(score, metric_fn="prfs"):
+    if metric_fn == "prfs":
+        res = ""
+        for i, line in enumerate(score):
+            # do not use support
+            if i < 3:
+                res += " ["
+                for j in line:
+                    res += "{:.2f} ".format(j)
+                res = res[:-1] + "]"
+        return res
+    else:
+        return str(score)
+
+
+def get_class_weight(data_loader):
+    """
+    Return a 1D tensor of the weight for positive example (class 1), which is set to
+    be equal to the number of negative examples divided by the number os positive
+    examples.
+    """
+    target_class = np.concatenate([label["value"].numpy() for bg, label in data_loader])
+    counts = [v for k, v in sorted(Counter(target_class).items())]
+    assert len(counts) == 2, f"number of classes {len(counts)} should be 2"
+
+    weight = torch.tensor([counts[0] / counts[1]])
+
+    return weight
 
 
 def get_grapher():
     atom_featurizer = AtomFeaturizer()
-    bond_featurizer = BondAsNodeFeaturizer(
-        # length_featurizer="bin",
-        # length_featurizer_args={"low": 0.7, "high": 2.5, "num_bins": 10},
-        length_featurizer="rbf",
-        length_featurizer_args={"low": 0.3, "high": 2.3, "num_centers": 20},
-    )
-    global_featurizer = MolWeightFeaturizer()
-    grapher = HeteroMoleculeGraph(
+    bond_featurizer = BondAsNodeCompleteFeaturizer(length_featurizer="bin")
+    global_featurizer = GlobalFeaturizerCharge()
+    grapher = HeteroCompleteGraph(
         atom_featurizer=atom_featurizer,
         bond_featurizer=bond_featurizer,
         global_featurizer=global_featurizer,
@@ -240,17 +288,16 @@ def main(args):
     print("\n\nStart training at:", datetime.now())
 
     ### dataset
-    sdf_file = "/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf"
-    label_file = "/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf.csv"
-    props = ["u0_atom"]
-    dataset = QM9Dataset(
+    sdf_file = "~/Applications/db_access/qm9/struct_gdb9_bond_annotation.sdf"
+    label_file = "~/Applications/db_access/qm9/label_gdb9_bond_annotation.yaml"
+    feature_file = "~/Applications/db_access/qm9/feature_gdb9_bond_annotation.yaml"
+
+    dataset = BondAnnotationDataset(
         grapher=get_grapher(),
         sdf_file=sdf_file,
         label_file=label_file,
-        properties=props,
-        unit_conversion=True,
+        feature_file=feature_file,
     )
-    print(dataset)
     trainset, valset, testset = train_validation_test_split(
         dataset, validation=0.1, test=0.1
     )
@@ -260,13 +307,13 @@ def main(args):
         )
     )
 
-    train_loader = DataLoader(trainset, batch_size=args.batch_size, shuffle=True)
+    train_loader = DataLoaderBond(trainset, batch_size=args.batch_size, shuffle=True)
     # larger val and test set batch_size is faster but needs more memory
     # adjust the batch size of to fit memory
-    bs = len(valset) // 10
-    val_loader = DataLoader(valset, batch_size=bs, shuffle=False)
-    bs = len(testset) // 10
-    test_loader = DataLoader(testset, batch_size=bs, shuffle=False)
+    bs = max(len(valset) // 10, 1)
+    val_loader = DataLoaderBond(valset, batch_size=bs, shuffle=False)
+    bs = max(len(testset) // 10, 1)
+    test_loader = DataLoaderBond(testset, batch_size=bs, shuffle=False)
 
     ### model
     attn_mechanism = {
@@ -275,6 +322,15 @@ def main(args):
         "global": {"edges": ["a2g", "b2g", "g2g"], "nodes": ["atom", "bond", "global"]},
     }
     attn_order = ["atom", "bond", "global"]
+    set2set_ntypes_direct = ["global"]
+
+    # attn_mechanism = {
+    #     "atom": {"edges": ["b2a", "a2a"], "nodes": ["bond", "atom"]},
+    #     "bond": {"edges": ["a2b", "b2b"], "nodes": ["atom", "bond"]},
+    # }
+    # attn_order = ["atom", "bond"]
+    # set2set_ntypes_direct = None
+
     in_feats = trainset.get_feature_size(attn_order)
     model = HGATBond(
         attn_mechanism,
@@ -296,6 +352,7 @@ def main(args):
         fc_activation=args.fc_activation,
         fc_drop=args.fc_drop,
         outdim=1,
+        classification=True,
     )
     print(model)
 
@@ -306,8 +363,9 @@ def main(args):
     optimizer = torch.optim.Adam(
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
-    loss_func = MSELoss(reduction="mean")
-    metric = WeightedL1Loss(reduction="sum")
+
+    pos_weight = get_class_weight(train_loader)
+    loss_func = BCEWithLogitsLoss(pos_weight=pos_weight, reduction="mean")
 
     ### learning rate scheduler and stopper
     scheduler = ReduceLROnPlateau(
@@ -324,37 +382,46 @@ def main(args):
             warnings.warn(str(e) + " Continue without loading checkpoints.")
             pass
 
-    print("\n\n# Epoch     Loss         TrainAcc        ValAcc     Time (s)")
-    t0 = time.time()
+    print(
+        "\n\n# Epoch     Loss         TrainScore(prec,recall,f1)        ValScore("
+        "pred,recall,f1)     Time (s)"
+    )
+    sys.stdout.flush()
 
+    t0 = time.time()
     for epoch in range(args.epochs):
         ti = time.time()
 
         # train and evaluate accuracy
-        loss, train_acc = train(
-            optimizer, model, attn_order, train_loader, loss_func, metric, args.device
+        loss, train_score = train(
+            optimizer, model, attn_order, train_loader, loss_func, "prfs", args.device
         )
-        val_acc = evaluate(model, attn_order, val_loader, metric, args.device)
+        val_score = evaluate(model, attn_order, val_loader, "prfs", args.device)
 
-        if stopper.step(val_acc, checkpoints_objs, msg="epoch " + str(epoch)):
+        try:
+            recall = val_score[1][1]  # recall of the 1 class
+        except IndexError:
+            pass
+
+        if stopper.step(-recall, checkpoints_objs, msg="epoch " + str(epoch)):
             # save results for hyperparam tune
             pickle_dump(float(stopper.best_score), args.output_file)
             break
 
-        scheduler.step(val_acc)
+        scheduler.step(-recall)
 
         tt = time.time() - ti
 
         print(
-            "{:5d}   {:12.6e}   {:12.6e}   {:12.6e}   {:.2f}".format(
-                epoch, loss, train_acc, val_acc, tt
+            "{:5d}   {:12.6e}   {}   {}   {:.2f}".format(
+                epoch, loss, score_to_string(train_score), score_to_string(val_score), tt
             )
         )
         if epoch % 10 == 0:
             sys.stdout.flush()
 
         # bad, we get nan
-        if np.isnan(train_acc):
+        if np.isnan(loss):
             sys.exit(0)
 
     # save results for hyperparam tune
@@ -362,10 +429,10 @@ def main(args):
 
     # load best to calculate test accuracy
     load_checkpoints(checkpoints_objs)
-    test_acc = evaluate(model, attn_order, test_loader, metric, args.device)
+    score = evaluate(model, attn_order, test_loader, "prfs", args.device)
+    print("\nTest classification report:")
+    print(score)
 
-    tt = time.time() - t0
-    print("\n#TestAcc: {:12.6e} | Total time (s): {:.2f}\n".format(test_acc, tt))
     print("\nFinish training at:", datetime.now())
 
 

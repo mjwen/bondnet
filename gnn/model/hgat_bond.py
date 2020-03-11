@@ -173,19 +173,24 @@ class HGATBond(nn.Module):
         # final output layer, mapping feature to the corresponding shape
         self.fc_layers.append(nn.Linear(in_size, outdim))
 
-    def forward(self, graph, feats, mol_energy=False):
+    def forward(self, graph, feats, mol_based=False):
         """
         Args:
             graph (DGLHeteroGraph or BatchedDGLHeteroGraph): (batched) molecule graphs
             feats (dict): node features with node type as key and the corresponding
                 features as value.
-            mol_energy (bool): If `True`, sum the prediction of bond energies as
-                molecule energy.
+            mol_based (bool): If `True`, split the predictions for bonds to the
+                predicitons of molecules based on the number of bonds in each molecule.
+                This determines the shape of the return value.
         Returns:
-            1D Tensor: bond energies. If `mol_energy` is `True`, then return a 2D
-                tensor of shape (N, 1), where `N` is the number of molecules in the
-                batch of data.
-            list of 2D tensor: if classification if `True`.
+            list of 2D Tensor: bond class scores. If `classification` is `True` and if
+                `mol_based` is `True`. Each tensor corresponds to a molecule.
+            1D Tensor: bond class scores. If `classification` is `True` and if
+                `mol_based` is `False`.
+            2D Tensor: molecule energies. If not `classification` and if `mol_based` is
+                `True`.
+            1D Tensor: bond energies. If not `classification` and if `mol_based` is
+                `False`.
         """
 
         # hgat layer
@@ -201,13 +206,21 @@ class HGATBond(nn.Module):
             feats = layer(feats)
 
         if self.classification:
-            res = self._split_batched_output(graph, feats)  # list of 2D tensor
-        else:
-            if mol_energy:
-                res = feats.view(-1)
-                res = self._bond_energy_to_mol_energy(graph, res)  # 2D tensor (N, 1)
+            if mol_based:
+                # list of 2D tensor of shape (N,1); N is the number of bonds in each
+                # graph and it could be different from graph to graph
+                res = self._split_batched_output(graph, feats)
             else:
-                res = feats.view(-1)  # 1D tensor (Nb,), Nb is the number of bonds
+                # 1D tensor (Nb,); Nb is the total number of bonds in all graphs
+                res = feats.view(-1)
+        else:
+            if mol_based:
+                # 2D tensor of shape (Nm,1); Nm is the number graphs
+                res = feats.view(-1)
+                res = self._bond_pred_to_mol_pred(graph, res)
+            else:
+                # 1D tensor (Nb,); Nb is the total number of bonds in all graphs
+                res = feats.view(-1)
 
         return res
 
@@ -227,10 +240,13 @@ class HGATBond(nn.Module):
         else:
             return [value]
 
-    def _bond_energy_to_mol_energy(self, graph, bond_energy):
-        bond_energy = self._split_batched_output(graph, bond_energy)
-        mol_energy = torch.stack([torch.sum(i) for i in bond_energy]).view((-1, 1))
-        return mol_energy
+    def _bond_pred_to_mol_pred(self, graph, bond_pred):
+        """
+        Sum the bond predictions in each molecule to get molecule predictions.
+        """
+        bond_pred = self._split_batched_output(graph, bond_pred)
+        mol_pred = torch.stack([torch.sum(i) for i in bond_pred]).view((-1, 1))
+        return mol_pred
 
     def feature_before_fc(self, graph, feats):
         """
