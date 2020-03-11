@@ -2,6 +2,7 @@
 The Li-EC electrolyte dataset.
 """
 
+
 import torch
 import logging
 import numpy as np
@@ -10,113 +11,35 @@ import pandas as pd
 from rdkit import Chem
 from gnn.data.dataset import BaseDataset
 from gnn.data.transformers import StandardScaler, GraphFeatureStandardScaler
-from gnn.utils import expand_path, yaml_load, np_split_by_size
+from gnn.utils import yaml_load, np_split_by_size
+from gnn.data.utils import get_dataset_species
 
 
 logger = logging.getLogger(__name__)
 
 
 class ElectrolyteBondDataset(BaseDataset):
-    """
-    The electrolyte dataset for Li-ion battery.
-
-    Args:
-        grapher (object): grapher object that build different types of graphs:
-            `hetero`, `homo_bidirected` and `homo_complete`.
-            For hetero graph, atom, bond, and global state are all represented as
-            graph nodes. For homo graph, atoms are represented as node and bond are
-            represented as graph edges.
-        sdf_file (str): path to the sdf file of the molecules. Preprocessed dataset
-            can be stored in a pickle file (e.g. with file extension of `pkl`) and
-            provided for fast recovery.
-        label_file (str): path to the label file. Similar to the sdf_file, pickled file
-            can be provided for fast recovery.
-        feature_file (str): path to the feature file. If `None` features will be
-            calculated only using rdkit. Otherwise, features can be provided through this
-            file.
-    """
-
-    def __init__(
-        self,
-        grapher,
-        sdf_file,
-        label_file,
-        feature_file=None,
-        feature_transformer=True,
-        label_transformer=True,
-        pickle_dataset=False,
-        dtype="float32",
-    ):
-        super(ElectrolyteBondDataset, self).__init__(dtype)
-        self.grapher = grapher
-        self.sdf_file = expand_path(sdf_file)
-        self.label_file = expand_path(label_file)
-        self.feature_file = None if feature_file is None else expand_path(feature_file)
-        self.feature_transformer = feature_transformer
-        self.label_transformer = label_transformer
-        self.pickle_dataset = pickle_dataset
-
-        ### pickle related
-        # if self._is_pickled(self.sdf_file) != self._is_pickled(self.label_file):
-        #     raise ValueError("sdf file and label file does not have the same format")
-        # if self._is_pickled(self.sdf_file):
-        #     self._pickled = True
-        # else:
-        #     self._pickled = False
-
-        self._load()
-
-    @property
-    def feature_size(self):
-        return self._feature_size
-
-    @property
-    def feature_name(self):
-        return self._feature_name
-
     def _load(self):
-        ### pickle related
-        # if self._pickled:
-        #     logger.info(
-        #         "Start loading dataset from picked files {} and {}...".format(
-        #             self.sdf_file, self.label_file
-        #         )
-        #     )
-        #
-        #     if self.grapher == "hetero":
-        #         self.graphs, self.labels = self.load_dataset_hetero()
-        #     elif self.grapher in ["homo_bidirected", "homo_complete"]:
-        #         self.graphs, self.labels = self.load_dataset()
-        #     else:
-        #         raise ValueError("Unsupported grapher type '{}".format(self.grapher))
-        #
-        #     self.load_state_dict(self._default_state_dict_filename())
-        #
-        #     return
-        #
 
         logger.info(
-            "Start loading dataset from files {}, {}...".format(
-                self.sdf_file, self.label_file
-            )
+            f"Start loading dataset from files: {self.sdf_file}, {self.label_file}, "
+            f"and {self.feature_file} ..."
         )
 
-        # get species of dataset
-        species = self._get_species()
-
-        # read graphs and label
+        # read label and feature file
+        # TODO, change the label file to a yaml file
         raw_value, raw_indicator, raw_mol_source = self._read_label_file()
-
-        # additional features from file
         if self.feature_file is not None:
-            features = self._read_feature_file()
+            features = yaml_load(self.feature_file)
         else:
             features = [None] * len(raw_value)
 
+        # build graph for mols from sdf file
+        supp = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
+        species = get_dataset_species(self.sdf_file)
+
         self.graphs = []
         self.labels = []
-        supp = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
-
         for i, mol in enumerate(supp):
             if i % 100 == 0:
                 logger.info("Processing molecule {}/{}".format(i, len(raw_value)))
@@ -144,7 +67,7 @@ class ElectrolyteBondDataset(BaseDataset):
             label = {
                 "value": bonds_energy,  # 1D tensor
                 "indicator": bonds_indicator,  # 1D tensor
-                "mol_source": bonds_mol_source,  # str
+                "id": bonds_mol_source,  # str
             }
             self.labels.append(label)
 
@@ -161,14 +84,6 @@ class ElectrolyteBondDataset(BaseDataset):
             self.graphs = feature_scaler(self.graphs)
             logger.info("Feature scaler mean: {}".format(feature_scaler.mean))
             logger.info("Feature scaler std: {}".format(feature_scaler.std))
-
-        # labels are standardized by y' = (y - mean(y))/std(y), the model will be
-        # trained on this scaled value. However for metric measure (e.g. MAE) we need
-        # to convert y' back to y, i.e. y = y' * std(y) + mean(y), the model
-        # prediction is then y^ = y'^ *std(y) + mean(y), where ^ means predictions.
-        # Then MAE is |y^-y| = |y'^ - y'| *std(y), i.e. we just need to multiple
-        # standard deviation to get back to the original scale. Similar analysis
-        # applies to RMSE.
 
         if self.label_transformer:
             labels = [lb["value"] for lb in self.labels]  # list of 1D tensor
@@ -188,109 +103,12 @@ class ElectrolyteBondDataset(BaseDataset):
             for i, lb in enumerate(labels):
                 self.labels[i]["value"] = lb
                 sca = torch.tensor([std] * len(lb), dtype=getattr(torch, self.dtype))
-                self.transformer_scale.append(sca)
+                self.labels[i]["label_scaler"] = sca
 
             logger.info("Label scaler mean: {}".format(mean))
             logger.info("Label scaler std: {}".format(std))
 
         logger.info("Finish loading {} graphs...".format(len(self.labels)))
-
-        ### pickle related
-        # if self.pickle_dataset:
-        #     if self.grapher == "hetero":
-        #         self.save_dataset_hetero()
-        #     else:
-        #         self.save_dataset()
-        #     self.save_state_dict(self._default_state_dict_filename())
-
-    ### pickle related
-    # def save_dataset(self):
-    #     filename = self.sdf_file + ".pkl"
-    #     pickle_dump(self.graphs, filename)
-    #     filename = self.label_file + ".pkl"
-    #     pickle_dump(self.labels, filename)
-    #
-    # def load_dataset(self):
-    #     graphs = pickle_load(self.sdf_file)
-    #     labels = pickle_load(self.label_file)
-    #     return graphs, labels
-    #
-    # # NOTE currently, DGLHeterograph does not support pickle, so we pickle the data only
-    # # and we can get back to the above two functions once it is supported
-    # def save_dataset_hetero(self):
-    #     filename = self.sdf_file + ".pkl"
-    #     data = []
-    #     for g in self.graphs:
-    #         ndata = {t: dict(g.nodes[t].data) for t in g.ntypes}
-    #         edata = {t: dict(g.edges[t].data) for t in g.etypes}
-    #         data.append([ndata, edata])
-    #     pickle_dump(data, filename)
-    #     filename = self.label_file + ".pkl"
-    #     pickle_dump(self.labels, filename)
-    #
-    # def load_dataset_hetero(self):
-    #     data = pickle_load(self.sdf_file)
-    #     fname = self.sdf_file.replace(".pkl", "")
-    #     supp = Chem.SDMolSupplier(fname, sanitize=True, removeHs=False)
-    #
-    #     graphs = []
-    #     i = 0
-    #     for mol in supp:
-    #         if mol is None:  # bad mol
-    #             continue
-    #         entry = data[i]
-    #         i += 1
-    #
-    #         grapher = HeteroMoleculeGraph(self_loop=self.self_loop)
-    #         g = grapher.build_graph(mol)
-    #         for t, v in entry[0].items():
-    #             g.nodes[t].data.update(v)
-    #         for t, v in entry[1].items():
-    #             g.edges[t].data.update(v)
-    #         graphs.append(g)
-    #
-    #     labels = pickle_load(self.label_file)
-    #
-    #     return graphs, labels
-    #
-    # def _default_state_dict_filename(self):
-    #     filename = expand_path(self.sdf_file)
-    #     return os.path.join(
-    #         os.path.dirname(filename), self.__class__.__name__ + "_state_dict.pkl"
-    #     )
-    #
-    # def load_state_dict(self, filename):
-    #     d = pickle_load(filename)
-    #     self._feature_size = d["feature_size"]
-    #     self._feature_name = d["feature_file"]
-    #     self.transformer_scale = d["transformer_scale"]
-    #
-    # def save_state_dict(self, filename):
-    #     d = {
-    #         "feature_size": self._feature_size,
-    #         "feature_file": self._feature_name,
-    #         "transformer_scale": self.transformer_scale,
-    #     }
-    #     pickle_dump(d, filename)
-    #
-    # @staticmethod
-    # def _is_pickled(filename):
-    #     filename = expand_path(filename)
-    #     if os.path.splitext(filename)[1] == ".pkl":
-    #         return True
-    #     else:
-    #         return False
-
-    def _get_species(self):
-        suppl = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
-        system_species = set()
-        for i, mol in enumerate(suppl):
-            if mol is None:
-                continue
-            atoms = mol.GetAtoms()
-            species = [a.GetSymbol() for a in atoms]
-            system_species.update(species)
-        return list(system_species)
 
     def _read_label_file(self):
         value = []
@@ -316,20 +134,8 @@ class ElectrolyteBondDataset(BaseDataset):
 
         return value, indicator, mol_source
 
-    def _read_feature_file(self):
-        return yaml_load(self.feature_file)
 
-    def __repr__(self):
-        rst = "Dataset " + self.__class__.__name__ + "\n"
-        rst += "Length: {}\n".format(len(self))
-        for ft, sz in self.feature_size.items():
-            rst += "Feature: {}, size: {}\n".format(ft, sz)
-        for ft, nm in self.feature_name.items():
-            rst += "Feature: {}, name: {}\n".format(ft, nm)
-        return rst
-
-
-class ElectrolyteBondDatasetClassification(ElectrolyteBondDataset):
+class ElectrolyteBondDatasetClassification(BaseDataset):
     def __init__(
         self,
         grapher,
@@ -337,7 +143,6 @@ class ElectrolyteBondDatasetClassification(ElectrolyteBondDataset):
         label_file,
         feature_file=None,
         feature_transformer=True,
-        pickle_dataset=False,
         dtype="float32",
     ):
         super(ElectrolyteBondDatasetClassification, self).__init__(
@@ -347,34 +152,29 @@ class ElectrolyteBondDatasetClassification(ElectrolyteBondDataset):
             feature_file=feature_file,
             feature_transformer=feature_transformer,
             label_transformer=False,
-            pickle_dataset=pickle_dataset,
             dtype=dtype,
         )
 
     def _load(self):
 
         logger.info(
-            "Start loading dataset from files {}, {}...".format(
-                self.sdf_file, self.label_file
-            )
+            f"Start loading dataset from files: {self.sdf_file}, {self.label_file}, "
+            f"and {self.feature_file} ..."
         )
 
-        # get species of dataset
-        species = self._get_species()
-
-        # read graphs and label
+        # read label and feature file
         raw_value, raw_indicator, raw_mol_source = self._read_label_file()
-
-        # additional features from file
         if self.feature_file is not None:
-            features = self._read_feature_file()
+            features = yaml_load(self.feature_file)
         else:
             features = [None] * len(raw_value)
 
+        # build graph for mols from sdf file
+        supp = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
+        species = get_dataset_species(self.sdf_file)
+
         self.graphs = []
         self.labels = []
-        supp = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
-
         for i, mol in enumerate(supp):
             if i % 100 == 0:
                 logger.info("Processing molecule {}/{}".format(i, len(raw_value)))
@@ -392,14 +192,13 @@ class ElectrolyteBondDatasetClassification(ElectrolyteBondDataset):
             self.graphs.append(g)
 
             # label
-            dtype = getattr(torch, self.dtype)
             bonds_class = torch.tensor(raw_value[i], dtype=torch.int64)
             bonds_indicator = int(raw_indicator[i])
             bonds_mol_source = raw_mol_source[i]
             label = {
-                "class": bonds_class,  # torch.int64
+                "value": bonds_class,  # torch.int64
                 "indicator": bonds_indicator,  # int
-                "mol_source": bonds_mol_source,  # str
+                "id": bonds_mol_source,  # str
             }
             self.labels.append(label)
 
@@ -447,7 +246,7 @@ class ElectrolyteBondDatasetClassification(ElectrolyteBondDataset):
         return value, bond_idx, mol_source
 
 
-class ElectrolyteMoleculeDataset(ElectrolyteBondDataset):
+class ElectrolyteMoleculeDataset(BaseDataset):
     def __init__(
         self,
         grapher,
@@ -458,7 +257,6 @@ class ElectrolyteMoleculeDataset(ElectrolyteBondDataset):
         label_transformer=True,
         properties=["atomization_energy"],
         unit_conversion=True,
-        pickle_dataset=False,
         dtype="float32",
     ):
         self.properties = properties
@@ -470,35 +268,30 @@ class ElectrolyteMoleculeDataset(ElectrolyteBondDataset):
             feature_file=feature_file,
             feature_transformer=feature_transformer,
             label_transformer=label_transformer,
-            pickle_dataset=pickle_dataset,
             dtype=dtype,
         )
 
     def _load(self):
 
         logger.info(
-            "Start loading dataset from files {}, {}...".format(
-                self.sdf_file, self.label_file
-            )
+            f"Start loading dataset from files: {self.sdf_file}, {self.label_file}, "
+            f"and {self.feature_file} ..."
         )
 
-        # get species of dataset
-        species = self._get_species()
-
-        # read mol graphs and label
+        # read label and feature file
         raw_labels, extensive = self._read_label_file()
-
-        # additional features from file
         if self.feature_file is not None:
-            features = self._read_feature_file()
+            features = yaml_load(self.feature_file)
         else:
             features = [None] * len(raw_labels)
 
-        self.graphs = []
-        labels = []
-        natoms = []
+        # build graph for mols from sdf file
         supp = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
+        species = get_dataset_species(self.sdf_file)
 
+        self.graphs = []
+        self.labels = []
+        natoms = []
         for i, (mol, feats, lb) in enumerate(zip(supp, features, raw_labels)):
 
             if i % 100 == 0:
@@ -516,7 +309,9 @@ class ElectrolyteMoleculeDataset(ElectrolyteBondDataset):
             self.graphs.append(g)
 
             # label
-            labels.append(lb)
+            lb = torch.tensor(lb, dtype=getattr(torch, self.dtype))
+            self.labels.append({"value": lb, 'id':i})
+
             natoms.append(mol.GetNumAtoms())
 
         # this should be called after grapher.build_graph_and_featurize,
@@ -534,7 +329,7 @@ class ElectrolyteMoleculeDataset(ElectrolyteBondDataset):
             logger.info("Feature scaler std: {}".format(feature_scaler.std))
 
         if self.label_transformer:
-            labels = np.asarray(labels)
+            labels = np.asarray([lb["value"].numpy() for lb in self.labels])
             natoms = np.asarray(natoms, dtype=np.float32)
 
             scaled_labels = []
@@ -560,15 +355,19 @@ class ElectrolyteMoleculeDataset(ElectrolyteBondDataset):
                     label_scaler_std.append(scaler.std)
                 scaled_labels.append(lb)
                 transformer_scale.append(ts)
-            labels = np.asarray(scaled_labels).T
-
-            self.transformer_scale = torch.tensor(
+            scaled_labels = torch.tensor(
+                np.asarray(scaled_labels).T, dtype=getattr(torch, self.dtype)
+            )
+            transformer_scale = torch.tensor(
                 np.asarray(transformer_scale).T, dtype=getattr(torch, self.dtype)
             )
+
+            for i,lb, ts in enumerate(zip(scaled_labels, transformer_scale)):
+                self.labels[i]['value'] = lb
+                self.labels[i]['label_scaler'] = ts
+
             logger.info("Label scaler mean: {}".format(label_scaler_mean))
             logger.info("Label scaler std: {}".format(label_scaler_std))
-
-        self.labels = torch.tensor(labels, dtype=getattr(torch, self.dtype))
 
         logger.info("Finish loading {} graphs...".format(len(self.labels)))
 
@@ -613,40 +412,31 @@ class ElectrolyteMoleculeDataset(ElectrolyteBondDataset):
         return rst, extensive
 
 
-class ElectrolyteReactionDataset(ElectrolyteBondDataset):
-    def __getitem__(self, item):
-        g, lb, = self.graphs[item], self.labels[item]
-        return g, lb
-
+class ElectrolyteReactionDataset(BaseDataset):
     def _load(self):
 
         logger.info(
-            f"Start loading dataset from files {self.sdf_file}, {self.label_file}, "
-            f"and { self.feature_file} ..."
+            f"Start loading dataset from files: {self.sdf_file}, {self.label_file}, "
+            f"and {self.feature_file} ..."
         )
 
-        # get species of dataset
-        species = self._get_species()
-
-        # read mol graphs and label
-        raw_labels = self._read_label_file()
-
-        # additional features from file
+        # read label and feature file
+        raw_labels = yaml_load(self.label_file)
         if self.feature_file is not None:
-            features = self._read_feature_file()
+            features = yaml_load(self.feature_file)
         else:
             features = [None] * len(raw_labels)
 
         # build graph for mols from sdf file
-        graphs = []
         supp = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
+        species = get_dataset_species(self.sdf_file)
 
+        graphs = []
         for i, (mol, feats) in enumerate(zip(supp, features)):
             if i % 100 == 0:
                 logger.info(f"Processing molecule {i}/{len(raw_labels)}")
 
             if mol is not None:
-                # graph
                 g = self.grapher.build_graph_and_featurize(
                     mol, extra_feats_info=feats, dataset_species=species
                 )
@@ -656,10 +446,11 @@ class ElectrolyteReactionDataset(ElectrolyteBondDataset):
                 g = None
             graphs.append(g)
 
-        # this should be called after grapher.build_graph_and_featurize,
-        # which initializes the feature name and size
+        # Should after grapher.build_graph_and_featurize, which initializes the
+        # feature name and size
         self._feature_name = self.grapher.feature_name
         self._feature_size = self.grapher.feature_size
+
         logger.info("Feature name: {}".format(self.feature_name))
         logger.info("Feature size: {}".format(self.feature_size))
 
@@ -689,13 +480,6 @@ class ElectrolyteReactionDataset(ElectrolyteBondDataset):
             logger.info("Feature scaler mean: {}".format(feature_scaler.mean))
             logger.info("Feature scaler std: {}".format(feature_scaler.std))
 
-        # labels are standardized by y' = (y - mean(y))/std(y), the model will be
-        # trained on this scaled value. However for metric measure (e.g. MAE) we need
-        # to convert y' back to y, i.e. y = y' * std(y) + mean(y), the model
-        # prediction is then y^ = y'^ *std(y) + mean(y), where ^ means predictions.
-        # Then MAE is |y^-y| = |y'^ - y'| *std(y), i.e. we just need to multiple
-        # standard deviation to get back to the original scale. Similar analysis
-        # applies to RMSE.
         if self.label_transformer:
 
             # normalization
@@ -716,10 +500,3 @@ class ElectrolyteReactionDataset(ElectrolyteBondDataset):
             logger.info("Label scaler std: {}".format(std))
 
         logger.info("Finish loading {} reactions...".format(len(self.labels)))
-
-    def _read_label_file(self):
-        """
-        Returns:
-            list: a sequence of dict, each for one reaction
-        """
-        return yaml_load(self.label_file)

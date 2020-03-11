@@ -7,14 +7,12 @@ import numpy as np
 import os
 from gnn.data.electrolyte import (
     ElectrolyteBondDataset,
-    ElectrolyteBondDatasetClassification,
     ElectrolyteReactionDataset,
 )
 from gnn.data.qm9 import QM9Dataset
 from gnn.data.dataloader import (
     DataLoaderBond,
-    DataLoaderMolecule,
-    DataLoaderBondClassification,
+    DataLoader,
     DataLoaderReaction,
 )
 from gnn.data.grapher import HeteroMoleculeGraph, HomoCompleteGraph
@@ -44,6 +42,48 @@ def get_grapher_homo():
     )
 
 
+def test_dataloader():
+    def assert_label(lt):
+        ref_labels = np.asarray([[-0.3877, -40.47893], [-0.257, -56.525887]])
+        natoms = [5, 4]
+
+        if lt:
+            homo = [ref_labels[0][0], ref_labels[1][0]]
+            std = np.std(homo)
+            homo = (homo - np.mean(homo)) / std
+            for i in range(len(ref_labels)):
+                ref_labels[i][0] = homo[i]
+                ref_labels[i][1] /= natoms[i]
+            ref_scales = [[std, natoms[0]], [std, natoms[1]]]
+
+        dataset = QM9Dataset(
+            grapher=get_grapher_homo(),
+            sdf_file=os.path.join(test_files, "gdb9_n2.sdf"),
+            label_file=os.path.join(test_files, "gdb9_n2.sdf.csv"),
+            properties=["homo", "u0"],  # homo is intensive and u0 is extensive
+            unit_conversion=False,
+            feature_transformer=True,
+            label_transformer=lt,
+        )
+
+        # batch size 1 case (exactly the same as test_dataset)
+        data_loader = DataLoader(dataset, batch_size=1, shuffle=False)
+        for i, (graph, labels) in enumerate(data_loader):
+            assert np.allclose(labels["value"], [ref_labels[i]])
+            if lt:
+                assert np.allclose(labels["label_scaler"], [ref_scales[i]])
+
+        # batch size 2 case
+        data_loader = DataLoader(dataset, batch_size=2, shuffle=False)
+        for graph, labels in data_loader:
+            assert np.allclose(labels["value"], ref_labels)
+            if lt:
+                assert np.allclose(labels["label_scaler"], ref_scales)
+
+    assert_label(False)
+    assert_label(True)
+
+
 def test_dataloader_bond():
     def assert_label(lt):
         ref_label_energies = [[0, 0.1, 0, 0.2, 0, 0.3], [0.4, 0, 0, 0.5, 0, 0]]
@@ -69,101 +109,22 @@ def test_dataloader_bond():
 
         # batch size 1 case (exactly the same as test_dataset)
         data_loader = DataLoaderBond(dataset, batch_size=1, shuffle=False)
-        for i, (graph, labels, scales) in enumerate(data_loader):
+        for i, (graph, labels) in enumerate(data_loader):
             assert np.allclose(labels["value"], ref_label_energies[i])
             assert np.allclose(labels["indicator"], ref_label_indicators[i])
             if lt:
-                assert np.allclose(scales, ref_scales[i])
-            else:
-                assert scales is None
+                assert np.allclose(labels["label_scaler"], ref_scales[i])
 
         # batch size 2 case
         data_loader = DataLoaderBond(dataset, batch_size=2, shuffle=False)
-        for graph, labels, scales in data_loader:
+        for graph, labels in data_loader:
             assert np.allclose(labels["value"], np.concatenate(ref_label_energies))
             assert np.allclose(labels["indicator"], np.concatenate(ref_label_indicators))
             if lt:
-                assert np.allclose(scales, np.concatenate(ref_scales))
-            else:
-                assert scales is None
+                assert np.allclose(labels["label_scaler"], np.concatenate(ref_scales))
 
     assert_label(False)
     assert_label(True)
-
-
-def test_dataloader_molecule():
-    def assert_label(lt):
-        ref_labels = np.asarray([[-0.3877, -40.47893], [-0.257, -56.525887]])
-        natoms = [5, 4]
-
-        if lt:
-            homo = [ref_labels[0][0], ref_labels[1][0]]
-            std = np.std(homo)
-            homo = (homo - np.mean(homo)) / std
-            for i in range(len(ref_labels)):
-                ref_labels[i][0] = homo[i]
-                ref_labels[i][1] /= natoms[i]
-            ref_scales = [[std, natoms[0]], [std, natoms[1]]]
-
-        dataset = QM9Dataset(
-            grapher=get_grapher_homo(),
-            sdf_file=os.path.join(test_files, "gdb9_n2.sdf"),
-            label_file=os.path.join(test_files, "gdb9_n2.sdf.csv"),
-            properties=["homo", "u0"],  # homo is intensive and u0 is extensive
-            unit_conversion=False,
-            feature_transformer=True,
-            label_transformer=lt,
-        )
-
-        # batch size 1 case (exactly the same as test_dataset)
-        data_loader = DataLoaderMolecule(
-            dataset, hetero=False, batch_size=1, shuffle=False
-        )
-        for i, (graph, labels, scales) in enumerate(data_loader):
-            assert np.allclose(labels, [ref_labels[i]])
-            if lt:
-                assert np.allclose(scales, [ref_scales[i]])
-            else:
-                assert scales is None
-
-        # batch size 2 case
-        data_loader = DataLoaderMolecule(
-            dataset, hetero=False, batch_size=2, shuffle=False
-        )
-        for graph, labels, scales in data_loader:
-            assert np.allclose(labels, ref_labels)
-            if lt:
-                assert np.allclose(scales, ref_scales)
-            else:
-                assert scales is None
-
-    assert_label(False)
-    assert_label(True)
-
-
-def test_dataloader_bond_classification():
-    ref_label_class = [0, 1]
-    ref_label_indicators = [1, 2]
-
-    dataset = ElectrolyteBondDatasetClassification(
-        grapher=get_grapher_hetero(),
-        sdf_file=os.path.join(test_files, "electrolyte_struct_bond.sdf"),
-        label_file=os.path.join(test_files, "electrolyte_label_bond_clfn.txt"),
-        feature_file=os.path.join(test_files, "electrolyte_feature_bond.yaml"),
-        feature_transformer=False,
-    )
-
-    # batch size 1 case (exactly the same as test_dataset)
-    data_loader = DataLoaderBondClassification(dataset, batch_size=1, shuffle=False)
-    for i, (graph, labels) in enumerate(data_loader):
-        assert np.allclose(labels["class"], ref_label_class[i])
-        assert np.allclose(labels["indicator"], ref_label_indicators[i])
-
-    # batch size 2 case
-    data_loader = DataLoaderBondClassification(dataset, batch_size=2, shuffle=False)
-    for graph, labels in data_loader:
-        assert np.allclose(labels["class"], ref_label_class)
-        assert np.allclose(labels["indicator"], ref_label_indicators)
 
 
 def test_dataloader_reaction():

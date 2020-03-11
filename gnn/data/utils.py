@@ -81,6 +81,28 @@ def get_atom_to_bond_map(g):
     return atom_to_bond_map
 
 
+def get_dataset_species(filename):
+    """
+    Get all the species of atoms appearing in the dataset.
+
+    Args:
+        filename (str): sdf file name
+
+    Returns:
+        list: a sequence of species string
+    """
+    suppl = Chem.SDMolSupplier(filename, sanitize=True, removeHs=False)
+    system_species = set()
+    for i, mol in enumerate(suppl):
+        if mol is None:
+            continue
+        atoms = mol.GetAtoms()
+        species = [a.GetSymbol() for a in atoms]
+        system_species.update(species)
+
+    return list(system_species)
+
+
 def create_edge_label_based_on_bond(
     filename, sdf_filename="mols.sdf", label_filename="bond_label.yaml"
 ):

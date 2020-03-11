@@ -1,83 +1,136 @@
 import numpy as np
 from collections import defaultdict
+from gnn.utils import expand_path
 
 
 class BaseDataset:
     """
     Base dataset class.
+
+   Args:
+    grapher (object): grapher object that build different types of graphs:
+        `hetero`, `homo_bidirected` and `homo_complete`.
+        For hetero graph, atom, bond, and global state are all represented as
+        graph nodes. For homo graph, atoms are represented as node and bond are
+        represented as graph edges.
+    sdf_file (str): path to the sdf file of the molecules. Preprocessed dataset
+        can be stored in a pickle file (e.g. with file extension of `pkl`) and
+        provided for fast recovery.
+    label_file (str): path to the label file. Similar to the sdf_file, pickled file
+        can be provided for fast recovery.
+    feature_file (str): path to the feature file. If `None` features will be
+        calculated only using rdkit. Otherwise, features can be provided through this
+        file.
+    feature_transformer (bool): If `True`, standardize the features by subtracting the
+        means and then dividing the standard deviations.
+    label_transformer (bool): If `True`, standardize the label by subtracting the
+        means and then dividing the standard deviations. More explicitly,
+        labels are standardized by y' = (y - mean(y))/std(y), the model will be
+        trained on this scaled value. However for metric measure (e.g. MAE) we need
+        to convert y' back to y, i.e. y = y' * std(y) + mean(y), the model
+        prediction is then y^ = y'^ *std(y) + mean(y), where ^ means predictions.
+        Then MAE is |y^-y| = |y'^ - y'| *std(y), i.e. we just need to multiple
+        standard deviation to get back to the original scale. Similar analysis
+        applies to RMSE.
     """
 
-    def __init__(self, dtype="float32"):
+    def __init__(
+        self,
+        grapher,
+        sdf_file,
+        label_file,
+        feature_file=None,
+        feature_transformer=True,
+        label_transformer=True,
+        dtype="float32",
+    ):
+
         if dtype not in ["float32", "float64"]:
-            raise ValueError(
-                "`dtype` should be `float32` or `float64`, but got `{}`.".format(dtype)
-            )
+            raise ValueError(f"`dtype {dtype}` should be `float32` or `float64`.")
+
+        self.grapher = grapher
+        self.sdf_file = expand_path(sdf_file)
+        self.label_file = expand_path(label_file)
+        self.feature_file = None if feature_file is None else expand_path(feature_file)
+        self.feature_transformer = feature_transformer
+        self.label_transformer = label_transformer
         self.dtype = dtype
+
         self.graphs = None
         self.labels = None
-        self.transformer_scale = None
+        self._feature_size = None
+        self._feature_name = None
+
+        self._load()
 
     @property
     def feature_size(self):
         """
         Returns a dict of feature size with node type as the key.
         """
-        raise NotImplementedError
+        return self._feature_size
 
     @property
     def feature_name(self):
         """
         Returns a dict of feature name with node type as the key.
         """
-        raise NotImplementedError
+        return self._feature_name
 
     def get_feature_size(self, ntypes):
         """
-        Returns a list of the feature corresponding to the note types `ntypes`.
+        Get feature sizes.
+
+        Args:
+              ntypes (list of str): types of nodes.
+              
+        Returns:
+             list: sizes of features corresponding to note types in `ntypes`.
         """
         size = []
-        for n in ntypes:
+        for nt in ntypes:
             for k in self.feature_size:
-                if n in k:
+                if nt in k:
                     size.append(self.feature_size[k])
         # TODO more checks needed e.g. one node get more than one size
-        msg = "cannot get feature size for nodes: {}".format(ntypes)
+        msg = f"cannot get feature size for nodes: {ntypes}"
         assert len(ntypes) == len(size), msg
+
         return size
+
+    def _load(self):
+        """Read data from files and then featurize."""
+        raise NotImplementedError
 
     def __getitem__(self, item):
         """Get datapoint with index
 
         Args:
-            item (int): Datapoint index
+            item (int): data point index
 
         Returns:
-            g: DGLHeteroGraph for the ith datapoint
-            lb (dict): Labels of the datapoint
-            s (float or array): transformer scaler that is supposed to be multiplied by
-                the difference between the label and the model prediction, after which
-                the difference should get back to the original scale of the label.
-                Should have the same shape as `value` of label.
-                For example, suppose labels are standardized by y' = (y - mean(y))/std(y),
-                the model will be trained on this scaled value.
-                However for metric measure (e.g. MAE) we need to convert y' back to y,
-                i.e. y = y' * std(y) + mean(y), the model prediction is then
-                y^ = y'^ *std(y) + mean(y), where ^ means predictions.
-                Then MAE is |y^-y| = |y'^ - y'| *std(y), i.e. we just need to multiple
-                standard deviation to get back to the original scale. Similar analysis
-                applies to RMSE.
+            g (DGLGraph or DGLHeteroGraph): graph ith data point
+            lb (dict): Labels of the data point
         """
         g, lb, = self.graphs[item], self.labels[item]
-        s = None if self.transformer_scale is None else self.transformer_scale[item]
-        return g, lb, s
+        return g, lb
 
     def __len__(self):
-        """Length of the dataset
+        """Length of the dataset.
 
         Returns:
-            Length of Dataset
+            int: length of dataset
         """
         return len(self.graphs)
+
+    def __repr__(self):
+        rst = "Dataset " + self.__class__.__name__ + "\n"
+        rst += "Length: {}\n".format(len(self))
+        for ft, sz in self.feature_size.items():
+            rst += "Feature: {}, size: {}\n".format(ft, sz)
+        for ft, nm in self.feature_name.items():
+            rst += "Feature: {}, name: {}\n".format(ft, nm)
+        return rst
 
 
 class Subset(BaseDataset):
