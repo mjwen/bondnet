@@ -155,10 +155,15 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
     accuracy = 0.0
     count = 0.0
 
-    for it, (bg, label, scale) in enumerate(data_loader):
+    for it, (bg, label) in enumerate(data_loader):
         feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
         label_val = label["value"]
         label_ind = label["indicator"]
+        try:
+            scale = label["label_scaler"]
+        except KeyError:
+            scale = None
+
         if device is not None:
             feats = {k: v.to(device) for k, v in feats.items()}
             label_val = label_val.to(device)
@@ -173,7 +178,7 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
         optimizer.step()
 
         epoch_loss += loss.detach().item()
-        weight = None if scale is None else label_ind * scale
+        weight = label_ind if scale is None else label_ind * scale
         accuracy += metric_fn(pred, label_val, weight).detach().item()
         count += sum(label_ind).item()
 
@@ -196,10 +201,15 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
         accuracy = 0.0
         count = 0.0
 
-        for bg, label, scale in data_loader:
+        for bg, label in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
             label_val = label["value"]
             label_ind = label["indicator"]
+            try:
+                scale = label["label_scaler"]
+            except KeyError:
+                scale = None
+
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
                 label_val = label_val.to(device)
@@ -209,7 +219,7 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
 
             pred = model(bg, feats)
 
-            weight = None if scale is None else label_ind * scale
+            weight = label_ind if scale is None else label_ind * scale
             accuracy += metric_fn(pred, label_val, weight).detach().item()
             count += sum(label_ind).item()
 
@@ -235,12 +245,12 @@ def ordering_accuracy(model, nodes, data_loader, metric_fn, device=None):
         all_ind = []
         all_mol_source = []
 
-        for bg, label, scale in data_loader:
+        for bg, label in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
             label_val = label["value"]
             label_ind = label["indicator"]
-            label_mol_source = label["mol_source"]
-            label_length = label["length"]
+            label_id = label["id"]
+            label_size = label["size"]
 
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
@@ -248,17 +258,17 @@ def ordering_accuracy(model, nodes, data_loader, metric_fn, device=None):
 
             # each element of these list corresponds to a bond
             all_val.extend(
-                [t.detach().numpy() for t in torch.split(label_val, label_length)]
+                [t.detach().numpy() for t in torch.split(label_val, label_size)]
             )  # list of 1D array
 
             all_ind.extend(
-                [t.detach().numpy() for t in torch.split(label_ind, label_length)]
+                [t.detach().numpy() for t in torch.split(label_ind, label_size)]
             )  # list of 1D array
 
-            all_mol_source.extend(label_mol_source)  # list of str
+            all_mol_source.extend(label_id)  # list of str
 
             all_pred.extend(
-                [t.detach().numpy() for t in torch.split(pred, label_length)]
+                [t.detach().numpy() for t in torch.split(pred, label_size)]
             )  # list of 1D array
 
     ### analyze accuracy of energy order

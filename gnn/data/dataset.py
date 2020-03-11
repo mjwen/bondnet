@@ -135,7 +135,6 @@ class BaseDataset:
 
 class Subset(BaseDataset):
     def __init__(self, dataset, indices):
-        super(Subset, self).__init__()
         self.dtype = dataset.dtype
         self.dataset = dataset
         self.indices = indices
@@ -225,8 +224,8 @@ def train_validation_test_split_test_with_all_bonds_of_mol(
 
     # group by molecule
     groups = defaultdict(list)
-    for i, (_, label, _) in enumerate(dataset):
-        groups[label["mol_source"]].append(i)
+    for i, (_, label) in enumerate(dataset):
+        groups[label["id"]].append(i)
     groups = [val for key, val in groups.items()]
 
     # permute on the molecule level

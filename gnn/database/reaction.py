@@ -1490,7 +1490,7 @@ class ReactionExtractor:
         if top_n is None and not complement_reactions:
             raise ValueError(
                 f"complement_reactions {False} should be `True` when top_n is set "
-                f"to `False`"
+                f"to `None`"
             )
 
         if group_mode == "all":

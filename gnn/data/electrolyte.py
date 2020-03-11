@@ -310,7 +310,7 @@ class ElectrolyteMoleculeDataset(BaseDataset):
 
             # label
             lb = torch.tensor(lb, dtype=getattr(torch, self.dtype))
-            self.labels.append({"value": lb, 'id':i})
+            self.labels.append({"value": lb, "id": i})
 
             natoms.append(mol.GetNumAtoms())
 
@@ -362,9 +362,9 @@ class ElectrolyteMoleculeDataset(BaseDataset):
                 np.asarray(transformer_scale).T, dtype=getattr(torch, self.dtype)
             )
 
-            for i,lb, ts in enumerate(zip(scaled_labels, transformer_scale)):
-                self.labels[i]['value'] = lb
-                self.labels[i]['label_scaler'] = ts
+            for i, (lb, ts) in enumerate(zip(scaled_labels, transformer_scale)):
+                self.labels[i]["value"] = lb
+                self.labels[i]["label_scaler"] = ts
 
             logger.info("Label scaler mean: {}".format(label_scaler_mean))
             logger.info("Label scaler std: {}".format(label_scaler_std))

@@ -11,7 +11,7 @@ from gnn.metric import WeightedL1Loss, EarlyStopping
 from gnn.model.hgat_mol import HGATMol
 from gnn.data.dataset import train_validation_test_split
 from gnn.data.electrolyte import ElectrolyteMoleculeDataset
-from gnn.data.dataloader import DataLoaderMolecule
+from gnn.data.dataloader import DataLoader
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import (
     AtomFeaturizerWithReactionInfo,
@@ -164,23 +164,29 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
     accuracy = 0.0
     count = 0.0
 
-    for it, (bg, label, scale) in enumerate(data_loader):
+    for it, (bg, label) in enumerate(data_loader):
         feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
+        target = label["value"]
+        try:
+            scale = label["label_scale"]
+        except KeyError:
+            scale = None
+
         if device is not None:
             feats = {k: v.to(device=device) for k, v in feats.items()}
-            label = label.to(device=device)
+            target = target.to(device=device)
             if scale is not None:
                 scale = scale.to(device=device)
 
         pred = model(bg, feats)
-        loss = loss_fn(pred, label)
+        loss = loss_fn(pred, target)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
         epoch_loss += loss.detach().item()
-        accuracy += metric_fn(pred, label, scale).detach().item()
-        count += len(label)
+        accuracy += metric_fn(pred, target, scale).detach().item()
+        count += len(target)
 
     epoch_loss /= it + 1
     accuracy /= count
@@ -201,17 +207,23 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
         accuracy = 0.0
         count = 0.0
 
-        for bg, label, scale in data_loader:
+        for bg, label in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
+            target = label["value"]
+            try:
+                scale = label["label_scale"]
+            except KeyError:
+                scale = None
+
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
-                label = label.to(device=device)
+                target = target.to(device=device)
                 if scale is not None:
                     scale = scale.to(device=device)
 
             pred = model(bg, feats)
-            accuracy += metric_fn(pred, label, scale).detach().item()
-            count += len(label)
+            accuracy += metric_fn(pred, target, scale).detach().item()
+            count += len(target)
 
     return accuracy / count
 
@@ -255,15 +267,13 @@ def main(args):
         )
     )
 
-    train_loader = DataLoaderMolecule(
-        trainset, hetero=True, batch_size=args.batch_size, shuffle=True
-    )
+    train_loader = DataLoader(trainset, batch_size=args.batch_size, shuffle=True)
     # larger val and test set batch_size is faster but needs more memory
     # adjust the batch size of to fit memory
     bs = max(len(valset) // 10, 1)
-    val_loader = DataLoaderMolecule(valset, hetero=True, batch_size=bs, shuffle=False)
+    val_loader = DataLoader(valset, batch_size=bs, shuffle=False)
     bs = max(len(testset) // 10, 1)
-    test_loader = DataLoaderMolecule(testset, hetero=True, batch_size=bs, shuffle=False)
+    test_loader = DataLoader(testset, batch_size=bs, shuffle=False)
 
     ### model
     attn_mechanism = {

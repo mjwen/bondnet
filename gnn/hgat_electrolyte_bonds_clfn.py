@@ -17,7 +17,7 @@ from gnn.metric import EarlyStopping
 from gnn.model.hgat_bond import HGATBond
 from gnn.data.dataset import train_validation_test_split
 from gnn.data.electrolyte import ElectrolyteBondDatasetClassification
-from gnn.data.dataloader import DataLoaderBondClassification
+from gnn.data.dataloader import DataLoader
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import (
     AtomFeaturizerWithReactionInfo,
@@ -163,7 +163,7 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
 
     for it, (bg, label) in enumerate(data_loader):
         feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-        target_class = label["class"]
+        target_class = label["value"]
         bond_idx = label["indicator"]
         if device is not None:
             feats = {k: v.to(device) for k, v in feats.items()}
@@ -218,7 +218,7 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
 
         for bg, label in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-            target_class = label["class"]
+            target_class = label["value"]
             bond_idx = label["indicator"]
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
@@ -263,7 +263,7 @@ def score_to_string(score, metric_fn="prfs"):
 
 
 def get_class_weight(data_loader):
-    target_class = np.concatenate([label["class"].numpy() for bg, label in data_loader])
+    target_class = np.concatenate([label["value"].numpy() for bg, label in data_loader])
     counts = [v for k, v in sorted(Counter(target_class).items())]
 
     # inverse proportional to the support
@@ -310,15 +310,13 @@ def main(args):
         )
     )
 
-    train_loader = DataLoaderBondClassification(
-        trainset, batch_size=args.batch_size, shuffle=True
-    )
+    train_loader = DataLoader(trainset, batch_size=args.batch_size, shuffle=True)
     # larger val and test set batch_size is faster but needs more memory
     # adjust the batch size of to fit memory
     bs = max(len(valset) // 10, 1)
-    val_loader = DataLoaderBondClassification(valset, batch_size=bs, shuffle=False)
+    val_loader = DataLoader(valset, batch_size=bs, shuffle=False)
     bs = max(len(testset) // 10, 1)
-    test_loader = DataLoaderBondClassification(testset, batch_size=bs, shuffle=False)
+    test_loader = DataLoader(testset, batch_size=bs, shuffle=False)
 
     ### model
     attn_mechanism = {
