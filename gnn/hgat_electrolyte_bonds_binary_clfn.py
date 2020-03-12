@@ -184,7 +184,7 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
         # retain data for score computation
         pred_class = [1 if i >= 0.5 else 0 for i in pred]
         all_pred_class.append(pred_class)
-        all_target_class.append(target_class.detach().numpy())
+        all_target_class.append(target_class.detach().cpu().numpy())
 
     epoch_loss /= it + 1
 
@@ -369,6 +369,8 @@ def main(args):
     )
 
     pos_weight = get_class_weight(train_loader)
+    if args.device is not None:
+        pos_weight = pos_weight.to(args.device)
     loss_func = BCEWithLogitsLoss(pos_weight=pos_weight, reduction="mean")
 
     ### learning rate scheduler and stopper

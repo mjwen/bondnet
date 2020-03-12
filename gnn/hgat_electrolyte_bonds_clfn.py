@@ -183,8 +183,8 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
 
         # retain data for score computation
         pred_class = torch.argmax(pred, dim=1)
-        all_pred_class.append(pred_class.detach().numpy())
-        all_target_class.append(target_class.detach().numpy())
+        all_pred_class.append(pred_class.detach().cpu().numpy())
+        all_target_class.append(target_class.detach().cpu().numpy())
 
     epoch_loss /= it + 1
 
@@ -230,7 +230,7 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
 
             # retain data for score computation
             pred_class = torch.argmax(pred, dim=1)
-            all_pred_class.append(pred_class.detach().numpy())
+            all_pred_class.append(pred_class.detach().cpu().numpy())
             all_target_class.append(target_class.numpy())
 
     # compute f1 score
@@ -367,6 +367,8 @@ def main(args):
     )
 
     class_weight = get_class_weight(train_loader)
+    if args.device is not None:
+        class_weight = class_weight.to(args.device)
     loss_func = CrossEntropyLoss(weight=class_weight, reduction="mean")
 
     ### learning rate scheduler and stopper

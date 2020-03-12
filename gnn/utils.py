@@ -194,7 +194,7 @@ def backup_log(log_prefix="log_", log_extension=".txt"):
         current_log_number = latest_logs_number + 1
         fname = new_log[0]
         fname_new = fname + f"-{current_log_number}"
-        shutil.move(fname, fname_new)
+        shutil.copy(fname, fname_new)
         print(f"Log file {fname} backuped to {fname_new}.")
     else:
         print("Did not find log to backup.")
