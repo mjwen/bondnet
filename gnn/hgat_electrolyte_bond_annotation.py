@@ -170,6 +170,7 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
             target_class = target_class.to(device)
 
         pred = model(bg, feats)
+        pred = pred.view(-1)
 
         # update parameters
         loss = loss_fn(pred, target_class)
@@ -221,6 +222,7 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
                 feats = {k: v.to(device) for k, v in feats.items()}
 
             pred = model(bg, feats)
+            pred = pred.view(-1)
 
             # retain data for score computation
             pred_class = [1 if i >= 0.5 else 0 for i in pred]
@@ -323,14 +325,12 @@ def main(args):
         "global": {"edges": ["a2g", "b2g", "g2g"], "nodes": ["atom", "bond", "global"]},
     }
     attn_order = ["atom", "bond", "global"]
-    set2set_ntypes_direct = ["global"]
 
     # attn_mechanism = {
     #     "atom": {"edges": ["b2a", "a2a"], "nodes": ["bond", "atom"]},
     #     "bond": {"edges": ["a2b", "b2b"], "nodes": ["atom", "bond"]},
     # }
     # attn_order = ["atom", "bond"]
-    # set2set_ntypes_direct = None
 
     in_feats = trainset.get_feature_size(attn_order)
     model = HGATBond(

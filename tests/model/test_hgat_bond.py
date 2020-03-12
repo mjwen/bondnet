@@ -17,14 +17,27 @@ def test_hgat_bond():
     attn_order = ["atom", "bond", "global"]
     in_feats = [feats[t].shape[1] for t in attn_order]
 
-    model = HGATBond(attn_mechanism, attn_order, in_feats)
-    output = model(g, feats)
-    assert tuple(output.shape) == (3,)
+    nbonds = 3
+    nmols = 1
 
     model = HGATBond(attn_mechanism, attn_order, in_feats)
-    output = model(g, feats, mol_energy=True)
-    assert tuple(output.shape) == (1, 1)
-
-    model = HGATBond(attn_mechanism, attn_order, in_feats, outdim=3, classification=True)
     output = model(g, feats)
-    assert tuple(output[0].shape) == (3, 3)
+    assert tuple(output.shape) == (nbonds,)
+
+    model = HGATBond(attn_mechanism, attn_order, in_feats)
+    output = model(g, feats, mol_based=True)
+    assert tuple(output.shape) == (nmols, 1)
+
+    outdim = 2
+    model = HGATBond(
+        attn_mechanism, attn_order, in_feats, outdim=outdim, classification=True
+    )
+    output = model(g, feats)
+    assert tuple(output.shape) == (nbonds, outdim)
+
+    outdim = 2
+    model = HGATBond(
+        attn_mechanism, attn_order, in_feats, outdim=outdim, classification=True
+    )
+    output = model(g, feats, mol_based=True)
+    assert tuple(output[0].shape) == (nbonds, outdim)

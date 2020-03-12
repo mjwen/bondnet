@@ -185,7 +185,7 @@ class HGATBond(nn.Module):
         Returns:
             list of 2D Tensor: bond class scores. If `classification` is `True` and if
                 `mol_based` is `True`. Each tensor corresponds to a molecule.
-            1D Tensor: bond class scores. If `classification` is `True` and if
+            2D Tensor: bond class scores. If `classification` is `True` and if
                 `mol_based` is `False`.
             2D Tensor: molecule energies. If not `classification` and if `mol_based` is
                 `True`.
@@ -207,12 +207,13 @@ class HGATBond(nn.Module):
 
         if self.classification:
             if mol_based:
-                # list of 2D tensor of shape (N,1); N is the number of bonds in each
+                # list of 2D tensor of shape (N, outdim); N is the number of bonds in each
                 # graph and it could be different from graph to graph
                 res = self._split_batched_output(graph, feats)
             else:
-                # 1D tensor (Nb,); Nb is the total number of bonds in all graphs
-                res = feats.view(-1)
+                # 2D tensor of shape (Nb, outdim); Nb is the total number of bonds in
+                # all graphs
+                res = feats
         else:
             if mol_based:
                 # 2D tensor of shape (Nm,1); Nm is the number graphs
