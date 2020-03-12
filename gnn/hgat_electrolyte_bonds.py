@@ -6,6 +6,7 @@ import argparse
 import numpy as np
 from datetime import datetime
 from collections import defaultdict
+from torch import autograd
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from gnn.metric import WeightedMSELoss, WeightedL1Loss, EarlyStopping
 from gnn.model.hgat_bond import HGATBond
@@ -18,7 +19,7 @@ from gnn.data.featurizer import (
     BondAsNodeFeaturizer,
     GlobalFeaturizerWithReactionInfo,
 )
-from gnn.utils import pickle_dump, seed_torch, load_checkpoints
+from gnn.utils import pickle_dump, seed_torch, load_checkpoints, backup_log
 
 
 def parse_args():
@@ -439,6 +440,23 @@ def main(args):
         loss, train_acc = train(
             optimizer, model, attn_order, train_loader, loss_func, metric, args.device
         )
+
+        # bad, we get nan. Before existing, do some debugging
+        if np.isnan(loss):
+            print("\n\nBad, we get nan for loss. See below for traceback\n\n")
+            sys.stdout.flush()
+            with autograd.detect_anomaly():
+                train(
+                    optimizer,
+                    model,
+                    attn_order,
+                    train_loader,
+                    loss_func,
+                    metric,
+                    args.device,
+                )
+            sys.exit(1)
+
         val_acc = evaluate(model, attn_order, val_loader, metric, args.device)
 
         ordering_score = ordering_accuracy(
@@ -462,10 +480,6 @@ def main(args):
         if epoch % 10 == 0:
             sys.stdout.flush()
 
-        # bad, we get nan
-        if np.isnan(loss):
-            sys.exit(0)
-
     # save results for hyperparam tune
     pickle_dump(float(stopper.best_score), args.output_file)
 
@@ -482,4 +496,5 @@ def main(args):
 seed_torch()
 args = parse_args()
 print(args)
+backup_log()
 main(args)

@@ -5,6 +5,7 @@ import torch
 import argparse
 import numpy as np
 from datetime import datetime
+from torch import autograd
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.nn import MSELoss
 from gnn.metric import WeightedL1Loss, EarlyStopping
@@ -18,7 +19,7 @@ from gnn.data.featurizer import (
     BondAsNodeFeaturizer,
     GlobalFeaturizerChargeSpin,
 )
-from gnn.utils import pickle_dump, seed_torch, load_checkpoints
+from gnn.utils import pickle_dump, seed_torch, load_checkpoints, backup_log
 
 
 def parse_args():
@@ -354,6 +355,23 @@ def main(args):
         loss, train_acc = train(
             optimizer, model, attn_order, train_loader, loss_func, metric, args.device
         )
+
+        # bad, we get nan. Before existing, do some debugging
+        if np.isnan(loss):
+            print("\n\nBad, we get nan for loss. See below for traceback\n\n")
+            sys.stdout.flush()
+            with autograd.detect_anomaly():
+                train(
+                    optimizer,
+                    model,
+                    attn_order,
+                    train_loader,
+                    loss_func,
+                    metric,
+                    args.device,
+                )
+            sys.exit(1)
+
         val_acc = evaluate(model, attn_order, val_loader, metric, args.device)
 
         if stopper.step(val_acc, checkpoints_objs, msg="epoch " + str(epoch)):
@@ -373,10 +391,6 @@ def main(args):
         if epoch % 10 == 0:
             sys.stdout.flush()
 
-        # bad, we get nan
-        if np.isnan(loss):
-            sys.exit(0)
-
     # save results for hyperparam tune
     pickle_dump(float(stopper.best_score), args.output_file)
 
@@ -393,4 +407,5 @@ def main(args):
 seed_torch()
 args = parse_args()
 print(args)
+backup_log()
 main(args)
