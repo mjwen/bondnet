@@ -1081,6 +1081,74 @@ class DatabaseOperation:
         # write feature file
         yaml_dump(feats, feature_file)
 
+    @staticmethod
+    def write_edge_label_based_on_bond(
+        molecules,
+        sdf_filename="mols.sdf",
+        label_filename="bond_label.yaml",
+        feature_filename="feature.yaml",
+        exclude_single_atom=True,
+    ):
+        """
+        For a molecule from SDF file, creating complete graph for atoms and label the edges
+        based on whether its an actual bond or not.
+
+        The order of the edges are (0,1), (0,2), ... , (0, N-1), (1,2), (1,3), ...,
+        (N-2, N-1), where N is the number of atoms.
+
+        Args:
+            molecules (list): a sequence of MoleculeWrapper object
+            sdf_filename (str): name of the output sdf file
+            label_filename (str): name of the output label file
+            feature_filename (str): name of the output feature file
+        """
+
+        def get_bond_label(m):
+            """
+            Get to know whether an edge in a complete graph is a bond.
+
+            Returns:
+                list: bool to indicate whether an edge is a bond. The edges are in the order:
+                    (0,1), (0,2), ..., (0,N-1), (1,2), (1,3), ..., (N, N-1), where N is the
+                    number of atoms.
+            """
+            bonds = [sorted([i, j]) for i, j, attr in m.bonds]
+            num_bonds = len(bonds)
+            if num_bonds < 1:
+                warnings.warn("molecular has no bonds")
+
+            num_atoms = len(m.atoms)
+            bond_label = []
+            for u, v in itertools.combinations(range(num_atoms), 2):
+                b = sorted([u, v])
+                if b in bonds:
+                    bond_label.append(True)
+                else:
+                    bond_label.append(False)
+
+            return bond_label
+
+        labels = []
+        charges = []
+        sdf_filename = expand_path(sdf_filename)
+        with open(sdf_filename, "w") as f:
+            i = 0
+            for m in molecules:
+
+                if exclude_single_atom and len(m.atoms) == 1:
+                    logger.info("Excluding single atom molecule {}".format(m.formula))
+                    continue
+
+                m._ob_adaptor = None
+                sdf = m.write(file_format="sdf", message=m.id + " int_id-" + str(i))
+                f.write(sdf)
+                labels.append(get_bond_label(m))
+                charges.append({"charge": m.charge})
+                i += 1
+
+        yaml_dump(labels, expand_path(label_filename))
+        yaml_dump(charges, expand_path(feature_filename))
+
 
 class UnsuccessfulEntryError(Exception):
     def __init__(self):

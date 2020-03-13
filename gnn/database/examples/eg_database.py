@@ -22,17 +22,17 @@ def pickle_molecules():
     # db_collection = "task"
     db_collection = "mol_builder"
     entries = DatabaseOperation.query_db_entries(
-        db_collection=db_collection, num_entries=None
+        db_collection=db_collection, num_entries=500
     )
 
     mols = DatabaseOperation.to_molecules(entries, db_collection=db_collection)
-    filename = "~/Applications/db_access/mol_builder/molecules_unfiltered.pkl"
-    # filename = "~/Applications/db_access/mol_builder/molecules_n200_unfiltered.pkl"
+    # filename = "~/Applications/db_access/mol_builder/molecules_unfiltered.pkl"
+    filename = "~/Applications/db_access/mol_builder/molecules_n200_unfiltered.pkl"
     pickle_dump(mols, filename)
 
     mols = DatabaseOperation.filter_molecules(mols, connectivity=True, isomorphism=True)
-    filename = "~/Applications/db_access/mol_builder/molecules.pkl"
-    # filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
+    # filename = "~/Applications/db_access/mol_builder/molecules.pkl"
+    filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
     pickle_dump(mols, filename)
 
 
@@ -152,8 +152,8 @@ def write_group_isomorphic_to_file():
 
 
 def write_dataset():
-    # filename = "~/Applications/db_access/mol_builder/molecules.pkl"
-    filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
+    filename = "~/Applications/db_access/mol_builder/molecules.pkl"
+    # filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
     mols = pickle_load(filename)
 
     # mols = mols[len(mols) * 739 // 2048 : len(mols) * 740 // 2048]
@@ -174,6 +174,21 @@ def write_dataset():
     label_file = "~/Applications/db_access/mol_builder/label_mols_n200.csv"
     feature_file = "~/Applications/db_access/mol_builder/feature_mols_n200.yaml"
     DatabaseOperation.write_sdf_csv_dataset(mols, struct_file, label_file, feature_file)
+
+
+def write_edge_label_based_on_bond():
+    filename = "~/Applications/db_access/mol_builder/molecules.pkl"
+    # filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
+    mols = pickle_load(filename)
+
+    struct_file = "~/Applications/db_access/mol_builder/struct_mols_bond_annotation.sdf"
+    label_file = "~/Applications/db_access/mol_builder/label_mols_bond_annotation.yaml"
+    feature_file = (
+        "~/Applications/db_access/mol_builder/feature_mols_bond_annotation.yaml"
+    )
+    DatabaseOperation.write_edge_label_based_on_bond(
+        mols, struct_file, label_file, feature_file
+    )
 
 
 def detect_bad_mols():
@@ -214,13 +229,15 @@ def get_single_atom_energy():
 
 if __name__ == "__main__":
     # pickle_db_entries()
-    pickle_molecules()
+    # pickle_molecules()
     # print_mol_property()
     # plot_molecules()
     # plot_atom_distance_hist()
     # number_of_bonds()
 
     # write_dataset()
+    write_edge_label_based_on_bond()
+
     # detect_bad_mols()
 
     # write_group_isomorphic_to_file()
