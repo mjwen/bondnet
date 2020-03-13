@@ -352,11 +352,11 @@ def heterograph_edge_softmax(graph, edge_types, edge_data):
         m = torch.max(edata)
         max_e = m if m > max_e else max_e
 
-    # The softmax trick, making the exponential stable if the exponent is large.
-    # This will not change the softmax value
-    # see
-    # https://jamesmccaffrey.wordpress.com/2016/03/04/the-max-trick-when-computing-softmax
-    if max_e > 32:
+    # The softmax trick, making the exponential stable.
+    # see https://stackoverflow.com/questions/42599498/numercially-stable-softmax
+    # max_e > 64 to prevent overflow; max_e<-64 to prevent underflow (i.e. all
+    # exponential becomes 0)
+    if max_e > 64 or max_e < -64:
         # e max (fn.max operates on the axis of features from different nodes)
         g.multi_update_all(
             {etype: (fn.copy_e("e", "m"), fn.max("m", "emax")) for etype in edge_types},
