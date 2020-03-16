@@ -347,16 +347,20 @@ def heterograph_edge_softmax(graph, edge_types, edge_data):
 
     # assign data
     max_e = 0.0
+    min_e = 0.0
     for etype, edata in zip(edge_types, edge_data):
         g.edges[etype].data["e"] = edata
         m = torch.max(edata)
         max_e = m if m > max_e else max_e
+        min_e = m if m < min_e else min_e
 
     # The softmax trick, making the exponential stable.
     # see https://stackoverflow.com/questions/42599498/numercially-stable-softmax
-    # max_e > 64 to prevent overflow; max_e<-64 to prevent underflow (i.e. all
-    # exponential becomes 0)
-    if max_e > 64 or max_e < -64:
+    # max_e > 64 to prevent overflow; min_e<-64 to prevent underflow
+    #
+    # Of course, we can apply the trick all the time, but here we choose to apply only
+    # in some conditions to save a bit time, since multi_update_all is really expensive.
+    if max_e > 64.0 or min_e < -64.0:
         # e max (fn.max operates on the axis of features from different nodes)
         g.multi_update_all(
             {etype: (fn.copy_e("e", "m"), fn.max("m", "emax")) for etype in edge_types},

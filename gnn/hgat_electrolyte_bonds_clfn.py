@@ -25,7 +25,7 @@ from gnn.data.featurizer import (
     BondAsNodeFeaturizer,
     GlobalFeaturizerWithReactionInfo,
 )
-from gnn.utils import pickle_dump, seed_torch, load_checkpoints, backup_log
+from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
 
 def parse_args():
@@ -457,5 +457,4 @@ def main(args):
 seed_torch()
 args = parse_args()
 print(args)
-backup_log()
 main(args)

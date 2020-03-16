@@ -176,25 +176,3 @@ def warn_stdout(message, category, filename, lineno, file=None, line=None):
     see: https://stackoverflow.com/questions/858916/how-to-redirect-python-warnings-to-a-custom-stream
     """
     sys.stdout.write(warnings.formatwarning(message, category, filename, lineno))
-
-
-def backup_log(log_prefix="log_", log_extension=".txt"):
-    """
-    Backup log files by appending '-n' to the file name, where n is an integer.
-
-    The log file should has name log_prefix + '*' + log_extension.
-    """
-    new_log = glob.glob(log_prefix + "*" + log_extension)
-    if new_log:
-        backed_logs = glob.glob(log_prefix + "*" + log_extension + "-*")
-        if backed_logs:
-            latest_logs_number = max([int(log.split("-")[-1]) for log in backed_logs])
-        else:
-            latest_logs_number = -1
-        current_log_number = latest_logs_number + 1
-        fname = new_log[0]
-        fname_new = fname + f"-{current_log_number}"
-        shutil.copy(fname, fname_new)
-        print(f"Log file {fname} backuped to {fname_new}.")
-    else:
-        print("Did not find log to backup.")

@@ -15,7 +15,7 @@ from gnn.data.qm9 import QM9Dataset
 from gnn.data.dataloader import DataLoader
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import AtomFeaturizer, BondAsNodeFeaturizer, MolWeightFeaturizer
-from gnn.utils import pickle_dump, seed_torch, load_checkpoints, backup_log
+from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
 
 def parse_args():
@@ -407,5 +407,4 @@ def main(args):
 seed_torch()
 args = parse_args()
 print(args)
-backup_log()
 main(args)
