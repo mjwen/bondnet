@@ -1322,10 +1322,13 @@ class ReactionExtractor:
         one_per_iso_bond_group=True,
     ):
         """
-        Write the reaction
+        Write the reaction.
 
-        Also, this is based on the bond energy, i.e. each bond (that we have energies)
-        will have one line in the label file.
+        This is based on reaction network:
+
+        1) each molecule is represented once
+        2) each reaction uses the molecule index for construction instead of molecule
+            instance.
 
         Args:
             struct_file (str): filename of the sdf structure file
@@ -1435,6 +1438,111 @@ class ReactionExtractor:
         if feature_file is not None:
             self.write_feature(mol_reservoir, bond_indices=None, filename=feature_file)
 
+    def create_struct_label_dataset_reaction_network_based_regression(
+        self,
+        struct_file="sturct.sdf",
+        label_file="label.txt",
+        feature_file=None,
+        group_mode="all",
+        one_per_iso_bond_group=True,
+    ):
+        """
+        Write the reaction
+
+        This is based on reaction network:
+
+        1) each molecule is represented once
+        2) each reaction uses the molecule index for construction instead of molecule
+            instance.
+
+        Also, this is based on the bond energy, i.e. each bond (that we have energies)
+        will have one line in the label file.
+
+        Args:
+            struct_file (str): filename of the sdf structure file
+            label_file (str): filename of the label
+            feature_file (str): filename for the feature file, if `None`, do not write it
+            group_mode (str): the method to group reactions, different mode result in
+                different reactions to be retained, e.g. `charge_0` keeps all charge 0
+                reactions.
+            top_n (int): the top n reactions with smallest energies are categorized as
+                the same class (calss 1), reactions with higher energies another class
+                (class 0), and reactions without energies another class (class 2).
+                If `top_n=None`, a different method to assign class is used: reactions
+                with energies is categorized as class 1 and reactions without energies
+                as class 0.
+            complement_reactions (bool): whether to extract complement reactions.
+            one_per_iso_bond_group (bool): whether to keep just one reaction from each
+                iso bond group.
+
+        """
+
+        if group_mode == "all":
+            grouped_rxns = self.group_by_reactant_all()
+        elif group_mode == "charge_0":
+            grouped_rxns = self.group_by_reactant_charge_0()
+        elif group_mode == "energy_lowest":
+            grouped_rxns = self.group_by_reactant_lowest_energy()
+        else:
+            raise ValueError(
+                f"group_mode ({group_mode}) not supported. Options are: 'all', "
+                f"'charge_0', and 'energy_lowest'."
+            )
+
+        # all molecules in existing reactions
+        reactions = np.concatenate([grp.reactions for grp in grouped_rxns])
+        mol_reservoir = set(self._get_molecules_from_reactions(reactions))
+
+        ordered_reactions = []
+        for grp in grouped_rxns:
+            rxns, _ = grp.order_reactions(
+                one_per_iso_bond_group,
+                complement_reactions=False,
+                mol_reservoir=mol_reservoir,
+            )
+            ordered_reactions.append(rxns)
+
+        # all molecules in existing (and complementary) reactions
+        mol_reservoir = list(mol_reservoir)
+        mol_id_to_index_mapping = {m.id: i for i, m in enumerate(mol_reservoir)}
+
+        all_labels = []  # one per reaction
+
+        # reactions: all reactions associated with a bond
+        index = 0
+        for reactions in ordered_reactions:
+
+            # rxn: a reaction for one bond and a specific combination of charges
+            for i, rxn in enumerate(reactions):
+                energy = rxn.get_free_energy()
+
+                # change to index (in mol_reservoir) representation
+                reactant_ids = [mol_id_to_index_mapping[m.id] for m in rxn.reactants]
+                product_ids = [mol_id_to_index_mapping[m.id] for m in rxn.products]
+
+                # bond mapping between product sdf and reactant sdf
+                data = {
+                    "value": energy,
+                    "reactants": reactant_ids,
+                    "products": product_ids,
+                    "atom_mapping": rxn.atom_mapping(),
+                    "bond_mapping": rxn.bond_mapping_by_sdf_int_index(),
+                    "id": rxn.get_id(),
+                    "index": index,
+                }
+                all_labels.append(data)
+                index += 1
+
+        # write sdf
+        self.write_sdf(mol_reservoir, struct_file)
+
+        # label file
+        yaml_dump(all_labels, label_file)
+
+        # write feature
+        if feature_file is not None:
+            self.write_feature(mol_reservoir, bond_indices=None, filename=feature_file)
+
     def create_struct_label_dataset_reaction_based_classification(
         self,
         struct_file="sturct.sdf",
@@ -1448,8 +1556,10 @@ class ReactionExtractor:
         """
         Write the reaction
 
-        Also, this is based on the bond energy, i.e. each bond (that we have energies)
-        will have one line in the label file.
+        This is based on reaction:
+
+        Each reaction uses molecule instances for its reactants and products. As a
+        result, a molecule is represented multiple times, which takes long time.
 
         Args:
             struct_file (str): filename of the sdf structure file
@@ -1550,8 +1660,10 @@ class ReactionExtractor:
         """
         Write the reaction
 
-        Also, this is based on the bond energy, i.e. each bond (that we have energies)
-        will have one line in the label file.
+        This is based on reaction:
+
+        Each reaction uses molecule instances for its reactants and products. As a
+        result, a molecule is represented multiple times, which takes long time.
 
         Args:
             struct_file (str): filename of the sdf structure file
@@ -1575,9 +1687,6 @@ class ReactionExtractor:
                 f"group_mode ({group_mode}) not supported. Options are: 'all', "
                 f"'charge_0', and 'energy_lowest'."
             )
-
-        # get all mols in the reactions
-        reactions = np.concatenate([grp.reactions for grp in grouped_rxns])
 
         all_mols = []
         all_labels = []  # one per reaction
