@@ -145,8 +145,7 @@ class ReactionNetwork:
         """
         mol_ids = set()
         for rxn in reactions:
-            mol_ids.update(rxn.reactants)
-            mol_ids.update(rxn.products)
+            mol_ids.update(rxn.reactants + rxn.products)
         return sorted(mol_ids)
 
     def subselect_reactions(self, indices=None):

@@ -563,7 +563,7 @@ class ReactionsOfSameBond(ReactionsGroup):
         for m in reservoir:
             if m.charge == mol.charge and m.mol_graph.isomorphic_to(mol.mol_graph):
                 return m
-        return mol
+        return None
 
     def create_complement_reactions(self, allowed_charge=[-1, 0, 1], mol_reservoir=None):
         """
@@ -582,7 +582,8 @@ class ReactionsOfSameBond(ReactionsGroup):
                 not, new mol is created. Note, if a mol is not in `mol_reservoir`,
                 it will be added to mol_reservoir.
         Returns:
-            A list of Reactions.
+            comp_rxns (list): A sequence of `Reaction`s that complement the existing ones.
+            comp_mols (set): molecules created to setup the `comp_rxns`.
         """
 
         def factor_integer(x, allowed, num=2):
@@ -624,7 +625,7 @@ class ReactionsOfSameBond(ReactionsGroup):
             # the reactant and product are the same. If we already have one reaction,
             # no need to find the complementary one.
             if len(self.reactions) == 1:
-                return []
+                return [], set()
             else:
                 missing_charge = [[self.reactant.charge]]
 
@@ -636,7 +637,7 @@ class ReactionsOfSameBond(ReactionsGroup):
 
             # all possible reactions are present
             if len(target_products_charge) == len(self.reactions):
-                return []
+                return [], set()
             else:
                 products_charge = []
                 for rxn in self.reactions:
@@ -673,6 +674,7 @@ class ReactionsOfSameBond(ReactionsGroup):
         # create complementary reactions
         bb = self.broken_bond
         comp_rxns = []
+        comp_mols = set()
         for charge in missing_charge:
             products = []
             for i, c in enumerate(charge):
@@ -680,14 +682,21 @@ class ReactionsOfSameBond(ReactionsGroup):
                 mol = MoleculeWrapperFromAtomsAndBonds(
                     species[i], coords[i], c, bonds[i], mol_id=mid
                 )
+
                 if mol_reservoir:
-                    mol = self._search_mol_reservoir(mol, mol_reservoir)
-                    mol_reservoir.add(mol)
+                    existing_mol = self._search_mol_reservoir(mol, mol_reservoir)
+                    # not in reservoir
+                    if existing_mol is None:
+                        comp_mols.add(mol)
+                    # in reservoir
+                    else:
+                        mol = existing_mol
                 products.append(mol)
+
             rxn = Reaction([self.reactant], products, broken_bond=bb)
             comp_rxns.append(rxn)
 
-        return comp_rxns
+        return comp_rxns, comp_mols
 
     def order_reactions(self, complement_reactions=False):
         """
@@ -765,7 +774,7 @@ class ReactionsMultiplePerBond(ReactionsGroup):
         return reactions
 
     def order_reactions(
-        self, complement_reactions=False, one_per_iso_bond_group=True, mol_reservoir=None
+        self, one_per_iso_bond_group=True, complement_reactions=False, mol_reservoir=None
     ):
         """
         Order reactions by energy.
@@ -774,22 +783,25 @@ class ReactionsMultiplePerBond(ReactionsGroup):
         after reactions having energies.
 
         Args:
-            complement_reactions (bool): If `False`, order the existing reactions only.
-                Otherwise, complementary reactions are created and ordered together
-                with existing ones.
             one_per_iso_bond_group (bool): If `True`, keep one reaction for each
                 isomorphic bond group. If `False`, keep all.
                 Note, if set to `True`, this expects that `find_one=False` in
                 :method:`ReactionExtractor.extract_one_bond_break` so that all bonds
                 in an isomorphic bond group have exactly the same reactions.
-            mol_reservoir (set): For newly created complement reactions, a product
+            complement_reactions (bool): If `False`, order the existing reactions only.
+                Otherwise, complementary reactions are created and ordered together
+                with existing ones. The complementary reactions are ordered later than
+                existing reactions.
+            mol_reservoir (set): If `complement_reactions` is False, this is silently
+                ignored. Otherwise, for newly created complement reactions, a product
                 is first searched in the mol_reservoir. If existing (w.r.t. charge and
                 isomorphism), the mol from the reservoir is used as the product; if
                 not, new mol is created. Note, if a mol is not in `mol_reservoir`,
-                it will be added to mol_reservoir.
+                it will be added to `mol_reservoir`.
 
         Returns:
-            list: a sequence of :class:`Reaction` ordered by energy
+            ordered_rxns (list): a sequence of :class:`Reaction` ordered by energy.
+            comp_mols (set): newly created mols for complementary reactions
         """
 
         # NOTE, we need to get existing_rxns from rsb instead of self.reactions because
@@ -804,15 +816,20 @@ class ReactionsMultiplePerBond(ReactionsGroup):
         # sort reactions we have energy for
         ordered_rxns = sorted(existing_rxns, key=lambda rxn: rxn.get_free_energy())
 
+        comp_mols = None
+
         if complement_reactions:
             comp_rxns = []
+            comp_mols = set()
             for rsb in rsb_group:
-                comp_rxns.extend(
-                    rsb.create_complement_reactions(mol_reservoir=mol_reservoir)
-                )
+                z = 1
+                x = rsb.create_complement_reactions(mol_reservoir=mol_reservoir)
+                rxns, mols = x
+                comp_rxns.extend(rxns)
+                comp_mols.update(mols)
             ordered_rxns += comp_rxns
 
-        return ordered_rxns
+        return ordered_rxns, comp_mols
 
 
 class ReactionsOnePerBond(ReactionsMultiplePerBond):
@@ -839,7 +856,7 @@ class ReactionsOnePerBond(ReactionsMultiplePerBond):
         self._reactions.append(rxn)
 
     def order_reactions(
-        self, complement_reactions=False, one_per_iso_bond_group=True, mol_reservoir=None
+        self, one_per_iso_bond_group=True, complement_reactions=False, mol_reservoir=None
     ):
         """
         Order reactions by energy.
@@ -856,14 +873,16 @@ class ReactionsOnePerBond(ReactionsMultiplePerBond):
                 Note, if set to `True`, this expects that `find_one=False` in
                 :method:`ReactionExtractor.extract_one_bond_break` so that all bonds
                 in an isomorphic bond group have exactly the same reactions.
-            mol_reservoir (set): For newly created complement reactions, a product
+            mol_reservoir (set): If `complement_reactions` is False, this is silently
+                ignored. Otherwise, for newly created complement reactions, a product
                 is first searched in the mol_reservoir. If existing (w.r.t. charge and
                 isomorphism), the mol from the reservoir is used as the product; if
                 not, new mol is created. Note, if a mol is not in `mol_reservoir`,
                 it will be added to mol_reservoir.
 
         Returns:
-            list: a sequence of :class:`Reaction` ordered by energy
+            ordered_rxns (list): a sequence of :class:`Reaction` ordered by energy.
+            comp_mols (set): newly created mols for complementary reactions
         """
 
         # NOTE, we need to get existing_rxns from rsb instead of self.reactions because
@@ -878,17 +897,20 @@ class ReactionsOnePerBond(ReactionsMultiplePerBond):
         # sort reactions we have energy for
         ordered_rxns = sorted(existing_rxns, key=lambda rxn: rxn.get_free_energy())
 
+        comp_mols = None
+
         if complement_reactions:
             comp_rxns = []
+            comp_mols = set()
             for rsb in rsb_group:
-                comp_rxns.extend(
-                    rsb.create_complement_reactions(
-                        allowed_charge=[0], mol_reservoir=mol_reservoir
-                    )
+                rxns, mols = rsb.create_complement_reactions(
+                    allowed_charge=[0], mol_reservoir=mol_reservoir
                 )
+                comp_rxns.extend(rxns)
+                comp_mols.update(mols)
             ordered_rxns += comp_rxns
 
-        return ordered_rxns
+        return ordered_rxns, comp_mols
 
 
 class ReactionExtractor:
@@ -1289,6 +1311,130 @@ class ReactionExtractor:
 
         yaml_dump(new_groups, filename)
 
+    def create_struct_label_dataset_reaction_network_based_classification(
+        self,
+        struct_file="sturct.sdf",
+        label_file="label.txt",
+        feature_file=None,
+        group_mode="all",
+        top_n=2,
+        complement_reactions=False,
+        one_per_iso_bond_group=True,
+    ):
+        """
+        Write the reaction
+
+        Also, this is based on the bond energy, i.e. each bond (that we have energies)
+        will have one line in the label file.
+
+        Args:
+            struct_file (str): filename of the sdf structure file
+            label_file (str): filename of the label
+            feature_file (str): filename for the feature file, if `None`, do not write it
+            group_mode (str): the method to group reactions, different mode result in
+                different reactions to be retained, e.g. `charge_0` keeps all charge 0
+                reactions.
+            top_n (int): the top n reactions with smallest energies are categorized as
+                the same class (calss 1), reactions with higher energies another class
+                (class 0), and reactions without energies another class (class 2).
+                If `top_n=None`, a different method to assign class is used: reactions
+                with energies is categorized as class 1 and reactions without energies
+                as class 0.
+            complement_reactions (bool): whether to extract complement reactions.
+            one_per_iso_bond_group (bool): whether to keep just one reaction from each
+                iso bond group.
+
+        """
+
+        # check arguments compatibility
+        if top_n is None and not complement_reactions:
+            raise ValueError(
+                f"complement_reactions {False} should be `True` when top_n is set "
+                f"to `False`"
+            )
+
+        if group_mode == "all":
+            grouped_rxns = self.group_by_reactant_all()
+        elif group_mode == "charge_0":
+            grouped_rxns = self.group_by_reactant_charge_0()
+        elif group_mode == "energy_lowest":
+            grouped_rxns = self.group_by_reactant_lowest_energy()
+        else:
+            raise ValueError(
+                f"group_mode ({group_mode}) not supported. Options are: 'all', "
+                f"'charge_0', and 'energy_lowest'."
+            )
+
+        # all molecules in existing reactions
+        reactions = np.concatenate([grp.reactions for grp in grouped_rxns])
+        mol_reservoir = set(self._get_molecules_from_reactions(reactions))
+
+        ordered_reactions = []
+        for grp in grouped_rxns:
+            rxns, comp_mols = grp.order_reactions(
+                one_per_iso_bond_group, complement_reactions, mol_reservoir
+            )
+            ordered_reactions.append(rxns)
+
+            # update molecule reservoir
+            if complement_reactions:
+                mol_reservoir.update(comp_mols)
+
+        # all molecules in existing (and complementary) reactions
+        mol_reservoir = list(mol_reservoir)
+        mol_id_to_index_mapping = {m.id: i for i, m in enumerate(mol_reservoir)}
+
+        all_labels = []  # one per reaction
+
+        # reactions: all reactions associated with a bond
+        index = 0
+        for reactions in ordered_reactions:
+
+            # rxn: a reaction for one bond and a specific combination of charges
+            for i, rxn in enumerate(reactions):
+                energy = rxn.get_free_energy()
+
+                # determine class of each reaction
+                if top_n is not None:
+                    if energy is None:
+                        cls = 2
+                    elif i < top_n:
+                        cls = 1
+                    else:
+                        cls = 0
+                else:
+                    if energy is None:
+                        cls = 0
+                    else:
+                        cls = 1
+
+                # change to index (in mol_reservior) representation
+                reactant_ids = [mol_id_to_index_mapping[m.id] for m in rxn.reactants]
+                product_ids = [mol_id_to_index_mapping[m.id] for m in rxn.products]
+
+                # bond mapping between product sdf and reactant sdf
+                data = {
+                    "value": cls,
+                    "reactants": reactant_ids,
+                    "products": product_ids,
+                    "atom_mapping": rxn.atom_mapping(),
+                    "bond_mapping": rxn.bond_mapping_by_sdf_int_index(),
+                    "id": rxn.get_id(),
+                    "index": index,
+                }
+                all_labels.append(data)
+                index += 1
+
+        # write sdf
+        self.write_sdf(mol_reservoir, struct_file)
+
+        # label file
+        yaml_dump(all_labels, label_file)
+
+        # write feature
+        if feature_file is not None:
+            self.write_feature(mol_reservoir, bond_indices=None, filename=feature_file)
+
     def create_struct_label_dataset_reaction_based_classification(
         self,
         struct_file="sturct.sdf",
@@ -1345,13 +1491,12 @@ class ReactionExtractor:
 
         # get all mols in the reactions
         reactions = np.concatenate([grp.reactions for grp in grouped_rxns])
-        mol_reservoir = set(self._get_molecules_from_reactions(reactions))
 
         all_mols = []
         all_labels = []  # one per reaction
         for grp in grouped_rxns:
-            reactions = grp.order_reactions(
-                complement_reactions, one_per_iso_bond_group, mol_reservoir
+            reactions, _ = grp.order_reactions(
+                one_per_iso_bond_group, complement_reactions
             )
 
             # rxn: a reaction for one bond and a specific combination of charges
@@ -1433,13 +1578,14 @@ class ReactionExtractor:
 
         # get all mols in the reactions
         reactions = np.concatenate([grp.reactions for grp in grouped_rxns])
-        mol_reservoir = set(self._get_molecules_from_reactions(reactions))
 
         all_mols = []
         all_labels = []  # one per reaction
 
         for grp in grouped_rxns:
-            reactions = grp.order_reactions(False, one_per_iso_bond_group, mol_reservoir)
+            reactions, _ = grp.order_reactions(
+                one_per_iso_bond_group, complement_reactions=False
+            )
 
             # rxn: a reaction for one bond and a specific combination of charges
             for i, rxn in enumerate(reactions):
@@ -1838,7 +1984,7 @@ class ReactionExtractor:
         create_directory(filename)
         with open(filename, "w") as f:
             for i, m in enumerate(molecules):
-                msg = "{}_{}_{}_{} int_id: {}".format(
+                msg = "{}_{}_{}_{} index: {}".format(
                     m.formula, m.charge, m.id, m.free_energy, i
                 )
                 # The same pybel mol will write different sdf file when it is called
@@ -1870,6 +2016,8 @@ class ReactionExtractor:
             else:
                 idx = bond_indices[i]
             feat = m.pack_features(use_obabel_idx=True, broken_bond=idx)
+            if "index" not in feat:
+                feat["index"] = i
             all_feats.append(feat)
         yaml_dump(all_feats, filename)
 
@@ -1900,10 +2048,10 @@ class ReactionExtractor:
 
     @staticmethod
     def _get_molecules_from_reactions(reactions):
-        mols = []
+        mols = set()
         for r in reactions:
-            mols.extend(r.reactants + r.products)
-        return list(set(mols))
+            mols.update(r.reactants + r.products)
+        return list(mols)
 
     @staticmethod
     def _is_valid_A_to_B_C_charge(charge1, charge2, charge3):
