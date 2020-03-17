@@ -5,6 +5,7 @@ from gnn.data.electrolyte import (
     ElectrolyteBondDatasetClassification,
     ElectrolyteMoleculeDataset,
     ElectrolyteReactionDataset,
+    ElectrolyteReactionNetworkDataset,
 )
 from gnn.data.qm9 import QM9Dataset
 from gnn.data.grapher import HeteroMoleculeGraph, HomoCompleteGraph
@@ -12,18 +13,18 @@ from gnn.data.featurizer import (
     AtomFeaturizer,
     BondAsNodeFeaturizer,
     BondAsEdgeCompleteFeaturizer,
-    GlobalFeaturizerChargeSpin,
+    GlobalFeaturizerCharge,
 )
 
 
-test_files = os.path.dirname(__file__)
+test_files = os.path.join(os.path.dirname(__file__), "testdata")
 
 
 def get_grapher_hetero():
     return HeteroMoleculeGraph(
         atom_featurizer=AtomFeaturizer(),
         bond_featurizer=BondAsNodeFeaturizer(),
-        global_featurizer=GlobalFeaturizerChargeSpin(),
+        global_featurizer=GlobalFeaturizerCharge(),
         self_loop=True,
     )
 
@@ -199,6 +200,44 @@ def test_electrolyte_reaction_label():
 
             if lt:
                 assert label["label_scaler"] == ref_ts
+
+    assert_label(False)
+    assert_label(True)
+
+
+def test_electrolyte_reaction_network_label():
+    def assert_label(lt):
+        ref_label_class = [0, 1]
+
+        if lt:
+            mean = np.mean(ref_label_class)
+            std = np.std(ref_label_class)
+            ref_label_class = (ref_label_class - mean) / std
+            ref_ts = std
+
+        dataset = ElectrolyteReactionNetworkDataset(
+            grapher=get_grapher_hetero(),
+            sdf_file=os.path.join(test_files, "electrolyte_struct_rxn_ntwk_clfn.sdf"),
+            label_file=os.path.join(test_files, "electrolyte_label_rxn_ntwk_clfn.yaml"),
+            feature_file=os.path.join(
+                test_files, "electrolyte_feature_rxn_ntwk_clfn.yaml"
+            ),
+            feature_transformer=True,
+            label_transformer=lt,
+        )
+
+        size = len(dataset)
+        assert size == 2
+
+        for i in range(size):
+            rn, rxn, label = dataset[i]
+            assert label["value"] == ref_label_class[i]
+            if lt:
+                assert label["label_scaler"] == ref_ts
+
+            assert rxn == i
+
+            assert len(rn.molecules) == 5
 
     assert_label(False)
     assert_label(True)

@@ -1,0 +1,38 @@
+- charge: 0
+  index: 0
+- atom_spin:
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  - 0
+  atomization_free_energy: -37.89186284362725
+  charge: -1
+  free_energy: -9108.239162951795
+  id: 5e3e12188eab11f1fa73ac55
+  index: 1
+  mulliken:
+  - -0.351642
+  - 0.034905
+  - -0.516296
+  - -0.667282
+  - -0.398917
+  - 0.016413
+  - 0.882818
+  resp:
+  - -0.147219
+  - 0.437703
+  - -0.348622
+  - -1.401348
+  - -0.629024
+  - 0.363367
+  - 0.725144
+  spin_multiplicity: 1
+- charge: -1
+  index: 2
+- charge: -1
+  index: 3
+- charge: 0
+  index: 4
