@@ -118,8 +118,8 @@ def make_hetero_H():
     atom features:
     [[0,1]]
 
-    bond features:
-    []
+    bond features (a factitious bond is created):
+    [[0,1,2]]
 
     global features:
     [[0,1,2,3]]

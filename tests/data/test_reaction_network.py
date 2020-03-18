@@ -4,11 +4,24 @@ from gnn.data.reaction_network import Reaction, ReactionNetwork
 
 class TestReaction:
     def test_mapping_as_list(self):
-        ref = [3, 0, 2, 1]
-        mappings = [{0: 1, 1: 3}, {0: 2, 1: 0}]
-        mp_list = Reaction._mapping_as_list(mappings)
+        def assert_one(mappings, ref):
+            mp_list = Reaction._mapping_as_list(mappings)
+            assert mp_list == ref
 
-        assert mp_list == ref
+        # no missing
+        assert_one([{0: 1, 1: 3}, {0: 2, 1: 0}], [3, 0, 2, 1])
+
+        # missing last item (i.e. 4)
+        assert_one([{0: 1, 1: 3}, {0: 2, 1: 0}, {}], [3, 0, 2, 1, 4])
+        assert_one([{0: 1, 1: 3}, {}, {0: 2, 1: 0}], [3, 0, 2, 1, 4])
+        assert_one([{}, {0: 1, 1: 3}, {0: 2, 1: 0}], [3, 0, 2, 1, 4])
+        assert_one([{}, {0: 1, 1: 3}, {}, {0: 2, 1: 0}], [3, 0, 2, 1, 4])
+
+        # missing middle item (i.e. 3)
+        assert_one([{0: 1, 1: 4}, {0: 2, 1: 0}, {}], [3, 0, 2, 4, 1])
+        assert_one([{0: 1, 1: 4}, {}, {0: 2, 1: 0}], [3, 0, 2, 4, 1])
+        assert_one([{}, {0: 1, 1: 4}, {0: 2, 1: 0}, {}], [3, 0, 2, 4, 1])
+        assert_one([{}, {0: 1, 1: 4}, {}, {0: 2, 1: 0}], [3, 0, 2, 4, 1])
 
 
 class TestReactionNetwork:

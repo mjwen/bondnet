@@ -275,7 +275,7 @@ class Reaction:
 
             # do not use list comprehension because we need to create empty dict for
             # products with not bonds
-            bmp = {}
+            bmp = dict()
             for i, j, _ in p.bonds:
                 # atom mapping between product and reactant of the bond
                 b_product = (i, j)
@@ -840,7 +840,7 @@ class ReactionsMultiplePerBond(ReactionsGroup):
                 )
                 ordered_rxns += comp_rxns
                 if mol_reservoir is not None:
-                    mol_reservoir.union(comp_mols)
+                    mol_reservoir.update(comp_mols)
 
         return ordered_rxns
 

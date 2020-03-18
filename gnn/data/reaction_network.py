@@ -68,16 +68,37 @@ class Reaction:
         """
         Given a list of mappings from products to reactants, return a representation
         (mapping expressed using a list) from reactants to products.
+        If there is an empty mapping (this happens for bond, where the products will
+        have one fewer one than the reactants), we assume the bond will be the last
+        bond in the products and it will be mapped to the corresponding bond of the
+        reactants.
+
+        Note:
+            This works only for the case where there is only one item difference
+            between reactants and products.
+
         Args:
             mappings (list of dict): mappings from products to reactants
 
         Returns:
-            list: mapping from reactant to product
+            list: mapping from reactant to product. The reactant are ordered (w.r.t.
+            indices). For example, a return list like [2,0,1] means:
+            item 0 in reactants corresponds to item 2 in products;
+            item 1 in reactants corresponds to item 0 in products; and
+            item 2 in reactants corresponds to item 1 in products.
 
         Example:
             >>>mappings = [{0:1, 1:3}, {0:2, 1:0}]
             >>>_mapping_as_list(mappings)
             >>>[3,0,2,1]
+            >>>
+            >>>mappings = [{0:1, 1:3}, {0:2, 1:0}, {}]  # bond 4 not in products
+            >>>_mapping_as_list(mappings)
+            >>>[3,0,2,1,4]
+            >>>
+            >>>mappings = [{0:1, 1:4}, {0:2, 1:0}, {}]  # bond 3 not in products
+            >>>_mapping_as_list(mappings)
+            >>>[3,0,2,4,1]
         """
 
         sizes = [len(mp) for mp in mappings]
@@ -91,14 +112,29 @@ class Reaction:
         combined_mapping = {}
         for i, mp in enumerate(mappings):
             for p, r in mp.items():
+                assert p < len(mp), "product item not smaller than size"
                 combined_mapping[p + accumulate[i]] = r
 
-        # mapping from reactants to products
-        r2p_mapping = {v: k for k, v in combined_mapping.items()}
+        # determine the missing item (in reactant) for empty mapping
+        if 0 in sizes:
+            existing = [list(mp.values()) for mp in mappings]
+            existing = np.concatenate(existing)
+            N = len(existing)
 
-        # represent the mapping as a list, where the reactant item is indexed by the
-        # list index
-        mp_list = [r2p_mapping[k] for k in sorted(r2p_mapping)]
+            # make sure there is only one item missing
+            assert max(existing) - N <= 1, "more than 1 item missing"
+
+            expected = range(N + 1)
+            for i in expected:
+                if i not in existing:
+                    missing_item = i
+                    break
+
+            # add the missing item as the last element (of products)
+            combined_mapping[N] = missing_item
+
+        # r2p mapping as a list, where the reactant item is indexed by the list index
+        mp_list = sorted(combined_mapping, key=lambda k: combined_mapping[k])
 
         return mp_list
 
@@ -165,8 +201,7 @@ class ReactionNetwork:
             sub_molecules (list): all molecules in the selected subset of reactions.
         """
         if isinstance(indices, int):
-            x = list(range(len(self.reactions)))
-            random.shuffle(x)
+            x = np.random.permutation(len(self.reactions))
             indices = x[:indices]
 
         # reactions subset
