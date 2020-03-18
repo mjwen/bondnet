@@ -8,30 +8,31 @@ import os
 from gnn.data.electrolyte import (
     ElectrolyteBondDataset,
     ElectrolyteReactionDataset,
+    ElectrolyteReactionNetworkDataset,
 )
 from gnn.data.qm9 import QM9Dataset
 from gnn.data.dataloader import (
     DataLoaderBond,
     DataLoader,
     DataLoaderReaction,
+    DataLoaderReactionNetwork,
 )
 from gnn.data.grapher import HeteroMoleculeGraph, HomoCompleteGraph
 from gnn.data.featurizer import (
     AtomFeaturizer,
     BondAsNodeFeaturizer,
     BondAsEdgeCompleteFeaturizer,
-    GlobalFeaturizerChargeSpin,
+    GlobalFeaturizerCharge,
 )
 
-
-test_files = os.path.dirname(__file__)
+test_files = os.path.join(os.path.dirname(__file__), "testdata")
 
 
 def get_grapher_hetero():
     return HeteroMoleculeGraph(
         atom_featurizer=AtomFeaturizer(),
         bond_featurizer=BondAsNodeFeaturizer(),
-        global_featurizer=GlobalFeaturizerChargeSpin(),
+        global_featurizer=GlobalFeaturizerCharge(),
         self_loop=True,
     )
 
@@ -151,3 +152,26 @@ def test_dataloader_reaction():
     for graph, labels in data_loader:
         assert np.allclose(labels["value"], ref_label_class)
         assert np.allclose(labels["num_mols"], ref_num_mols)
+
+
+def test_dataloader_reaction_network():
+    ref_label_class = [0, 1]
+
+    dataset = ElectrolyteReactionNetworkDataset(
+        grapher=get_grapher_hetero(),
+        sdf_file=os.path.join(test_files, "electrolyte_struct_rxn_ntwk_clfn.sdf"),
+        label_file=os.path.join(test_files, "electrolyte_label_rxn_ntwk_clfn.yaml"),
+        feature_file=os.path.join(test_files, "electrolyte_feature_rxn_ntwk_clfn.yaml"),
+        feature_transformer=False,
+        label_transformer=False,
+    )
+
+    # batch size 1 case (exactly the same as test_dataset)
+    data_loader = DataLoaderReactionNetwork(dataset, batch_size=1, shuffle=False)
+    for i, (graph, labels) in enumerate(data_loader):
+        assert np.allclose(labels["value"], ref_label_class[i])
+
+    # batch size 2 case
+    data_loader = DataLoaderReactionNetwork(dataset, batch_size=2, shuffle=False)
+    for graph, labels in data_loader:
+        assert np.allclose(labels["value"], ref_label_class)

@@ -580,10 +580,10 @@ class ReactionsOfSameBond(ReactionsGroup):
                 is first searched in the mol_reservoir. If existing (w.r.t. charge and
                 isomorphism), the mol from the reservoir is used as the product; if
                 not, new mol is created. Note, if a mol is not in `mol_reservoir`,
-                it will be added to mol_reservoir.
+                it is added to comp_mols.
         Returns:
             comp_rxns (list): A sequence of `Reaction`s that complement the existing ones.
-            comp_mols (set): molecules created to setup the `comp_rxns`.
+            comp_mols (set): new molecules created to setup the `comp_rxns`.
         """
 
         def factor_integer(x, allowed, num=2):
@@ -671,7 +671,8 @@ class ReactionsOfSameBond(ReactionsGroup):
             edges = fg.graph.edges.data()
             bonds.append([(i, j) for i, j, v in edges])
 
-        # create complementary reactions
+        # create complementary reactions and mols
+        mol_reservoir = copy.copy(mol_reservoir)
         bb = self.broken_bond
         comp_rxns = []
         comp_mols = set()
@@ -683,14 +684,16 @@ class ReactionsOfSameBond(ReactionsGroup):
                     species[i], coords[i], c, bonds[i], mol_id=mid
                 )
 
-                if mol_reservoir:
+                if mol_reservoir is None:
+                    comp_mols.add(mol)
+                else:
                     existing_mol = self._search_mol_reservoir(mol, mol_reservoir)
-                    # not in reservoir
-                    if existing_mol is None:
+                    if existing_mol is None:  # not in reservoir
                         comp_mols.add(mol)
-                    # in reservoir
-                    else:
+                        mol_reservoir.add(mol)
+                    else:  # in reservoir
                         mol = existing_mol
+
                 products.append(mol)
 
             rxn = Reaction([self.reactant], products, broken_bond=bb)
@@ -698,7 +701,7 @@ class ReactionsOfSameBond(ReactionsGroup):
 
         return comp_rxns, comp_mols
 
-    def order_reactions(self, complement_reactions=False):
+    def order_reactions(self, complement_reactions=False, mol_reservoir=None):
         """
         Order reactions by energy.
 
@@ -709,14 +712,26 @@ class ReactionsOfSameBond(ReactionsGroup):
             complement_reactions (bool): If `False`, order the existing reactions only.
                 Otherwise, complementary reactions are created and ordered together
                 with existing ones.
+            mol_reservoir (set): If `complement_reactions` is False, this is silently
+                ignored. Otherwise, for newly created complement reactions, a product
+                is first searched in the mol_reservoir. If existing (w.r.t. charge and
+                isomorphism), the mol from the reservoir is used as the product; if
+                not, new mol is created. Note, if a mol is not in `mol_reservoir`,
+                it will be added to `mol_reservoir`, i.e. `mol_reservoir` is updated
+                inplace.
 
         Returns:
             list: a sequence of :class:`Reaction` ordered by energy
         """
         ordered_rxns = sorted(self.reactions, key=lambda rxn: rxn.get_free_energy())
         if complement_reactions:
-            comp_rxns = self.create_complement_reactions()
+            comp_rxns, comp_mols = self.create_complement_reactions(
+                mol_reservoir=mol_reservoir
+            )
             ordered_rxns += comp_rxns
+            if mol_reservoir is not None:
+                mol_reservoir.update(comp_mols)
+
         return ordered_rxns
 
 
@@ -796,12 +811,14 @@ class ReactionsMultiplePerBond(ReactionsGroup):
                 ignored. Otherwise, for newly created complement reactions, a product
                 is first searched in the mol_reservoir. If existing (w.r.t. charge and
                 isomorphism), the mol from the reservoir is used as the product; if
-                not, new mol is created. Note, if a mol is not in `mol_reservoir`,
-                it will be added to `mol_reservoir`.
+                not, new mol is created.
+
+        Note:
+            If a mol is not in `mol_reservoir`, it will be added to `mol_reservoir`,
+            i.e. `mol_reservoir` is updated inplace.
 
         Returns:
-            ordered_rxns (list): a sequence of :class:`Reaction` ordered by energy.
-            comp_mols (set): newly created mols for complementary reactions
+            list: a sequence of :class:`Reaction` ordered by energy.
         """
 
         # NOTE, we need to get existing_rxns from rsb instead of self.reactions because
@@ -816,20 +833,16 @@ class ReactionsMultiplePerBond(ReactionsGroup):
         # sort reactions we have energy for
         ordered_rxns = sorted(existing_rxns, key=lambda rxn: rxn.get_free_energy())
 
-        comp_mols = None
-
         if complement_reactions:
-            comp_rxns = []
-            comp_mols = set()
             for rsb in rsb_group:
-                z = 1
-                x = rsb.create_complement_reactions(mol_reservoir=mol_reservoir)
-                rxns, mols = x
-                comp_rxns.extend(rxns)
-                comp_mols.update(mols)
-            ordered_rxns += comp_rxns
+                comp_rxns, comp_mols = rsb.create_complement_reactions(
+                    allowed_charge=[-1, 0, 1], mol_reservoir=mol_reservoir
+                )
+                ordered_rxns += comp_rxns
+                if mol_reservoir is not None:
+                    mol_reservoir.union(comp_mols)
 
-        return ordered_rxns, comp_mols
+        return ordered_rxns
 
 
 class ReactionsOnePerBond(ReactionsMultiplePerBond):
@@ -877,12 +890,14 @@ class ReactionsOnePerBond(ReactionsMultiplePerBond):
                 ignored. Otherwise, for newly created complement reactions, a product
                 is first searched in the mol_reservoir. If existing (w.r.t. charge and
                 isomorphism), the mol from the reservoir is used as the product; if
-                not, new mol is created. Note, if a mol is not in `mol_reservoir`,
-                it will be added to mol_reservoir.
+                not, new mol is created.
+
+        Note:
+            If a mol is not in `mol_reservoir`, it will be added to `mol_reservoir`,
+            i.e. `mol_reservoir` is updated inplace.
 
         Returns:
-            ordered_rxns (list): a sequence of :class:`Reaction` ordered by energy.
-            comp_mols (set): newly created mols for complementary reactions
+            list: a sequence of :class:`Reaction` ordered by energy.
         """
 
         # NOTE, we need to get existing_rxns from rsb instead of self.reactions because
@@ -897,20 +912,16 @@ class ReactionsOnePerBond(ReactionsMultiplePerBond):
         # sort reactions we have energy for
         ordered_rxns = sorted(existing_rxns, key=lambda rxn: rxn.get_free_energy())
 
-        comp_mols = None
-
         if complement_reactions:
-            comp_rxns = []
-            comp_mols = set()
             for rsb in rsb_group:
-                rxns, mols = rsb.create_complement_reactions(
+                comp_rxns, comp_mols = rsb.create_complement_reactions(
                     allowed_charge=[0], mol_reservoir=mol_reservoir
                 )
-                comp_rxns.extend(rxns)
-                comp_mols.update(mols)
-            ordered_rxns += comp_rxns
+                ordered_rxns += comp_rxns
+                if mol_reservoir is not None:
+                    mol_reservoir.update(comp_mols)
 
-        return ordered_rxns, comp_mols
+        return ordered_rxns
 
 
 class ReactionExtractor:
@@ -1374,16 +1385,13 @@ class ReactionExtractor:
 
         ordered_reactions = []
         for grp in grouped_rxns:
-            rxns, comp_mols = grp.order_reactions(
+            rxns = grp.order_reactions(
                 one_per_iso_bond_group, complement_reactions, mol_reservoir
             )
             ordered_reactions.append(rxns)
 
-            # update molecule reservoir
-            if complement_reactions:
-                mol_reservoir.update(comp_mols)
-
         # all molecules in existing (and complementary) reactions
+        # note, mol_reservoir is updated in calling grp.order_reactions
         mol_reservoir = list(mol_reservoir)
         mol_id_to_index_mapping = {m.id: i for i, m in enumerate(mol_reservoir)}
 
@@ -1411,7 +1419,7 @@ class ReactionExtractor:
                     else:
                         cls = 1
 
-                # change to index (in mol_reservior) representation
+                # change to index (in mol_reservoir) representation
                 reactant_ids = [mol_id_to_index_mapping[m.id] for m in rxn.reactants]
                 product_ids = [mol_id_to_index_mapping[m.id] for m in rxn.products]
 
@@ -1503,6 +1511,7 @@ class ReactionExtractor:
             ordered_reactions.append(rxns)
 
         # all molecules in existing (and complementary) reactions
+        # note, mol_reservoir is updated in calling grp.order_reactions
         mol_reservoir = list(mol_reservoir)
         mol_id_to_index_mapping = {m.id: i for i, m in enumerate(mol_reservoir)}
 

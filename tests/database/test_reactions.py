@@ -120,18 +120,21 @@ class TestReactionsOfSameBond:
         # A->B style
         rxn = A2B[0]
         reactant = rxn.reactants[0]
-        rsb = ReactionsOfSameBond(reactant, A2B)
 
-        # test complement reactions
-        comp_rxns = rsb.create_complement_reactions()
+        ### test complement reactions
+        # provide reaction
+        rsb = ReactionsOfSameBond(reactant, A2B)
+        comp_rxns, comp_mols = rsb.create_complement_reactions()
         assert len(comp_rxns) == 0
+        assert len(comp_mols) == 0
 
         # do not provide reaction, and create itself
         rsb = ReactionsOfSameBond(reactant, broken_bond=rxn.get_broken_bond())
-        comp_rxns = rsb.create_complement_reactions()
+        comp_rxns, comp_mols = rsb.create_complement_reactions()
         assert len(comp_rxns) == 1
+        assert len(comp_mols) == 1
 
-        # test order reactions
+        ### test order reactions
         ordered_rxns = rsb.order_reactions(complement_reactions=True)
         assert len(ordered_rxns) == 1
         assert ordered_rxns[0] == comp_rxns[0]
@@ -139,17 +142,18 @@ class TestReactionsOfSameBond:
         # A->B+C
         A2BC = A2BC[:2]  # breaks same bonds
         reactant = A2BC[0].reactants[0]
-        rsb = ReactionsOfSameBond(reactant, A2BC)
 
-        # test complement reactions
-        comp_rxns = rsb.create_complement_reactions()
+        ### test complement reactions
+        rsb = ReactionsOfSameBond(reactant, A2BC)
+        comp_rxns, comp_mols = rsb.create_complement_reactions()
         assert len(comp_rxns) == 1
+        assert len(comp_mols) == 2
         rxn = comp_rxns[0]
         self.assert_mol(rxn.reactants[0], "C1H2O2", 0)
         self.assert_mol(rxn.products[0], "H1", -1)
         self.assert_mol(rxn.products[1], "C1H1O2", 1)
 
-        # test order reactions
+        ### test order reactions
         ordered_rxns = rsb.order_reactions(complement_reactions=False)
         assert len(ordered_rxns) == 2
         assert ordered_rxns[0] == A2BC[0]

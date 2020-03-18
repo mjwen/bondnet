@@ -155,3 +155,55 @@ class DataLoaderReaction(torch.utils.data.DataLoader):
             return batched_graphs, batched_labels
 
         super(DataLoaderReaction, self).__init__(dataset, collate_fn=collate, **kwargs)
+
+
+class DataLoaderReactionNetwork(torch.utils.data.DataLoader):
+    """
+    This dataloader works specifically for the reaction network where a the reactions
+    are constructed from a list of reactions.
+    """
+
+    def __init__(self, dataset, **kwargs):
+        if "collate_fn" in kwargs:
+            raise ValueError(
+                "'collate_fn' provided internally by 'gnn.data', you need not to "
+                "provide one"
+            )
+
+        def collate(samples):
+            rn, rxn_ids, labels = map(list, zip(*samples))
+
+            # each element of `rn` is the same reaction network
+            reactions, graphs = rn[0].subselect_reactions(rxn_ids)
+            g = graphs[0]
+            if isinstance(g, dgl.DGLGraph):
+                batched_graphs = dgl.batch(graphs)
+            elif isinstance(g, dgl.DGLHeteroGraph):
+                batched_graphs = dgl.batch_hetero(graphs)
+            else:
+                raise ValueError(
+                    f"graph type {g.__class__.__name__} not supported. Should be either "
+                    f"dgl.DGLGraph or dgl.DGLHeteroGraph."
+                )
+
+            target = torch.stack([la["value"] for la in labels])
+            identifier = [la["id"] for la in labels]
+
+            batched_labels = {
+                "value": target,
+                "id": identifier,
+                "reaction": reactions,
+            }
+
+            # add label_scaler if it is used
+            try:
+                label_scaler = [la["label_scaler"] for la in labels]
+                batched_labels["label_scaler"] = torch.stack(label_scaler)
+            except KeyError:
+                pass
+
+            return batched_graphs, batched_labels
+
+        super(DataLoaderReactionNetwork, self).__init__(
+            dataset, collate_fn=collate, **kwargs
+        )
