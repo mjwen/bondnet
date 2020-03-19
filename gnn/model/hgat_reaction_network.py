@@ -2,7 +2,6 @@ import numpy as np
 import torch
 import dgl
 import itertools
-import copy
 from gnn.model.hgat_mol import HGATMol
 
 
@@ -88,6 +87,7 @@ def mol_graph_to_rxn_graph(graph, feats, reactions):
             "products": [True if len(mp) > 0 else False for mp in rxn.bond_mapping],
         }
         mappings = {"atom": rxn.atom_mapping_as_list, "bond": rxn.bond_mapping_as_list}
+
         g, fts = create_rxn_graph(reactants, products, mappings, has_bonds)
         reaction_graphs.append(g)
         reaction_feats.append(fts)
@@ -137,14 +137,12 @@ def create_rxn_graph(reactants, products, mappings, has_bonds, ft_name="ft"):
         # molecule, e.g. H+)
         if nt == "bond":
             # select the ones that has bond
-            # reactants_ft = list(itertools.compress(reactants_ft, has_bonds["reactants"]))
-
             # note, this assumes only one bond missing in products
+            ## reactants_ft = list(itertools.compress(reactants_ft, has_bonds["reactants"]))
             products_ft = list(itertools.compress(products_ft, has_bonds["products"]))
 
-            # add a feature with all zeros if there is bond missing
-            if False in has_bonds["products"]:
-                products_ft.append(torch.zeros(1, products_ft[0].shape[1]))
+            # add a feature with all zeros for the broken bond
+            products_ft.append(torch.zeros(1, products_ft[0].shape[1]))
 
         reactants_ft = torch.cat(reactants_ft)
         products_ft = torch.cat(products_ft)

@@ -19,15 +19,34 @@ class Reaction:
             bond_mapping (list of dict): each dict is a bond mapping from product to
                 reactant
             id (int or str): unique identifier of the reaction
+
+        Attrs:
+            init_reactants (list): reactants indices in the global molecule pool. Not
+                supposed to be changed.
+            init_products (list): products indices in the global molecule pool. Not
+                supposed to be changed.
+            reactants (list): reactants indices in the subset molecule pool.
+                Could be changed.
+            products (list): products indices in the subset molecule pool.
+                Could be changed.
         """
-        self._reactants = reactants
-        self._products = products
+
+        self._init_reactants = self._reactants = reactants
+        self._init_products = self._products = products
         self.atom_mapping = atom_mapping
         self.bond_mapping = bond_mapping
         self.id = id
 
         self._atom_mapping_list = None
         self._bond_mapping_list = None
+
+    @property
+    def init_reactants(self):
+        return self._init_reactants
+
+    @property
+    def init_products(self):
+        return self._init_products
 
     @property
     def reactants(self):
@@ -51,7 +70,7 @@ class Reaction:
             assert (
                 self.atom_mapping is not None
             ), "atom_mapping not provided at instantiation"
-            self._atom_mapping_list = self._mapping_as_list(self.atom_mapping)
+            self._atom_mapping_list = self._mapping_as_list(self.atom_mapping, "atom")
         return self._atom_mapping_list
 
     @property
@@ -60,18 +79,14 @@ class Reaction:
             assert (
                 self.bond_mapping is not None
             ), "bond_mapping not provided at instantiation"
-            self._bond_mapping_list = self._mapping_as_list(self.bond_mapping)
+            self._bond_mapping_list = self._mapping_as_list(self.bond_mapping, "bond")
         return self._bond_mapping_list
 
     @staticmethod
-    def _mapping_as_list(mappings):
+    def _mapping_as_list(mappings, mode="atom"):
         """
         Given a list of mappings from products to reactants, return a representation
         (mapping expressed using a list) from reactants to products.
-        If there is an empty mapping (this happens for bond, where the products will
-        have one fewer one than the reactants), we assume the bond will be the last
-        bond in the products and it will be mapped to the corresponding bond of the
-        reactants.
 
         Note:
             This works only for the case where there is only one item difference
@@ -79,6 +94,9 @@ class Reaction:
 
         Args:
             mappings (list of dict): mappings from products to reactants
+            mode (str): `atom` or `bond`. If bond, the mapping for the broken bond is
+            created. The broken bond is assumed t obe the last bond in the products
+            and it is mapped to the corresponding bond of the reactants.
 
         Returns:
             list: mapping from reactant to product. The reactant are ordered (w.r.t.
@@ -116,9 +134,8 @@ class Reaction:
                 combined_mapping[p + accumulate[i]] = r
 
         # determine the missing item (in reactant) for empty mapping
-        if 0 in sizes:
-            existing = [list(mp.values()) for mp in mappings]
-            existing = np.concatenate(existing)
+        if mode == "bond":
+            existing = np.concatenate([list(mp.values()) for mp in mappings])
             N = len(existing)
 
             # make sure there is only one item missing
@@ -181,7 +198,7 @@ class ReactionNetwork:
         """
         mol_ids = set()
         for rxn in reactions:
-            mol_ids.update(rxn.reactants + rxn.products)
+            mol_ids.update(rxn.init_reactants + rxn.init_products)
         return sorted(mol_ids)
 
     def subselect_reactions(self, indices=None):
@@ -212,9 +229,9 @@ class ReactionNetwork:
         global_to_subset_mapping = {g: s for s, g in enumerate(ids)}
 
         # change global molecule index to subset molecule index in reaction
-        for r in sub_reactions:
-            r.reactants = [global_to_subset_mapping[i] for i in r.reactants]
-            r.products = [global_to_subset_mapping[i] for i in r.products]
+        for rxn in sub_reactions:
+            rxn.reactants = [global_to_subset_mapping[i] for i in rxn.init_reactants]
+            rxn.products = [global_to_subset_mapping[i] for i in rxn.init_products]
 
         # molecules subset
         sub_molecules = self.molecules[ids]

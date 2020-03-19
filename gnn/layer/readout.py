@@ -270,8 +270,13 @@ class Set2SetThenCat(nn.Module):
         for nt in self.ntypes:
             ft = self.layers[nt](graph, feats[nt])
             rst.append(ft)
+
         if self.ntypes_direct_cat is not None:
             for nt in self.ntypes_direct_cat:
-                ft = feats[nt]
-                rst.append(ft)
-        return torch.cat(rst, dim=-1)  # dim=-1 to deal with batched graph
+                rst.append(feats[nt])
+
+        # each element of rst is of shape (N, ft_size), where N is the batch size and
+        # ft_size could be different for different features
+        res = torch.cat(rst, dim=-1)  # dim=-1 to deal with batched graph
+
+        return res
