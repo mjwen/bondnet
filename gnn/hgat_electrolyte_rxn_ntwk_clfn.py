@@ -8,7 +8,7 @@ from datetime import datetime
 from collections import Counter
 from torch import autograd
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.nn import BCEWithLogitsLoss
+from torch.nn import CrossEntropyLoss
 from sklearn.metrics import (
     f1_score,
     classification_report,
@@ -173,13 +173,12 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
 
     for it, (bg, label) in enumerate(data_loader):
         feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-        target_class = label["value"]
+        target_class = label["value"].to(torch.int64)
         if device is not None:
             feats = {k: v.to(device) for k, v in feats.items()}
             target_class = target_class.to(device)
 
         pred = model(bg, feats, label["reaction"])
-        pred = pred.view(-1)
 
         # update parameters
         loss = loss_fn(pred, target_class)
@@ -189,8 +188,8 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
         epoch_loss += loss.detach().item()
 
         # retain data for score computation
-        pred_class = [1 if i >= 0.5 else 0 for i in pred]
-        all_pred_class.append(pred_class)
+        pred_class = torch.argmax(pred, dim=1)
+        all_pred_class.append(pred_class.detach().cpu().numpy())
         all_target_class.append(target_class.detach().cpu().numpy())
 
     epoch_loss /= it + 1
@@ -226,16 +225,15 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
 
         for bg, label in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-            target_class = label["value"]
+            target_class = label["value"].to(torch.int64)
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
 
             pred = model(bg, feats, label["reaction"])
-            pred = pred.view(-1)
 
             # retain data for score computation
-            pred_class = [1 if i >= 0.5 else 0 for i in pred]
-            all_pred_class.append(pred_class)
+            pred_class = torch.argmax(pred, dim=1)
+            all_pred_class.append(pred_class.detach().cpu().numpy())
             all_target_class.append(target_class.numpy())
 
     # compute f1 score
@@ -269,16 +267,14 @@ def score_to_string(score, metric_fn="prfs"):
 
 
 def get_class_weight(data_loader):
-    """
-    Return a 1D tensor of the weight for positive example (class 1), which is set to
-    be equal to the number of negative examples divided by the number os positive
-    examples.
-    """
     target_class = np.concatenate([label["value"].numpy() for bg, label in data_loader])
     counts = [v for k, v in sorted(Counter(target_class).items())]
-    assert len(counts) == 2, f"number of classes ({len(counts)}) should be 2"
 
-    weight = torch.tensor([counts[0] / counts[1]])
+    # inverse proportional to the support
+    weight = [sum(counts) / i for i in counts]
+
+    # normalization
+    weight = torch.tensor([i / sum(weight) for i in weight])
 
     return weight
 
@@ -368,7 +364,7 @@ def main(args):
         fc_batch_norm=args.fc_batch_norm,
         fc_activation=args.fc_activation,
         fc_drop=args.fc_drop,
-        outdim=1,
+        outdim=3,
     )
     print(model)
 
@@ -380,10 +376,10 @@ def main(args):
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
 
-    pos_weight = get_class_weight(train_loader)
+    class_weight = get_class_weight(train_loader)
     if args.device is not None:
-        pos_weight = pos_weight.to(args.device)
-    loss_func = BCEWithLogitsLoss(pos_weight=pos_weight, reduction="mean")
+        class_weight = class_weight.to(args.device)
+    loss_func = CrossEntropyLoss(weight=class_weight, reduction="mean")
 
     ### learning rate scheduler and stopper
     scheduler = ReduceLROnPlateau(

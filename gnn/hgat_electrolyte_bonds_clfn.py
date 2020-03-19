@@ -392,7 +392,6 @@ def main(args):
     )
     sys.stdout.flush()
 
-    t0 = time.time()
     for epoch in range(args.epochs):
         ti = time.time()
 
