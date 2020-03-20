@@ -177,8 +177,9 @@ def write_dataset():
 
 
 def write_edge_label_based_on_bond():
-    filename = "~/Applications/db_access/mol_builder/molecules.pkl"
+    # filename = "~/Applications/db_access/mol_builder/molecules.pkl"
     # filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
+    filename = "~/Applications/db_access/mol_builder/molecules_qc.pkl"
     mols = pickle_load(filename)
 
     struct_file = "~/Applications/db_access/mol_builder/struct_mols_bond_annotation.sdf"
