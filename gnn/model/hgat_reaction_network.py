@@ -142,7 +142,7 @@ def create_rxn_graph(reactants, products, mappings, has_bonds, ft_name="ft"):
             products_ft = list(itertools.compress(products_ft, has_bonds["products"]))
 
             # add a feature with all zeros for the broken bond
-            products_ft.append(torch.zeros(1, products_ft[0].shape[1]))
+            products_ft.append(torch.zeros(1, reactants_ft[0].shape[1]))
 
         reactants_ft = torch.cat(reactants_ft)
         products_ft = torch.cat(products_ft)

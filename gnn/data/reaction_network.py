@@ -137,11 +137,8 @@ class Reaction:
         if mode == "bond":
             existing = np.concatenate([list(mp.values()) for mp in mappings])
             N = len(existing)
-
-            # make sure there is only one item missing
-            assert max(existing) - N <= 1, "more than 1 item missing"
-
             expected = range(N + 1)
+
             for i in expected:
                 if i not in existing:
                     missing_item = i
