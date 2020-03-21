@@ -1473,13 +1473,6 @@ class ReactionExtractor:
             group_mode (str): the method to group reactions, different mode result in
                 different reactions to be retained, e.g. `charge_0` keeps all charge 0
                 reactions.
-            top_n (int): the top n reactions with smallest energies are categorized as
-                the same class (calss 1), reactions with higher energies another class
-                (class 0), and reactions without energies another class (class 2).
-                If `top_n=None`, a different method to assign class is used: reactions
-                with energies is categorized as class 1 and reactions without energies
-                as class 0.
-            complement_reactions (bool): whether to extract complement reactions.
             one_per_iso_bond_group (bool): whether to keep just one reaction from each
                 iso bond group.
 
@@ -1503,7 +1496,7 @@ class ReactionExtractor:
 
         ordered_reactions = []
         for grp in grouped_rxns:
-            rxns, _ = grp.order_reactions(
+            rxns = grp.order_reactions(
                 one_per_iso_bond_group,
                 complement_reactions=False,
                 mol_reservoir=mol_reservoir,
