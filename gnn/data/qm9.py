@@ -33,7 +33,7 @@ class QM9Dataset(ElectrolyteMoleculeDataset):
         rst = pd.read_csv(self.label_file, index_col=0)
         rst = rst.to_numpy()
 
-        h2e = 27.211396132  # Hatree to eV
+        h2e = 27.211396132  # Hartree to eV
         k2e = 0.0433634  # kcal/mol to eV
 
         # supported property
