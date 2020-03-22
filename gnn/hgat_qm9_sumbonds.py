@@ -21,6 +21,11 @@ from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 def parse_args():
     parser = argparse.ArgumentParser(description="HGATBond")
 
+    # property
+    parser.add_argument(
+        "--property", type=str, default="u0_atom", help="QM9 property to train"
+    )
+
     # model
     parser.add_argument(
         "--num-gat-layers", type=int, default=3, help="number of GAT layers"
@@ -46,9 +51,6 @@ def parse_args():
         help="the negative slope of leaky relu",
     )
 
-    # parser.add_argument(
-    #    "--residual", action="store_true", default=True, help="use residual connection"
-    # )
     parser.add_argument(
         "--gat-residual", type=int, default=1, help="residual connection for gat layer"
     )
@@ -123,24 +125,46 @@ def parse_args():
         )
 
     # if len(args.gat_hidden_size) == 1:
-    #     val = args.gat_hidden_size[0]
-    #     args.gat_hidden_size = [val * 2 ** i for i in range(args.num_gat_layers)]
+    #    val = args.gat_hidden_size[0]
+    #    args.gat_hidden_size = [val * 2 ** i for i in range(args.num_gat_layers)]
     # else:
-    #     assert len(args.gat_hidden_size) == args.num_gat_layers, (
-    #         "length of `gat-hidden-size` should be equal to `num-gat-layers`, but got "
-    #         "{} and {}.".format(args.gat_hidden_size, args.num_gat_layers)
-    #     )
+    #    assert len(args.gat_hidden_size) == args.num_gat_layers, (
+    #        "length of `gat-hidden-size` should be equal to `num-gat-layers`, but got "
+    #        "{} and {}.".format(args.gat_hidden_size, args.num_gat_layers)
+    #    )
 
     # if len(args.fc_hidden_size) == 1:
-    #     val = args.fc_hidden_size[0]
-    #     args.fc_hidden_size = [val // 2 ** i for i in range(args.num_fc_layers)]
+    #    val = args.fc_hidden_size[0]
+    #    args.fc_hidden_size = [val // 2 ** i for i in range(args.num_fc_layers)]
     # else:
-    #     assert len(args.fc_hidden_size) == args.num_fc_layers, (
-    #         "length of `fc-hidden-size` should be equal to `num-fc-layers`, but got "
-    #         "{} and {}.".format(args.fc_hidden_size, args.num_fc_layers)
-    #     )
+    #    assert len(args.fc_hidden_size) == args.num_fc_layers, (
+    #        "length of `fc-hidden-size` should be equal to `num-fc-layers`, but got "
+    #        "{} and {}.".format(args.fc_hidden_size, args.num_fc_layers)
+    #    )
 
     return args
+
+
+def debug_train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None):
+
+    model.train()
+
+    for it, (bg, label) in enumerate(data_loader):
+
+        with autograd.detect_anomaly():
+
+            feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
+            target = label["value"]
+
+            if device is not None:
+                feats = {k: v.to(device=device) for k, v in feats.items()}
+                target = target.to(device=device)
+
+            pred = model(bg, feats, mol_based=True)
+            loss = loss_fn(pred, target)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
 
 def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None):
@@ -237,7 +261,8 @@ def main(args):
     ### dataset
     sdf_file = "/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf"
     label_file = "/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf.csv"
-    props = ["u0_atom"]
+
+    props = [args.property]
     dataset = QM9Dataset(
         grapher=get_grapher(),
         sdf_file=sdf_file,
@@ -246,6 +271,7 @@ def main(args):
         unit_conversion=True,
     )
     print(dataset)
+
     trainset, valset, testset = train_validation_test_split(
         dataset, validation=0.1, test=0.1
     )
@@ -320,32 +346,41 @@ def main(args):
             pass
 
     print("\n\n# Epoch     Loss         TrainAcc        ValAcc     Time (s)")
+    sys.stdout.flush()
+
     t0 = time.time()
 
+    debug = False
     for epoch in range(args.epochs):
         ti = time.time()
 
-        # train and evaluate accuracy
-        loss, train_acc = train(
-            optimizer, model, attn_order, train_loader, loss_func, metric, args.device
-        )
+        # train
+        if not debug:
+            loss, train_acc = train(
+                optimizer, model, attn_order, train_loader, loss_func, metric, args.device
+            )
 
-        # bad, we get nan. Before existing, do some debugging
-        if np.isnan(loss):
-            print("\n\nBad, we get nan for loss. See below for traceback\n\n")
-            sys.stdout.flush()
-            with autograd.detect_anomaly():
-                train(
-                    optimizer,
-                    model,
-                    attn_order,
-                    train_loader,
-                    loss_func,
-                    metric,
-                    args.device,
+            # bad, we get nan. Before existing, do some debugging
+            if np.isnan(loss):
+                print(
+                    "\n\nBad, we get nan for loss. Turn debug on and hope to catch "
+                    "it. Note, although we load the checkpoints before the failing, "
+                    "the debug may still fail because the data loader is random and "
+                    "thus the data feeded are different from what causes the failing "
+                    "when running directly. The only hope is that the error can reoccur."
                 )
-            sys.exit(1)
+                sys.stdout.flush()
 
+                load_checkpoints(checkpoints_objs)
+                debug = True
+                continue
+        else:
+            debug_train(
+                optimizer, model, attn_order, train_loader, loss_func, metric, args.device
+            )
+            continue
+
+        # evaluate
         val_acc = evaluate(model, attn_order, val_loader, metric, args.device)
 
         if stopper.step(val_acc, checkpoints_objs, msg="epoch " + str(epoch)):
