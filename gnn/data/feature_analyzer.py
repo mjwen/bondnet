@@ -4,10 +4,11 @@ import re
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.cluster import KMeans
+from umap import UMAP
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from gnn.layer.readout import ConcatenateMeanMax
-from gnn.utils import expand_path
+from gnn.utils import expand_path, np_split_by_size
 
 
 def get_id(s):
@@ -288,8 +289,7 @@ class PCAAnalyzer(BaseAnalyzer):
         model = PCA(n_components=2)
         embeddings = model.fit_transform(np.concatenate(features))
         sizes = [len(d) for d in features]
-        indices = [sum(sizes[:i]) for i in range(1, len(sizes))]
-        embeddings = np.split(embeddings, indices)
+        embeddings = np_split_by_size(embeddings, sizes)
 
         write_embeddings(embeddings, labels, text_filename)
         plot_scatter(embeddings, labels, plot_filename)
@@ -321,11 +321,45 @@ class TSNEAnalyzer(BaseAnalyzer):
             labels: (list of 1D array): labels for the features.
         """
 
-        model = TSNE(n_components=2)
+        model = TSNE(n_components=2, perplexity=10, init="pca", verbose=2)
         embeddings = model.fit_transform(np.concatenate(features))
         sizes = [len(d) for d in features]
-        indices = [sum(sizes[:i]) for i in range(1, len(sizes))]
-        embeddings = np.split(embeddings, indices)
+        embeddings = np_split_by_size(embeddings, sizes)
+
+        write_embeddings(embeddings, labels, text_filename)
+        plot_scatter(embeddings, labels, plot_filename)
+
+
+class UMAPAnalyzer(BaseAnalyzer):
+    """
+    TSNE analysis of the bond descriptor and bond energy.
+
+    This only works for the electrolyte dataset.
+    """
+
+    def compute(self):
+        # features, labels = self._stack_feature_and_label(ntype="bond")
+        features, labels = self._stack_bond_feature_plus_atom_feature_and_label()
+        return self.embedding([features], [labels])
+
+    @staticmethod
+    def embedding(
+        features,
+        labels,
+        text_filename="UMAP_electrolyte.txt",
+        plot_filename="UMAP_electrolyte.pdf",
+    ):
+        """
+        Args:
+            features (list of 2D array): all data will be used for training the model,
+                and each array will be evaluated separately.
+            labels: (list of 1D array): labels for the features.
+        """
+
+        model = UMAP(n_neighbors=100, n_components=3, min_dist=0.0, metric="euclidean")
+        embeddings = model.fit_transform(np.concatenate(features))
+        sizes = [len(d) for d in features]
+        embeddings = np_split_by_size(embeddings, sizes)
 
         write_embeddings(embeddings, labels, text_filename)
         plot_scatter(embeddings, labels, plot_filename)
@@ -415,3 +449,43 @@ def plot_heat_map(matrix, labels, filename="heat_map.pdf", cmap=mpl.cm.viridis):
     plt.colorbar(im)
 
     fig.savefig(filename, bbox_inches="tight")
+
+
+def feature_writer_tsv(
+    features,
+    metadata,
+    feat_filename="features.tsv",
+    meta_filename="features_metadata.tsv",
+):
+    """
+    Write feature in tsv format to be visualized in http://projector.tensorflow.org.
+
+    Args:
+        features (2D array): each row is the features of a data point.
+        metadata (dict): metadata (e.g. label) of each data point, with string of key
+            and 1D array (should have the same size as `features`) as list.
+        feat_filename (str): name of the feature file
+        meta_filename (str): name of the metadata file
+    """
+
+    # write features
+    with open(feat_filename, "w") as f:
+        for feats in features:
+            for i in feats:
+                f.write(f"{i}\t")
+            f.write("\n")
+
+    # write metadata
+    keys = sorted(metadata.keys())
+
+    with open(meta_filename, "w") as f:
+        # column label as first row
+        for k in keys:
+            f.write(f"{k}\t")
+        f.write("\n")
+
+        # body
+        for i in range(len(features)):
+            for k in keys:
+                f.write(f"{metadata[k][i]}\t")
+            f.write("\n")

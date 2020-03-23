@@ -784,5 +784,5 @@ if __name__ == "__main__":
     # create_struct_label_dataset_reaction_based_regression()
     # create_struct_label_dataset_reaction_based_classification()
 
-    # create_struct_label_dataset_reaction_network_based_regression()
-    create_struct_label_dataset_reaction_network_based_classification()
+    create_struct_label_dataset_reaction_network_based_regression()
+    # create_struct_label_dataset_reaction_network_based_classification()

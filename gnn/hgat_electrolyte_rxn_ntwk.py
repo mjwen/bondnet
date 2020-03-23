@@ -14,7 +14,7 @@ from gnn.data.dataset import train_validation_test_split
 from gnn.data.electrolyte import ElectrolyteReactionNetworkDataset
 from gnn.data.dataloader import DataLoaderReactionNetwork
 from gnn.data.grapher import HeteroMoleculeGraph
-from gnn.data.feature_analyzer import PCAAnalyzer, TSNEAnalyzer
+from gnn.data.feature_analyzer import feature_writer_tsv
 from gnn.data.featurizer import (
     AtomFeaturizer,
     BondAsNodeFeaturizer,
@@ -110,9 +110,7 @@ def parse_args():
 
     parser.add_argument("--restore", type=int, default=0, help="read checkpoints")
 
-    parser.add_argument(
-        "--post-analysis", type=str, default="none", help="post analysis type"
-    )
+    parser.add_argument("--post-analysis", type=str, default=0, help="post analysis type")
 
     args = parser.parse_args()
 
@@ -229,25 +227,22 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
     return accuracy / count
 
 
-def embedding(
-    analysis_type,
-    model,
-    nodes,
-    all_data_loader,
-    text_filename,
-    plot_filename,
-    device=None,
+def write_features(
+    model, nodes, all_data_loader, feat_filename, meta_filename, device=None,
 ):
     model.eval()
 
     all_feature = []
     all_label = []
+    all_ids = []
+    loader_names = []
 
     with torch.no_grad():
-        for data_loader in all_data_loader:
+        for name, data_loader in all_data_loader.items():
 
             feature_data = []
             label_data = []
+            ids = []
             for bg, label in data_loader:
                 feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
                 target = np.multiply(label["value"], label["label_scaler"])
@@ -257,18 +252,25 @@ def embedding(
 
                 feature_data.append(feats)
                 label_data.append(target)
+                ids.append([rxn.id for rxn in label["reaction"]])
 
             all_feature.append(np.concatenate(feature_data))
             all_label.append(np.concatenate(label_data))
+            all_ids.append(np.concatenate(ids))
+            loader_names.append(name)
 
-    if analysis_type == "pca":
-        PCAAnalyzer.embedding(all_feature, all_label, text_filename, plot_filename)
-    elif analysis_type == "tsne":
-        TSNEAnalyzer.embedding(all_feature, all_label, text_filename, plot_filename)
-    elif analysis_type == "umap":
-        raise ValueError(f"unsupported post analysis type: {analysis_type}")
-    else:
-        raise ValueError(f"unsupported post analysis type: {analysis_type}")
+    # features
+    feats = np.concatenate(all_feature)
+
+    # metadata
+    loader_source = [[nm] * len(lb) for nm, lb in zip(loader_names, all_label)]
+    metadata = {
+        "ids": np.concatenate(all_ids),
+        "energy": np.concatenate(all_label),
+        "loader": np.concatenate(loader_source),
+    }
+
+    feature_writer_tsv(feats, metadata, feat_filename, meta_filename)
 
 
 def get_grapher():
@@ -363,20 +365,19 @@ def main(args):
     if args.device is not None:
         model.to(device=args.device)
 
-    if args.post_analysis != "none":
+    if args.post_analysis:
 
         # load saved model
         checkpoints_objs = {"model": model}
         load_checkpoints(checkpoints_objs)
 
         # do embedding
-        embedding(
-            args.post_analysis,
+        write_features(
             model,
             attn_order,
-            [train_loader, val_loader],
-            f"post_analysis_{args.post_analysis}.txt",
-            f"post_analysis_{args.post_analysis}.pdf",
+            {"train": train_loader, "validation": val_loader},
+            "feats.tsv",
+            "feats_metadata.tsv",
             args.device,
         )
 
@@ -459,7 +460,18 @@ def main(args):
 
     # load best to calculate test accuracy
     load_checkpoints(checkpoints_objs)
+
     test_acc = evaluate(model, attn_order, test_loader, metric, args.device)
+
+    # write features for post analysis
+    write_features(
+        model,
+        attn_order,
+        {"train": train_loader, "validation": val_loader},
+        "feats.tsv",
+        "feats_metadata.tsv",
+        args.device,
+    )
 
     tt = time.time() - t0
     print("\n#TestAcc: {:12.6e} | Total time (s): {:.2f}\n".format(test_acc, tt))
