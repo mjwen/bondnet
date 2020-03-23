@@ -345,34 +345,46 @@ def heterograph_edge_softmax(graph, edge_types, edge_data):
     """
     g = graph.local_var()
 
-    # assign data
-    max_e = []
-    min_e = []
+    #####################################################################################
+    ## assign data
+    # max_e = []
+    # min_e = []
+    # for etype, edata in zip(edge_types, edge_data):
+    #    g.edges[etype].data["e"] = edata
+    #    max_e.append(torch.max(edata))
+    #    min_e.append(torch.min(edata))
+    # max_e = max(max_e)
+    # min_e = min(min_e)
+
+    ## The softmax trick, making the exponential stable.
+    ## see https://stackoverflow.com/questions/42599498/numercially-stable-softmax
+    ## max_e > 64 to prevent overflow; min_e<-64 to prevent underflow
+    ##
+    ## Of course, we can apply the trick all the time, but here we choose to apply only
+    ## in some conditions to save some time, since multi_update_all is really expensive.
+    # if max_e > 64.0 or min_e < -64.0:
+    #    # e max (fn.max operates on the axis of features from different nodes)
+    #    g.multi_update_all(
+    #        {etype: (fn.copy_e("e", "m"), fn.max("m", "emax")) for etype in edge_types},
+    #        "max",
+    #    )
+    #    # subtract max and compute exponential
+    #    for etype in edge_types:
+    #        g.apply_edges(fn.e_sub_v("e", "emax", "e"), etype=etype)
+
+    #####################################################################################
     for etype, edata in zip(edge_types, edge_data):
         g.edges[etype].data["e"] = edata
-        max_e.append(torch.max(edata))
-        min_e.append(torch.min(edata))
-    max_e = max(max_e)
-    min_e = min(min_e)
 
-    # The softmax trick, making the exponential stable.
-    # see https://stackoverflow.com/questions/42599498/numercially-stable-softmax
-    # max_e > 64 to prevent overflow; min_e<-64 to prevent underflow
-    #
-    # Of course, we can apply the trick all the time, but here we choose to apply only
-    # in some conditions to save some time, since multi_update_all is really expensive.
-    if max_e > 64.0 or min_e < -64.0:
-        # e max (fn.max operates on the axis of features from different nodes)
-        g.multi_update_all(
-            {etype: (fn.copy_e("e", "m"), fn.max("m", "emax")) for etype in edge_types},
-            "max",
-        )
-        # subtract max and compute exponential
-        for etype in edge_types:
-            g.apply_edges(fn.e_sub_v("e", "emax", "e"), etype=etype)
-
+    g.multi_update_all(
+        {etype: (fn.copy_e("e", "m"), fn.max("m", "emax")) for etype in edge_types}, "max"
+    )
+    # subtract max and compute exponential
     for etype in edge_types:
+        g.apply_edges(fn.e_sub_v("e", "emax", "e"), etype=etype)
         g.edges[etype].data["out"] = torch.exp(g.edges[etype].data["e"])
+
+    #####################################################################################
 
     # e sum
     g.multi_update_all(

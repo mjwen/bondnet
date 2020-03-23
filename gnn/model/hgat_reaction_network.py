@@ -40,6 +40,23 @@ class HGATReactionNetwork(HGATMol):
 
         return feats
 
+    def feature_before_fc(self, graph, feats, reactions):
+        """
+        This is used when we want to visualize feature.
+        """
+        # hgat layer
+        for layer in self.gat_layers:
+            feats = layer(graph, feats)
+
+        # convert mol graphs to reaction graphs by subtracting reactant feats from
+        # products feats
+        graph, feats = mol_graph_to_rxn_graph(graph, feats, reactions)
+
+        # readout layer
+        feats = self.readout_layer(graph, feats)
+
+        return feats
+
 
 def mol_graph_to_rxn_graph(graph, feats, reactions):
     """

@@ -59,7 +59,7 @@ class BondFeaturizer(BaseFeaturizer):
     so this is suitable for the case where we represent bond as graph nodes.
 
     Args:
-        length_featurizer (str): the featurizer for bond lenth
+        length_featurizer (str or None): the featurizer for bond length.
         length_featurizer_args (dict): a dictionary of the arguments for the featurizer.
             If `None`, default values will be used, but typically not good because this
             should be specific to the dataset being used.

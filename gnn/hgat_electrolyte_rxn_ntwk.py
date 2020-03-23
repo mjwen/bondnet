@@ -14,6 +14,7 @@ from gnn.data.dataset import train_validation_test_split
 from gnn.data.electrolyte import ElectrolyteReactionNetworkDataset
 from gnn.data.dataloader import DataLoaderReactionNetwork
 from gnn.data.grapher import HeteroMoleculeGraph
+from gnn.data.feature_analyzer import PCAAnalyzer, TSNEAnalyzer
 from gnn.data.featurizer import (
     AtomFeaturizer,
     BondAsNodeFeaturizer,
@@ -108,6 +109,10 @@ def parse_args():
     )
 
     parser.add_argument("--restore", type=int, default=0, help="read checkpoints")
+
+    parser.add_argument(
+        "--post-analysis", type=str, default="none", help="post analysis type"
+    )
 
     args = parser.parse_args()
 
@@ -215,13 +220,55 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
                 target = target.to(device)
                 scale = scale.to(device)
 
-            pred = model(bg, feats, label["reaction"],)
+            pred = model(bg, feats, label["reaction"])
             pred = pred.view(-1)
 
             accuracy += metric_fn(pred, target, scale).detach().item()
             count += len(target)
 
     return accuracy / count
+
+
+def embedding(
+    analysis_type,
+    model,
+    nodes,
+    all_data_loader,
+    text_filename,
+    plot_filename,
+    device=None,
+):
+    model.eval()
+
+    all_feature = []
+    all_label = []
+
+    with torch.no_grad():
+        for data_loader in all_data_loader:
+
+            feature_data = []
+            label_data = []
+            for bg, label in data_loader:
+                feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
+                target = np.multiply(label["value"], label["label_scaler"])
+                if device is not None:
+                    feats = {k: v.to(device) for k, v in feats.items()}
+                feats = model.feature_before_fc(bg, feats, label["reaction"])
+
+                feature_data.append(feats)
+                label_data.append(target)
+
+            all_feature.append(np.concatenate(feature_data))
+            all_label.append(np.concatenate(label_data))
+
+    if analysis_type == "pca":
+        PCAAnalyzer.embedding(all_feature, all_label, text_filename, plot_filename)
+    elif analysis_type == "tsne":
+        TSNEAnalyzer.embedding(all_feature, all_label, text_filename, plot_filename)
+    elif analysis_type == "umap":
+        raise ValueError(f"unsupported post analysis type: {analysis_type}")
+    else:
+        raise ValueError(f"unsupported post analysis type: {analysis_type}")
 
 
 def get_grapher():
@@ -315,6 +362,26 @@ def main(args):
 
     if args.device is not None:
         model.to(device=args.device)
+
+    if args.post_analysis != "none":
+
+        # load saved model
+        checkpoints_objs = {"model": model}
+        load_checkpoints(checkpoints_objs)
+
+        # do embedding
+        embedding(
+            args.post_analysis,
+            model,
+            attn_order,
+            [train_loader, val_loader],
+            f"post_analysis_{args.post_analysis}.txt",
+            f"post_analysis_{args.post_analysis}.pdf",
+            args.device,
+        )
+
+        # we only do post analysis and do not need to train; so exist here
+        sys.exit(0)
 
     ### optimizer, loss, and metric
     optimizer = torch.optim.Adam(
