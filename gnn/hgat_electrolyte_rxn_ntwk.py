@@ -4,6 +4,7 @@ import warnings
 import torch
 import argparse
 import numpy as np
+import pandas as pd
 from datetime import datetime
 from torch import autograd
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -14,7 +15,6 @@ from gnn.data.dataset import train_validation_test_split
 from gnn.data.electrolyte import ElectrolyteReactionNetworkDataset
 from gnn.data.dataloader import DataLoaderReactionNetwork
 from gnn.data.grapher import HeteroMoleculeGraph
-from gnn.data.feature_analyzer import feature_writer_tsv
 from gnn.data.featurizer import (
     AtomFeaturizer,
     BondAsNodeFeaturizer,
@@ -270,7 +270,11 @@ def write_features(
         "loader": np.concatenate(loader_source),
     }
 
-    feature_writer_tsv(feats, metadata, feat_filename, meta_filename)
+    # write files
+    df = pd.DataFrame(feats)
+    df.to_csv(feat_filename, sep="\t", header=False, index=False)
+    df = pd.DataFrame(metadata)
+    df.to_csv(meta_filename, sep="\t", index=False)
 
 
 def get_grapher():
@@ -380,6 +384,8 @@ def main(args):
             "feats_metadata.tsv",
             args.device,
         )
+
+        print("\nFinish post analysis at:", datetime.now())
 
         # we only do post analysis and do not need to train; so exist here
         sys.exit(0)

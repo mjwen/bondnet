@@ -24,7 +24,7 @@ class QM9Dataset(ElectrolyteMoleculeDataset):
         """
         Returns:
             rst (2D array): shape (N, M), where N is the number of lines (excluding the
-                header line), and M is the number of columns (exluding the first index
+                header line), and M is the number of columns (excluding the first index
                 column).
             extensive (list): size (M), indicating whether the corresponding data in
                 rst is extensive property or not.

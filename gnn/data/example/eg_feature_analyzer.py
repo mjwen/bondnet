@@ -5,11 +5,12 @@ from collections import defaultdict
 from gnn.data.electrolyte import ElectrolyteBondDataset
 from gnn.data.qm9 import QM9Dataset
 from gnn.data.feature_analyzer import (
+    PCAAnalyzer,
+    TSNEAnalyzer,
+    UMAPAnalyzer,
     StdevThreshold,
     PearsonCorrelation,
     plot_heat_map,
-    PCAAnalyzer,
-    TSNEAnalyzer,
     KMeansAnalyzer,
     read_label,
     read_sdf,
@@ -82,14 +83,44 @@ def corelation(dataset, excludes):
         plot_heat_map(corr, labels, filename)
 
 
-def pca_analysis(dataset):
-    analyzer = PCAAnalyzer(dataset)
+def pca_analysis(
+    feature_file="~/Applications/db_access/mol_builder/feats_analysis/feats_1k.tsv",
+    metadata_file="~/Applications/db_access/mol_builder/feats_analysis/feats_metadata_1k.tsv",
+):
+    analyzer = PCAAnalyzer.from_csv(feature_file, metadata_file, sep="\t")
     analyzer.compute()
 
+    filename = "~/Applications/db_access/mol_builder/feats_analysis/pca_embedding.pdf"
+    analyzer.plot(metadata_key_as_color="energy", filename=filename)
 
-def tsne_analysis(dataset):
-    analyzer = TSNEAnalyzer(dataset)
+
+def tsne_analysis(
+    # feature_file="~/Applications/db_access/mol_builder/feats_analysis/feats.tsv",
+    # metadata_file="~/Applications/db_access/mol_builder/feats_analysis/feats_metadata.tsv",
+    feature_file="~/Applications/db_access/mol_builder/feats_analysis/feats_1k.tsv",
+    metadata_file="~/Applications/db_access/mol_builder/feats_analysis/feats_metadata_1k.tsv",
+):
+    analyzer = TSNEAnalyzer.from_csv(feature_file, metadata_file, sep="\t")
     analyzer.compute()
+
+    filename = "~/Applications/db_access/mol_builder/feats_analysis/tsne_embedding.pdf"
+    analyzer.plot(metadata_key_as_color="energy", filename=filename)
+
+
+def umap_analysis(
+    # feature_file="~/Applications/db_access/mol_builder/feats_analysis/feats_1k.tsv",
+    # metadata_file="~/Applications/db_access/mol_builder/feats_analysis/feats_metadata_1k.tsv",
+    feature_file="~/Applications/db_access/mol_builder/feats_analysis/feats_large.tsv",
+    metadata_file="~/Applications/db_access/mol_builder/feats_analysis/feats_metadata_large.tsv",
+):
+    analyzer = UMAPAnalyzer.from_csv(feature_file, metadata_file, sep="\t")
+    analyzer.compute()
+
+    filename = "~/Applications/db_access/mol_builder/feats_analysis/umap_embedding.pdf"
+    analyzer.plot_via_umap_points(metadata_key_as_color="energy", filename=filename)
+
+    filename = "~/Applications/db_access/mol_builder/feats_analysis/umap_embedding.html"
+    analyzer.plot_via_umap_interactive(metadata_key_as_color="energy", filename=filename)
 
 
 def kmeans_analysis(
@@ -298,14 +329,15 @@ def write_features(
 
 
 if __name__ == "__main__":
-    dataset = get_dataset_electrolyte()
-    # dataset = get_dataset_qm9()
-    not_satisfied = feature_stdev(dataset)
-    corelation(dataset, not_satisfied)
-
     # dataset = get_dataset_electrolyte()
-    # pca_analysis(dataset)
-    # tsne_analysis(dataset)
+    # dataset = get_dataset_electrolyte()
+    # dataset = get_dataset_qm9()
+    # not_satisfied = feature_stdev(dataset)
+    # corelation(dataset, not_satisfied)
 
     # write_features()
     # kmeans_analysis()
+
+    # pca_analysis()
+    # tsne_analysis()
+    umap_analysis()
