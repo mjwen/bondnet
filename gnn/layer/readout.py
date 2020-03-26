@@ -264,7 +264,7 @@ class Set2SetThenCat(nn.Module):
             graph: DGLHeterograph or BatchedDGLHeterograph
             feats (dict): feature dict
         Returns:
-            dict: features
+            2D tensor: features
         """
         rst = []
         for nt in self.ntypes:

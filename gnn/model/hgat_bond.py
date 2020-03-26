@@ -82,33 +82,34 @@ class HGATBond(nn.Module):
 
         # activation fn
         if isinstance(gat_activation, str):
-            gat_activation = getattr(nn, gat_activation)()
+            self.gat_activation = getattr(nn, gat_activation)()
         if isinstance(fc_activation, str):
             fc_activation = getattr(nn, fc_activation)()
 
+        self.num_heads = num_heads
+
         self.gat_layers = nn.ModuleList()
 
-        # input projection (no dropout)
-        self.gat_layers.append(
-            HGATConv(
-                attn_mechanism=attn_mechanism,
-                attn_order=attn_order,
-                in_feats=in_feats,
-                out_feats=gat_hidden_size[0],
-                num_heads=num_heads,
-                num_fc_layers=gat_num_fc_layers,
-                feat_drop=0.0,
-                attn_drop=0.0,
-                negative_slope=negative_slope,
-                residual=gat_residual,
-                batch_norm=gat_batch_norm,
-                activation=gat_activation,
-            )
-        )
+        for i in range(num_gat_layers):
 
-        # hidden gat layers
-        for i in range(1, num_gat_layers):
-            in_size = [gat_hidden_size[i - 1] * num_heads for _ in in_feats]
+            # first layer use not dropout
+            if i == 0:
+                fd = 0.0
+                ad = 0.0
+                in_size = in_feats
+                act = self.gat_activation
+            else:
+                fd = feat_drop
+                ad = attn_drop
+                in_size = [gat_hidden_size[i - 1] * num_heads for _ in in_feats]
+
+                # last layer do not apply activation now, but after average over heads
+                # (eq. 6 of the GAT paper) see below in forward()
+                if i == num_fc_layers - 1:
+                    act = None
+                else:
+                    act = self.gat_activation
+
             self.gat_layers.append(
                 HGATConv(
                     attn_mechanism=attn_mechanism,
@@ -116,31 +117,31 @@ class HGATBond(nn.Module):
                     in_feats=in_size,
                     out_feats=gat_hidden_size[i],
                     num_heads=num_heads,
-                    feat_drop=feat_drop,
-                    attn_drop=attn_drop,
+                    num_fc_layers=gat_num_fc_layers,
+                    feat_drop=fd,
+                    attn_drop=ad,
                     negative_slope=negative_slope,
                     residual=gat_residual,
                     batch_norm=gat_batch_norm,
-                    activation=gat_activation,
+                    activation=act,
                 )
             )
 
-        # TODO to be general, this could and should be passed in as argument
         if readout_type == "bond":
             self.readout_layer = lambda graph, feats: feats  # similar to nn.Identity()
-            readout_out_size = gat_hidden_size[-1] * num_heads
+            readout_out_size = gat_hidden_size[-1]
 
         elif readout_type == "bond_cat_mean_max":
             etypes = [("atom", "a2b", "bond")]
             self.readout_layer = ConcatenateMeanMax(etypes=etypes)
             # 3 because we concatenate atom feats to bond feats  in the readout_layer
-            readout_out_size = gat_hidden_size[-1] * num_heads * 3
+            readout_out_size = gat_hidden_size[-1] * 3
 
         elif readout_type == "bond_cat_mean_diff":
             etypes = [("atom", "a2b", "bond")]
             self.readout_layer = ConcatenateMeanAbsDiff(etypes=etypes)
             # 3 because we concatenate atom feats to bond feats  in the readout_layer
-            readout_out_size = gat_hidden_size[-1] * num_heads * 3
+            readout_out_size = gat_hidden_size[-1] * 3
         else:
             raise ValueError("readout_type='{}' not supported.".format(readout_type))
 
@@ -197,8 +198,15 @@ class HGATBond(nn.Module):
         """
 
         # hgat layer
-        for layer in self.gat_layers:
+        for i, layer in enumerate(self.gat_layers):
             feats = layer(graph, feats)
+
+            # apply activation after average over heads (eq. 6 of the GAT paper)
+            # see below in forward()
+            if i == len(self.gat_layers) - 1:
+                for nt in feats:
+                    ft = feats[nt].view(feats[nt].shape[0], self.num_heads, -1)
+                    feats[nt] = self.gat_activation(torch.mean(ft, dim=1))
 
         # readout layer for bond features only
         feats = self.readout_layer(graph, feats)
@@ -228,6 +236,27 @@ class HGATBond(nn.Module):
 
         return res
 
+    def feature_before_fc(self, graph, feats):
+        """
+        This is used when we want to visualize feature.
+        """
+        # hgat layer
+        for i, layer in enumerate(self.gat_layers):
+            feats = layer(graph, feats)
+
+            # apply activation after average over heads (eq. 6 of the GAT paper)
+            # see below in forward()
+            if i == len(self.gat_layers) - 1:
+                for nt in feats:
+                    ft = feats[nt].view(feats[nt].shape[0], self.num_heads, -1)
+                    feats[nt] = self.gat_activation(torch.mean(ft, dim=1))
+
+        # readout layer
+        feats = self.readout_layer(graph, feats)
+        res = feats["bond"]
+
+        return res
+
     @staticmethod
     def _split_batched_output(graph, value):
         """
@@ -251,17 +280,3 @@ class HGATBond(nn.Module):
         bond_pred = self._split_batched_output(graph, bond_pred)
         mol_pred = torch.stack([torch.sum(i) for i in bond_pred]).view((-1, 1))
         return mol_pred
-
-    def feature_before_fc(self, graph, feats):
-        """
-        This is used when we want to visualize feature.
-        """
-        # hgat layer
-        for layer in self.gat_layers:
-            feats = layer(graph, feats)
-
-        # readout layer
-        feats = self.readout_layer(graph, feats)
-        res = feats["bond"]
-
-        return res

@@ -100,6 +100,7 @@ class NodeAttentionLayer(nn.Module):
         out_feats,
         num_heads,
         num_fc_layers=3,
+        fc_activation=nn.ELU(),
         feat_drop=0.0,
         attn_drop=0.0,
         negative_slope=0.2,
@@ -138,7 +139,7 @@ class NodeAttentionLayer(nn.Module):
         for nt, sz in in_feats.items():
             # last layer does not use bias and activation
             out_sizes = [out_feats] * (num_fc_layers - 1) + [out_feats * num_heads]
-            act = [activation] * (num_fc_layers - 1) + [nn.Identity()]
+            act = [fc_activation] * (num_fc_layers - 1) + [nn.Identity()]
             use_bias = [True] * (num_fc_layers - 1) + [False]
             self.fc_layers[nt] = LinearN(sz, out_sizes, act, use_bias)
 

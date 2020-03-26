@@ -2,6 +2,7 @@
 Heterogeneous Graph Attention Networks on molecule level property.
 """
 
+import torch
 import warnings
 import torch.nn as nn
 from gnn.layer.hgatconv import HGATConv
@@ -71,33 +72,34 @@ class HGATMol(nn.Module):
 
         # activation fn
         if isinstance(gat_activation, str):
-            gat_activation = getattr(nn, gat_activation)()
+            self.gat_activation = getattr(nn, gat_activation)()
         if isinstance(fc_activation, str):
             fc_activation = getattr(nn, fc_activation)()
 
+        self.num_heads = num_heads
+
         self.gat_layers = nn.ModuleList()
 
-        # input projection (no dropout)
-        self.gat_layers.append(
-            HGATConv(
-                attn_mechanism=attn_mechanism,
-                attn_order=attn_order,
-                in_feats=in_feats,
-                out_feats=gat_hidden_size[0],
-                num_heads=num_heads,
-                num_fc_layers=gat_num_fc_layers,
-                feat_drop=0.0,
-                attn_drop=0.0,
-                negative_slope=negative_slope,
-                residual=gat_residual,
-                batch_norm=gat_batch_norm,
-                activation=gat_activation,
-            )
-        )
+        for i in range(num_gat_layers):
 
-        # hidden gat layers
-        for i in range(1, num_gat_layers):
-            in_size = [gat_hidden_size[i - 1] * num_heads for _ in in_feats]
+            # first layer use not dropout
+            if i == 0:
+                fd = 0.0
+                ad = 0.0
+                in_size = in_feats
+                act = self.gat_activation
+            else:
+                fd = feat_drop
+                ad = attn_drop
+                in_size = [gat_hidden_size[i - 1] * num_heads for _ in in_feats]
+
+                # last layer do not apply activation now, but after average over heads
+                # (eq. 6 of the GAT paper) see below in forward()
+                if i == num_fc_layers - 1:
+                    act = None
+                else:
+                    act = self.gat_activation
+
             self.gat_layers.append(
                 HGATConv(
                     attn_mechanism=attn_mechanism,
@@ -105,18 +107,19 @@ class HGATMol(nn.Module):
                     in_feats=in_size,
                     out_feats=gat_hidden_size[i],
                     num_heads=num_heads,
-                    feat_drop=feat_drop,
-                    attn_drop=attn_drop,
+                    num_fc_layers=gat_num_fc_layers,
+                    feat_drop=fd,
+                    attn_drop=ad,
                     negative_slope=negative_slope,
                     residual=gat_residual,
                     batch_norm=gat_batch_norm,
-                    activation=gat_activation,
+                    activation=act,
                 )
             )
 
         # set2set readout layer
         ntypes = ["atom", "bond"]
-        in_size = [gat_hidden_size[-1] * num_heads for _ in attn_order]
+        in_size = [gat_hidden_size[-1] for _ in attn_order]
 
         self.readout_layer = Set2SetThenCat(
             n_iters=num_lstm_iters,
@@ -128,12 +131,10 @@ class HGATMol(nn.Module):
 
         # for atom and bond feat (# *2 because Set2Set used in Set2SetThenCat has out
         # feature twice the the size  of in feature)
-        readout_out_size = (
-            gat_hidden_size[-1] * num_heads * 2 + gat_hidden_size[-1] * num_heads * 2
-        )
+        readout_out_size = gat_hidden_size[-1] * 2 + gat_hidden_size[-1] * 2
         # for global feat
         if set2set_ntypes_direct is not None:
-            readout_out_size += gat_hidden_size[-1] * num_heads
+            readout_out_size += gat_hidden_size[-1] * len(set2set_ntypes_direct)
 
         # need dropout?
         delta = 1e-3
@@ -168,17 +169,27 @@ class HGATMol(nn.Module):
         self.fc_layers.append(nn.Linear(in_size, outdim))
 
     def forward(self, graph, feats):
-        h = feats
+        """
+        Returns:
+            2D tensor: of shape (N, ft_size)
+        """
 
         # hgat layer
-        for layer in self.gat_layers:
-            h = layer(graph, h)
+        for i, layer in enumerate(self.gat_layers):
+            feats = layer(graph, feats)
+
+            # apply activation after average over heads (eq. 6 of the GAT paper)
+            # see below in forward()
+            if i == len(self.gat_layers) - 1:
+                for nt in feats:
+                    ft = feats[nt].view(feats[nt].shape[0], self.num_heads, -1)
+                    feats[nt] = self.gat_activation(torch.mean(ft, dim=1))
 
         # readout layer
-        h = self.readout_layer(graph, h)
+        feats = self.readout_layer(graph, feats)
 
         # fc
         for layer in self.fc_layers:
-            h = layer(h)
+            feats = layer(feats)
 
-        return h
+        return feats

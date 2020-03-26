@@ -24,8 +24,15 @@ class HGATReactionNetwork(HGATMol):
         """
 
         # hgat layer
-        for layer in self.gat_layers:
+        for i, layer in enumerate(self.gat_layers):
             feats = layer(graph, feats)
+
+            # apply activation after average over heads (eq. 6 of the GAT paper)
+            # see below in forward()
+            if i == len(self.gat_layers) - 1:
+                for nt in feats:
+                    ft = feats[nt].view(feats[nt].shape[0], self.num_heads, -1)
+                    feats[nt] = self.gat_activation(torch.mean(ft, dim=1))
 
         # convert mol graphs to reaction graphs by subtracting reactant feats from
         # products feats
@@ -45,8 +52,15 @@ class HGATReactionNetwork(HGATMol):
         This is used when we want to visualize feature.
         """
         # hgat layer
-        for layer in self.gat_layers:
+        for i, layer in enumerate(self.gat_layers):
             feats = layer(graph, feats)
+
+            # apply activation after average over heads (eq. 6 of the GAT paper)
+            # see below in forward()
+            if i == len(self.gat_layers) - 1:
+                for nt in feats:
+                    ft = feats[nt].view(feats[nt].shape[0], self.num_heads, -1)
+                    feats[nt] = self.gat_activation(torch.mean(ft, dim=1))
 
         # convert mol graphs to reaction graphs by subtracting reactant feats from
         # products feats
