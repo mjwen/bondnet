@@ -6,6 +6,32 @@ from dgl import function as fn
 from gnn.utils import warn_stdout
 
 
+class LinearN(nn.Module):
+    """
+    N stacked linear layers.
+
+    Args:
+        in_size (int): input feature size
+        out_sizes (list): size of each layer
+        activations (list): activation function of each layer
+        use_bias (list): whether to use bias for the linear layer
+    """
+
+    def __init__(self, in_size, out_sizes, activations, use_bias):
+        super(LinearN, self).__init__()
+
+        self.fc_layers = nn.ModuleList()
+        for out, act, b in zip(out_sizes, activations, use_bias):
+            self.fc_layers.append(nn.Linear(in_size, out, bias=b))
+            self.fc_layers.append(act)
+            in_size = out
+
+    def forward(self, x):
+        for layer in self.fc_layers:
+            x = layer(x)
+        return x
+
+
 class UnifySize(nn.Module):
     """
     A layer to unify the feature size of nodes of different types.
@@ -54,6 +80,7 @@ class NodeAttentionLayer(nn.Module):
         in_feats (dict): feature sizes with node type as key
         out_feats (int): size of output feature
         num_heads (int): number of heads for multi-head attention
+        num_fc_layers (int): number of fully-connected layer before attention
         feat_drop (float, optional): dropout ratio for feature. Defaults to 0.0.
         attn_drop (float, optional): dropout ratio for feature after attention.
             Defaults to 0.0.
@@ -72,6 +99,7 @@ class NodeAttentionLayer(nn.Module):
         in_feats,
         out_feats,
         num_heads,
+        num_fc_layers=3,
         feat_drop=0.0,
         attn_drop=0.0,
         negative_slope=0.2,
@@ -86,18 +114,7 @@ class NodeAttentionLayer(nn.Module):
         self.out_feats = out_feats
         self.num_heads = num_heads
         self.activation = activation
-        self.residual = residual
         self.edge_types = [(n, e, master_node) for n, e in zip(attn_nodes, attn_edges)]
-
-        # TODO this could be networks to increase capacity
-        # linear FC layer (two purposes, 1. W as in eq1 of the GAT paper. 2. unify size
-        # of feature from different node)
-        self.fc_layers = nn.ModuleDict(
-            {
-                nt: nn.Linear(sz, out_feats * num_heads, bias=False)
-                for nt, sz in in_feats.items()
-            }
-        )
 
         # # linear FC layer (use it only when in size differ from out size)
         # d = {}
@@ -107,6 +124,23 @@ class NodeAttentionLayer(nn.Module):
         #     else:
         #         d[nt] = nn.Linear(sz, out_feats * num_heads, bias=False)
         # self.fc_layers = nn.ModuleDict(d)
+
+        # linear FC layer (two purposes, 1. W as in eq1 of the GAT paper. 2. unify size
+        # of feature from different node)
+        # self.fc_layers = nn.ModuleDict(
+        #     {
+        #         nt: nn.Linear(sz, out_feats * num_heads, bias=False)
+        #         for nt, sz in in_feats.items()
+        #     }
+        # )
+
+        self.fc_layers = nn.ModuleDict()
+        for nt, sz in in_feats.items():
+            # last layer does not use bias and activation
+            out_sizes = [out_feats] * (num_fc_layers - 1) + [out_feats * num_heads]
+            act = [activation] * (num_fc_layers - 1) + [nn.Identity()]
+            use_bias = [True] * (num_fc_layers - 1) + [False]
+            self.fc_layers[nt] = LinearN(sz, out_sizes, act, use_bias)
 
         # parameters for attention
         self.attn_l = nn.Parameter(torch.zeros(1, num_heads, out_feats))
@@ -138,11 +172,23 @@ class NodeAttentionLayer(nn.Module):
             )
             self.attn_drop = nn.Identity()
 
+        if residual:
+            if in_feats[master_node] != out_feats:
+                self.res_fc = nn.Linear(
+                    in_feats[master_node], num_heads * out_feats, bias=False
+                )
+            else:
+                self.res_fc = nn.Identity()
+        else:
+            self.register_buffer("res_fc", None)
+
         # batch normalization
         if batch_norm:
-            self.batch_norm_layer = nn.BatchNorm1d(num_features=out_feats * num_heads)
+            self.bn_layer = nn.ModuleList(
+                [nn.BatchNorm1d(num_features=out_feats) for _ in range(num_heads)]
+            )
         else:
-            self.batch_norm_layer = nn.Identity()
+            self.register_buffer("bn_layer", None)
 
     def reset_parameters(self):
         """Reinitialize parameters."""
@@ -172,14 +218,16 @@ class NodeAttentionLayer(nn.Module):
         """
         graph = graph.local_var()
 
+        N = master_feats.shape[0]
+
         # assign data
         # master node
         master_feats = self.feat_drop(master_feats)  # (N, in)
-        master_feats = self.fc_layers[self.master_node](master_feats).view(
-            -1, self.num_heads, self.out_feats
+        feats = self.fc_layers[self.master_node](master_feats).view(
+            N, -1, self.out_feats
         )  # (N, H, out)
-        er = (master_feats * self.attn_r).sum(dim=-1).unsqueeze(-1)  # (N, H, 1)
-        graph.nodes[self.master_node].data.update({"ft": master_feats, "er": er})
+        er = (feats * self.attn_r).sum(dim=-1).unsqueeze(-1)  # (N, H, 1)
+        graph.nodes[self.master_node].data.update({"ft": feats, "er": er})
 
         # attention node
         for ntype, feats in zip(self.attn_nodes, attn_feats):
@@ -213,13 +261,14 @@ class NodeAttentionLayer(nn.Module):
         rst = graph.nodes[self.master_node].data["ft"]  # shape(N, H, out)
 
         # residual
-        if self.residual:
-            rst = rst + master_feats
+        if self.res_fc is not None:
+            resval = self.res_fc(master_feats).view(N, -1, self.out_feats)
+            rst = rst + resval
 
         # batch normalization
-        rst = rst.view(-1, self.num_heads * self.out_feats)
-        rst = self.batch_norm_layer(rst)
-        rst = rst.view(-1, self.num_heads, self.out_feats)
+        if self.bn_layer is not None:
+            rst_bn = [layer(rst[:, i, :]) for i, layer in enumerate(self.bn_layer)]
+            rst = torch.stack(rst_bn, dim=1)
 
         # activation
         if self.activation:
