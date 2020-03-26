@@ -30,6 +30,7 @@ class HGATBond(nn.Module):
         feat_drop (float, optional): [description]. Defaults to 0.0.
         attn_drop (float, optional): [description]. Defaults to 0.0.
         negative_slope (float, optional): [description]. Defaults to 0.2.
+        gat_num_fc_layers (int): number of fully-connected layer before attention
         gat_residual (bool, optional): [description]. Defaults to False.
         gat_batch_norm(bool): whether to apply batch norm to gat layer.
         gat_activation (torch activation): activation fn of gat layers
@@ -56,6 +57,7 @@ class HGATBond(nn.Module):
         feat_drop=0.0,
         attn_drop=0.0,
         negative_slope=0.2,
+        gat_num_fc_layers=3,
         gat_residual=True,
         gat_batch_norm=False,
         gat_activation="ELU",
@@ -94,6 +96,7 @@ class HGATBond(nn.Module):
                 in_feats=in_feats,
                 out_feats=gat_hidden_size[0],
                 num_heads=num_heads,
+                num_fc_layers=gat_num_fc_layers,
                 feat_drop=0.0,
                 attn_drop=0.0,
                 negative_slope=negative_slope,

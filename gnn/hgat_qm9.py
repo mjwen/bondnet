@@ -52,6 +52,13 @@ def parse_args():
     )
 
     parser.add_argument(
+        "--gat-num-fc-layers",
+        type=int,
+        default=3,
+        help="number of fc layers in gat node attantion layer",
+    )
+
+    parser.add_argument(
         "--gat-residual", type=int, default=1, help="residual connection for gat layer"
     )
 
@@ -323,6 +330,7 @@ def main(args):
         feat_drop=args.feat_drop,
         attn_drop=args.attn_drop,
         negative_slope=args.negative_slope,
+        gat_num_fc_layers=args.gat_num_fc_layers,
         gat_residual=args.gat_residual,
         gat_batch_norm=args.gat_batch_norm,
         gat_activation=args.gat_activation,

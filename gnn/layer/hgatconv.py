@@ -294,6 +294,7 @@ class HGATConv(nn.Module):
             in `attn_order`.
         out_feats (int): output feature size, the same for all nodes
         num_heads (int): number of attention heads, the same for all nodes
+        num_fc_layers (int): number of fully-connected layer before attention
         feat_drop (float, optional): [description]. Defaults to 0.0.
         attn_drop (float, optional): [description]. Defaults to 0.0.
         negative_slope (float, optional): [description]. Defaults to 0.2.
@@ -309,6 +310,7 @@ class HGATConv(nn.Module):
         in_feats,
         out_feats,
         num_heads=4,
+        num_fc_layers=3,
         feat_drop=0.0,
         attn_drop=0.0,
         negative_slope=0.2,
@@ -334,6 +336,7 @@ class HGATConv(nn.Module):
                 in_feats=in_feats_map,
                 out_feats=out_feats,
                 num_heads=num_heads,
+                num_fc_layers=num_fc_layers,
                 feat_drop=feat_drop,
                 attn_drop=attn_drop,
                 negative_slope=negative_slope,
