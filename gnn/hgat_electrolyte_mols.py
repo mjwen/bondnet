@@ -33,7 +33,7 @@ def parse_args():
         "--gat-hidden-size",
         type=int,
         nargs="+",
-        default=[32, 32, 64],
+        default=[24, 32, 64],
         help="number of hidden units of GAT layers",
     )
     parser.add_argument(
@@ -75,6 +75,7 @@ def parse_args():
         default=6,
         help="number of iterations for the LSTM in set2set readout layer",
     )
+
     parser.add_argument(
         "--num-lstm-layers",
         type=int,
@@ -160,6 +161,28 @@ def parse_args():
     return args
 
 
+def debug_train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None):
+
+    model.train()
+
+    for it, (bg, label) in enumerate(data_loader):
+
+        with autograd.detect_anomaly():
+
+            feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
+            target = label["value"]
+
+            if device is not None:
+                feats = {k: v.to(device) for k, v in feats.items()}
+                target = target.to(device)
+
+            pred = model(bg, feats)
+            loss = loss_fn(pred, target)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+
 def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None):
     """
     Args:
@@ -176,15 +199,15 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
         feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
         target = label["value"]
         try:
-            scale = label["label_scale"]
+            scale = label["label_scaler"]
         except KeyError:
             scale = None
 
         if device is not None:
-            feats = {k: v.to(device=device) for k, v in feats.items()}
-            target = target.to(device=device)
+            feats = {k: v.to(device) for k, v in feats.items()}
+            target = target.to(device)
             if scale is not None:
-                scale = scale.to(device=device)
+                scale = scale.to(device)
 
         pred = model(bg, feats)
         loss = loss_fn(pred, target)
@@ -219,15 +242,15 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
             target = label["value"]
             try:
-                scale = label["label_scale"]
+                scale = label["label_scaler"]
             except KeyError:
                 scale = None
 
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
-                target = target.to(device=device)
+                target = target.to(device)
                 if scale is not None:
-                    scale = scale.to(device=device)
+                    scale = scale.to(device)
 
             pred = model(bg, feats)
             accuracy += metric_fn(pred, target, scale).detach().item()
@@ -264,7 +287,10 @@ def main(args):
         feature_file=feature_file,
         properties=["atomization_energy"],
         unit_conversion=True,
+        feature_transformer=True,
+        label_transformer=True,
     )
+    print(dataset)
 
     trainset, valset, testset = train_validation_test_split(
         dataset, validation=0.1, test=0.1
@@ -356,30 +382,38 @@ def main(args):
     sys.stdout.flush()
 
     t0 = time.time()
+
+    debug = False
     for epoch in range(args.epochs):
         ti = time.time()
 
-        # train and evaluate accuracy
-        loss, train_acc = train(
-            optimizer, model, attn_order, train_loader, loss_func, metric, args.device
-        )
+        # train
+        if not debug:
+            loss, train_acc = train(
+                optimizer, model, attn_order, train_loader, loss_func, metric, args.device
+            )
 
-        # bad, we get nan. Before existing, do some debugging
-        if np.isnan(loss):
-            print("\n\nBad, we get nan for loss. See below for traceback\n\n")
-            sys.stdout.flush()
-            with autograd.detect_anomaly():
-                train(
-                    optimizer,
-                    model,
-                    attn_order,
-                    train_loader,
-                    loss_func,
-                    metric,
-                    args.device,
+            # bad, we get nan. Before existing, do some debugging
+            if np.isnan(loss):
+                print(
+                    "\n\nBad, we get nan for loss. Turn debug on and hope to catch "
+                    "it. Note, although we load the checkpoints before the failing, "
+                    "the debug may still fail because the data loader is random and "
+                    "thus the data feeded are different from what causes the failing "
+                    "when running directly. The only hope is that the error can reoccur."
                 )
-            sys.exit(1)
+                sys.stdout.flush()
 
+                load_checkpoints(checkpoints_objs)
+                debug = True
+                continue
+        else:
+            debug_train(
+                optimizer, model, attn_order, train_loader, loss_func, metric, args.device
+            )
+            continue
+
+        # evaluate
         val_acc = evaluate(model, attn_order, val_loader, metric, args.device)
 
         if stopper.step(val_acc, checkpoints_objs, msg="epoch " + str(epoch)):

@@ -164,8 +164,8 @@ def debug_train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device
             target = label["value"]
 
             if device is not None:
-                feats = {k: v.to(device=device) for k, v in feats.items()}
-                target = target.to(device=device)
+                feats = {k: v.to(device) for k, v in feats.items()}
+                target = target.to(device)
 
             pred = model(bg, feats, mol_based=True)
             loss = loss_fn(pred, target)
@@ -189,13 +189,16 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
     for it, (bg, label) in enumerate(data_loader):
         feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
         target = label["value"]
-        scale = label["label_scaler"]
+        try:
+            scale = label["label_scaler"]
+        except KeyError:
+            scale = None
 
         if device is not None:
             feats = {k: v.to(device) for k, v in feats.items()}
             target = target.to(device)
             if scale is not None:
-                scale = scale.to(device=device)
+                scale = scale.to(device)
 
         pred = model(bg, feats, mol_based=True)
         loss = loss_fn(pred, target)
@@ -229,13 +232,16 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
         for bg, label in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
             target = label["value"]
-            scale = label["label_scaler"]
+            try:
+                scale = label["label_scaler"]
+            except KeyError:
+                scale = None
 
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
                 target = target.to(device)
                 if scale is not None:
-                    scale = scale.to(device=device)
+                    scale = scale.to(device)
 
             pred = model(bg, feats, mol_based=True)
             accuracy += metric_fn(pred, target, scale).detach().item()
@@ -276,6 +282,8 @@ def main(args):
         label_file=label_file,
         properties=props,
         unit_conversion=True,
+        feature_transformer=True,
+        label_transformer=True,
     )
     print(dataset)
 
@@ -291,9 +299,9 @@ def main(args):
     train_loader = DataLoader(trainset, batch_size=args.batch_size, shuffle=True)
     # larger val and test set batch_size is faster but needs more memory
     # adjust the batch size of to fit memory
-    bs = len(valset) // 10
+    bs = max(len(valset) // 10, 1)
     val_loader = DataLoader(valset, batch_size=bs, shuffle=False)
-    bs = len(testset) // 10
+    bs = max(len(testset) // 10, 1)
     test_loader = DataLoader(testset, batch_size=bs, shuffle=False)
 
     ### model
