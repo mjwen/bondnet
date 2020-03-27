@@ -213,10 +213,13 @@ class MoleculeWrapper:
     """
 
     def __init__(self):
+        # should be set upon creation
         self.id = None
         self.free_energy = None
         self.pymatgen_mol = None
         self.mol_graph = None
+
+        # set when corresponding method is called
         self._ob_adaptor = None
         self._fragments = None
         self._isomorphic_bonds = None
@@ -598,6 +601,19 @@ class MoleculeWrapperFromAtomsAndBonds(MoleculeWrapper):
         feats["charge"] = self.charge
 
         return feats
+
+
+def rdkit_mol_to_wrapper_mol(m, charge=0, mol_id=None):
+
+    species = [m.GetAtomWithIdx(i).GetSymbol() for i in range(m.GetNumAtoms())]
+    coords = m.GetConformer().GetPositions()
+
+    bonds = []
+    for i in range(m.GetNumBonds()):
+        b = m.GetBondWithIdx(i)
+        bonds.append([b.GetBeginAtomIdx(), b.GetEndAtomIdx()])
+
+    return MoleculeWrapperFromAtomsAndBonds(species, coords, charge, bonds, mol_id)
 
 
 def write_sdf_csv_dataset(
