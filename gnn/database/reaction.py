@@ -7,7 +7,7 @@ import networkx as nx
 import networkx.algorithms.isomorphism as iso
 from pymatgen.analysis.graphs import _isomorphic
 from collections import defaultdict, OrderedDict
-from gnn.database.database import MoleculeWrapperFromAtomsAndBonds
+from gnn.database.molwrapper import MoleculeWrapperFromAtomsAndBonds
 from gnn.utils import create_directory, pickle_dump, pickle_load, yaml_dump, expand_path
 
 logger = logging.getLogger(__name__)
@@ -925,7 +925,17 @@ class ReactionsOnePerBond(ReactionsMultiplePerBond):
 
 
 class ReactionExtractor:
+    """
+    Extract reactions from a list of molecuels.
+    """
+
     def __init__(self, molecules, reactions=None):
+        """
+        Args:
+            molecules (list): a sequence of :class:`MoleculeWrapper` molecules.
+            reactions (list, optional): a sequence of :class:`Reaction`.
+        """
+
         self.molecules = molecules or self._get_molecules_from_reactions(reactions)
         self.reactions = reactions
 

@@ -1,6 +1,7 @@
 """
-Convert Sam's database entries to molecules.
+Molecule wrapper over pymatgen's Molecule class.
 """
+
 import os
 import copy
 import logging
@@ -8,16 +9,12 @@ import warnings
 import numpy as np
 import itertools
 import subprocess
-from collections import defaultdict
 from svglib.svglib import svg2rlg
 from reportlab.graphics import renderPDF, renderPM
 import networkx as nx
-from atomate.qchem.database import QChemCalcDb
 import pymatgen
 from pymatgen.core.structure import Molecule
 from pymatgen.analysis.graphs import MoleculeGraph, MolGraphSplitError
-from pymatgen.analysis.local_env import OpenBabelNN
-from pymatgen.analysis.fragmenter import metal_edge_extender
 from pymatgen.io.babel import BabelMolAdaptor
 from rdkit import Chem
 from rdkit.Chem import Draw, AllChem
@@ -579,222 +576,6 @@ class MoleculeWrapper:
         subprocess.run(["rm", svg_name])
 
 
-class MoleculeWrapperTaskCollection(MoleculeWrapper):
-    def __init__(self, db_entry, use_metal_edge_extender=True, optimized=True):
-
-        super(MoleculeWrapperTaskCollection, self).__init__()
-
-        self.id = str(db_entry["_id"])
-
-        if optimized:
-            if db_entry["state"] != "successful":
-                raise UnsuccessfulEntryError
-            try:
-                self.pymatgen_mol = pymatgen.Molecule.from_dict(
-                    db_entry["output"]["optimized_molecule"]
-                )
-            except KeyError:
-                self.pymatgen_mol = pymatgen.Molecule.from_dict(
-                    db_entry["output"]["initial_molecule"]
-                )
-                print(
-                    "use initial_molecule for id: {}; job type:{} ".format(
-                        db_entry["_id"], db_entry["output"]["job_type"]
-                    )
-                )
-        else:
-            self.pymatgen_mol = pymatgen.Molecule.from_dict(
-                db_entry["input"]["initial_molecule"]
-            )
-
-        self.mol_graph = MoleculeGraph.with_local_env_strategy(
-            self.pymatgen_mol,
-            OpenBabelNN(order=True),
-            reorder=False,
-            extend_structure=False,
-        )
-        if use_metal_edge_extender:
-            self.mol_graph = metal_edge_extender(self.mol_graph)
-
-        self.free_energy = self._get_free_energy(db_entry, self.id, self.formula)
-
-    def pack_features(self, use_obabel_idx=True):
-        feats = dict()
-
-        # molecule level
-        feats["id"] = self.id
-        feats["free_energy"] = self.free_energy
-        feats["atomization_free_energy"] = self.atomization_free_energy
-        feats["charge"] = self.charge
-        feats["spin_multiplicity"] = self.spin_multiplicity
-
-        return feats
-
-    @staticmethod
-    def _get_free_energy(entry, mol_id, formula, T=300):
-
-        try:
-            energy = entry["output"]["energy"]
-        except KeyError as e:
-            print(e, "energy", mol_id, formula)
-
-        try:
-            entropy = entry["output"]["entropy"]
-        except KeyError as e:
-            print(e, "entropy", mol_id, formula)
-            raise UnsuccessfulEntryError
-
-        try:
-            enthalpy = entry["output"]["enthalpy"]
-        except KeyError as e:
-            print(e, "enthalpy", mol_id, formula)
-            raise UnsuccessfulEntryError
-
-        return energy * 27.21139 + enthalpy * 0.0433641 - T * entropy * 0.0000433641
-
-
-class MoleculeWrapperMolBuilder(MoleculeWrapper):
-    def __init__(self, db_entry):
-        super(MoleculeWrapperMolBuilder, self).__init__()
-
-        self.id = str(db_entry["_id"])
-
-        try:
-            self.pymatgen_mol = pymatgen.Molecule.from_dict(db_entry["molecule"])
-        except KeyError as e:
-            print(self.__class__.__name__, e, "molecule", self.id)
-            raise UnsuccessfulEntryError
-
-        try:
-            self.mol_graph = MoleculeGraph.from_dict(db_entry["mol_graph"])
-        except KeyError as e:
-            # NOTE it would be better that we can get MoleculeGraph from database
-            if db_entry["nsites"] == 1:  # single atom molecule
-                self.mol_graph = MoleculeGraph.with_local_env_strategy(
-                    self.pymatgen_mol,
-                    OpenBabelNN(order=True),
-                    reorder=False,
-                    extend_structure=False,
-                )
-            else:
-                print(self.__class__.__name__, e, "free energy", self.id, self.formula)
-                raise UnsuccessfulEntryError
-
-        try:
-            self.free_energy = db_entry["free_energy"]
-        except KeyError as e:
-            print(self.__class__.__name__, e, "free energy", self.id, self.formula)
-            raise UnsuccessfulEntryError
-
-        try:
-            self.resp = db_entry["resp"]
-        except KeyError as e:
-            print(self.__class__.__name__, e, "resp", self.id, self.formula)
-            raise UnsuccessfulEntryError
-
-        try:
-            mulliken = db_entry["mulliken"]
-            if len(np.asarray(mulliken).shape) == 1:  # partial spin is 0
-                self.mulliken = [i for i in mulliken]
-                self.atom_spin = [0 for _ in mulliken]
-            else:
-                self.mulliken = [i[0] for i in mulliken]
-                self.atom_spin = [i[1] for i in mulliken]
-        except KeyError as e:
-            print(self.__class__.__name__, e, "mulliken", self.id, self.formula)
-            raise UnsuccessfulEntryError
-
-        # critic
-        try:
-            self.critic = db_entry["critic"]
-        except KeyError as e:
-            if db_entry["nsites"] != 1:  # not single atom molecule
-                print(self.__class__.__name__, e, "critic", self.id, self.formula)
-                raise UnsuccessfulEntryError
-
-    def convert_to_babel_mol_graph(self, use_metal_edge_extender=True):
-        self._ob_adaptor = None
-        self.mol_graph = MoleculeGraph.with_local_env_strategy(
-            self.pymatgen_mol,
-            OpenBabelNN(order=True),
-            reorder=False,
-            extend_structure=False,
-        )
-        if use_metal_edge_extender:
-            self.mol_graph = metal_edge_extender(self.mol_graph)
-
-    def convert_to_critic_mol_graph(self):
-        self._ob_adaptor = None
-        bonds = dict()
-        try:
-            for key, val in self.critic["bonding"].items():
-                idx = val["atom_ids"]
-                idx = tuple([int(i) - 1 for i in idx])
-                bonds[idx] = None
-        except KeyError as e:
-            print(self.__class__.__name__, e, "critic bonding", self.id)
-            raise UnsuccessfulEntryError
-        self.mol_graph = MoleculeGraph.with_edges(self.pymatgen_mol, bonds)
-
-    def pack_features(self, use_obabel_idx=True, broken_bond=None):
-        """
-        Pack the features from QChem computations into a dict.
-
-        Args:
-            use_obabel_idx (bool): If `True`, atom level features (e.g. `resp`) will
-                use babel atom index, otherwise, use graph atom index.
-            broken_bond (tuple): If not `None`, include submolecule features, where
-                atom level features are assigned to submolecules upon bond breaking.
-                Note `broken_bond` should be given in graph atom index, regardless of
-                the value of `use_obabel_idx`.
-
-        Returns:
-            dict: features
-        """
-        feats = dict()
-
-        # molecule level
-        feats["id"] = self.id
-        feats["free_energy"] = self.free_energy
-        feats["atomization_free_energy"] = self.atomization_free_energy
-        feats["charge"] = self.charge
-        feats["spin_multiplicity"] = self.spin_multiplicity
-
-        # submolecules level (upon bond breaking)
-        if broken_bond is not None:
-            mappings = self.subgraph_atom_mapping(broken_bond)
-            sub_resp = []
-            sub_mulliken = []
-            sub_atom_spin = []
-            for mp in mappings:
-                sub_resp.append([self.resp[i] for i in mp])
-                sub_mulliken.append([self.mulliken[i] for i in mp])
-                sub_atom_spin.append([self.atom_spin[i] for i in mp])
-            feats["abs_resp_diff"] = abs(sum(sub_resp[0]) - sum(sub_resp[1]))
-            feats["abs_mulliken_diff"] = abs(sum(sub_mulliken[0]) - sum(sub_mulliken[1]))
-            feats["abs_atom_spin_diff"] = abs(
-                sum(sub_atom_spin[0]) - sum(sub_atom_spin[1])
-            )
-
-        # atom level
-        resp = [i for i in self.resp]
-        mulliken = [i for i in self.mulliken]
-        atom_spin = [i for i in self.atom_spin]
-        if use_obabel_idx:
-            for graph_idx in range(len(self.atoms)):
-                ob_idx = self.graph_idx_to_ob_idx_map[graph_idx]
-                # -1 because ob index starts from 1
-                resp[ob_idx - 1] = self.resp[graph_idx]
-                mulliken[ob_idx - 1] = self.mulliken[graph_idx]
-                atom_spin[ob_idx - 1] = self.atom_spin[graph_idx]
-
-        feats["resp"] = resp
-        feats["mulliken"] = mulliken
-        feats["atom_spin"] = atom_spin
-
-        return feats
-
-
 class MoleculeWrapperFromAtomsAndBonds(MoleculeWrapper):
     """
     A molecule wrapper class that creates molecules by giving species, coords,
@@ -819,337 +600,111 @@ class MoleculeWrapperFromAtomsAndBonds(MoleculeWrapper):
         return feats
 
 
-class DatabaseOperation:
-    @staticmethod
-    def query_db_entries(db_collection="mol_builder", db_file=None, num_entries=None):
-        """
-        Query a (Sam's) database to pull all the molecules form molecule builder.
+def write_sdf_csv_dataset(
+    molecules,
+    struct_file="struct_mols.sdf",
+    label_file="label_mols.csv",
+    feature_file="feature_mols.yaml",
+    exclude_single_atom=True,
+):
+    struct_file = expand_path(struct_file)
+    label_file = expand_path(label_file)
 
-        Args:
-            db_collection (str): which database to query. Optionals are `mol_builder`
-                and `task`.
-            db_file (str): a json file storing the info of the database.
-            num_entries (int): the number of entries to query, if `None`, get all.
+    logger.info(
+        "Start writing dataset to files: {} and {}".format(struct_file, label_file)
+    )
 
-        Returns:
-            A list of db entries.
-        """
+    feats = []
 
-        logger.info("Start querying database...")
+    with open(struct_file, "w") as fx, open(label_file, "w") as fy:
 
-        if db_file is None:
-            if db_collection == "mol_builder":
-                db_file = (
-                    "/Users/mjwen/Applications/mongo_db_access/sam_db_molecules.json"
-                )
-            elif db_collection == "task":
-                db_file = "/Users/mjwen/Applications/mongo_db_access/sam_db.json"
-            else:
-                raise Exception("Unrecognized db_collection = {}".format(db_collection))
+        fy.write("mol_id,atomization_energy\n")
 
-        mmdb = QChemCalcDb.from_db_file(db_file, admin=True)
+        i = 0
+        for m in molecules:
 
-        if db_collection == "mol_builder":
-            if num_entries is None:
-                entries = mmdb.collection.find()
-            else:
-                entries = mmdb.collection.find().limit(num_entries)
-        elif db_collection == "task":
-            query = {"tags.class": "smd_production"}
-            if num_entries is None:
-                entries = mmdb.collection.find(query)
-            else:
-                entries = mmdb.collection.find(query).limit(num_entries)
-        else:
-            raise Exception("Unrecognized db_collection = {}".format(db_collection))
-
-        entries = list(entries)
-        logger.info(
-            "Finish fetching {} entries of database from query...".format(len(entries))
-        )
-
-        return entries
-
-    @staticmethod
-    def to_molecules(entries, db_collection="mol_builder", sort=True):
-        """
-        Convert data entries to molecules.
-
-        Args:
-            db_collection (str): which database to query. Optionals are `mol_builder`
-                and `task`.
-            sort (bool): If True, sort molecules by their formula.
-
-        Returns:
-            A list of MoleculeWrapper object
-        """
-
-        logger.info("Start converting DB entries to molecules...")
-
-        if db_collection == "mol_builder":
-            MW = MoleculeWrapperMolBuilder
-        elif db_collection == "task":
-            MW = MoleculeWrapperTaskCollection
-        else:
-            raise Exception("Unrecognized db_collection = {}".format(db_collection))
-
-        unsuccessful = 0
-        mols = []
-        for i, entry in enumerate(entries):
-            if i % 100 == 0:
-                logger.info(
-                    "Converted {}/{} entries to molecules.".format(i, len(entries))
-                )
-            try:
-                m = MW(entry)
-                mols.append(m)
-            except UnsuccessfulEntryError:
-                unsuccessful += 1
-
-        logger.info(
-            "Total entries: {}, unsuccessful: {}, successful: {} to molecules.".format(
-                len(entries), unsuccessful, len(entries) - unsuccessful
-            )
-        )
-
-        if sort:
-            mols = sorted(mols, key=lambda m: m.formula)
-
-        return mols
-
-    @staticmethod
-    def filter_molecules(molecules, connectivity=True, isomorphism=True):
-        """
-        Filter out some molecules.
-
-        Args:
-            molecules (list of MoleculeWrapper): molecules
-            connectivity (bool): whether to filter on connectivity
-            isomorphism (bool): if `True`, filter on `charge`, `spin`, and `isomorphism`.
-                The one with the lowest free energy will remain.
-
-        Returns:
-            A list of MoleculeWrapper objects.
-        """
-        n_unconnected_mol = 0
-        n_not_unique_mol = 0
-
-        filtered = []
-        for i, m in enumerate(molecules):
-
-            # check on connectivity
-            if connectivity and not nx.is_weakly_connected(m.graph):
-                n_unconnected_mol += 1
+            if exclude_single_atom and len(m.atoms) == 1:
+                logger.info("Excluding single atom molecule {}".format(m.formula))
                 continue
 
-            # check for isomorphism
-            if isomorphism:
-                idx = -1
-                for i_p_m, p_m in enumerate(filtered):
-                    if (
-                        m.charge == p_m.charge
-                        and m.spin_multiplicity == p_m.spin_multiplicity
-                        and m.mol_graph.isomorphic_to(p_m.mol_graph)
-                    ):
-                        n_not_unique_mol += 1
-                        idx = i_p_m
-                        break
-                if idx >= 0:
-                    if m.free_energy < filtered[idx].free_energy:
-                        filtered[idx] = m
-                else:
-                    filtered.append(m)
+            # The same pybel mol will write different sdf file when it is called
+            # the first time and other times. We create a new one by setting
+            # `_ob_adaptor` to None here so that it will write the correct one.
+            m._ob_adaptor = None
+            sdf = m.write(file_format="sdf", message=m.id + " int_id-" + str(i))
+            fx.write(sdf)
+            fy.write("{},{:.15g}\n".format(m.id, m.atomization_free_energy))
 
-        logger.info(
-            "Num molecules: {}; unconnected: {}; isomorphic: {}; remaining: {}".format(
-                len(molecules), n_unconnected_mol, n_not_unique_mol, len(filtered)
-            )
-        )
+            feats.append(m.pack_features())
+            i += 1
 
-        return filtered
+    # write feature file
+    yaml_dump(feats, feature_file)
 
-    @staticmethod
-    def write_group_isomorphic_to_file(molecules, filename):
-        def group_isomorphic(molecules):
-            """
-            Group molecules
-            Args:
-                molecules: a list of Molecules.
 
-            Returns:
-                A list of list, with inner list of isomorphic molecules.
-            """
-            groups = []
-            for m in molecules:
-                find_iso = False
-                for g in groups:
-                    iso_m = g[0]
-                    if m.mol_graph.isomorphic_to(iso_m.mol_graph):
-                        g.append(m)
-                        find_iso = True
-                        break
-                if not find_iso:
-                    groups.append([m])
-            return groups
+def write_edge_label_based_on_bond(
+    molecules,
+    sdf_filename="mols.sdf",
+    label_filename="bond_label.yaml",
+    feature_filename="feature.yaml",
+    exclude_single_atom=True,
+):
+    """
+    For a molecule from SDF file, creating complete graph for atoms and label the edges
+    based on whether its an actual bond or not.
 
-        groups = group_isomorphic(molecules)
+    The order of the edges are (0,1), (0,2), ... , (0, N-1), (1,2), (1,3), ...,
+    (N-2, N-1), where N is the number of atoms.
 
-        # statistics or charges of mols
-        charges = defaultdict(int)
+    Args:
+        molecules (list): a sequence of MoleculeWrapper object
+        sdf_filename (str): name of the output sdf file
+        label_filename (str): name of the output label file
+        feature_filename (str): name of the output feature file
+    """
+
+    def get_bond_label(m):
+        """
+        Get to know whether an edge in a complete graph is a bond.
+
+        Returns:
+            list: bool to indicate whether an edge is a bond. The edges are in the order:
+                (0,1), (0,2), ..., (0,N-1), (1,2), (1,3), ..., (N, N-1), where N is the
+                number of atoms.
+        """
+        bonds = [sorted([i, j]) for i, j, attr in m.bonds]
+        num_bonds = len(bonds)
+        if num_bonds < 1:
+            warnings.warn("molecular has no bonds")
+
+        num_atoms = len(m.atoms)
+        bond_label = []
+        for u, v in itertools.combinations(range(num_atoms), 2):
+            b = sorted([u, v])
+            if b in bonds:
+                bond_label.append(True)
+            else:
+                bond_label.append(False)
+
+        return bond_label
+
+    labels = []
+    charges = []
+    sdf_filename = expand_path(sdf_filename)
+    with open(sdf_filename, "w") as f:
+        i = 0
         for m in molecules:
-            charges[m.charge] += 1
 
-        # statistics of isomorphic mols
-        sizes = defaultdict(int)
-        for g in groups:
-            sizes[len(g)] += 1
+            if exclude_single_atom and len(m.atoms) == 1:
+                logger.info("Excluding single atom molecule {}".format(m.formula))
+                continue
 
-        # statistics of charge combinations
-        charge_combinations = defaultdict(int)
-        for g in groups:
-            chg = [m.charge for m in g]
-            for ij in itertools.combinations(chg, 2):
-                ij = tuple(sorted(ij))
-                charge_combinations[ij] += 1
+            m._ob_adaptor = None
+            sdf = m.write(file_format="sdf", message=m.id + " int_id-" + str(i))
+            f.write(sdf)
+            labels.append(get_bond_label(m))
+            charges.append({"charge": m.charge})
+            i += 1
 
-        filename = expand_path(filename)
-        create_directory(filename)
-        with open(filename, "w") as f:
-            f.write("Number of molecules: {}\n\n".format(len(molecules)))
-            f.write("Molecule charge state statistics.\n")
-            f.write("# charge state     number of molecules:\n")
-            for k, v in charges.items():
-                f.write("{}    {}\n".format(k, v))
-
-            f.write("Number of isomorphic groups: {}\n\n".format(len(groups)))
-            f.write(
-                "Molecule isomorphic group size statistics. (i.e. the number of "
-                "isomorphic molecules that have a specific number of charge state\n"
-            )
-            f.write("# size     number of molecules:\n")
-            for k, v in sizes.items():
-                f.write("{}    {}\n".format(k, v))
-
-            f.write("# charge combinations     number:\n")
-            for k, v in charge_combinations.items():
-                f.write("{}    {}\n".format(k, v))
-
-            for g in groups:
-                for m in g:
-                    f.write("{}_{}_{}    ".format(m.formula, m.id, m.charge))
-                f.write("\n")
-
-    @staticmethod
-    def write_sdf_csv_dataset(
-        molecules,
-        struct_file="struct_mols.sdf",
-        label_file="label_mols.csv",
-        feature_file="feature_mols.yaml",
-        exclude_single_atom=True,
-    ):
-        struct_file = expand_path(struct_file)
-        label_file = expand_path(label_file)
-
-        logger.info(
-            "Start writing dataset to files: {} and {}".format(struct_file, label_file)
-        )
-
-        feats = []
-
-        with open(struct_file, "w") as fx, open(label_file, "w") as fy:
-
-            fy.write("mol_id,atomization_energy\n")
-
-            i = 0
-            for m in molecules:
-
-                if exclude_single_atom and len(m.atoms) == 1:
-                    logger.info("Excluding single atom molecule {}".format(m.formula))
-                    continue
-
-                # The same pybel mol will write different sdf file when it is called
-                # the first time and other times. We create a new one by setting
-                # `_ob_adaptor` to None here so that it will write the correct one.
-                m._ob_adaptor = None
-                sdf = m.write(file_format="sdf", message=m.id + " int_id-" + str(i))
-                fx.write(sdf)
-                fy.write("{},{:.15g}\n".format(m.id, m.atomization_free_energy))
-
-                feats.append(m.pack_features())
-                i += 1
-
-        # write feature file
-        yaml_dump(feats, feature_file)
-
-    @staticmethod
-    def write_edge_label_based_on_bond(
-        molecules,
-        sdf_filename="mols.sdf",
-        label_filename="bond_label.yaml",
-        feature_filename="feature.yaml",
-        exclude_single_atom=True,
-    ):
-        """
-        For a molecule from SDF file, creating complete graph for atoms and label the edges
-        based on whether its an actual bond or not.
-
-        The order of the edges are (0,1), (0,2), ... , (0, N-1), (1,2), (1,3), ...,
-        (N-2, N-1), where N is the number of atoms.
-
-        Args:
-            molecules (list): a sequence of MoleculeWrapper object
-            sdf_filename (str): name of the output sdf file
-            label_filename (str): name of the output label file
-            feature_filename (str): name of the output feature file
-        """
-
-        def get_bond_label(m):
-            """
-            Get to know whether an edge in a complete graph is a bond.
-
-            Returns:
-                list: bool to indicate whether an edge is a bond. The edges are in the order:
-                    (0,1), (0,2), ..., (0,N-1), (1,2), (1,3), ..., (N, N-1), where N is the
-                    number of atoms.
-            """
-            bonds = [sorted([i, j]) for i, j, attr in m.bonds]
-            num_bonds = len(bonds)
-            if num_bonds < 1:
-                warnings.warn("molecular has no bonds")
-
-            num_atoms = len(m.atoms)
-            bond_label = []
-            for u, v in itertools.combinations(range(num_atoms), 2):
-                b = sorted([u, v])
-                if b in bonds:
-                    bond_label.append(True)
-                else:
-                    bond_label.append(False)
-
-            return bond_label
-
-        labels = []
-        charges = []
-        sdf_filename = expand_path(sdf_filename)
-        with open(sdf_filename, "w") as f:
-            i = 0
-            for m in molecules:
-
-                if exclude_single_atom and len(m.atoms) == 1:
-                    logger.info("Excluding single atom molecule {}".format(m.formula))
-                    continue
-
-                m._ob_adaptor = None
-                sdf = m.write(file_format="sdf", message=m.id + " int_id-" + str(i))
-                f.write(sdf)
-                labels.append(get_bond_label(m))
-                charges.append({"charge": m.charge})
-                i += 1
-
-        yaml_dump(labels, expand_path(label_filename))
-        yaml_dump(charges, expand_path(feature_filename))
-
-
-class UnsuccessfulEntryError(Exception):
-    def __init__(self):
-        pass
+    yaml_dump(labels, expand_path(label_filename))
+    yaml_dump(charges, expand_path(feature_filename))

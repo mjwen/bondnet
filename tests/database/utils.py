@@ -1,4 +1,4 @@
-from gnn.database.database import MoleculeWrapperFromAtomsAndBonds
+from gnn.database.molwrapper import MoleculeWrapperFromAtomsAndBonds
 from gnn.database.reaction import Reaction
 
 
