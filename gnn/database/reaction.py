@@ -926,18 +926,25 @@ class ReactionsOnePerBond(ReactionsMultiplePerBond):
 
 class ReactionExtractor:
     """
-    Extract reactions from a list of molecuels.
+    Compose reactions from a set of molecules.
+
+    This currently supports two types of (one-bond-break) reactions:
+    A -> B
+    A -> B + C
+
+    A reaction is determined to be valid if:
+    - balance of mass
+    - balance of charge
+    - connectivity: molecule graph between reactant and products only differ by one
+        edge (bond)
+
+    Args:
+        molecules (list): a sequence of :class:`MoleculeWrapper` molecules.
     """
 
-    def __init__(self, molecules, reactions=None):
-        """
-        Args:
-            molecules (list): a sequence of :class:`MoleculeWrapper` molecules.
-            reactions (list, optional): a sequence of :class:`Reaction`.
-        """
-
-        self.molecules = molecules or self._get_molecules_from_reactions(reactions)
-        self.reactions = reactions
+    def __init__(self, molecules):
+        self.molecules = molecules
+        self.reactions = None
 
     def bucket_molecules(self, keys=["formula", "charge"]):
         """
@@ -1091,6 +1098,66 @@ class ReactionExtractor:
 
         return A2B, A2BC
 
+    @staticmethod
+    def _get_formula_composition_map(mols):
+        fcmap = dict()
+        for m in mols:
+            fcmap[m.formula] = m.composition_dict
+        return fcmap
+
+    @staticmethod
+    def _is_even_composition(composition):
+        for _, amt in composition.items():
+            if int(amt) % 2 != 0:
+                return False
+        return True
+
+    @staticmethod
+    def _is_valid_A_to_B_C_composition(composition1, composition2, composition3):
+        combined23 = defaultdict(int)
+        for k, v in composition2.items():
+            combined23[k] += v
+        for k, v in composition3.items():
+            combined23[k] += v
+        return composition1 == combined23
+
+    @staticmethod
+    def _is_valid_A_to_B_C_charge(charge1, charge2, charge3):
+        return charge1 == charge2 + charge3
+
+    def to_file(self, filename="rxns.pkl"):
+        logger.info("Start writing reactions to file: {}".format(filename))
+
+        for m in get_molecules_from_reactions(self.reactions):
+            m.make_picklable()
+        d = {
+            "@module": self.__class__.__module__,
+            "@class": self.__class__.__name__,
+            "reactions": self.reactions,
+        }
+        pickle_dump(d, filename)
+
+
+class ReactionCollection:
+    """
+    A set of reactions.
+    """
+
+    def __init__(self, reactions):
+        """
+        Args:
+            reactions (list): a sequence of :class:`Reaction`.
+        """
+        self.reactions = reactions
+
+    @classmethod
+    def from_file(cls, filename):
+        d = pickle_load(filename)
+        logger.info(
+            "{} reactions loaded from file: {}".format(len(d["reactions"]), filename)
+        )
+        return cls(d["reactions"])
+
     def filter_reactions_by_reactant_attribute(self, key, values):
         """
         Filter the reactions by the `key` of reactant, and only reactions the attribute of
@@ -1105,7 +1172,6 @@ class ReactionExtractor:
             if getattr(rxn.reactants[0], key) in values:
                 reactions.append(rxn)
 
-        self.molecules = self._get_molecules_from_reactions(reactions)
         self.reactions = reactions
 
     def filter_reactions_by_bond_type_and_order(self, bond_type, bond_order=None):
@@ -1129,7 +1195,6 @@ class ReactionExtractor:
                     if order == bond_order:
                         reactions.append(rxn)
 
-        self.molecules = self._get_molecules_from_reactions(reactions)
         self.reactions = reactions
 
     def sort_reactions_by_reactant_formula(self):
@@ -1311,8 +1376,6 @@ class ReactionExtractor:
         return reactions
 
     def write_bond_energies(self, filename):
-        for m in self.molecules:
-            m.make_picklable()
 
         groups = self.group_by_reactant_all()
 
@@ -1391,7 +1454,7 @@ class ReactionExtractor:
 
         # all molecules in existing reactions
         reactions = np.concatenate([grp.reactions for grp in grouped_rxns])
-        mol_reservoir = set(self._get_molecules_from_reactions(reactions))
+        mol_reservoir = set(get_molecules_from_reactions(reactions))
 
         ordered_reactions = []
         for grp in grouped_rxns:
@@ -1502,7 +1565,7 @@ class ReactionExtractor:
 
         # all molecules in existing reactions
         reactions = np.concatenate([grp.reactions for grp in grouped_rxns])
-        mol_reservoir = set(self._get_molecules_from_reactions(reactions))
+        mol_reservoir = set(get_molecules_from_reactions(reactions))
 
         ordered_reactions = []
         for grp in grouped_rxns:
@@ -1610,9 +1673,6 @@ class ReactionExtractor:
                 f"group_mode ({group_mode}) not supported. Options are: 'all', "
                 f"'charge_0', and 'energy_lowest'."
             )
-
-        # get all mols in the reactions
-        reactions = np.concatenate([grp.reactions for grp in grouped_rxns])
 
         all_mols = []
         all_labels = []  # one per reaction
@@ -2144,60 +2204,13 @@ class ReactionExtractor:
 
         logger.info("Finish writing feature file: {}".format(filename))
 
-    @staticmethod
-    def _get_formula_composition_map(mols):
-        fcmap = dict()
-        for m in mols:
-            fcmap[m.formula] = m.composition_dict
-        return fcmap
 
-    @staticmethod
-    def _is_even_composition(composition):
-        for _, amt in composition.items():
-            if int(amt) % 2 != 0:
-                return False
-        return True
-
-    @staticmethod
-    def _is_valid_A_to_B_C_composition(composition1, composition2, composition3):
-        combined23 = defaultdict(int)
-        for k, v in composition2.items():
-            combined23[k] += v
-        for k, v in composition3.items():
-            combined23[k] += v
-        return composition1 == combined23
-
-    @staticmethod
-    def _get_molecules_from_reactions(reactions):
-        mols = set()
-        for r in reactions:
-            mols.update(r.reactants + r.products)
-        return list(mols)
-
-    @staticmethod
-    def _is_valid_A_to_B_C_charge(charge1, charge2, charge3):
-        return charge1 == charge2 + charge3
-
-    def to_file(self, filename="rxns.pkl"):
-        logger.info("Start writing reactions to file: {}".format(filename))
-
-        for m in self.molecules:
-            m.make_picklable()
-        d = {
-            "@module": self.__class__.__module__,
-            "@class": self.__class__.__name__,
-            "molecules": self.molecules,
-            "reactions": self.reactions,
-        }
-        pickle_dump(d, filename)
-
-    @classmethod
-    def from_file(cls, filename):
-        d = pickle_load(filename)
-        logger.info(
-            "{} reactions loaded from file: {}".format(len(d["reactions"]), filename)
-        )
-        return cls(d["molecules"], d["reactions"])
+def get_molecules_from_reactions(reactions):
+    """Return a list of unique molecules participating in all reactions."""
+    mols = set()
+    for r in reactions:
+        mols.update(r.reactants + r.products)
+    return list(mols)
 
 
 def is_valid_A_to_B_reaction(reactant, product, first_only=True):

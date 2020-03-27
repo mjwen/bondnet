@@ -7,7 +7,11 @@ from pprint import pprint
 import matplotlib as mpl
 from matplotlib import pyplot as plt
 from gnn.database.utils import TexWriter
-from gnn.database.reaction import ReactionExtractor, ReactionsMultiplePerBond
+from gnn.database.reaction import (
+    ReactionExtractor,
+    ReactionCollection,
+    ReactionsMultiplePerBond,
+)
 from gnn.utils import pickle_load, expand_path, create_directory
 from gnn.data.feature_analyzer import read_sdf, read_label
 
@@ -67,7 +71,7 @@ def eg_extract_one_bond_break():
 
 def subselect_reactions():
     filename = "~/Applications/db_access/mol_builder/reactions_qc_ws.pkl"
-    extractor = ReactionExtractor.from_file(filename)
+    extractor = ReactionCollection.from_file(filename)
 
     ##############
     # filter reactant charge = 0
@@ -103,7 +107,7 @@ def subselect_reactions():
 def bond_energies_to_file():
     # filename = "~/Applications/db_access/mol_builder/reactions.pkl"
     filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
-    extractor = ReactionExtractor.from_file(filename)
+    extractor = ReactionCollection.from_file(filename)
 
     # ##############
     # # filter reactant charge = 0
@@ -135,7 +139,7 @@ def reactant_broken_bond_fraction():
     # filename = "~/Applications/db_access/mol_builder/reactions_qc_ws.pkl"
     # filename = "~/Applications/db_access/mol_builder/reactions_qc_ws_charge0.pkl"
 
-    extractor = ReactionExtractor.from_file(filename)
+    extractor = ReactionCollection.from_file(filename)
     groups = extractor.group_by_reactant()
 
     num_bonds = []
@@ -171,7 +175,7 @@ def bond_label_fraction(top_n=2):
     # filename = "~/Applications/db_access/mol_builder/reactions_qc_ws.pkl"
     filename = "~/Applications/db_access/mol_builder/reactions_qc_ws_charge0.pkl"
 
-    extractor = ReactionExtractor.from_file(filename)
+    extractor = ReactionCollection.from_file(filename)
     groups = extractor.group_by_reactant_charge_0()
 
     num_bonds = []
@@ -243,7 +247,7 @@ def bond_energy_difference_in_molecule_nth_lowest():
     ########################
     all_nth = [1, 2, 3, 4]
 
-    extractor = ReactionExtractor.from_file(filename)
+    extractor = ReactionCollection.from_file(filename)
     groups = extractor.group_by_reactant_lowest_energy()
 
     for nth in all_nth:
@@ -304,14 +308,14 @@ def plot_reaction_energy_difference_arcoss_reactant_charge(
             plot_hist(energies, outname, s1, s2, *charge)
 
     # all species together
-    extractor = ReactionExtractor.from_file(filename)
+    extractor = ReactionCollection.from_file(filename)
     all_reactions = extractor.reactions
     extract_one(extractor)
 
     # species pairs
     species = ["H", "Li", "C", "O", "F", "P"]
     for s1, s2 in itertools.combinations_with_replacement(species, 2):
-        extractor = ReactionExtractor(molecules=None, reactions=all_reactions)
+        extractor = ReactionCollection(molecules=None, reactions=all_reactions)
         extractor.filter_reactions_by_bond_type_and_order(bond_type=[s1, s2])
         extract_one(extractor, s1, s2)
 
@@ -375,7 +379,7 @@ def plot_bond_type_heat_map(
         print(table)
 
     # prepare data
-    extractor = ReactionExtractor.from_file(filename)
+    extractor = ReactionCollection.from_file(filename)
     all_reactions = extractor.get_reactions_with_lowest_energy()
 
     # all charges
@@ -443,7 +447,7 @@ def plot_bond_energy_hist(
             plot_hist(energies, outname, s1, s2, ch, xmin, xmax)
 
     # prepare data
-    extractor = ReactionExtractor.from_file(filename)
+    extractor = ReactionCollection.from_file(filename)
     all_reactions = extractor.get_reactions_with_lowest_energy()
     print(
         "@@@ total number of reactions: {}, lowest energy reactions: {}".format(
@@ -490,7 +494,7 @@ def plot_all_bond_length_hist(
         return dist
 
     # prepare data
-    extractor = ReactionExtractor.from_file(filename)
+    extractor = ReactionCollection.from_file(filename)
     all_reactions = extractor.get_reactions_with_lowest_energy()
     data = [get_length_of_bond(rxn) for rxn in all_reactions]
     data = np.concatenate(data)
@@ -540,7 +544,7 @@ def plot_broken_bond_length_hist(
         return dist
 
     # prepare data
-    extractor = ReactionExtractor.from_file(filename)
+    extractor = ReactionCollection.from_file(filename)
     all_reactions = extractor.get_reactions_with_lowest_energy()
     data = [get_length_of_broken_bond(rxn) for rxn in all_reactions]
 
@@ -620,7 +624,7 @@ def create_struct_label_dataset_mol_based():
     # filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
     # filename = "~/Applications/db_access/mol_builder/reactions_charge0.pkl"
 
-    extractor = ReactionExtractor.from_file(filename)
+    extractor = ReactionCollection.from_file(filename)
     extractor.create_struct_label_dataset_mol_based(
         struct_file="~/Applications/db_access/mol_builder/struct_mol_based.sdf",
         label_file="~/Applications/db_access/mol_builder/label_mol_based.txt",
@@ -638,7 +642,7 @@ def create_struct_label_dataset_bond_based_regression(
     filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
 ):
 
-    extractor = ReactionExtractor.from_file(filename)
+    extractor = ReactionCollection.from_file(filename)
 
     ##############
     # filter by reactant attributes
@@ -675,7 +679,7 @@ def create_struct_label_dataset_bond_based_classification(
     # filename="~/Applications/db_access/mol_builder/reactions_qc_wib.pkl",
 ):
 
-    extractor = ReactionExtractor.from_file(filename)
+    extractor = ReactionCollection.from_file(filename)
 
     extractor.create_struct_label_dataset_bond_based_classification(
         struct_file="~/Applications/db_access/mol_builder/struct_bond_clfn_n200.sdf",
@@ -695,7 +699,7 @@ def create_struct_label_dataset_reaction_based_regression(
     filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
 ):
 
-    extractor = ReactionExtractor.from_file(filename)
+    extractor = ReactionCollection.from_file(filename)
 
     extractor.create_struct_label_dataset_reaction_based_regression(
         struct_file="~/Applications/db_access/mol_builder/struct_rxn_rgrn_n200.sdf",
@@ -710,7 +714,7 @@ def create_struct_label_dataset_reaction_based_classification(
     filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
 ):
 
-    extractor = ReactionExtractor.from_file(filename)
+    extractor = ReactionCollection.from_file(filename)
 
     extractor.create_struct_label_dataset_reaction_based_classification(
         struct_file="~/Applications/db_access/mol_builder/struct_rxn_clfn_n200.sdf",
@@ -727,7 +731,7 @@ def create_struct_label_dataset_reaction_network_based_regression(
     filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
 ):
 
-    extractor = ReactionExtractor.from_file(filename)
+    extractor = ReactionCollection.from_file(filename)
 
     extractor.create_struct_label_dataset_reaction_network_based_regression(
         struct_file="~/Applications/db_access/mol_builder/struct_rxn_ntwk_rgrn_n200.sdf",
@@ -742,7 +746,7 @@ def create_struct_label_dataset_reaction_network_based_classification(
     filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
 ):
 
-    extractor = ReactionExtractor.from_file(filename)
+    extractor = ReactionCollection.from_file(filename)
 
     extractor.create_struct_label_dataset_reaction_network_based_classification(
         struct_file="~/Applications/db_access/mol_builder/struct_rxn_ntwk_clfn_n200.sdf",
