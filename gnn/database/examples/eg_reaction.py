@@ -490,7 +490,9 @@ def plot_all_bond_length_hist(
     def get_length_of_bond(rxn):
         reactant = rxn.reactants[0]
         coords = reactant.coords
-        dist = [np.linalg.norm(coords[u] - coords[v]) for u, v, _ in reactant.bonds]
+        dist = [
+            np.linalg.norm(coords[u] - coords[v]) for (u, v), _ in reactant.bonds.items()
+        ]
         return dist
 
     # prepare data

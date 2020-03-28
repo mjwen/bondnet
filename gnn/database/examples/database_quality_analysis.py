@@ -56,7 +56,7 @@ def check_valence_mol(mol):
             Each tuple represents an atom and its bonds.
         """
         res = [(attr["specie"], []) for attr in m.atoms]
-        for a1, a2, _ in m.bonds:
+        for (a1, a2), _ in m.bonds.items():
             s1 = m.atoms[a1]["specie"]
             s2 = m.atoms[a2]["specie"]
             res[a1][1].append(s2)
@@ -109,7 +109,7 @@ def check_bond_species_mol(mol):
             A list of the two species associated with each bonds in the molecule.
         """
         res = []
-        for a1, a2, _ in m.bonds:
+        for (a1, a2), _ in m.bonds.items():
             s1 = m.atoms[a1]["specie"]
             s2 = m.atoms[a2]["specie"]
             res.append(sorted([s1, s2]))
@@ -144,7 +144,7 @@ def check_bond_length_mol(mol):
             associated with a bond and length is the corresponding bond length.
         """
         res = []
-        for a1, a2, _ in m.bonds:
+        for (a1, a2), _ in m.bonds.items():
             s1 = m.species[a1]
             s2 = m.species[a2]
             c1 = np.asarray(m.coords[a1])
@@ -429,9 +429,13 @@ def compare_connectivity_across_graph_builder(
                 f.write("{} {}: {:.3f}\n\n".format(a1 + 1, a2 + 1, dist))
 
             # comparing edge differences between builder
-            babel_bonds = set([(a1 + 1, a2 + 1) for a1, a2, _ in mols[1].bonds])
-            extender_bonds = set([(a1 + 1, a2 + 1) for a1, a2, _ in mols[2].bonds])
-            critic_bonds = set([(a1 + 1, a2 + 1) for a1, a2, _ in mols[3].bonds])
+            babel_bonds = set([(a1 + 1, a2 + 1) for (a1, a2), _ in mols[1].bonds.items()])
+            extender_bonds = set(
+                [(a1 + 1, a2 + 1) for (a1, a2), _ in mols[2].bonds.items()]
+            )
+            critic_bonds = set(
+                [(a1 + 1, a2 + 1) for (a1, a2), _ in mols[3].bonds.items()]
+            )
 
             intersection = extender_bonds.intersection(critic_bonds)
             extender_not_in_critic = extender_bonds - intersection

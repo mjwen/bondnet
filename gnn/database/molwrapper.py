@@ -288,11 +288,11 @@ class MoleculeWrapper:
     def bonds(self):
         """
         Returns:
-            Iterable: a sequence of (i,j,attr), where i and j are indices of atoms
-                forming the bond, and attr is the bond attribute.
+            dict: with bond index (a tuple of atom indices) as the key and and bond
+                attributes as the value.
 
         """
-        return self.graph.edges.data()
+        return {tuple(sorted([i, j])): attr for i, j, attr in self.graph.edges.data()}
 
     @property
     def species(self):
@@ -437,7 +437,7 @@ class MoleculeWrapper:
         sub_mols = {}
 
         if bonds is None:
-            bonds = [(i, j) for i, j, _ in self.bonds]
+            bonds = [b for b, _ in self.bonds.items()]
         for edge in bonds:
             try:
                 new_mgs = self.mol_graph.split_molecule_subgraphs(
@@ -688,7 +688,7 @@ def write_edge_label_based_on_bond(
                 (0,1), (0,2), ..., (0,N-1), (1,2), (1,3), ..., (N, N-1), where N is the
                 number of atoms.
         """
-        bonds = [sorted([i, j]) for i, j, attr in m.bonds]
+        bonds = [b for b, attr in m.bonds.items()]
         num_bonds = len(bonds)
         if num_bonds < 1:
             warnings.warn("molecular has no bonds")
@@ -696,7 +696,7 @@ def write_edge_label_based_on_bond(
         num_atoms = len(m.atoms)
         bond_label = []
         for u, v in itertools.combinations(range(num_atoms), 2):
-            b = sorted([u, v])
+            b = tuple(sorted([u, v]))
             if b in bonds:
                 bond_label.append(True)
             else:

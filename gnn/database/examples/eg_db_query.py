@@ -69,11 +69,8 @@ def print_mol_property():
     print("direct access: m.atoms[0]:", m.atoms[0])
 
     print("\n\nlooping m.bonds")
-    for i, j, attr in m.bonds:
-        print(i, j, attr)
-    bond = (i, j)
-    # the below line will throw error
-    # print("direct access: m.atoms[({},{})]:".format(i, j, m.bonds[(i, j)]))
+    for bond, attr in m.bonds.items():
+        print(bond, attr)
 
 
 def plot_molecules(

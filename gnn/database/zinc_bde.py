@@ -21,7 +21,9 @@ def read_zinc_bde_dataset(dirname):
         dirname (str): directory name contains the sdf files.
 
     Returns:
-
+        mols (list): a sequence of :class:`MoleculeWrapper`.
+        energies (list of dict): bond energies. Each dict for one molecule, with bond
+            index (a tuple) as key and bond energy as value.
     """
 
     def parse_title_and_energies(filename):
