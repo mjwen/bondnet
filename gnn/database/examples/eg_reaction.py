@@ -8,7 +8,7 @@ import matplotlib as mpl
 from matplotlib import pyplot as plt
 from gnn.database.utils import TexWriter
 from gnn.database.reaction import (
-    ReactionExtractor,
+    ReactionExtractorFromMolSet,
     ReactionCollection,
     ReactionsMultiplePerBond,
 )
@@ -22,7 +22,7 @@ def eg_buckets():
     molecules = pickle_load(filename)
     print("number of moles:", len(molecules))
 
-    extractor = ReactionExtractor(molecules)
+    extractor = ReactionExtractorFromMolSet(molecules)
     buckets = extractor.bucket_molecules(keys=["formula", "charge", "spin_multiplicity"])
     pprint(buckets)
     buckets = extractor.bucket_molecules(keys=["formula"])
@@ -35,7 +35,7 @@ def eg_extract_A_to_B():
     molecules = pickle_load(filename)
     print("number of moles:", len(molecules))
 
-    extractor = ReactionExtractor(molecules)
+    extractor = ReactionExtractorFromMolSet(molecules)
     extractor.extract_A_to_B_style_reaction(find_one=False)
 
     filename = "~/Applications/db_access/mol_builder/reaction_n200.pkl"
@@ -48,7 +48,7 @@ def eg_extract_A_to_B_C():
     molecules = pickle_load(filename)
     print("number of moles:", len(molecules))
 
-    extractor = ReactionExtractor(molecules)
+    extractor = ReactionExtractorFromMolSet(molecules)
     extractor.extract_A_to_B_C_style_reaction(find_one=False)
 
     filename = "~/Applications/db_access/mol_builder/reactions_A2BC.pkl"
@@ -61,7 +61,7 @@ def eg_extract_one_bond_break():
     molecules = pickle_load(filename)
     print("number of moles:", len(molecules))
 
-    extractor = ReactionExtractor(molecules)
+    extractor = ReactionExtractorFromMolSet(molecules)
     extractor.extract_one_bond_break(find_one=False)
 
     # filename = "~/Applications/db_access/mol_builder/reactions.pkl"

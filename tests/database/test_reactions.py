@@ -1,5 +1,5 @@
 from gnn.database.reaction import (
-    ReactionExtractor,
+    ReactionExtractorFromMolSet,
     ReactionsOfSameBond,
     ReactionsMultiplePerBond,
 )
@@ -281,7 +281,7 @@ def test_extract_reactions():
             ref_size = 4
 
         mols = create_symmetric_molecules()
-        extractor = ReactionExtractor(mols)
+        extractor = ReactionExtractorFromMolSet(mols)
         A2B = extractor.extract_A_to_B_style_reaction(find_one)
         A2BC = extractor.extract_A_to_B_C_style_reaction(find_one)
 

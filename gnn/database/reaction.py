@@ -26,7 +26,7 @@ class Reaction:
 
     # NOTE most methods in this class only works for A->B and A->B+C type reactions
 
-    def __init__(self, reactants, products, broken_bond=None):
+    def __init__(self, reactants, products, broken_bond=None, free_energy=None):
 
         assert len(reactants) == 1, "incorrect number of reactants, should be 1"
         assert 1 <= len(products) <= 2, "incorrect number of products, should be 1 or 2"
@@ -37,21 +37,26 @@ class Reaction:
         self.products = self._order_molecules(products)
 
         self._broken_bond = broken_bond
+        self._free_energy = free_energy
+
         self._atom_mapping = None
         self._bond_mapping_by_int_index = None
         self._bond_mapping_by_tuple_index = None
         self._bond_mapping_by_sdf_int_index = None
 
     def get_free_energy(self):
-        energy = 0
-        for mol in self.reactants:
-            energy -= mol.free_energy
-        for mol in self.products:
-            if mol.free_energy is None:
-                return None
-            else:
-                energy += mol.free_energy
-        return energy
+        if self._free_energy is not None:
+            return self._free_energy
+        else:
+            energy = 0
+            for mol in self.reactants:
+                energy -= mol.free_energy
+            for mol in self.products:
+                if mol.free_energy is None:
+                    return None
+                else:
+                    energy += mol.free_energy
+            return energy
 
     def get_broken_bond(self):
         if self._broken_bond is None:
@@ -198,9 +203,9 @@ class Reaction:
         # for the same bond, tuple index as key and integer index as value
         reactants_mapping = [
             {
-                (i, j): order
+                bond: order
                 for m in self.reactants
-                for order, (i, j, _) in enumerate(m.bonds)
+                for order, (bond, _) in enumerate(m.bonds.items())
             }
         ]
 
@@ -209,8 +214,8 @@ class Reaction:
         products_mapping = []
         for m in self.products:
             mp = {}
-            for order, (i, j, _) in enumerate(m.bonds):
-                mp[(i, j)] = order
+            for order, (bond, _) in enumerate(m.bonds.items()):
+                mp[bond] = order
             products_mapping.append(mp)
 
         # we only have one reactant
@@ -276,9 +281,9 @@ class Reaction:
             # do not use list comprehension because we need to create empty dict for
             # products with not bonds
             bmp = dict()
-            for i, j, _ in p.bonds:
+            for b_product, _ in p.bonds.items():
                 # atom mapping between product and reactant of the bond
-                b_product = (i, j)
+                i, j = b_product
                 b_reactant = tuple(sorted([amp[i], amp[j]]))
                 bmp[b_product] = b_reactant
             bond_mapping.append(bmp)
@@ -558,13 +563,6 @@ class ReactionsOfSameBond(ReactionsGroup):
                 )
         return self._broken_bond
 
-    @staticmethod
-    def _search_mol_reservoir(mol, reservoir):
-        for m in reservoir:
-            if m.charge == mol.charge and m.mol_graph.isomorphic_to(mol.mol_graph):
-                return m
-        return None
-
     def create_complement_reactions(self, allowed_charge=[-1, 0, 1], mol_reservoir=None):
         """
         Create reactions to complement the ones present in the database such that each
@@ -659,7 +657,8 @@ class ReactionsOfSameBond(ReactionsGroup):
 
                 missing_charge = target_products_charge - set(products_charge)
 
-        # fragments species, coords, and bonds (same for products)
+        # fragments species, coords, and bonds (these are the same for products of
+        # different charges)
         species = []
         coords = []
         bonds = []
@@ -687,7 +686,7 @@ class ReactionsOfSameBond(ReactionsGroup):
                 if mol_reservoir is None:
                     comp_mols.add(mol)
                 else:
-                    existing_mol = self._search_mol_reservoir(mol, mol_reservoir)
+                    existing_mol = search_mol_reservoir(mol, mol_reservoir)
                     if existing_mol is None:  # not in reservoir
                         comp_mols.add(mol)
                         mol_reservoir.add(mol)
@@ -754,7 +753,7 @@ class ReactionsMultiplePerBond(ReactionsGroup):
             find_one (bool): If `True`, keep one reaction for each isomorphic bond
                 group. If `False`, keep all.
                 Note, if set to `True`, this expects that `find_one=False` in
-                :method:`ReactionExtractor..extract_one_bond_break` so that all bonds
+                :method:`ReactionExtractorFromMolSet..extract_one_bond_break` so that all bonds
                 in an isomorphic group have exactly the same reactions.
                 In such, we just need to retain a random bond and its associated
                 reactions in each group.
@@ -767,7 +766,7 @@ class ReactionsMultiplePerBond(ReactionsGroup):
         # init an empty [] for each bond
         # doing this instead of looping over self.reactions ensures bonds without
         # reactions are correctly represented
-        bond_rxns_dict = {(i, j): [] for i, j, _ in self.reactant.bonds}
+        bond_rxns_dict = {b: [] for b, _ in self.reactant.bonds.items()}
 
         # assign rxn to bond group
         for rxn in self.reactions:
@@ -801,7 +800,7 @@ class ReactionsMultiplePerBond(ReactionsGroup):
             one_per_iso_bond_group (bool): If `True`, keep one reaction for each
                 isomorphic bond group. If `False`, keep all.
                 Note, if set to `True`, this expects that `find_one=False` in
-                :method:`ReactionExtractor.extract_one_bond_break` so that all bonds
+                :method:`ReactionExtractorFromMolSet.extract_one_bond_break` so that all bonds
                 in an isomorphic bond group have exactly the same reactions.
             complement_reactions (bool): If `False`, order the existing reactions only.
                 Otherwise, complementary reactions are created and ordered together
@@ -884,7 +883,7 @@ class ReactionsOnePerBond(ReactionsMultiplePerBond):
             one_per_iso_bond_group (bool): If `True`, keep one reaction for each
                 isomorphic bond group. If `False`, keep all.
                 Note, if set to `True`, this expects that `find_one=False` in
-                :method:`ReactionExtractor.extract_one_bond_break` so that all bonds
+                :method:`ReactionExtractorFromMolSet.extract_one_bond_break` so that all bonds
                 in an isomorphic bond group have exactly the same reactions.
             mol_reservoir (set): If `complement_reactions` is False, this is silently
                 ignored. Otherwise, for newly created complement reactions, a product
@@ -922,220 +921,6 @@ class ReactionsOnePerBond(ReactionsMultiplePerBond):
                     mol_reservoir.update(comp_mols)
 
         return ordered_rxns
-
-
-class ReactionExtractor:
-    """
-    Compose reactions from a set of molecules.
-
-    This currently supports two types of (one-bond-break) reactions:
-    A -> B
-    A -> B + C
-
-    A reaction is determined to be valid if:
-    - balance of mass
-    - balance of charge
-    - connectivity: molecule graph between reactant and products only differ by one
-        edge (bond)
-
-    Args:
-        molecules (list): a sequence of :class:`MoleculeWrapper` molecules.
-    """
-
-    def __init__(self, molecules):
-        self.molecules = molecules
-        self.reactions = None
-
-    def bucket_molecules(self, keys=["formula", "charge"]):
-        """
-        Classify molecules into nested dictionaries according to molecule properties
-        specified in ``keys``.
-
-        Args:
-            keys (list of str): each str should be a molecule property.
-
-        Returns:
-            nested dictionary of molecules classified according to keys.
-        """
-        logger.info("Start bucketing molecules...")
-
-        num_keys = len(keys)
-        buckets = {}
-        for m in self.molecules:
-            b = buckets
-            for i, k in enumerate(keys):
-                v = getattr(m, k)
-                if i == num_keys - 1:
-                    b.setdefault(v, []).append(m)
-                else:
-                    b.setdefault(v, {})
-                b = b[v]
-
-        return buckets
-
-    def extract_A_to_B_style_reaction(self, find_one=True):
-        """
-        Extract a list of A -> B reactions.
-
-        Args:
-            find_one (bool): For a given reactant A and product B, there could be
-                multiple reactions between them (breaking different bonds of reactant
-                results in the same product). If `True`, for each A and B only get
-                one reaction between them. If `False` get all.
-
-        Returns:
-            list: a sequence of :class:`Reaction`.
-        """
-
-        logger.info("Start extracting A -> B style reactions")
-
-        buckets = self.bucket_molecules(keys=["formula", "charge"])
-
-        A2B = []
-        i = 0
-        for formula in buckets:
-            i += 1
-            if i % 10000 == 0:
-                logger.info(f"A -> B running bucket {i}")
-
-            for charge in buckets[formula]:
-                for A, B in itertools.permutations(buckets[formula][charge], 2):
-                    bonds = is_valid_A_to_B_reaction(A, B, first_only=find_one)
-                    for b in bonds:
-                        A2B.append(Reaction([A], [B], b))
-
-        self.reactions = A2B
-
-        logger.info("{} A -> B style reactions extracted".format(len(A2B)))
-
-        return A2B
-
-    def extract_A_to_B_C_style_reaction(self, find_one=True):
-        """
-        Extract a list of A -> B + C reactions (B and C can be the same molecule).
-
-        Args:
-            find_one (bool): For a given reactant A and product B, there could be
-                multiple reactions between them (breaking different bonds of reactant
-                results in the same product). If `True`, for each A and B only get
-                one reaction between them. If `False` get all.
-
-        Returns:
-            list: a sequence of :class:`Reaction`.
-        """
-
-        logger.info("Start extracting A -> B + C style reactions")
-
-        buckets = self.bucket_molecules(keys=["formula", "charge"])
-
-        fcmap = self._get_formula_composition_map(self.molecules)
-
-        A2BC = []
-        i = 0
-        for formula_A in buckets:
-            for formula_B, formula_C in itertools.combinations_with_replacement(
-                buckets, 2
-            ):
-                i += 1
-                if i % 10000 == 0:
-                    logger.info(f"A -> B + C running bucket {i}")
-
-                if not self._is_valid_A_to_B_C_composition(
-                    fcmap[formula_A], fcmap[formula_B], fcmap[formula_C]
-                ):
-                    continue
-
-                reaction_ids = []
-                for (charge_A, charge_B, charge_C) in itertools.product(
-                    buckets[formula_A], buckets[formula_B], buckets[formula_C]
-                ):
-                    if not self._is_valid_A_to_B_C_charge(charge_A, charge_B, charge_C):
-                        continue
-
-                    for A, B, C in itertools.product(
-                        buckets[formula_A][charge_A],
-                        buckets[formula_B][charge_B],
-                        buckets[formula_C][charge_C],
-                    ):
-
-                        # exclude reactions already considered
-                        # Since we use `combinations_with_replacement` to consider
-                        # products B and C for the same formula, buckets[formula_B] and
-                        # buckets[C] could be the same buckets. Then when we use
-                        # itertools.product to loop over them, molecules (M, M') could
-                        # be either (B, C) or (C, B), appearing twice.
-                        # We can do combinations_with_replacement for the loop over
-                        # charge when formula_B and formula_C are the same, but this
-                        # would complicate the code. So we use reaction_ids to keep
-                        # record and not include them.
-                        ids = {A.id, B.id, C.id}
-                        if ids in reaction_ids:
-                            continue
-
-                        bonds = is_valid_A_to_B_C_reaction(A, B, C, first_only=find_one)
-                        if bonds:
-                            reaction_ids.append(ids)
-                            for b in bonds:
-                                A2BC.append(Reaction([A], [B, C], b))
-
-        self.reactions = A2BC
-
-        logger.info("{} A -> B + C style reactions extracted".format(len(A2BC)))
-
-        return A2BC
-
-    def extract_one_bond_break(self, find_one=True):
-        """
-        Extract all reactions that only has one bond break or the type ``A -> B + C``
-        (break a bond not in a ring) or ``A -> D`` (break a bond in a ring)
-
-        Returns:
-            A list of reactions.
-        """
-        A2B = self.extract_A_to_B_style_reaction(find_one)
-        A2BC = self.extract_A_to_B_C_style_reaction(find_one)
-        self.reactions = A2B + A2BC
-
-        return A2B, A2BC
-
-    @staticmethod
-    def _get_formula_composition_map(mols):
-        fcmap = dict()
-        for m in mols:
-            fcmap[m.formula] = m.composition_dict
-        return fcmap
-
-    @staticmethod
-    def _is_even_composition(composition):
-        for _, amt in composition.items():
-            if int(amt) % 2 != 0:
-                return False
-        return True
-
-    @staticmethod
-    def _is_valid_A_to_B_C_composition(composition1, composition2, composition3):
-        combined23 = defaultdict(int)
-        for k, v in composition2.items():
-            combined23[k] += v
-        for k, v in composition3.items():
-            combined23[k] += v
-        return composition1 == combined23
-
-    @staticmethod
-    def _is_valid_A_to_B_C_charge(charge1, charge2, charge3):
-        return charge1 == charge2 + charge3
-
-    def to_file(self, filename="rxns.pkl"):
-        logger.info("Start writing reactions to file: {}".format(filename))
-
-        for m in get_molecules_from_reactions(self.reactions):
-            m.make_picklable()
-        d = {
-            "@module": self.__class__.__module__,
-            "@class": self.__class__.__name__,
-            "reactions": self.reactions,
-        }
-        pickle_dump(d, filename)
 
 
 class ReactionCollection:
@@ -2205,12 +1990,370 @@ class ReactionCollection:
         logger.info("Finish writing feature file: {}".format(filename))
 
 
+class ReactionExtractorFromMolSet:
+    """
+    Compose reactions from a set of molecules.
+
+    This currently supports two types of (one-bond-break) reactions:
+    A -> B
+    A -> B + C
+
+    A reaction is determined to be valid if:
+    - balance of mass
+    - balance of charge
+    - connectivity: molecule graph between reactant and products only differ by one
+        edge (bond)
+
+    Args:
+        molecules (list): a sequence of :class:`MoleculeWrapper` molecules.
+    """
+
+    def __init__(self, molecules):
+        self.molecules = molecules
+        self.reactions = None
+
+    def bucket_molecules(self, keys=["formula", "charge"]):
+        """
+        Classify molecules into nested dictionaries according to molecule properties
+        specified in ``keys``.
+
+        Args:
+            keys (list of str): each str should be a molecule property.
+
+        Returns:
+            nested dictionary of molecules classified according to keys.
+        """
+        logger.info("Start bucketing molecules...")
+
+        num_keys = len(keys)
+        buckets = {}
+        for m in self.molecules:
+            b = buckets
+            for i, k in enumerate(keys):
+                v = getattr(m, k)
+                if i == num_keys - 1:
+                    b.setdefault(v, []).append(m)
+                else:
+                    b.setdefault(v, {})
+                b = b[v]
+
+        return buckets
+
+    def extract_A_to_B_style_reaction(self, find_one=True):
+        """
+        Extract a list of A -> B reactions.
+
+        Args:
+            find_one (bool): For a given reactant A and product B, there could be
+                multiple reactions between them (breaking different bonds of reactant
+                results in the same product). If `True`, for each A and B only get
+                one reaction between them. If `False` get all.
+
+        Returns:
+            list: a sequence of :class:`Reaction`.
+        """
+
+        logger.info("Start extracting A -> B style reactions")
+
+        buckets = self.bucket_molecules(keys=["formula", "charge"])
+
+        A2B = []
+        i = 0
+        for formula in buckets:
+            i += 1
+            if i % 10000 == 0:
+                logger.info(f"A -> B running bucket {i}")
+
+            for charge in buckets[formula]:
+                for A, B in itertools.permutations(buckets[formula][charge], 2):
+                    bonds = is_valid_A_to_B_reaction(A, B, first_only=find_one)
+                    for b in bonds:
+                        A2B.append(Reaction([A], [B], b))
+
+        self.reactions = A2B
+
+        logger.info("{} A -> B style reactions extracted".format(len(A2B)))
+
+        return A2B
+
+    def extract_A_to_B_C_style_reaction(self, find_one=True):
+        """
+        Extract a list of A -> B + C reactions (B and C can be the same molecule).
+
+        Args:
+            find_one (bool): For a given reactant A and product B, there could be
+                multiple reactions between them (breaking different bonds of reactant
+                results in the same product). If `True`, for each A and B only get
+                one reaction between them. If `False` get all.
+
+        Returns:
+            list: a sequence of :class:`Reaction`.
+        """
+
+        logger.info("Start extracting A -> B + C style reactions")
+
+        buckets = self.bucket_molecules(keys=["formula", "charge"])
+
+        fcmap = self._get_formula_composition_map(self.molecules)
+
+        A2BC = []
+        i = 0
+        for formula_A in buckets:
+            for formula_B, formula_C in itertools.combinations_with_replacement(
+                buckets, 2
+            ):
+                i += 1
+                if i % 10000 == 0:
+                    logger.info(f"A -> B + C running bucket {i}")
+
+                if not self._is_valid_A_to_B_C_composition(
+                    fcmap[formula_A], fcmap[formula_B], fcmap[formula_C]
+                ):
+                    continue
+
+                reaction_ids = []
+                for (charge_A, charge_B, charge_C) in itertools.product(
+                    buckets[formula_A], buckets[formula_B], buckets[formula_C]
+                ):
+                    if not self._is_valid_A_to_B_C_charge(charge_A, charge_B, charge_C):
+                        continue
+
+                    for A, B, C in itertools.product(
+                        buckets[formula_A][charge_A],
+                        buckets[formula_B][charge_B],
+                        buckets[formula_C][charge_C],
+                    ):
+
+                        # exclude reactions already considered
+                        # Since we use `combinations_with_replacement` to consider
+                        # products B and C for the same formula, buckets[formula_B] and
+                        # buckets[C] could be the same buckets. Then when we use
+                        # itertools.product to loop over them, molecules (M, M') could
+                        # be either (B, C) or (C, B), appearing twice.
+                        # We can do combinations_with_replacement for the loop over
+                        # charge when formula_B and formula_C are the same, but this
+                        # would complicate the code. So we use reaction_ids to keep
+                        # record and not include them.
+                        ids = {A.id, B.id, C.id}
+                        if ids in reaction_ids:
+                            continue
+
+                        bonds = is_valid_A_to_B_C_reaction(A, B, C, first_only=find_one)
+                        if bonds:
+                            reaction_ids.append(ids)
+                            for b in bonds:
+                                A2BC.append(Reaction([A], [B, C], b))
+
+        self.reactions = A2BC
+
+        logger.info("{} A -> B + C style reactions extracted".format(len(A2BC)))
+
+        return A2BC
+
+    def extract_one_bond_break(self, find_one=True):
+        """
+        Extract all reactions that only has one bond break or the type ``A -> B + C``
+        (break a bond not in a ring) or ``A -> D`` (break a bond in a ring)
+
+        Returns:
+            A list of reactions.
+        """
+        A2B = self.extract_A_to_B_style_reaction(find_one)
+        A2BC = self.extract_A_to_B_C_style_reaction(find_one)
+        self.reactions = A2B + A2BC
+
+        return A2B, A2BC
+
+    @staticmethod
+    def _get_formula_composition_map(mols):
+        fcmap = dict()
+        for m in mols:
+            fcmap[m.formula] = m.composition_dict
+        return fcmap
+
+    @staticmethod
+    def _is_even_composition(composition):
+        for _, amt in composition.items():
+            if int(amt) % 2 != 0:
+                return False
+        return True
+
+    @staticmethod
+    def _is_valid_A_to_B_C_composition(composition1, composition2, composition3):
+        combined23 = defaultdict(int)
+        for k, v in composition2.items():
+            combined23[k] += v
+        for k, v in composition3.items():
+            combined23[k] += v
+        return composition1 == combined23
+
+    @staticmethod
+    def _is_valid_A_to_B_C_charge(charge1, charge2, charge3):
+        return charge1 == charge2 + charge3
+
+    def to_file(self, filename="rxns.pkl"):
+        logger.info("Start writing reactions to file: {}".format(filename))
+
+        for m in get_molecules_from_reactions(self.reactions):
+            m.make_picklable()
+        d = {
+            "@module": self.__class__.__module__,
+            "@class": self.__class__.__name__,
+            "reactions": self.reactions,
+        }
+        pickle_dump(d, filename)
+
+
+class ReactionExtractorFromReactant:
+    """
+    Create reactions from reactant.
+
+    This needs metadata indicating the bond to break in a reactant. Products molecules
+    will be created.
+
+
+    Args:
+        molecules (list): a sequence of :class:`MoleculeWrapper`.
+        bond_energies (list of dict, optional): bond energies. Each dict for one
+            molecule, with bond index (a tuple) as key and bond energy as value.
+    """
+
+    def __init__(self, molecules, bond_energies=None):
+        self.molecules = molecules
+        self.bond_energies = bond_energies
+        self.reactions = None
+
+    def extract_with_energies(self):
+        """
+        Extract reactions for bonds having energy.
+
+        Return:
+            list: a sequence of :class:`Reaction`.
+        """
+
+        if self.bond_energies is None:
+            raise RuntimeError(
+                "`bond_energies` not provided at instantiation. Either provide it or "
+                "call `extract_ignoring_energies` instead if you are doing inference."
+            )
+
+        mol_reservoir = set(self.molecules)
+
+        reactions = []
+        for mol, bonds in zip(self.molecules, self.bond_energies):
+            reactions += self.extract_one(mol, bonds, mol_reservoir)
+
+        self.reactions = reactions
+
+        return reactions
+
+    def extract_ignore_energies(self):
+        """
+        Create reactions by breaking all bonds in molecules and set the energies to None.
+
+        Return:
+            list: a sequence of :class:`Reaction`.
+        """
+
+        mol_reservoir = set(self.molecules)
+
+        reactions = []
+        for mol in self.molecules:
+            bonds = {b: None for b, _ in mol.bonds.items()}
+            reactions += self.extract_one(mol, bonds, mol_reservoir)
+
+        self.reactions = reactions
+
+        return reactions
+
+    @staticmethod
+    def extract_one(mol, bonds, mol_reservoir=None):
+        """
+        Extract reactions for one molecules.
+
+        Args:
+            mol (MoleculeWrapper): molecule
+            bonds (dict): the bonds to break. The key is the some value (e.g. energy)
+                associated with the broken bond.
+            mol_reservoir (set): molecules. For newly created reactions, a product
+                is first searched in the mol_reservoir. If existing (w.r.t. charge and
+                isomorphism), the mol from the reservoir is used as the product; if
+                not, new mol is created. Note, if a mol is not in mol_reservoir,
+                it is added to mol_reservoir.
+
+        Returns:
+            list: a sequence of :class:`Reaction`
+        """
+
+        reactions = []
+
+        for b, val in bonds.items():
+
+            fg_species = []
+            fg_coords = []
+            fg_bonds = []
+            for fg in mol.fragments[b]:
+
+                nodes = fg.graph.nodes.data()
+                nodes = sorted(nodes, key=lambda pair: pair[0])
+                fg_species.append([v["specie"] for k, v in nodes])
+                fg_coords.append([v["coords"] for k, v in nodes])
+                edges = fg.graph.edges.data()
+                fg_bonds.append([(i, j) for i, j, v in edges])
+
+                # create products
+                products = []
+                for i in len(b):
+                    mid = f"{mol.id}-{b[0]}-{b[1]}-{i}"
+                    m = MoleculeWrapperFromAtomsAndBonds(
+                        fg_species[i], fg_coords[i], 0, fg_bonds[i], mol_id=mid
+                    )
+
+                    if mol_reservoir is not None:
+                        existing_mol = search_mol_reservoir(m, mol_reservoir)
+
+                        # not in reservoir
+                        if existing_mol is None:
+                            mol_reservoir.add(m)
+
+                        # in reservoir
+                        else:
+                            m = existing_mol
+
+                    products.append(m)
+
+                # create reactions
+                rxn = Reaction([mol], products, broken_bond=b, free_energy=val)
+                reactions.append(rxn)
+
+        return reactions
+
+
 def get_molecules_from_reactions(reactions):
     """Return a list of unique molecules participating in all reactions."""
     mols = set()
     for r in reactions:
         mols.update(r.reactants + r.products)
     return list(mols)
+
+
+def search_mol_reservoir(mol, reservoir):
+    """
+    Determine whether a mol is in a set of molecules by charge and isomorphism.
+
+    Args:
+        mol (MoleculeWrapper): the molecule to determine.
+        reservoir (set): MoleculeWrapper reservoir set
+        
+    Returns:
+        None: if not in
+        m: if yes, the molecule in the reservoir
+
+    """
+    for m in reservoir:
+        if m.charge == mol.charge and m.mol_graph.isomorphic_to(mol.mol_graph):
+            return m
+    return None
 
 
 def is_valid_A_to_B_reaction(reactant, product, first_only=True):
