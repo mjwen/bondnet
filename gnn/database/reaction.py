@@ -2247,7 +2247,7 @@ class ReactionExtractorFromReactant:
 
         return reactions
 
-    def extract_ignore_energies(self):
+    def extract_ignoring_energies(self):
         """
         Create reactions by breaking all bonds in molecules and set the energies to None.
 
@@ -2289,42 +2289,37 @@ class ReactionExtractorFromReactant:
 
         for b, val in bonds.items():
 
-            fg_species = []
-            fg_coords = []
-            fg_bonds = []
-            for fg in mol.fragments[b]:
+            products = []
+            for i, fg in enumerate(mol.fragments[b]):
 
                 nodes = fg.graph.nodes.data()
                 nodes = sorted(nodes, key=lambda pair: pair[0])
-                fg_species.append([v["specie"] for k, v in nodes])
-                fg_coords.append([v["coords"] for k, v in nodes])
+                fg_species = [v["specie"] for k, v in nodes]
+                fg_coords = [v["coords"] for k, v in nodes]
                 edges = fg.graph.edges.data()
-                fg_bonds.append([(i, j) for i, j, v in edges])
+                fg_bonds = [(i, j) for i, j, v in edges]
 
-                # create products
-                products = []
-                for i in len(b):
-                    mid = f"{mol.id}-{b[0]}-{b[1]}-{i}"
-                    m = MoleculeWrapperFromAtomsAndBonds(
-                        fg_species[i], fg_coords[i], 0, fg_bonds[i], mol_id=mid
-                    )
+                mid = f"{mol.id}-{b[0]}-{b[1]}-{i}"
+                m = MoleculeWrapperFromAtomsAndBonds(
+                    fg_species, fg_coords, 0, fg_bonds, mol_id=mid
+                )
 
-                    if mol_reservoir is not None:
-                        existing_mol = search_mol_reservoir(m, mol_reservoir)
+                if mol_reservoir is not None:
+                    existing_mol = search_mol_reservoir(m, mol_reservoir)
 
-                        # not in reservoir
-                        if existing_mol is None:
-                            mol_reservoir.add(m)
+                    # not in reservoir
+                    if existing_mol is None:
+                        mol_reservoir.add(m)
 
-                        # in reservoir
-                        else:
-                            m = existing_mol
+                    # in reservoir
+                    else:
+                        m = existing_mol
 
-                    products.append(m)
+                products.append(m)
 
-                # create reactions
-                rxn = Reaction([mol], products, broken_bond=b, free_energy=val)
-                reactions.append(rxn)
+            # create reactions
+            rxn = Reaction([mol], products, broken_bond=b, free_energy=val)
+            reactions.append(rxn)
 
         return reactions
 

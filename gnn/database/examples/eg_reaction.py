@@ -8,10 +8,12 @@ import matplotlib as mpl
 from matplotlib import pyplot as plt
 from gnn.database.utils import TexWriter
 from gnn.database.reaction import (
-    ReactionExtractorFromMolSet,
-    ReactionCollection,
     ReactionsMultiplePerBond,
+    ReactionCollection,
+    ReactionExtractorFromMolSet,
+    ReactionExtractorFromReactant,
 )
+from gnn.database.zinc_bde import read_zinc_bde_dataset
 from gnn.utils import pickle_load, expand_path, create_directory
 from gnn.data.feature_analyzer import read_sdf, read_label
 
@@ -761,6 +763,28 @@ def create_struct_label_dataset_reaction_network_based_classification(
     )
 
 
+######################################################################################
+# for the zinc dataset
+######################################################################################
+
+
+def zinc_create_struct_label_dataset_reaction_network_based_regression(
+    dirname="~/Documents/Dataset/ZINC_BDE_100",
+):
+    mols, bond_energies = read_zinc_bde_dataset(dirname)
+    extractor = ReactionExtractorFromReactant(mols, bond_energies)
+    reactions = extractor.extract_with_energies()
+    extractor = ReactionCollection(reactions)
+
+    extractor.create_struct_label_dataset_reaction_network_based_regression(
+        struct_file="~/Applications/db_access/mol_builder/zinc_struct_rxn_ntwk_rgrn_n100.sdf",
+        label_file="~/Applications/db_access/mol_builder/zinc_label_rxn_ntwk_rgrn_n100.yaml",
+        feature_file="~/Applications/db_access/mol_builder/zinc_feature_rxn_ntwk_rgrn_n100.yaml",
+        group_mode="all",
+        one_per_iso_bond_group=True,
+    )
+
+
 if __name__ == "__main__":
     # eg_buckets()
     # eg_extract_A_to_B()
@@ -790,5 +814,9 @@ if __name__ == "__main__":
     # create_struct_label_dataset_reaction_based_regression()
     # create_struct_label_dataset_reaction_based_classification()
 
-    create_struct_label_dataset_reaction_network_based_regression()
+    # create_struct_label_dataset_reaction_network_based_regression()
     # create_struct_label_dataset_reaction_network_based_classification()
+
+    ######################################################################################
+    # for the zinc dataset
+    zinc_create_struct_label_dataset_reaction_network_based_regression()
