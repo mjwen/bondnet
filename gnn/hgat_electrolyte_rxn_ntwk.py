@@ -20,6 +20,7 @@ from gnn.data.featurizer import (
     BondAsNodeFeaturizer,
     GlobalFeaturizerCharge,
 )
+from gnn.post_analysis import write_error
 from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
 
@@ -117,7 +118,9 @@ def parse_args():
 
     parser.add_argument("--restore", type=int, default=0, help="read checkpoints")
 
-    parser.add_argument("--post-analysis", type=str, default=0, help="post analysis type")
+    parser.add_argument(
+        "--post-analysis", type=str, default="none", help="post analysis type"
+    )
 
     args = parser.parse_args()
 
@@ -185,7 +188,7 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
             target = target.to(device)
             scale = scale.to(device)
 
-        pred = model(bg, feats, label["reaction"],)
+        pred = model(bg, feats, label["reaction"])
         pred = pred.view(-1)
 
         loss = loss_fn(pred, target)
@@ -282,6 +285,37 @@ def write_features(
     df.to_csv(feat_filename, sep="\t", header=False, index=False)
     df = pd.DataFrame(metadata)
     df.to_csv(meta_filename, sep="\t", index=False)
+
+
+def error_analysis(model, nodes, data_loader, filename, device=None):
+    model.eval()
+
+    errors = []
+    ids = []
+
+    with torch.no_grad():
+
+        for bg, label in data_loader:
+            feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
+            target = label["value"]
+            scale = label["label_scaler"]
+
+            if device is not None:
+                feats = {k: v.to(device) for k, v in feats.items()}
+                target = target.to(device)
+                scale = scale.to(device)
+
+            pred = model(bg, feats, label["reaction"])
+            pred = pred.view(-1)
+
+            e = (pred - target) * scale
+            errors.append(e.numpy())
+            ids.append([rxn.id for rxn in label["reaction"]])
+
+    errors = np.concatenate(errors)
+    ids = np.concatenate(ids)
+
+    write_error(errors, ids, sort=True, filename=filename)
 
 
 def get_grapher():
@@ -382,23 +416,32 @@ def main(args):
     if args.device is not None:
         model.to(device=args.device)
 
-    if args.post_analysis:
+    if args.post_analysis != "none":
+        print(f"\nStart post analysis ({args.post_analysis}) at:", datetime.now())
 
         # load saved model
         checkpoints_objs = {"model": model}
         load_checkpoints(checkpoints_objs)
 
-        # do embedding
-        write_features(
-            model,
-            attn_order,
-            {"train": train_loader, "validation": val_loader},
-            "feats.tsv",
-            "feats_metadata.tsv",
-            args.device,
-        )
+        if args.post_analysis == "write_feature":
+            # write_feature
+            write_features(
+                model,
+                attn_order,
+                {"train": train_loader, "validation": val_loader},
+                "feats.tsv",
+                "feats_metadata.tsv",
+                args.device,
+            )
+        elif args.post_analysis == "error_analysis":
+            loaders = [train_loader, val_loader, test_loader]
+            fnames = ["train_error.txt", "val_error.txt", "test_error.txt"]
+            for ld, nm in zip(loaders, fnames):
+                error_analysis(model, attn_order, ld, nm, args.device)
+        else:
+            raise ValueError(f"not supported post analysis type: {args.post_analysis}")
 
-        print("\nFinish post analysis at:", datetime.now())
+        print(f"\nFinish post analysis ({args.post_analysis}) at:", datetime.now())
 
         # we only do post analysis and do not need to train; so exist here
         sys.exit(0)

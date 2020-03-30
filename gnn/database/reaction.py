@@ -375,9 +375,21 @@ class Reaction:
         return d
 
     def get_id(self):
-        ids = [m.id for m in self.reactants + self.products]
-        str_ids = "-".join(ids)
-        return str_ids
+        # ids = [m.id for m in self.reactants + self.products]
+        # str_ids = "-".join(ids)
+        # return str_ids
+
+        ##########
+        # set id to reactant id and broken bond of reactant
+        ##########
+        mol = self.reactants[0]
+
+        # broken bond in sdf idx
+        broken_bond = mol.graph_bond_idx_to_ob_bond_idx(self.get_broken_bond())
+
+        str_id = str(mol.id) + "_broken_bond-" + str(broken_bond)
+
+        return str_id
 
     def __expr__(self):
         if len(self.products) == 1:

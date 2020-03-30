@@ -562,12 +562,12 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
                 products=lb["products"],
                 atom_mapping=lb["atom_mapping"],
                 bond_mapping=lb["bond_mapping"],
-                id=i,
+                id=lb["id"],
             )
             reactions.append(rxn)
             label = {
                 "value": torch.tensor(lb["value"], dtype=getattr(torch, self.dtype)),
-                "id": lb["index"],
+                "id": lb["id"],
             }
             self.labels.append(label)
         self.reaction_ids = list(range(len(reactions)))
