@@ -166,13 +166,23 @@ class ReactionNetwork:
 
         m2r = []
         r2m = []
+        mols_in_rxns = set()
         for i, rxn in enumerate(reactions):
             m2r += [(m, i) for m in rxn.reactants]
             r2m += [(i, m) for m in rxn.products]
+            mols_in_rxns.update(rxn.reactants + rxn.products)
+
+        # Creating edge to connect molecule not participating any reaction to itself.
+        # This enables use to assign `self.molecules` to self.g.nodes['molecules'].data,
+        # because, otherwise, the number of molecule nodes is smaller than
+        # self.molecules and thus the assignment of data would result in error
+        mols_not_in_any_rxn = list(set(range(len(self.molecules))) - mols_in_rxns)
+        m2m = [(m, m) for m in mols_not_in_any_rxn]
 
         edges_dict = {
             ("molecule", "m2r", "reaction"): m2r,
             ("reaction", "r2m", "molecule"): r2m,
+            ("molecule", "m2m", "molecule"): m2m,
         }
 
         # create graph

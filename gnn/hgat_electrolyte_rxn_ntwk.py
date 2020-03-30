@@ -301,9 +301,14 @@ def main(args):
     print("\n\nStart training at:", datetime.now())
 
     ### dataset
-    sdf_file = "~/Applications/db_access/mol_builder/struct_rxn_ntwk_rgrn_n200.sdf"
-    label_file = "~/Applications/db_access/mol_builder/label_rxn_ntwk_rgrn_n200.yaml"
-    feature_file = "~/Applications/db_access/mol_builder/feature_rxn_ntwk_rgrn_n200.yaml"
+    # sdf_file = "~/Applications/db_access/mol_builder/struct_rxn_ntwk_rgrn_n200.sdf"
+    # label_file = "~/Applications/db_access/mol_builder/label_rxn_ntwk_rgrn_n200.yaml"
+    # feature_file = "~/Applications/db_access/mol_builder/feature_rxn_ntwk_rgrn_n200.yaml"
+    sdf_file = "~/Applications/db_access/mol_builder/zinc_struct_rxn_ntwk_rgrn_n200.sdf"
+    label_file = "~/Applications/db_access/mol_builder/zinc_label_rxn_ntwk_rgrn_n200.yaml"
+    feature_file = (
+        "~/Applications/db_access/mol_builder/zinc_feature_rxn_ntwk_rgrn_n200.yaml"
+    )
 
     dataset = ElectrolyteReactionNetworkDataset(
         grapher=get_grapher(),
