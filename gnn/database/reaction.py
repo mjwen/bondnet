@@ -1833,7 +1833,9 @@ class ReactionCollection:
         for grp in grouped_rxns:
             reactant = grp.reactant
 
-            ordered_rxns = grp.order_reactions(False, one_per_iso_bond_group)
+            ordered_rxns = grp.order_reactions(
+                one_per_iso_bond_group, complement_reactions=False
+            )
             rxns_dict = {
                 rxn.get_broken_bond(): (i, rxn) for i, rxn in enumerate(ordered_rxns)
             }

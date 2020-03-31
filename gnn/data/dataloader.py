@@ -87,9 +87,12 @@ class DataLoaderBond(torch.utils.data.DataLoader):
             except KeyError:
                 pass
 
+            # add label scaler if it is used
             try:
-                label_scaler = [la["label_scaler"] for la in labels]
-                batched_labels["label_scaler"] = torch.cat(label_scaler)
+                mean = [la["scaler_mean"] for la in labels]
+                stdev = [la["scaler_stdev"] for la in labels]
+                batched_labels["scaler_mean"] = torch.cat(mean)
+                batched_labels["scaler_stdev"] = torch.cat(stdev)
             except KeyError:
                 pass
 
@@ -195,7 +198,7 @@ class DataLoaderReactionNetwork(torch.utils.data.DataLoader):
                 "reaction": reactions,
             }
 
-            # add label_scaler if it is used
+            # add label scaler if it is used
             try:
                 mean = [la["scaler_mean"] for la in labels]
                 stdev = [la["scaler_stdev"] for la in labels]

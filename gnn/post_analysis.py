@@ -27,7 +27,7 @@ def write_error(predictions, targets, ids, sort=True, filename="error.txt"):
         for e, p, t, i in zip(errors, predictions, targets, ids):
             f.write("{:13.5e} {:13.5e} {:13.5e}    {}\n".format(e, p, t, i))
 
-        # MAE, MAX Error and RMSE
+        # MAE, RMSE, and MAX Error
         abs_e = np.abs(errors)
         mae = np.mean(abs_e)
         rmse = np.sqrt(np.mean(np.square(errors)))

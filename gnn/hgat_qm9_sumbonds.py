@@ -190,15 +190,15 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
         feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
         target = label["value"]
         try:
-            scale = label["label_scaler"]
+            stdev = label["scaler_stdev"]
         except KeyError:
-            scale = None
+            stdev = None
 
         if device is not None:
             feats = {k: v.to(device) for k, v in feats.items()}
             target = target.to(device)
-            if scale is not None:
-                scale = scale.to(device)
+            if stdev is not None:
+                stdev = stdev.to(device)
 
         pred = model(bg, feats, mol_based=True)
         loss = loss_fn(pred, target)
@@ -207,7 +207,7 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
         optimizer.step()
 
         epoch_loss += loss.detach().item()
-        accuracy += metric_fn(pred, target, scale).detach().item()
+        accuracy += metric_fn(pred, target, stdev).detach().item()
         count += len(target)
 
     epoch_loss /= it + 1
@@ -233,18 +233,18 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
             target = label["value"]
             try:
-                scale = label["label_scaler"]
+                stdev = label["scaler_stdev"]
             except KeyError:
-                scale = None
+                stdev = None
 
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
                 target = target.to(device)
-                if scale is not None:
-                    scale = scale.to(device)
+                if stdev is not None:
+                    stdev = stdev.to(device)
 
             pred = model(bg, feats, mol_based=True)
-            accuracy += metric_fn(pred, target, scale).detach().item()
+            accuracy += metric_fn(pred, target, stdev).detach().item()
             count += len(target)
 
     return accuracy / count
@@ -343,6 +343,7 @@ def main(args):
     optimizer = torch.optim.Adam(
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
+
     loss_func = MSELoss(reduction="mean")
     metric = WeightedL1Loss(reduction="sum")
 

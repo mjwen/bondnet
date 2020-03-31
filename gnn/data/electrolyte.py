@@ -101,9 +101,11 @@ class ElectrolyteBondDataset(BaseDataset):
             labels = torch.split(labels, sizes)
 
             for i, lb in enumerate(labels):
+                m = torch.tensor([mean] * len(lb), dtype=getattr(torch, self.dtype))
+                s = torch.tensor([std] * len(lb), dtype=getattr(torch, self.dtype))
                 self.labels[i]["value"] = lb
-                sca = torch.tensor([std] * len(lb), dtype=getattr(torch, self.dtype))
-                self.labels[i]["label_scaler"] = sca
+                self.labels[i]["scaler_mean"] = m
+                self.labels[i]["scaler_stdev"] = s
 
             logger.info("Label scaler mean: {}".format(mean))
             logger.info("Label scaler std: {}".format(std))
@@ -334,15 +336,19 @@ class ElectrolyteMoleculeDataset(BaseDataset):
             natoms = np.asarray(natoms, dtype=np.float32)
 
             scaled_labels = []
-            transformer_scale = []
+            scaler_mean = []
+            scaler_std = []
+
             label_scaler_mean = []
             label_scaler_std = []
+
             for i, is_ext in enumerate(extensive):
                 if is_ext:
                     # extensive labels standardized by the number of atoms in the
                     # molecules, i.e. y' = y/natoms
                     lb = labels[:, i] / natoms
-                    ts = natoms
+                    mean = np.zeros(len(lb))
+                    std = natoms
                     label_scaler_mean.append(None)
                     label_scaler_std.append("num atoms")
                 else:
@@ -351,21 +357,28 @@ class ElectrolyteMoleculeDataset(BaseDataset):
                     lb = labels[:, [i]]  # 2D array of shape (N, 1)
                     lb = scaler(lb)
                     lb = lb.ravel()
-                    ts = np.repeat(scaler.std, len(lb))
+                    mean = np.repeat(scaler.mean, len(lb))
+                    std = np.repeat(scaler.std, len(lb))
                     label_scaler_mean.append(scaler.mean)
                     label_scaler_std.append(scaler.std)
                 scaled_labels.append(lb)
-                transformer_scale.append(ts)
+                scaler_mean.append(mean)
+                scaler_std.append(std)
+
             scaled_labels = torch.tensor(
                 np.asarray(scaled_labels).T, dtype=getattr(torch, self.dtype)
             )
-            transformer_scale = torch.tensor(
-                np.asarray(transformer_scale).T, dtype=getattr(torch, self.dtype)
+            scaler_mean = torch.tensor(
+                np.asarray(scaler_mean).T, dtype=getattr(torch, self.dtype)
+            )
+            scaler_std = torch.tensor(
+                np.asarray(scaler_std).T, dtype=getattr(torch, self.dtype)
             )
 
-            for i, (lb, ts) in enumerate(zip(scaled_labels, transformer_scale)):
+            for i, (lb, m, s) in enumerate(zip(scaled_labels, scaler_mean, scaler_std)):
                 self.labels[i]["value"] = lb
-                self.labels[i]["label_scaler"] = ts
+                self.labels[i]["scaler_mean"] = m
+                self.labels[i]["scaler_stdev"] = s
 
             logger.info("Label scaler mean: {}".format(label_scaler_mean))
             logger.info("Label scaler std: {}".format(label_scaler_std))

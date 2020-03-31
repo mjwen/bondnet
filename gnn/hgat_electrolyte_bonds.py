@@ -161,16 +161,16 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
         label_val = label["value"]
         label_ind = label["indicator"]
         try:
-            scale = label["label_scaler"]
+            stdev = label["scaler_stdev"]
         except KeyError:
-            scale = None
+            stdev = None
 
         if device is not None:
             feats = {k: v.to(device) for k, v in feats.items()}
             label_val = label_val.to(device)
             label_ind = label_ind.to(device)
-            if scale is not None:
-                scale = scale.to(device=device)
+            if stdev is not None:
+                stdev = stdev.to(device)
 
         pred = model(bg, feats)
         loss = loss_fn(pred, label_val, label_ind)
@@ -179,7 +179,7 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
         optimizer.step()
 
         epoch_loss += loss.detach().item()
-        weight = label_ind if scale is None else label_ind * scale
+        weight = label_ind if stdev is None else label_ind * stdev
         accuracy += metric_fn(pred, label_val, weight).detach().item()
         count += sum(label_ind).item()
 
@@ -207,20 +207,20 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
             label_val = label["value"]
             label_ind = label["indicator"]
             try:
-                scale = label["label_scaler"]
+                stdev = label["scaler_stdev"]
             except KeyError:
-                scale = None
+                stdev = None
 
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
                 label_val = label_val.to(device)
                 label_ind = label_ind.to(device)
-                if scale is not None:
-                    scale = scale.to(device=device)
+                if stdev is not None:
+                    stdev = stdev.to(device)
 
             pred = model(bg, feats)
 
-            weight = label_ind if scale is None else label_ind * scale
+            weight = label_ind if stdev is None else label_ind * stdev
             accuracy += metric_fn(pred, label_val, weight).detach().item()
             count += sum(label_ind).item()
 
@@ -342,6 +342,8 @@ def main(args):
         sdf_file=sdf_file,
         label_file=label_file,
         feature_file=feature_file,
+        feature_transformer=True,
+        label_transformer=True,
     )
 
     trainset, valset, testset = train_validation_test_split_test_with_all_bonds_of_mol(
