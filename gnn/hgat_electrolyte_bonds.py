@@ -15,9 +15,9 @@ from gnn.data.electrolyte import ElectrolyteBondDataset
 from gnn.data.dataloader import DataLoaderBond
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import (
-    AtomFeaturizerWithReactionInfo,
+    AtomFeaturizer,
     BondAsNodeFeaturizer,
-    GlobalFeaturizerWithReactionInfo,
+    GlobalFeaturizerCharge,
 )
 from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
@@ -318,9 +318,9 @@ def ordering_accuracy(model, nodes, data_loader, metric_fn, device=None):
 
 
 def get_grapher():
-    atom_featurizer = AtomFeaturizerWithReactionInfo()
+    atom_featurizer = AtomFeaturizer()
     bond_featurizer = BondAsNodeFeaturizer(length_featurizer="bin")
-    global_featurizer = GlobalFeaturizerWithReactionInfo()
+    global_featurizer = GlobalFeaturizerCharge()
     grapher = HeteroMoleculeGraph(
         atom_featurizer=atom_featurizer,
         bond_featurizer=bond_featurizer,
@@ -334,9 +334,12 @@ def main(args):
     print("\n\nStart training at:", datetime.now())
 
     ### dataset
-    sdf_file = "~/Applications/db_access/mol_builder/struct_n200.sdf"
-    label_file = "~/Applications/db_access/mol_builder/label_n200.txt"
-    feature_file = "~/Applications/db_access/mol_builder/feature_n200.yaml"
+    # sdf_file = "~/Applications/db_access/mol_builder/struct_n200.sdf"
+    # label_file = "~/Applications/db_access/mol_builder/label_n200.txt"
+    # feature_file = "~/Applications/db_access/mol_builder/feature_n200.yaml"
+    sdf_file = "~/Applications/db_access/mol_builder/zinc_struct_bond_rgrn_n200.sdf"
+    label_file = "~/Applications/db_access/mol_builder/zinc_label_bond_rgrn_n200.txt"
+    feature_file = "~/Applications/db_access/mol_builder/zinc_feature_bond_rgrn_n200.yaml"
     dataset = ElectrolyteBondDataset(
         grapher=get_grapher(),
         sdf_file=sdf_file,

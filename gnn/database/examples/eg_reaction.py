@@ -768,6 +768,27 @@ def create_struct_label_dataset_reaction_network_based_classification(
 ######################################################################################
 
 
+def zinc_create_struct_label_dataset_bond_based_regression(
+    dirname="~/Documents/Dataset/ZINC_BDE_100",
+    # dirname="~/Documents/Dataset/ZINC_BDE",
+):
+    mols, bond_energies = read_zinc_bde_dataset(dirname)
+    extractor = ReactionExtractorFromReactant(mols, bond_energies)
+    reactions = extractor.extract_with_energies()
+    extractor = ReactionCollection(reactions)
+
+    extractor.create_struct_label_dataset_bond_based_regressssion(
+        # struct_file="~/Applications/db_access/mol_builder/zinc_struct_bond_rgrn.sdf",
+        # label_file="~/Applications/db_access/mol_builder/zinc_label_bond_rgrn.yaml",
+        # feature_file="~/Applications/db_access/mol_builder/zinc_feature_bond_rgrn.yaml",
+        struct_file="~/Applications/db_access/mol_builder/zinc_struct_bond_rgrn_n200.sdf",
+        label_file="~/Applications/db_access/mol_builder/zinc_label_bond_rgrn_n200.txt",
+        feature_file="~/Applications/db_access/mol_builder/zinc_feature_bond_rgrn_n200.yaml",
+        group_mode="charge_0",
+        one_per_iso_bond_group=True,
+    )
+
+
 def zinc_create_struct_label_dataset_reaction_network_based_regression(
     dirname="~/Documents/Dataset/ZINC_BDE_100",
     # dirname="~/Documents/Dataset/ZINC_BDE",
@@ -823,4 +844,8 @@ if __name__ == "__main__":
 
     ######################################################################################
     # for the zinc dataset
-    zinc_create_struct_label_dataset_reaction_network_based_regression()
+    ######################################################################################
+
+    zinc_create_struct_label_dataset_bond_based_regression()
+
+    # zinc_create_struct_label_dataset_reaction_network_based_regression()
