@@ -8,7 +8,7 @@ from datetime import datetime
 from collections import defaultdict
 from torch import autograd
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from gnn.metric import WeightedMSELoss, WeightedL1Loss, EarlyStopping
+from gnn.metric import WeightedMSELoss, WeightedL1Loss, EarlyStopping, OrderAccuracy
 from gnn.model.hgat_bond import HGATBond
 from gnn.data.dataset import train_validation_test_split_test_with_all_bonds_of_mol
 from gnn.data.electrolyte import ElectrolyteBondDataset
@@ -48,6 +48,13 @@ def parse_args():
         type=float,
         default=0.2,
         help="the negative slope of leaky relu",
+    )
+
+    parser.add_argument(
+        "--gat-num-fc-layers",
+        type=int,
+        default=3,
+        help="number of fc layers in gat node attantion layer",
     )
 
     parser.add_argument(
@@ -227,13 +234,9 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
     return accuracy / count
 
 
-# TODO we could pass smallest_n_score as the metric_fn
-def ordering_accuracy(model, nodes, data_loader, metric_fn, device=None):
+def ordering_accuracy(model, nodes, data_loader, device=None):
     """
     Evaluate the accuracy of an validation set of test set.
-
-    Args:
-        metric_fn (function): the function should be using a `sum` reduction method.
     """
     model.eval()
 
@@ -242,13 +245,13 @@ def ordering_accuracy(model, nodes, data_loader, metric_fn, device=None):
     with torch.no_grad():
 
         all_pred = []
-        all_val = []
+        all_target = []
         all_ind = []
         all_mol_source = []
 
         for bg, label in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-            label_val = label["value"]
+            label_target = label["value"]
             label_ind = label["indicator"]
             label_id = label["id"]
             label_size = label["size"]
@@ -258,8 +261,8 @@ def ordering_accuracy(model, nodes, data_loader, metric_fn, device=None):
             pred = model(bg, feats)
 
             # each element of these list corresponds to a bond
-            all_val.extend(
-                [t.detach().numpy() for t in torch.split(label_val, label_size)]
+            all_target.extend(
+                [t.detach().numpy() for t in torch.split(label_target, label_size)]
             )  # list of 1D array
 
             all_ind.extend(
@@ -272,49 +275,8 @@ def ordering_accuracy(model, nodes, data_loader, metric_fn, device=None):
                 [t.detach().numpy() for t in torch.split(pred, label_size)]
             )  # list of 1D array
 
-    ### analyze accuracy of energy order
-    def smallest_n_score(source, target, n=2):
-        """
-        Measure how many smallest n elements of source are in that of the target.
-
-        Args:
-            source (1D array):
-            target (1D array):
-            n (int): the number of elements to consider
-
-        Returns:
-            A float of value {0,1/n, 2/n, ..., n/n}, depending the intersection of the
-            smallest n elements between source and target.
-        """
-        # first n args that will sort the array
-        s_args = list(np.argsort(source)[:n])
-        t_args = list(np.argsort(target)[:n])
-        intersection = set(s_args).intersection(set(t_args))
-        return len(intersection) / len(s_args)
-
-    # group by mol source
-    group = defaultdict(list)
-    for m, val, ind, pred in zip(all_mol_source, all_val, all_ind, all_pred):
-        i = np.argmax(ind)  # index of the value (bond) that has nonzero energy
-        group[m].append((i, val[i], pred[i]))
-
-    # analyzer order correctness for each group
-    scores = []
-    for mol_source, g in group.items():
-        data = np.asarray(g)
-        pred = data[:, 2]
-        val = data[:, 1]
-        s1 = smallest_n_score(pred, val, n=1)
-        s2 = smallest_n_score(pred, val, n=2)
-        s3 = smallest_n_score(pred, val, n=3)
-        scores.append([s1, s2, s3])
-    mean_score = np.mean(scores, axis=0)
-
-    # print(
-    #     "### mean score of predicting the intersection of smallest {} predictions: "
-    #     "{}".format(n_smallest, mean_score)
-    # )
-    return mean_score
+    oa = OrderAccuracy(max_n=3)
+    return oa.step(all_pred, all_target, all_mol_source, all_ind)
 
 
 def get_grapher():
@@ -391,6 +353,7 @@ def main(args):
         feat_drop=args.feat_drop,
         attn_drop=args.attn_drop,
         negative_slope=args.negative_slope,
+        gat_num_fc_layers=args.gat_num_fc_layers,
         gat_residual=args.gat_residual,
         gat_batch_norm=args.gat_batch_norm,
         gat_activation=args.gat_activation,
@@ -436,8 +399,6 @@ def main(args):
     )
     sys.stdout.flush()
 
-    t0 = time.time()
-
     for epoch in range(args.epochs):
         ti = time.time()
 
@@ -463,10 +424,7 @@ def main(args):
             sys.exit(1)
 
         val_acc = evaluate(model, attn_order, val_loader, metric, args.device)
-
-        ordering_score = ordering_accuracy(
-            model, attn_order, test_loader, None, args.device
-        )
+        ordering_score = ordering_accuracy(model, attn_order, val_loader, args.device)
 
         if stopper.step(val_acc, checkpoints_objs, msg="epoch " + str(epoch)):
             # save results for hyperparam tune
@@ -491,9 +449,11 @@ def main(args):
     # load best to calculate test accuracy
     load_checkpoints(checkpoints_objs)
     test_acc = evaluate(model, attn_order, test_loader, metric, args.device)
+    ordering_score = ordering_accuracy(model, attn_order, test_loader, args.device)
 
-    tt = time.time() - t0
-    print("\n#TestAcc: {:12.6e} | Total time (s): {:.2f}\n".format(test_acc, tt))
+    print("\n#TestAcc: {:12.6e}\n".format(test_acc))
+    print(f"\n#Test Order Accuracy: {ordering_score}\n")
+
     print("\nFinish training at:", datetime.now())
 
 

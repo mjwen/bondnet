@@ -805,11 +805,11 @@ class MolWeightFeaturizer(BaseFeaturizer):
 
     def __call__(self, mol, **kwargs):
 
-        pd = GetPeriodicTable()
+        pt = GetPeriodicTable()
         g = [
             mol.GetNumAtoms(),
             mol.GetNumBonds(),
-            sum([pd.GetAtomicWeight(a.GetAtomicNum()) for a in mol.GetAtoms()]),
+            sum([pt.GetAtomicWeight(a.GetAtomicNum()) for a in mol.GetAtoms()]),
         ]
 
         feats = torch.tensor([g], dtype=getattr(torch, self.dtype))

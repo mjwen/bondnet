@@ -1,4 +1,6 @@
 import warnings
+from collections import defaultdict
+import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -95,6 +97,56 @@ class WeightedL1Loss(nn.Module):
                     rst = torch.sum(rst)
 
             return rst
+
+
+class OrderAccuracy:
+    """
+    Order energies of bonds from the same molecule and compute the first `max_n`
+    hit accuracy.
+    """
+
+    def __init__(self, max_n=3):
+        self.max_n = max_n
+
+    def step(self, predictions, targets, mol_sources, indicators=None):
+        # group by mol source
+        group = defaultdict(list)
+        for pred, tgt, m, ind in zip(predictions, targets, mol_sources, indicators):
+            # i: index of the value (bond) that has nonzero energy
+            i = np.argmax(ind)
+            group[m].append((i, tgt[i], pred[i]))
+
+        # analyzer order accuracy for each group
+        scores = []
+        for _, g in group.items():
+            data = np.asarray(g)
+            pred = data[:, 2]
+            tgt = data[:, 1]
+            s = [self.smallest_n_score(pred, tgt, n) for n in range(1, self.max_n + 1)]
+            scores.append(s)
+        mean_score = np.mean(scores, axis=0)
+
+        return mean_score
+
+    @staticmethod
+    def smallest_n_score(prediction, target, n=2):
+        """
+        Measure how many smallest n elements of source are in that of the target.
+
+        Args:
+            prediction (1D array):
+            target (1D array):
+            n (int): the number of elements to consider
+
+        Returns:
+            A float of value {0,1/n, 2/n, ..., n/n}, depending the intersection of the
+            smallest n elements between source and target.
+        """
+        # first n args that will sort the array
+        p_args = list(np.argsort(prediction)[:n])
+        t_args = list(np.argsort(target)[:n])
+        intersection = set(p_args).intersection(set(t_args))
+        return len(intersection) / len(p_args)
 
 
 class EarlyStopping:
