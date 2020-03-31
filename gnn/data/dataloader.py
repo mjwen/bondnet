@@ -148,10 +148,12 @@ class DataLoaderReaction(torch.utils.data.DataLoader):
                 "id": identifier,
             }
 
-            # add label_scaler if it is used
+            # add label scaler if it is used
             try:
-                label_scaler = [la["label_scaler"] for la in labels]
-                batched_labels["label_scaler"] = torch.stack(label_scaler)
+                mean = [la["scaler_mean"] for la in labels]
+                stdev = [la["scaler_stdev"] for la in labels]
+                batched_labels["scaler_mean"] = torch.stack(mean)
+                batched_labels["scaler_stdev"] = torch.stack(stdev)
             except KeyError:
                 pass
 

@@ -72,14 +72,14 @@ def test_dataloader():
         for i, (graph, labels) in enumerate(data_loader):
             assert np.allclose(labels["value"], [ref_labels[i]])
             if lt:
-                assert np.allclose(labels["label_scaler"], [ref_scales[i]])
+                assert np.allclose(labels["scaler_stdev"], [ref_scales[i]])
 
         # batch size 2 case
         data_loader = DataLoader(dataset, batch_size=2, shuffle=False)
         for graph, labels in data_loader:
             assert np.allclose(labels["value"], ref_labels)
             if lt:
-                assert np.allclose(labels["label_scaler"], ref_scales)
+                assert np.allclose(labels["scaler_stdev"], ref_scales)
 
     assert_label(False)
     assert_label(True)
@@ -114,7 +114,7 @@ def test_dataloader_bond():
             assert np.allclose(labels["value"], ref_label_energies[i])
             assert np.allclose(labels["indicator"], ref_label_indicators[i])
             if lt:
-                assert np.allclose(labels["label_scaler"], ref_scales[i])
+                assert np.allclose(labels["scaler_stdev"], ref_scales[i])
 
         # batch size 2 case
         data_loader = DataLoaderBond(dataset, batch_size=2, shuffle=False)
@@ -122,7 +122,7 @@ def test_dataloader_bond():
             assert np.allclose(labels["value"], np.concatenate(ref_label_energies))
             assert np.allclose(labels["indicator"], np.concatenate(ref_label_indicators))
             if lt:
-                assert np.allclose(labels["label_scaler"], np.concatenate(ref_scales))
+                assert np.allclose(labels["scaler_stdev"], np.concatenate(ref_scales))
 
     assert_label(False)
     assert_label(True)

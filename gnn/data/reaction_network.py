@@ -179,11 +179,17 @@ class ReactionNetwork:
         mols_not_in_any_rxn = list(set(range(len(self.molecules))) - mols_in_rxns)
         m2m = [(m, m) for m in mols_not_in_any_rxn]
 
-        edges_dict = {
-            ("molecule", "m2r", "reaction"): m2r,
-            ("reaction", "r2m", "molecule"): r2m,
-            ("molecule", "m2m", "molecule"): m2m,
-        }
+        if m2m:
+            edges_dict = {
+                ("molecule", "m2r", "reaction"): m2r,
+                ("reaction", "r2m", "molecule"): r2m,
+                ("molecule", "m2m", "molecule"): m2m,
+            }
+        else:
+            edges_dict = {
+                ("molecule", "m2r", "reaction"): m2r,
+                ("reaction", "r2m", "molecule"): r2m,
+            }
 
         # create graph
         self.g = dgl.heterograph(edges_dict)

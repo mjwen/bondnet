@@ -504,11 +504,13 @@ class ElectrolyteReactionDataset(BaseDataset):
             std = float(np.std(values))
             values = (torch.stack(values) - mean) / std
             std = torch.tensor(std, dtype=getattr(torch, self.dtype))
+            mean = torch.tensor(mean, dtype=getattr(torch, self.dtype))
 
             # update label
             for i, lb in enumerate(values):
                 self.labels[i]["value"] = lb
-                self.labels[i]["label_scaler"] = std
+                self.labels[i]["scaler_mean"] = mean
+                self.labels[i]["scaler_stdev"] = std
 
             logger.info("Label scaler mean: {}".format(mean))
             logger.info("Label scaler std: {}".format(std))

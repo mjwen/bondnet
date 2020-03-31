@@ -168,12 +168,12 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
     for it, (bg, label) in enumerate(data_loader):
         feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
         target = label["value"]
-        scale = label["label_scaler"]
+        stdev = label["scaler_stdev"]
 
         if device is not None:
             feats = {k: v.to(device) for k, v in feats.items()}
             target = target.to(device)
-            scale = scale.to(device)
+            stdev = stdev.to(device)
 
         pred = model(
             bg,
@@ -191,7 +191,7 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
         optimizer.step()
 
         epoch_loss += loss.detach().item()
-        accuracy += metric_fn(pred, target, scale).detach().item()
+        accuracy += metric_fn(pred, target, stdev).detach().item()
         count += len(target)
 
     epoch_loss /= it + 1
@@ -216,11 +216,11 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
         for bg, label in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
             target = label["value"]
-            scale = label["label_scaler"]
+            stdev = label["scaler_stdev"]
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
                 target = target.to(device)
-                scale = scale.to(device)
+                stdev = stdev.to(device)
 
             pred = model(
                 bg,
@@ -232,7 +232,7 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
             )
             pred = pred.view(-1)
 
-            accuracy += metric_fn(pred, target, scale).detach().item()
+            accuracy += metric_fn(pred, target, stdev).detach().item()
             count += len(target)
 
     return accuracy / count
@@ -264,6 +264,8 @@ def main(args):
         sdf_file=sdf_file,
         label_file=label_file,
         feature_file=feature_file,
+        feature_transformer=True,
+        label_transformer=True,
     )
 
     trainset, valset, testset = train_validation_test_split(

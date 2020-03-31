@@ -67,9 +67,9 @@ def test_electrolyte_bond_label():
             assert np.allclose(label["value"], ref_label_energies[i])
             assert np.array_equal(label["indicator"], ref_label_indicators[i])
             if lt:
-                assert np.allclose(label["label_scaler"], ref_ts[i])
+                assert np.allclose(label["scaler_stdev"], ref_ts[i])
             else:
-                assert "label_scaler" not in label
+                assert "scaler_stedv" not in label
 
     assert_label(False)
     assert_label(True)
@@ -123,9 +123,9 @@ def test_electrolyte_molecule_label():
             _, label = dataset[i]
             assert np.allclose(label["value"], ref_labels[i])
             if lt:
-                assert np.allclose(label["label_scaler"], ref_ts[i])
+                assert np.allclose(label["scaler_stdev"], ref_ts[i])
             else:
-                assert "label_scaler" not in label
+                assert "scaler_stdev" not in label
 
     assert_label(False)
     assert_label(True)
@@ -162,9 +162,9 @@ def test_qm9_label():
             _, label = dataset[i]
             assert np.allclose(label["value"], ref_labels[i])
             if lt:
-                assert np.allclose(label["label_scaler"], ref_ts[i])
+                assert np.allclose(label["scaler_stdev"], ref_ts[i])
             else:
-                assert "label_scaler" not in label
+                assert "scaler_stdev" not in label
 
     assert_label(False)
     assert_label(True)
@@ -199,7 +199,7 @@ def test_electrolyte_reaction_label():
             assert label["value"] == ref_label_class[i]
 
             if lt:
-                assert label["label_scaler"] == ref_ts
+                assert label["scaler_stdev"] == ref_ts
 
     assert_label(False)
     assert_label(True)
@@ -233,7 +233,7 @@ def test_electrolyte_reaction_network_label():
             rn, rxn, label = dataset[i]
             assert label["value"] == ref_label_class[i]
             if lt:
-                assert label["label_scaler"] == ref_ts
+                assert label["scaler_stdev"] == ref_ts
 
             assert rxn == i
 
