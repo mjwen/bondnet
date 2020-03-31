@@ -5,7 +5,7 @@ import torch
 import argparse
 import numpy as np
 from datetime import datetime
-from collections import defaultdict
+from itertools import compress
 from torch import autograd
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from gnn.metric import WeightedMSELoss, WeightedL1Loss, EarlyStopping, OrderAccuracy
@@ -238,16 +238,15 @@ def ordering_accuracy(model, nodes, data_loader, device=None):
     """
     Evaluate the accuracy of an validation set of test set.
     """
+
     model.eval()
 
-    ### prepare data
+    all_pred = []
+    all_target = []
+    all_ind = []
+    all_mol_source = []
 
     with torch.no_grad():
-
-        all_pred = []
-        all_target = []
-        all_ind = []
-        all_mol_source = []
 
         for bg, label in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
@@ -258,9 +257,15 @@ def ordering_accuracy(model, nodes, data_loader, device=None):
 
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
+
             pred = model(bg, feats)
 
             # each element of these list corresponds to a bond
+
+            all_pred.extend(
+                [t.detach().numpy() for t in torch.split(pred, label_size)]
+            )  # list of 1D array
+
             all_target.extend(
                 [t.detach().numpy() for t in torch.split(label_target, label_size)]
             )  # list of 1D array
@@ -271,12 +276,16 @@ def ordering_accuracy(model, nodes, data_loader, device=None):
 
             all_mol_source.extend(label_id)  # list of str
 
-            all_pred.extend(
-                [t.detach().numpy() for t in torch.split(pred, label_size)]
-            )  # list of 1D array
+    # select the bond that has energy
+    all_pred = np.asarray(
+        [list(compress(v, i)) for v, i in zip(all_pred, all_ind)]
+    ).reshape(-1)
+    all_target = np.asarray(
+        [list(compress(v, i)) for v, i in zip(all_target, all_ind)]
+    ).reshape(-1)
 
     oa = OrderAccuracy(max_n=3)
-    return oa.step(all_pred, all_target, all_mol_source, all_ind)
+    return oa.step(all_pred, all_target, all_mol_source)
 
 
 def get_grapher():

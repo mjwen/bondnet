@@ -108,19 +108,29 @@ class OrderAccuracy:
     def __init__(self, max_n=3):
         self.max_n = max_n
 
-    def step(self, predictions, targets, mol_sources, indicators=None):
+    def step(self, predictions, targets, mol_sources):
+        """
+
+        Args:
+            predictions (list): prediction made by the model
+            targets (list): target of the prediction
+            mol_sources (list): identifier (str or int) indicating the source of the
+                corresponding entry.
+
+        Returns:
+            list: mean ordering accuracy
+
+        """
         # group by mol source
         group = defaultdict(list)
-        for pred, tgt, m, ind in zip(predictions, targets, mol_sources, indicators):
-            # i: index of the value (bond) that has nonzero energy
-            i = np.argmax(ind)
-            group[m].append((i, tgt[i], pred[i]))
+        for pred, tgt, m in zip(predictions, targets, mol_sources):
+            group[m].append([pred, tgt])
 
         # analyzer order accuracy for each group
         scores = []
         for _, g in group.items():
             data = np.asarray(g)
-            pred = data[:, 2]
+            pred = data[:, 0]
             tgt = data[:, 1]
             s = [self.smallest_n_score(pred, tgt, n) for n in range(1, self.max_n + 1)]
             scores.append(s)
