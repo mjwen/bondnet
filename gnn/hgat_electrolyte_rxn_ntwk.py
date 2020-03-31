@@ -181,12 +181,12 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
     for it, (bg, label) in enumerate(data_loader):
         feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
         target = label["value"]
-        scale = label["label_scaler"]
+        stdev = label["scaler_stdev"]
 
         if device is not None:
             feats = {k: v.to(device) for k, v in feats.items()}
             target = target.to(device)
-            scale = scale.to(device)
+            stdev = stdev.to(device)
 
         pred = model(bg, feats, label["reaction"])
         pred = pred.view(-1)
@@ -197,7 +197,7 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
         optimizer.step()
 
         epoch_loss += loss.detach().item()
-        accuracy += metric_fn(pred, target, scale).detach().item()
+        accuracy += metric_fn(pred, target, stdev).detach().item()
         count += len(target)
 
     epoch_loss /= it + 1
@@ -222,16 +222,16 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
         for bg, label in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
             target = label["value"]
-            scale = label["label_scaler"]
+            stdev = label["scaler_stdev"]
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
                 target = target.to(device)
-                scale = scale.to(device)
+                stdev = stdev.to(device)
 
             pred = model(bg, feats, label["reaction"])
             pred = pred.view(-1)
 
-            accuracy += metric_fn(pred, target, scale).detach().item()
+            accuracy += metric_fn(pred, target, stdev).detach().item()
             count += len(target)
 
     return accuracy / count
@@ -255,13 +255,18 @@ def write_features(
             ids = []
             for bg, label in data_loader:
                 feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-                target = np.multiply(label["value"], label["label_scaler"])
+
                 if device is not None:
                     feats = {k: v.to(device) for k, v in feats.items()}
                 feats = model.feature_before_fc(bg, feats, label["reaction"])
 
                 feature_data.append(feats)
-                label_data.append(target)
+
+                target = (
+                    torch.mul(label["value"], label["scaler_stdev"])
+                    + label["scaler_mean"]
+                )
+                label_data.append(target.numpy())
                 ids.append([rxn.id for rxn in label["reaction"]])
 
             all_feature.append(np.concatenate(feature_data))
@@ -290,32 +295,35 @@ def write_features(
 def error_analysis(model, nodes, data_loader, filename, device=None):
     model.eval()
 
-    errors = []
+    predictions = []
+    targets = []
     ids = []
 
     with torch.no_grad():
 
         for bg, label in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-            target = label["value"]
-            scale = label["label_scaler"]
+            tgt = label["value"]
+            mean = label["scaler_mean"]
+            stdev = label["scaler_stdev"]
 
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
-                target = target.to(device)
-                scale = scale.to(device)
 
             pred = model(bg, feats, label["reaction"])
             pred = pred.view(-1)
 
-            e = (pred - target) * scale
-            errors.append(e.numpy())
+            pred = pred * stdev + mean
+            tgt = tgt * stdev + mean
+            predictions.append(pred.numpy())
+            targets.append(tgt.numpy())
             ids.append([rxn.id for rxn in label["reaction"]])
 
-    errors = np.concatenate(errors)
+    predictions = np.concatenate(predictions)
+    targets = np.concatenate(targets)
     ids = np.concatenate(ids)
 
-    write_error(errors, ids, sort=True, filename=filename)
+    write_error(predictions, targets, ids, sort=True, filename=filename)
 
 
 def get_grapher():
