@@ -433,7 +433,10 @@ def main(args):
             sys.exit(1)
 
         val_acc = evaluate(model, attn_order, val_loader, metric, args.device)
-        ordering_score = ordering_accuracy(model, attn_order, val_loader, args.device)
+
+        # note, we should use test_loader here since it contains all bond energies for
+        # each molecule in it
+        ordering_score = ordering_accuracy(model, attn_order, test_loader, args.device)
 
         if stopper.step(val_acc, checkpoints_objs, msg="epoch " + str(epoch)):
             # save results for hyperparam tune
