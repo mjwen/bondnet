@@ -5,6 +5,7 @@ but here they are adapted to work with heterograph.
 """
 
 import numpy as np
+import torch.nn as nn
 
 from dgl import backend as F
 from dgl import BatchedDGLHeteroGraph
@@ -124,3 +125,36 @@ def broadcast_nodes(graph, ntype, feat_data):
     """
 
     return _broadcast_on(graph, ("nodes", ntype), feat_data)
+
+
+class Embedding(nn.Module):
+    """
+    A layer to unify the feature size of nodes of different types.
+    Each feature uses a linear fc layer to map the size.
+
+    NOTE, after this transformation, each data point is just a linear combination of its
+    feature in the original feature space (x_new_ij = x_ik w_kj), there is not mixing of
+    feature between data points.
+
+    Args:
+        input_dim (dict): feature sizes of nodes with node type as key and size as value
+        output_dim (int): output feature size, i.e. the size we will turn all the
+            features to
+    """
+
+    def __init__(self, input_dim, output_dim):
+        super(Embedding, self).__init__()
+
+        self.linears = nn.ModuleDict(
+            {k: nn.Linear(size, output_dim, bias=False) for k, size in input_dim.items()}
+        )
+
+    def forward(self, feats):
+        """
+        Args:
+            feats (dict): features dict with node type as key and feature as value
+
+        Returns:
+            dict: size adjusted features
+        """
+        return {k: self.linears[k](x) for k, x in feats.items()}

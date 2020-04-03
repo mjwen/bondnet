@@ -32,42 +32,6 @@ class LinearN(nn.Module):
         return x
 
 
-class UnifySize(nn.Module):
-    """
-    A layer to unify the feature size of nodes of different types.
-    Each feature uses a linear fc layer to map the size.
-
-    NOTE, after this transformation, each data point is just a linear combination of its
-    feature in the orginal feature space (x_new_ij = x_ik w_kj), there is not mixing of
-    feature between data points.
-
-    Args:
-        in_feats (dict): feature sizes of nodes with node type as key and size as value
-        out_feats (int): output feature size, i.e. the size we will turn all the
-            features to
-    """
-
-    def __init__(self, in_feats, out_feats):
-        super(UnifySize, self).__init__()
-
-        self.linears = nn.ModuleDict(
-            {
-                ntype: nn.Linear(size, out_feats, bias=False)
-                for ntype, size in in_feats.items()
-            }
-        )
-
-    def forward(self, feats):
-        """
-        Args:
-            feats (dict): features dict with node type as key and feature as value
-
-        Returns:
-            dict: size adjusted features
-        """
-        return {ntype: self.linears[ntype](x) for ntype, x in feats.items()}
-
-
 class NodeAttentionLayer(nn.Module):
     """
     Graph attention for nodes from other nodes.

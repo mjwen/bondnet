@@ -1,18 +1,19 @@
 import torch
 import numpy as np
 from gnn.layer.hgatconv import (
-    UnifySize,
     NodeAttentionLayer,
     HGATConv,
     heterograph_edge_softmax,
 )
+from gnn.layer.utils import Embedding
+
 from ..utils import make_hetero_CH2O
 
 
 def test_unify_size():
     in_feats = {"a": 2, "b": 3}
     out_feats = 4
-    us = UnifySize(in_feats, out_feats)
+    us = Embedding(in_feats, out_feats)
 
     feats = {"a": torch.zeros(2), "b": torch.zeros(3)}
     feats = us(feats)
