@@ -1,9 +1,7 @@
 """Torch modules for GAT for heterograph."""
 import torch
 from torch import nn
-import warnings
 from dgl import function as fn
-from gnn.utils import warn_stdout
 
 
 class LinearN(nn.Module):
@@ -40,15 +38,9 @@ class BondUpdateLayer(nn.Module):
         attn_edges,
         in_feats,
         out_feats,
-        num_heads,
         num_fc_layers=3,
-        fc_activation=nn.Softplus(),
-        feat_drop=0.0,
-        attn_drop=0.0,
-        negative_slope=0.2,
         residual=False,
-        batch_norm=False,
-        activation=None,
+        activation=nn.Softplus(),
     ):
 
         super(BondUpdateLayer, self).__init__()
@@ -57,11 +49,9 @@ class BondUpdateLayer(nn.Module):
         self.edge_types = [(n, e, master_node) for n, e in zip(attn_nodes, attn_edges)]
 
         in_size = in_feats["bond"] + in_feats["atom"] * 2 + in_feats["global"]
-        # out_sizes = [out_feats] * num_fc_layers
-        out_sizes = [64, 64, 32]
-        act = [fc_activation] * (num_fc_layers - 1) + [nn.Identity()]
+        act = [activation] * (num_fc_layers - 1) + [nn.Identity()]
         use_bias = [True] * num_fc_layers
-        self.fc_layers = LinearN(in_size, out_sizes, act, use_bias)
+        self.fc_layers = LinearN(in_size, out_feats, act, use_bias)
 
     def forward(self, graph, master_feats, attn_feats):
         graph = graph.local_var()
@@ -97,15 +87,9 @@ class AtomUpdateLayer(nn.Module):
         attn_edges,
         in_feats,
         out_feats,
-        num_heads,
         num_fc_layers=3,
-        fc_activation=nn.Softplus(),
-        feat_drop=0.0,
-        attn_drop=0.0,
-        negative_slope=0.2,
         residual=False,
-        batch_norm=False,
-        activation=None,
+        activation=nn.Softplus(),
     ):
 
         super(AtomUpdateLayer, self).__init__()
@@ -114,11 +98,9 @@ class AtomUpdateLayer(nn.Module):
         self.edge_types = [(n, e, master_node) for n, e in zip(attn_nodes, attn_edges)]
 
         in_size = in_feats["atom"] + in_feats["bond"] + in_feats["global"]
-        # out_sizes = [out_feats] * num_fc_layers
-        out_sizes = [64, 64, 32]
-        act = [fc_activation] * (num_fc_layers - 1) + [nn.Identity()]
+        act = [activation] * (num_fc_layers - 1) + [nn.Identity()]
         use_bias = [True] * num_fc_layers
-        self.fc_layers = LinearN(in_size, out_sizes, act, use_bias)
+        self.fc_layers = LinearN(in_size, out_feats, act, use_bias)
 
     def forward(self, graph, master_feats, attn_feats):
         graph = graph.local_var()
@@ -135,15 +117,11 @@ class AtomUpdateLayer(nn.Module):
 
         feats = self.fc_layers(graph.nodes[self.master_node].data["ft"])
 
-        x = feats.shape
         return feats
 
     @staticmethod
     def apply_node_fn(nodes):
-        shape1 = nodes.data["ft"].shape
-        shape2 = nodes.data["m"].shape
         ft = torch.cat([nodes.data["ft"], nodes.data["m"]], dim=1)
-        shape3 = ft.shape
         return {"ft": ft}
 
 
@@ -182,13 +160,8 @@ class MEGConv(nn.Module):
         attn_order,
         in_feats,
         out_feats,
-        num_heads=4,
         num_fc_layers=3,
-        feat_drop=0.0,
-        attn_drop=0.0,
-        negative_slope=0.2,
         residual=False,
-        batch_norm=False,
         activation=None,
         first_block=False,
     ):
@@ -207,15 +180,14 @@ class MEGConv(nn.Module):
         for ntype in self.master_nodes:
             if first_block:
                 in_size = in_feats_map[ntype]
-                out_sizes = [64, 32]
+                out_sizes = [out_feats[0], out_feats[-1]]
                 act = [activation] * 2
                 use_bias = [True] * 2
                 self.linear_fc[ntype] = LinearN(in_size, out_sizes, act, use_bias)
             else:
                 self.linear_fc[ntype] = nn.Identity()
 
-            in_size = {k: 32 for k in in_feats_map}
-
+        in_size = {k: out_feats[-1] for k in in_feats_map}
         self.layers = nn.ModuleDict()
         for ntype in self.master_nodes:
             if ntype == "bond":
@@ -225,14 +197,9 @@ class MEGConv(nn.Module):
                     attn_edges=self.attn_mechanism[ntype]["edges"],
                     in_feats=in_size,
                     out_feats=out_feats,
-                    num_heads=num_heads,
                     num_fc_layers=num_fc_layers,
-                    feat_drop=feat_drop,
-                    attn_drop=attn_drop,
-                    negative_slope=negative_slope,
                     residual=residual,
                     activation=activation,
-                    batch_norm=batch_norm,
                 )
             elif ntype == "atom":
                 self.layers[ntype] = AtomUpdateLayer(
@@ -241,14 +208,9 @@ class MEGConv(nn.Module):
                     attn_edges=self.attn_mechanism[ntype]["edges"],
                     in_feats=in_size,
                     out_feats=out_feats,
-                    num_heads=num_heads,
                     num_fc_layers=num_fc_layers,
-                    feat_drop=feat_drop,
-                    attn_drop=attn_drop,
-                    negative_slope=negative_slope,
                     residual=residual,
                     activation=activation,
-                    batch_norm=batch_norm,
                 )
             elif ntype == "global":
                 self.layers[ntype] = GlobalUpdateLayer(
@@ -257,14 +219,9 @@ class MEGConv(nn.Module):
                     attn_edges=self.attn_mechanism[ntype]["edges"],
                     in_feats=in_size,
                     out_feats=out_feats,
-                    num_heads=num_heads,
                     num_fc_layers=num_fc_layers,
-                    feat_drop=feat_drop,
-                    attn_drop=attn_drop,
-                    negative_slope=negative_slope,
                     residual=residual,
                     activation=activation,
-                    batch_norm=batch_norm,
                 )
 
     def forward(self, graph, feats):
@@ -296,8 +253,6 @@ class MEGConv(nn.Module):
         # residual
         if self.residual:
             for k in updated_feats:
-                x = updated_feats[k].shape
-                y = feats_linear_fc[k].shape
                 updated_feats[k] += feats_linear_fc[k]
 
         return updated_feats

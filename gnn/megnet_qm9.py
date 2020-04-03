@@ -37,25 +37,12 @@ def parse_args():
         default=[64, 64, 32],
         help="number of hidden units of GAT layers",
     )
-    parser.add_argument(
-        "--num-heads", type=int, default=1, help="number of hidden attention heads"
-    )
-    parser.add_argument(
-        "--feat-drop", type=float, default=0.0, help="input feature dropout"
-    )
-    parser.add_argument("--attn-drop", type=float, default=0.0, help="attention dropout")
-    parser.add_argument(
-        "--negative-slope",
-        type=float,
-        default=0.2,
-        help="the negative slope of leaky relu",
-    )
 
     parser.add_argument(
         "--gat-num-fc-layers",
         type=int,
         default=3,
-        help="number of fc layers in gat node attantion layer",
+        help="number of fc layers in gat node attention layer",
     )
 
     parser.add_argument(
@@ -63,11 +50,10 @@ def parse_args():
     )
 
     parser.add_argument(
-        "--gat-batch-norm", type=int, default=0, help="batch norm for gat layer"
-    )
-
-    parser.add_argument(
-        "--gat-activation", type=str, default="ELU", help="activation fn for gat layer"
+        "--gat-activation",
+        type=str,
+        default="Softplus",
+        help="activation fn for gat layer",
     )
 
     parser.add_argument(
@@ -98,10 +84,10 @@ def parse_args():
         "--fc-batch-norm", type=int, default=0, help="batch nonrm for fc layer"
     )
     parser.add_argument(
-        "--fc-activation", type=str, default="ELU", help="activation fn for fc layer"
+        "--fc-activation", type=str, default="Softplus", help="activation fn for fc layer"
     )
     parser.add_argument(
-        "--fc-drop", type=float, default=0.0, help="dropout rato for fc layer"
+        "--fc-drop", type=float, default=0.0, help="dropout ratio for fc layer"
     )
 
     # training
@@ -337,13 +323,8 @@ def main(args):
         in_feats,
         num_gat_layers=args.num_gat_layers,
         gat_hidden_size=args.gat_hidden_size,
-        num_heads=args.num_heads,
-        feat_drop=args.feat_drop,
-        attn_drop=args.attn_drop,
-        negative_slope=args.negative_slope,
         gat_num_fc_layers=args.gat_num_fc_layers,
         gat_residual=args.gat_residual,
-        gat_batch_norm=args.gat_batch_norm,
         gat_activation=args.gat_activation,
         num_lstm_iters=args.num_lstm_iters,
         num_lstm_layers=args.num_lstm_layers,
