@@ -12,33 +12,7 @@ from dgl import function as fn
 import warnings
 
 
-class LinearN(nn.Module):
-    """
-    N stacked linear layers.
-
-    Args:
-        in_size (int): input feature size
-        out_sizes (list): size of each layer
-        activations (list): activation function of each layer
-        use_bias (list): whether to use bias for the linear layer
-    """
-
-    def __init__(self, in_size, out_sizes, activations, use_bias):
-        super(LinearN, self).__init__()
-
-        self.fc_layers = nn.ModuleList()
-        for out, act, b in zip(out_sizes, activations, use_bias):
-            self.fc_layers.append(nn.Linear(in_size, out, bias=b))
-            self.fc_layers.append(act)
-            in_size = out
-
-    def forward(self, x):
-        for layer in self.fc_layers:
-            x = layer(x)
-        return x
-
-
-class GatedGCNLayer(nn.Module):
+class GatedGCNConv(nn.Module):
     def __init__(
         self,
         input_dim,
@@ -49,7 +23,7 @@ class GatedGCNLayer(nn.Module):
         residual=False,
         dropout=0.0,
     ):
-        super().__init__()
+        super(GatedGCNConv, self).__init__()
         self.graph_norm = graph_norm
         self.batch_norm = batch_norm
         self.activation = activation
@@ -81,18 +55,14 @@ class GatedGCNLayer(nn.Module):
             self.dropout = nn.Identity()
 
     def message_fn(self, edges):
-        Eh_j = edges.src["Eh"]
-        e = edges.data["e"]
+        return {"Eh_j": edges.src["Eh"], "e": edges.src["e"]}
 
-        return {"Eh_j": Eh_j, "e": e}
-
-    def reduce_func(self, nodes):
+    def reduce_fn(self, nodes):
         Eh_i = nodes.data["Eh"]
         e = nodes.mailbox["e"]
         Eh_j = nodes.mailbox["Eh_j"]
 
         Eh_j = select_not_equal(Eh_j, Eh_i)
-
         sigma_ij = torch.sigmoid(e)  # sigma_ij = sigmoid(e_ij)
 
         # (sum_j eta_ij * Ehj)/(sum_j' eta_ij') <= dense attention
@@ -100,9 +70,9 @@ class GatedGCNLayer(nn.Module):
 
         return {"h": h}
 
-    def forward(self, g, feats, snorm_n=None, snorm_e=None):
+    def forward(self, g, feats, norm_atom, norm_bond):
 
-        g = g.local_vars()
+        g = g.local_var()
 
         h = feats["atom"]
         e = feats["bond"]
@@ -114,7 +84,7 @@ class GatedGCNLayer(nn.Module):
         u_in = u
 
         g.nodes["atom"].data.update(
-            {"Ah": self.A(h), "Dh": self.D(h), "Ee": self.E(h), "Gh": self.G(h)}
+            {"Ah": self.A(h), "Dh": self.D(h), "Eh": self.E(h), "Gh": self.G(h)}
         )
         g.nodes["bond"].data.update({"Be": self.B(e), "He": self.H(e)})
         g.nodes["global"].data.update({"Cu": self.C(u), "Fu": self.F(u), "Iu": self.I(u)})
@@ -135,7 +105,7 @@ class GatedGCNLayer(nn.Module):
         # This is the first arrow in: Eh_j -> bond node -> atom i node
         # The second arrow is done in self.message_fn and self.reduce_fn below
         g.update_all(
-            fn.copy_u("Eh", "Eh"), lambda nodes: {"Eh", nodes.mailbox["Eh"]}, etype="a2b"
+            fn.copy_u("Eh", "Eh"), lambda nodes: {"Eh": nodes.mailbox["Eh"]}, etype="a2b"
         )
 
         g.multi_update_all(
@@ -164,8 +134,8 @@ class GatedGCNLayer(nn.Module):
 
         # normalize activation w.r.t. graph size
         if self.graph_norm:
-            h = h * snorm_n
-            e = e * snorm_e
+            h = h * norm_atom
+            e = e * norm_bond
 
         # batch normalization
         if self.batch_norm:
@@ -173,9 +143,9 @@ class GatedGCNLayer(nn.Module):
             e = self.bn_node_e(e)
             u = self.bn_node_u(u)
 
-        h = self.actiation(h)
+        h = self.activation(h)
         e = self.activation(e)
-        u = self.actiation(u)
+        u = self.activation(u)
 
         # residual connection
         if self.residual:

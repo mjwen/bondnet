@@ -37,6 +37,51 @@ class DataLoader(torch.utils.data.DataLoader):
         super(DataLoader, self).__init__(dataset, collate_fn=collate, **kwargs)
 
 
+class DataLoaderGraphNorm(torch.utils.data.DataLoader):
+    """
+    This dataloader works for the case where the label of each data point are of the
+    same shape. For example, regression on molecule energy.
+    """
+
+    def __init__(self, dataset, **kwargs):
+        if "collate_fn" in kwargs:
+            raise ValueError(
+                "'collate_fn' provided internally by 'gnn.data', you need not to "
+                "provide one"
+            )
+
+        def collate(samples):
+            graphs, labels = map(list, zip(*samples))
+
+            g = graphs[0]
+            if isinstance(g, dgl.DGLGraph):
+                batched_graphs = dgl.batch(graphs)
+                sizes_atom = [g.number_of_nodes() for g in graphs]
+                sizes_bond = [g.number_of_edges() for g in graphs]
+
+            elif isinstance(g, dgl.DGLHeteroGraph):
+                batched_graphs = dgl.batch_hetero(graphs)
+                sizes_atom = [g.number_of_nodes("atom") for g in graphs]
+                sizes_bond = [g.number_of_nodes("bond") for g in graphs]
+
+            else:
+                raise ValueError(
+                    f"graph type {g.__class__.__name__} not supported. Should be either "
+                    f"dgl.DGLGraph or dgl.DGLHeteroGraph."
+                )
+
+            batched_labels = torch.utils.data.dataloader.default_collate(labels)
+
+            norm_atom = [torch.FloatTensor(s, 1).fill_(s) for s in sizes_atom]
+            norm_bond = [torch.FloatTensor(s, 1).fill_(s) for s in sizes_bond]
+            batched_labels["norm_atom"] = 1.0 / torch.cat(norm_atom).sqrt()
+            batched_labels["norm_bond"] = 1.0 / torch.cat(norm_bond).sqrt()
+
+            return batched_graphs, batched_labels
+
+        super(DataLoaderGraphNorm, self).__init__(dataset, collate_fn=collate, **kwargs)
+
+
 class DataLoaderBond(torch.utils.data.DataLoader):
     """
     This dataloader works for the case where the label of each data point are NOT of the

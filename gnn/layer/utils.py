@@ -127,7 +127,7 @@ def broadcast_nodes(graph, ntype, feat_data):
     return _broadcast_on(graph, ("nodes", ntype), feat_data)
 
 
-class Embedding(nn.Module):
+class UnifySize(nn.Module):
     """
     A layer to unify the feature size of nodes of different types.
     Each feature uses a linear fc layer to map the size.
@@ -143,7 +143,7 @@ class Embedding(nn.Module):
     """
 
     def __init__(self, input_dim, output_dim):
-        super(Embedding, self).__init__()
+        super(UnifySize, self).__init__()
 
         self.linears = nn.ModuleDict(
             {k: nn.Linear(size, output_dim, bias=False) for k, size in input_dim.items()}
