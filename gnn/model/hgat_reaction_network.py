@@ -20,7 +20,7 @@ class HGATReactionNetwork(HGATMol):
                 each representing a reaction.
 
         Returns:
-            2D tensor: of shape(N, num_classes), where `num_classes = outdim`.
+            2D tensor: of shape(N, M), where `M = outdim`.
         """
 
         # hgat layer

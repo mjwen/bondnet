@@ -4,26 +4,27 @@ import warnings
 import torch
 import argparse
 import numpy as np
+import pandas as pd
 from datetime import datetime
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.nn import MSELoss
 from gnn.metric import WeightedL1Loss, EarlyStopping
-from gnn.model.gated_mol import GatedGCNMol
+from gnn.model.gated_reaction_network import GatedGCNReactionNetwork
 from gnn.data.dataset import train_validation_test_split
-from gnn.data.qm9 import QM9Dataset
-from gnn.data.dataloader import DataLoaderGraphNorm
+from gnn.data.electrolyte import ElectrolyteReactionNetworkDataset
+from gnn.data.dataloader import DataLoaderReactionNetwork
 from gnn.data.grapher import HeteroMoleculeGraph
-from gnn.data.featurizer import AtomFeaturizer, BondAsNodeFeaturizer, MolWeightFeaturizer
+from gnn.data.featurizer import (
+    AtomFeaturizer,
+    BondAsNodeFeaturizer,
+    GlobalFeaturizerCharge,
+)
+from gnn.post_analysis import write_error
 from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="HGATMol")
-
-    # property
-    parser.add_argument(
-        "--property", type=str, default="u0_atom", help="QM9 property to train"
-    )
+    parser = argparse.ArgumentParser(description="HGATReaction")
 
     # embedding layer
     parser.add_argument("--embedding-size", type=int, default=24)
@@ -68,6 +69,10 @@ def parse_args():
 
     # output file (needed by hypertunity)
     parser.add_argument("--output_file", type=str, default="results.pkl")
+
+    parser.add_argument(
+        "--post-analysis", type=str, default="none", help="post analysis type"
+    )
 
     args = parser.parse_args()
 
@@ -131,20 +136,18 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
         target = label["value"]
         norm_atom = label["norm_atom"]
         norm_bond = label["norm_bond"]
-        try:
-            stdev = label["scaler_stdev"]
-        except KeyError:
-            stdev = None
+        stdev = label["scaler_stdev"]
 
         if device is not None:
             feats = {k: v.to(device) for k, v in feats.items()}
             target = target.to(device)
             norm_atom = norm_atom.to(device)
             norm_bond = norm_bond.to(device)
-            if stdev is not None:
-                stdev = stdev.to(device)
+            stdev = stdev.to(device)
 
-        pred = model(bg, feats, norm_atom, norm_bond)
+        pred = model(bg, feats, label["reaction"], norm_atom, norm_bond)
+        pred = pred.view(-1)
+
         loss = loss_fn(pred, target)
         optimizer.zero_grad()
         loss.backward()
@@ -176,37 +179,130 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
         for bg, label in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
             target = label["value"]
-            atom_norm = label["norm_atom"]
-            bond_norm = label["norm_bond"]
-            try:
-                stdev = label["scaler_stdev"]
-            except KeyError:
-                stdev = None
+            norm_atom = label["norm_atom"]
+            norm_bond = label["norm_bond"]
+            stdev = label["scaler_stdev"]
 
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
                 target = target.to(device)
-                atom_norm = atom_norm.to(device)
-                bond_norm = bond_norm.to(device)
-                if stdev is not None:
-                    stdev = stdev.to(device)
+                norm_atom = norm_atom.to(device)
+                norm_bond = norm_bond.to(device)
+                stdev = stdev.to(device)
 
-            pred = model(bg, feats, atom_norm, bond_norm)
+            pred = model(bg, feats, label["reaction"], norm_atom, norm_bond)
+            pred = pred.view(-1)
+
             accuracy += metric_fn(pred, target, stdev).detach().item()
             count += len(target)
 
     return accuracy / count
 
 
+def write_features(
+    model, nodes, all_data_loader, feat_filename, meta_filename, device=None
+):
+    model.eval()
+
+    all_feature = []
+    all_label = []
+    all_ids = []
+    loader_names = []
+
+    with torch.no_grad():
+        for name, data_loader in all_data_loader.items():
+
+            feature_data = []
+            label_data = []
+            ids = []
+            for bg, label in data_loader:
+                feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
+                norm_atom = label["norm_atom"]
+                norm_bond = label["norm_bond"]
+
+                if device is not None:
+                    feats = {k: v.to(device) for k, v in feats.items()}
+                    norm_atom = norm_atom.to(device)
+                    norm_bond = norm_bond.to(device)
+
+                feats = model.feature_before_fc(
+                    bg, feats, label["reaction"], norm_atom, norm_bond
+                )
+
+                feature_data.append(feats)
+
+                target = (
+                    torch.mul(label["value"], label["scaler_stdev"])
+                    + label["scaler_mean"]
+                )
+                label_data.append(target.numpy())
+                ids.append([rxn.id for rxn in label["reaction"]])
+
+            all_feature.append(np.concatenate(feature_data))
+            all_label.append(np.concatenate(label_data))
+            all_ids.append(np.concatenate(ids))
+            loader_names.append(name)
+
+    # features
+    feats = np.concatenate(all_feature)
+
+    # metadata
+    loader_source = [[nm] * len(lb) for nm, lb in zip(loader_names, all_label)]
+    metadata = {
+        "ids": np.concatenate(all_ids),
+        "energy": np.concatenate(all_label),
+        "loader": np.concatenate(loader_source),
+    }
+
+    # write files
+    df = pd.DataFrame(feats)
+    df.to_csv(feat_filename, sep="\t", header=False, index=False)
+    df = pd.DataFrame(metadata)
+    df.to_csv(meta_filename, sep="\t", index=False)
+
+
+def error_analysis(model, nodes, data_loader, filename, device=None):
+    model.eval()
+
+    predictions = []
+    targets = []
+    ids = []
+
+    with torch.no_grad():
+
+        for bg, label in data_loader:
+            feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
+            tgt = label["value"]
+            mean = label["scaler_mean"]
+            stdev = label["scaler_stdev"]
+            norm_atom = label["norm_atom"]
+            norm_bond = label["norm_bond"]
+
+            if device is not None:
+                feats = {k: v.to(device) for k, v in feats.items()}
+                norm_atom = norm_atom.to(device)
+                norm_bond = norm_bond.to(device)
+
+            pred = model(bg, feats, label["reaction"], norm_atom, norm_bond)
+            pred = pred.view(-1)
+
+            pred = pred * stdev + mean
+            tgt = tgt * stdev + mean
+            predictions.append(pred.numpy())
+            targets.append(tgt.numpy())
+            ids.append([rxn.id for rxn in label["reaction"]])
+
+    predictions = np.concatenate(predictions)
+    targets = np.concatenate(targets)
+    ids = np.concatenate(ids)
+
+    write_error(predictions, targets, ids, sort=True, filename=filename)
+
+
 def get_grapher():
     atom_featurizer = AtomFeaturizer()
-    bond_featurizer = BondAsNodeFeaturizer(
-        # length_featurizer="bin",
-        # length_featurizer_args={"low": 0.7, "high": 2.5, "num_bins": 10},
-        length_featurizer="rbf",
-        length_featurizer_args={"low": 0.3, "high": 2.3, "num_centers": 20},
-    )
-    global_featurizer = MolWeightFeaturizer()
+    bond_featurizer = BondAsNodeFeaturizer(length_featurizer=None)
+    global_featurizer = GlobalFeaturizerCharge()
     grapher = HeteroMoleculeGraph(
         atom_featurizer=atom_featurizer,
         bond_featurizer=bond_featurizer,
@@ -220,16 +316,20 @@ def main(args):
     print("\n\nStart training at:", datetime.now())
 
     ### dataset
-    sdf_file = "/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf"
-    label_file = "/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf.csv"
+    sdf_file = "~/Applications/db_access/mol_builder/struct_rxn_ntwk_rgrn_n200.sdf"
+    label_file = "~/Applications/db_access/mol_builder/label_rxn_ntwk_rgrn_n200.yaml"
+    feature_file = "~/Applications/db_access/mol_builder/feature_rxn_ntwk_rgrn_n200.yaml"
+    # sdf_file = "~/Applications/db_access/mol_builder/zinc_struct_rxn_ntwk_rgrn_n200.sdf"
+    # label_file = "~/Applications/db_access/mol_builder/zinc_label_rxn_ntwk_rgrn_n200.yaml"
+    # feature_file = (
+    #     "~/Applications/db_access/mol_builder/zinc_feature_rxn_ntwk_rgrn_n200.yaml"
+    # )
 
-    props = [args.property]
-    dataset = QM9Dataset(
+    dataset = ElectrolyteReactionNetworkDataset(
         grapher=get_grapher(),
         sdf_file=sdf_file,
         label_file=label_file,
-        properties=props,
-        unit_conversion=True,
+        feature_file=feature_file,
         feature_transformer=True,
         label_transformer=True,
     )
@@ -243,13 +343,15 @@ def main(args):
         )
     )
 
-    train_loader = DataLoaderGraphNorm(trainset, batch_size=args.batch_size, shuffle=True)
+    train_loader = DataLoaderReactionNetwork(
+        trainset, batch_size=args.batch_size, shuffle=True
+    )
     # larger val and test set batch_size is faster but needs more memory
     # adjust the batch size of to fit memory
     bs = max(len(valset) // 10, 1)
-    val_loader = DataLoaderGraphNorm(valset, batch_size=bs, shuffle=False)
+    val_loader = DataLoaderReactionNetwork(valset, batch_size=bs, shuffle=False)
     bs = max(len(testset) // 10, 1)
-    test_loader = DataLoaderGraphNorm(testset, batch_size=bs, shuffle=False)
+    test_loader = DataLoaderReactionNetwork(testset, batch_size=bs, shuffle=False)
 
     ### model
 
@@ -259,7 +361,7 @@ def main(args):
     # feature_names = ["atom", "bond"]
     # set2set_ntypes_direct = None
 
-    model = GatedGCNMol(
+    model = GatedGCNReactionNetwork(
         in_feats=dataset.feature_size,
         embedding_size=args.embedding_size,
         gated_num_layers=args.gated_num_layers,
@@ -283,6 +385,36 @@ def main(args):
 
     if args.device is not None:
         model.to(device=args.device)
+
+    if args.post_analysis != "none":
+        print(f"\nStart post analysis ({args.post_analysis}) at:", datetime.now())
+
+        # load saved model
+        checkpoints_objs = {"model": model}
+        load_checkpoints(checkpoints_objs)
+
+        if args.post_analysis == "write_feature":
+            # write_feature
+            write_features(
+                model,
+                feature_names,
+                {"train": train_loader, "validation": val_loader},
+                "feats.tsv",
+                "feats_metadata.tsv",
+                args.device,
+            )
+        elif args.post_analysis == "error_analysis":
+            loaders = [train_loader, val_loader, test_loader]
+            fnames = ["train_error.txt", "val_error.txt", "test_error.txt"]
+            for ld, nm in zip(loaders, fnames):
+                error_analysis(model, feature_names, ld, nm, args.device)
+        else:
+            raise ValueError(f"not supported post analysis type: {args.post_analysis}")
+
+        print(f"\nFinish post analysis ({args.post_analysis}) at:", datetime.now())
+
+        # we only do post analysis and do not need to train; so exist here
+        sys.exit(0)
 
     ### optimizer, loss, and metric
     optimizer = torch.optim.Adam(
@@ -330,6 +462,7 @@ def main(args):
                 "when running directly. The only hope is that the error can reoccur."
             )
             sys.stdout.flush()
+            sys.exit(1)
 
         # evaluate
         val_acc = evaluate(model, feature_names, val_loader, metric, args.device)
@@ -356,7 +489,18 @@ def main(args):
 
     # load best to calculate test accuracy
     load_checkpoints(checkpoints_objs)
+
     test_acc = evaluate(model, feature_names, test_loader, metric, args.device)
+
+    # write features for post analysis
+    write_features(
+        model,
+        feature_names,
+        {"train": train_loader, "validation": val_loader},
+        "feats.tsv",
+        "feats_metadata.tsv",
+        args.device,
+    )
 
     tt = time.time() - t0
     print("\n#TestAcc: {:12.6e} | Total time (s): {:.2f}\n".format(test_acc, tt))

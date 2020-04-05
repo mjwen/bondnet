@@ -225,11 +225,18 @@ class DataLoaderReactionNetwork(torch.utils.data.DataLoader):
 
             # each element of `rn` is the same reaction network
             reactions, graphs = rn[0].subselect_reactions(rxn_ids)
+
             g = graphs[0]
             if isinstance(g, dgl.DGLGraph):
                 batched_graphs = dgl.batch(graphs)
+                sizes_atom = [g.number_of_nodes() for g in graphs]
+                sizes_bond = [g.number_of_edges() for g in graphs]
+
             elif isinstance(g, dgl.DGLHeteroGraph):
                 batched_graphs = dgl.batch_hetero(graphs)
+                sizes_atom = [g.number_of_nodes("atom") for g in graphs]
+                sizes_bond = [g.number_of_nodes("bond") for g in graphs]
+
             else:
                 raise ValueError(
                     f"graph type {g.__class__.__name__} not supported. Should be either "
@@ -253,6 +260,12 @@ class DataLoaderReactionNetwork(torch.utils.data.DataLoader):
                 batched_labels["scaler_stdev"] = torch.stack(stdev)
             except KeyError:
                 pass
+
+            # graph norm
+            norm_atom = [torch.FloatTensor(s, 1).fill_(s) for s in sizes_atom]
+            norm_bond = [torch.FloatTensor(s, 1).fill_(s) for s in sizes_bond]
+            batched_labels["norm_atom"] = 1.0 / torch.cat(norm_atom).sqrt()
+            batched_labels["norm_bond"] = 1.0 / torch.cat(norm_bond).sqrt()
 
             return batched_graphs, batched_labels
 
