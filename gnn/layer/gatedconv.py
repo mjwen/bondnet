@@ -54,10 +54,30 @@ class GatedGCNConv(nn.Module):
             warnings.warn(f"dropout ({dropout}) smaller than {delta}. Ignored.")
             self.dropout = nn.Identity()
 
-    def message_fn(self, edges):
-        return {"Eh_j": edges.src["Eh"], "e": edges.src["e"]}
+    @staticmethod
+    def reduce_fn_a2b(nodes):
+        """
+        Reduce `Eh_j` from atom nodes to bond nodes.
 
-    def reduce_fn(self, nodes):
+        Expand dim 1 such that every bond has two atoms connecting to it.
+        This is to deal with the special case of single atom graph (e.g. H+).
+        For such graph, an artificial bond is created and connected to the atom in
+        `grapher`. Here, we expand it to let each bond connecting to two atoms.
+        This is necessary because, otherwise, the reduce_fn wil not work since
+        dimension mismatch.
+        """
+        x = nodes.mailbox["Eh_j"]
+        if x.shape[1] == 1:
+            x = x.repeat_interleave(2, dim=1)
+
+        return {"Eh_j": x}
+
+    @staticmethod
+    def message_fn(edges):
+        return {"Eh_j": edges.src["Eh_j"], "e": edges.src["e"]}
+
+    @staticmethod
+    def reduce_fn(nodes):
         Eh_i = nodes.data["Eh"]
         e = nodes.mailbox["e"]
         Eh_j = nodes.mailbox["Eh_j"]
@@ -104,9 +124,7 @@ class GatedGCNConv(nn.Module):
         # Copy Eh to bond nodes, without reduction.
         # This is the first arrow in: Eh_j -> bond node -> atom i node
         # The second arrow is done in self.message_fn and self.reduce_fn below
-        g.update_all(
-            fn.copy_u("Eh", "Eh"), lambda nodes: {"Eh": nodes.mailbox["Eh"]}, etype="a2b"
-        )
+        g.update_all(fn.copy_u("Eh", "Eh_j"), self.reduce_fn_a2b, etype="a2b")
 
         g.multi_update_all(
             {
@@ -174,7 +192,7 @@ def select_not_equal(x, y):
 
     Args:
         x (4D tensor): shape are d0: node batch dim, d1: number of edges dim,
-        d2: selection dim, d3: feature dim
+            d2: selection dim, d3: feature dim
         y (2D tensor): shape are 0: nodes batch dim, 1: feature dim
 
     For example:
