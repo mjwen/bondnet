@@ -220,12 +220,24 @@ def select_not_equal(x, y):
         3D tensor: of shape (d0, d1, d3)
 
     """
-    assert x.shape[2] == 2, f"Expect x.shape[2]==2, got {x.shape[2]}"
+    d0, d1, d2, d3 = x.shape
+    assert d2 == 2, f"Expect x.shape[2]==2, got {d2}"
 
-    rst = []
-    for x1, y1 in zip(x, y):
-        xx = [x2[0] if not torch.equal(y1, x2[0]) else x2[1] for x2 in x1]
-        rst.append(torch.stack(xx))
-    rst = torch.stack(rst)
+    ## method 1, slow
+    # rst = []
+    # for x1, y1 in zip(x, y):
+    #     xx = [x2[0] if not torch.equal(y1, x2[0]) else x2[1] for x2 in x1]
+    #     rst.append(torch.stack(xx))
+    # rst = torch.stack(rst)
+
+    # method 2, a much faster version
+    y = torch.repeat_interleave(y, d1 * d2, dim=0).view(x.shape)
+    any_not_equal = torch.any(x != y, dim=3)
+    # bool index
+    idx1 = any_not_equal[:, :, 0].view(d0, d1, 1)
+    idx2 = ~idx1
+    idx = torch.cat([idx1, idx2], dim=-1)
+    # select result
+    rst = x[idx].view(d0, d1, -1)
 
     return rst
