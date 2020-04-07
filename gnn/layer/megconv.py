@@ -110,19 +110,40 @@ class AtomUpdateLayer(nn.Module):
         for ntype, feats in zip(self.attn_nodes, attn_feats):
             graph.nodes[ntype].data.update({"ft": feats})
 
-        for etype in self.edge_types:
-            graph.update_all(
-                fn.copy_u("ft", "m"), fn.mean("m", "m"), self.apply_node_fn, etype=etype
-            )
+        # for et in self.edge_types:
+        #     graph.update_all(
+        #         fn.copy_u("ft", "m"), fn.mean("m", "mean"), self.apply_node_fn, etype=et
+        #     )
+        # feats = self.fc_layers(graph.nodes[self.master_node].data["ft"])
 
+        # dgl gives the below error:
+        #
+        # RuntimeError: one of the variables needed for gradient computation has been
+        # modified by an inplace operation: [torch.FloatTensor [991, 32]],  which is
+        # output 0 of AddmmBackward, is at version 1; expected version 0 instead.
+        # Hint: enable anomaly detection to find the operation that failed to compute
+        # its gradient, with torch.autograd.set_detect_anomaly(True).
+        #
+        # when using the above commented block.
+        # Cannot easily create a small snippet to reproduce it. So for now, use the below
+        # instead.
+        #
+
+        for et in self.edge_types:
+            graph.update_all(
+                self.msg_fn, fn.mean("m", "mean"), self.apply_node_fn, etype=et
+            )
         feats = self.fc_layers(graph.nodes[self.master_node].data["ft"])
 
         return feats
 
     @staticmethod
+    def msg_fn(edges):
+        return {"m": edges.src["ft"]}
+
+    @staticmethod
     def apply_node_fn(nodes):
-        ft = torch.cat([nodes.data["ft"], nodes.data["m"]], dim=1)
-        return {"ft": ft}
+        return {"ft": torch.cat([nodes.data["ft"], nodes.data["mean"]], dim=1)}
 
 
 GlobalUpdateLayer = AtomUpdateLayer

@@ -14,11 +14,7 @@ from gnn.data.dataset import train_validation_test_split
 from gnn.data.electrolyte import ElectrolyteReactionNetworkDataset
 from gnn.data.dataloader import DataLoaderReactionNetwork
 from gnn.data.grapher import HeteroMoleculeGraph
-from gnn.data.featurizer import (
-    AtomFeaturizer,
-    BondAsNodeFeaturizer,
-    GlobalFeaturizerCharge,
-)
+from gnn.data.featurizer import AtomFeaturizer, BondAsNodeFeaturizer, MolWeightFeaturizer
 from gnn.post_analysis import write_error
 from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
@@ -302,7 +298,7 @@ def error_analysis(model, nodes, data_loader, filename, device=None):
 def get_grapher():
     atom_featurizer = AtomFeaturizer()
     bond_featurizer = BondAsNodeFeaturizer(length_featurizer=None)
-    global_featurizer = GlobalFeaturizerCharge()
+    global_featurizer = MolWeightFeaturizer()
     grapher = HeteroMoleculeGraph(
         atom_featurizer=atom_featurizer,
         bond_featurizer=bond_featurizer,
