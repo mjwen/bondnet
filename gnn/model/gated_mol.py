@@ -149,7 +149,7 @@ class GatedGCNMol(nn.Module):
         feats = self.embedding(feats)
 
         # gated layer
-        for i, layer in enumerate(self.gated_layers):
+        for layer in self.gated_layers:
             feats = layer(graph, feats, norm_atom, norm_bond)
 
         # readout layer
