@@ -101,11 +101,14 @@ class NodeAttentionLayer(nn.Module):
 
         self.fc_layers = nn.ModuleDict()
         for nt, sz in in_feats.items():
-            # last layer does not use bias and activation
-            out_sizes = [out_feats] * (num_fc_layers - 1) + [out_feats * num_heads]
-            act = [fc_activation] * (num_fc_layers - 1) + [nn.Identity()]
-            use_bias = [True] * (num_fc_layers - 1) + [False]
-            self.fc_layers[nt] = LinearN(sz, out_sizes, act, use_bias)
+            if num_fc_layers > 0:
+                # last layer does not use bias and activation
+                out_sizes = [out_feats] * (num_fc_layers - 1) + [out_feats * num_heads]
+                act = [fc_activation] * (num_fc_layers - 1) + [nn.Identity()]
+                use_bias = [True] * (num_fc_layers - 1) + [False]
+                self.fc_layers[nt] = LinearN(sz, out_sizes, act, use_bias)
+            else:
+                self.fc_layers[nt] = nn.Identity()
 
         # parameters for attention
         self.attn_l = nn.Parameter(torch.zeros(1, num_heads, out_feats))

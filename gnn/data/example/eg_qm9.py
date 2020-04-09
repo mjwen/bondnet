@@ -86,7 +86,7 @@ def get_dataset_qm9(
     )
 
     dataset = QM9Dataset(
-        grapher=grapher, sdf_file=sdf_file, label_file=label_file, properties=["u0_atom"],
+        grapher=grapher, sdf_file=sdf_file, label_file=label_file, properties=["u0_atom"]
     )
 
     return dataset
@@ -104,6 +104,6 @@ def write_edge_label_based_on_molecule_bond():
 
 
 if __name__ == "__main__":
-    # plot_bond_distance_hist()
+    plot_bond_distance_hist()
     # get_dataset_qm9()
-    write_edge_label_based_on_molecule_bond()
+    # write_edge_label_based_on_molecule_bond()

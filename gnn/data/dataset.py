@@ -154,7 +154,7 @@ class Subset(BaseDataset):
         return len(self.indices)
 
 
-def train_validation_test_split(dataset, validation=0.1, test=0.1, random_seed=35):
+def train_validation_test_split(dataset, validation=0.1, test=0.1, random_seed=None):
     """
     Split a dataset into training, validation, and test set.
 
@@ -179,7 +179,8 @@ def train_validation_test_split(dataset, validation=0.1, test=0.1, random_seed=3
     num_test = int(size * test)
     num_train = size - num_val - num_test
 
-    np.random.seed(random_seed)
+    if random_seed is not None:
+        np.random.seed(random_seed)
     idx = np.random.permutation(size)
     train_idx = idx[:num_train]
     val_idx = idx[num_train : num_train + num_val]
@@ -192,7 +193,7 @@ def train_validation_test_split(dataset, validation=0.1, test=0.1, random_seed=3
 
 
 def train_validation_test_split_test_with_all_bonds_of_mol(
-    dataset, validation=0.1, test=0.1, random_seed=35
+    dataset, validation=0.1, test=0.1, random_seed=None
 ):
     """
     Split a dataset into training, validation, and test set.
@@ -229,7 +230,8 @@ def train_validation_test_split_test_with_all_bonds_of_mol(
     groups = [val for key, val in groups.items()]
 
     # permute on the molecule level
-    np.random.seed(random_seed)
+    if random_seed is not None:
+        np.random.seed(random_seed)
     idx = np.random.permutation(len(groups))
     test_idx = []
     train_val_idx = []

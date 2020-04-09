@@ -5,6 +5,8 @@ Heterogeneous Graph Attention Networks on molecule level property.
 import warnings
 import torch.nn as nn
 from gnn.layer.gatedconv import GatedGCNConv
+
+# from gnn.layer.gatedconv import GatedGCNConv2 as GatedGCNConv
 from gnn.layer.readout import Set2SetThenCat
 from gnn.layer.utils import UnifySize
 from gnn.utils import warn_stdout

@@ -9,6 +9,7 @@ https://arxiv.org/pdf/1711.07553v2.pdf
 import torch
 from torch import nn
 from dgl import function as fn
+from gnn.layer.hgatconv import NodeAttentionLayer
 import warnings
 
 
@@ -103,11 +104,9 @@ class GatedGCNConv(nn.Module):
         e_in = e
         u_in = u
 
-        g.nodes["atom"].data.update(
-            {"Ah": self.A(h), "Dh": self.D(h), "Eh": self.E(h), "Gh": self.G(h)}
-        )
-        g.nodes["bond"].data.update({"Be": self.B(e), "He": self.H(e)})
-        g.nodes["global"].data.update({"Cu": self.C(u), "Fu": self.F(u), "Iu": self.I(u)})
+        g.nodes["atom"].data.update({"Ah": self.A(h), "Dh": self.D(h), "Eh": self.E(h)})
+        g.nodes["bond"].data.update({"Be": self.B(e)})
+        g.nodes["global"].data.update({"Cu": self.C(u), "Fu": self.F(u)})
 
         # update bond feature e
         g.multi_update_all(
@@ -118,6 +117,7 @@ class GatedGCNConv(nn.Module):
             },
             "sum",
         )
+        e = g.nodes["bond"].data["e"]
 
         # update atom feature h
 
@@ -134,8 +134,12 @@ class GatedGCNConv(nn.Module):
             },
             "sum",
         )
+        h = g.nodes["atom"].data["h"]
 
         # update global feature u
+        g.nodes["atom"].data.update({"Gh": self.G(h)})
+        g.nodes["bond"].data.update({"He": self.H(e)})
+        g.nodes["global"].data.update({"Iu": self.I(u)})
         g.multi_update_all(
             {
                 "a2g": (fn.copy_u("Gh", "m"), fn.mean("m", "u")),  # G * (mean_i h_i)
@@ -144,10 +148,6 @@ class GatedGCNConv(nn.Module):
             },
             "sum",
         )
-
-        # result of graph convolution
-        h = g.nodes["atom"].data["h"]
-        e = g.nodes["bond"].data["e"]
         u = g.nodes["global"].data["u"]
 
         # normalize activation w.r.t. graph size
@@ -184,6 +184,155 @@ class GatedGCNConv(nn.Module):
     #     return "{}(in_channels={}, out_channels={})".format(
     #         self.__class__.__name__, self.in_channels, self.out_channels
     #     )
+
+
+class GatedGCNConv2(GatedGCNConv):
+    def __init__(
+        self,
+        input_dim,
+        output_dim,
+        graph_norm=True,
+        batch_norm=True,
+        activation=nn.ELU(),
+        residual=False,
+        dropout=0.0,
+    ):
+        super().__init__(
+            input_dim, output_dim, graph_norm, batch_norm, activation, residual, dropout
+        )
+
+        self.graph_norm = graph_norm
+        self.batch_norm = batch_norm
+        self.activation = activation
+        self.residual = residual
+
+        if input_dim != output_dim:
+            self.residual = False
+
+        self.A = nn.Linear(input_dim, output_dim, bias=True)
+        self.B = nn.Linear(input_dim, output_dim, bias=True)
+        self.C = nn.Linear(input_dim, output_dim, bias=True)
+        self.D = nn.Linear(input_dim, output_dim, bias=True)
+        self.E = nn.Linear(input_dim, output_dim, bias=True)
+        self.F = nn.Linear(input_dim, output_dim, bias=True)
+
+        if self.batch_norm:
+            self.bn_node_h = nn.BatchNorm1d(output_dim)
+            self.bn_node_e = nn.BatchNorm1d(output_dim)
+            self.bn_node_u = nn.BatchNorm1d(output_dim)
+
+        delta = 1e-3
+        if dropout >= delta:
+            self.dropout = nn.Dropout(dropout)
+        else:
+            warnings.warn(f"dropout ({dropout}) smaller than {delta}. Ignored.")
+            self.dropout = nn.Identity()
+
+        self.node_attn_layer = NodeAttentionLayer(
+            master_node="global",
+            attn_nodes=["atom", "bond", "global"],
+            attn_edges=["a2g", "b2g", "g2g"],
+            in_feats={"atom": output_dim, "bond": output_dim, "global": input_dim},
+            out_feats=output_dim,
+            num_heads=1,
+            num_fc_layers=1,
+            feat_drop=0.0,
+            attn_drop=0.0,
+            negative_slope=0.2,
+            residual=False,
+            activation=None,
+            batch_norm=False,
+        )
+
+    def forward(self, g, feats, norm_atom, norm_bond):
+
+        g = g.local_var()
+
+        h = feats["atom"]
+        e = feats["bond"]
+        u = feats["global"]
+
+        # for residual connection
+        h_in = h
+        e_in = e
+        u_in = u
+
+        g.nodes["atom"].data.update({"Ah": self.A(h), "Dh": self.D(h), "Eh": self.E(h)})
+        g.nodes["bond"].data.update({"Be": self.B(e)})
+        g.nodes["global"].data.update({"Cu": self.C(u), "Fu": self.F(u)})
+
+        # update bond feature e
+        g.multi_update_all(
+            {
+                "a2b": (fn.copy_u("Ah", "m"), fn.sum("m", "e")),  # A * (h_i + h_j)
+                "b2b": (fn.copy_u("Be", "m"), fn.sum("m", "e")),  # B * e_ij
+                "g2b": (fn.copy_u("Cu", "m"), fn.sum("m", "e")),  # C * u
+            },
+            "sum",
+        )
+        e = g.nodes["bond"].data["e"]
+
+        # update atom feature h
+
+        # Copy Eh to bond nodes, without reduction.
+        # This is the first arrow in: Eh_j -> bond node -> atom i node
+        # The second arrow is done in self.message_fn and self.reduce_fn below
+        g.update_all(fn.copy_u("Eh", "Eh_j"), self.reduce_fn_a2b, etype="a2b")
+
+        g.multi_update_all(
+            {
+                "a2a": (fn.copy_u("Dh", "m"), fn.sum("m", "h")),  # D * h_i
+                "b2a": (self.message_fn, self.reduce_fn),  # e_ij [Had] (E * hj)
+                "g2a": (fn.copy_u("Fu", "m"), fn.sum("m", "h")),  # F * u
+            },
+            "sum",
+        )
+        h = g.nodes["atom"].data["h"]
+
+        # update global feature u
+        # g.nodes["atom"].data.update({"Gh": self.G(h)})
+        # g.nodes["bond"].data.update({"He": self.H(e)})
+        # g.nodes["global"].data.update({"Iu": self.I(u)})
+        # g.multi_update_all(
+        #     {
+        #         "a2g": (fn.copy_u("Gh", "m"), fn.mean("m", "u")),  # G * (mean_i h_i)
+        #         "b2g": (fn.copy_u("He", "m"), fn.mean("m", "u")),  # H * (mean_ij e_ij)
+        #         "g2g": (fn.copy_u("Iu", "m"), fn.sum("m", "u")),  # I * u
+        #     },
+        #     "sum",
+        # )
+        # u = g.nodes["global"].data["u"]
+        u = self.node_attn_layer(g, u, [h, e, u]).flatten(start_dim=1)
+
+        # normalize activation w.r.t. graph size
+        if self.graph_norm:
+            h = h * norm_atom
+            e = e * norm_bond
+
+        # batch normalization
+        if self.batch_norm:
+            h = self.bn_node_h(h)
+            e = self.bn_node_e(e)
+            u = self.bn_node_u(u)
+
+        h = self.activation(h)
+        e = self.activation(e)
+        u = self.activation(u)
+
+        # residual connection
+        if self.residual:
+            h = h_in + h
+            e = e_in + e
+            u = u_in + u
+
+        # dropout
+        h = self.dropout(h)
+        e = self.dropout(e)
+        u = self.dropout(u)
+
+        feats = {"atom": h, "bond": e, "global": u}
+
+        return feats
 
 
 def select_not_equal(x, y):
