@@ -123,6 +123,14 @@ class GatedGCNConv(nn.Module):
             "sum",
         )
         e = g.nodes["bond"].data["e"]
+        if self.graph_norm:
+            e = e * norm_bond
+        if self.batch_norm:
+            e = self.bn_node_e(e)
+        e = self.activation(e)
+        if self.residual:
+            e = e_in + e
+        g.nodes["bond"].data["e"] = e
 
         # update atom feature h
 
@@ -140,6 +148,14 @@ class GatedGCNConv(nn.Module):
             "sum",
         )
         h = g.nodes["atom"].data["h"]
+        if self.graph_norm:
+            h = h * norm_atom
+        if self.batch_norm:
+            h = self.bn_node_h(h)
+        h = self.activation(h)
+        if self.residual:
+            h = h_in + h
+        g.nodes["atom"].data["h"] = h
 
         # update global feature u
         g.nodes["atom"].data.update({"Gh": self.G(h)})
@@ -154,26 +170,10 @@ class GatedGCNConv(nn.Module):
             "sum",
         )
         u = g.nodes["global"].data["u"]
-
-        # normalize activation w.r.t. graph size
-        if self.graph_norm:
-            h = h * norm_atom
-            e = e * norm_bond
-
-        # batch normalization
         if self.batch_norm:
-            h = self.bn_node_h(h)
-            e = self.bn_node_e(e)
             u = self.bn_node_u(u)
-
-        h = self.activation(h)
-        e = self.activation(e)
         u = self.activation(u)
-
-        # residual connection
         if self.residual:
-            h = h_in + h
-            e = e_in + e
             u = u_in + u
 
         # dropout
@@ -287,6 +287,14 @@ class GatedGCNConv1(GatedGCNConv):
             "sum",
         )
         e = g.nodes["bond"].data["e"]
+        if self.graph_norm:
+            e = e * norm_bond
+        if self.batch_norm:
+            e = self.bn_node_e(e)
+        e = self.activation(e)
+        if self.residual:
+            e = e_in + e
+        g.nodes["bond"].data["e"] = e
 
         # update atom feature h
 
@@ -304,6 +312,14 @@ class GatedGCNConv1(GatedGCNConv):
             "sum",
         )
         h = g.nodes["atom"].data["h"]
+        if self.graph_norm:
+            h = h * norm_atom
+        if self.batch_norm:
+            h = self.bn_node_h(h)
+        h = self.activation(h)
+        if self.residual:
+            h = h_in + h
+        g.nodes["atom"].data["h"] = h
 
         # update global feature u
         # g.nodes["atom"].data.update({"Gh": self.G(h)})
@@ -319,26 +335,10 @@ class GatedGCNConv1(GatedGCNConv):
         # )
         # u = g.nodes["global"].data["u"]
         u = self.node_attn_layer(g, u, [h, e, u]).flatten(start_dim=1)
-
-        # normalize activation w.r.t. graph size
-        if self.graph_norm:
-            h = h * norm_atom
-            e = e * norm_bond
-
-        # batch normalization
         if self.batch_norm:
-            h = self.bn_node_h(h)
-            e = self.bn_node_e(e)
             u = self.bn_node_u(u)
-
-        h = self.activation(h)
-        e = self.activation(e)
         u = self.activation(u)
-
-        # residual connection
         if self.residual:
-            h = h_in + h
-            e = e_in + e
             u = u_in + u
 
         # dropout
