@@ -4,9 +4,7 @@ Heterogeneous Graph Attention Networks on molecule level property.
 
 import warnings
 import torch.nn as nn
-from gnn.layer.gatedconv import GatedGCNConv
-
-# from gnn.layer.gatedconv import GatedGCNConv2 as GatedGCNConv
+from gnn.layer.gatedconv import GatedGCNConv, GatedGCNConv1
 from gnn.layer.readout import Set2SetThenCat
 from gnn.layer.utils import UnifySize
 from gnn.utils import warn_stdout
@@ -22,6 +20,7 @@ class GatedGCNMol(nn.Module):
         embedding_size (int): embedding layer size.
         gated_num_layers (int): number of graph attention layer
         gated_hidden_size (list): hidden size of graph attention layers
+        gated_num_fc_layers (int):
         gated_graph_norm (bool):
         gated_batch_norm(bool): whether to apply batch norm to gated layer.
         gated_activation (torch activation): activation fn of gated layers
@@ -43,6 +42,7 @@ class GatedGCNMol(nn.Module):
         embedding_size=32,
         gated_num_layers=3,
         gated_hidden_size=[64, 64, 32],
+        gated_num_fc_layers=1,
         gated_graph_norm=True,
         gated_batch_norm=True,
         gated_activation="ReLU",
@@ -57,6 +57,7 @@ class GatedGCNMol(nn.Module):
         fc_activation="ReLU",
         fc_dropout=0.0,
         outdim=1,
+        conv="GatedGCNConv",
     ):
         super(GatedGCNMol, self).__init__()
 
@@ -69,13 +70,21 @@ class GatedGCNMol(nn.Module):
         self.embedding = UnifySize(in_feats, embedding_size)
 
         # gated layer
+        if conv == "GatedGCNConv":
+            conv_fn = GatedGCNConv
+        elif conv == "GatedGCNConv1":
+            conv_fn = GatedGCNConv1
+        else:
+            raise ValueError()
+
         in_size = embedding_size
         self.gated_layers = nn.ModuleList()
         for i in range(gated_num_layers):
             self.gated_layers.append(
-                GatedGCNConv(
+                conv_fn(
                     input_dim=in_size,
                     output_dim=gated_hidden_size[i],
+                    num_fc_layers=gated_num_fc_layers,
                     graph_norm=gated_graph_norm,
                     batch_norm=gated_batch_norm,
                     activation=gated_activation,

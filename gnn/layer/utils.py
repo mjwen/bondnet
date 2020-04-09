@@ -158,3 +158,29 @@ class UnifySize(nn.Module):
             dict: size adjusted features
         """
         return {k: self.linears[k](x) for k, x in feats.items()}
+
+
+class LinearN(nn.Module):
+    """
+    N stacked linear layers.
+
+    Args:
+        in_size (int): input feature size
+        out_sizes (list): size of each layer
+        activations (list): activation function of each layer
+        use_bias (list): whether to use bias for the linear layer
+    """
+
+    def __init__(self, in_size, out_sizes, activations, use_bias):
+        super(LinearN, self).__init__()
+
+        self.fc_layers = nn.ModuleList()
+        for out, act, b in zip(out_sizes, activations, use_bias):
+            self.fc_layers.append(nn.Linear(in_size, out, bias=b))
+            self.fc_layers.append(act)
+            in_size = out
+
+    def forward(self, x):
+        for layer in self.fc_layers:
+            x = layer(x)
+        return x

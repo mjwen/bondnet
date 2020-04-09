@@ -28,6 +28,7 @@ def parse_args():
     # gated layer
     parser.add_argument("--gated-num-layers", type=int, default=3)
     parser.add_argument("--gated-hidden-size", type=int, nargs="+", default=[64, 64, 64])
+    parser.add_argument("--gated-num-fc-layers", type=int, default=1)
     parser.add_argument("--gated-graph-norm", type=int, default=1)
     parser.add_argument("--gated-batch-norm", type=int, default=1)
     parser.add_argument("--gated-activation", type=str, default="ReLU")
@@ -362,6 +363,7 @@ def main(args):
         embedding_size=args.embedding_size,
         gated_num_layers=args.gated_num_layers,
         gated_hidden_size=args.gated_hidden_size,
+        gated_num_fc_layers=args.gated_num_fc_layers,
         gated_graph_norm=args.gated_graph_norm,
         gated_batch_norm=args.gated_batch_norm,
         gated_activation=args.gated_activation,
@@ -376,6 +378,8 @@ def main(args):
         fc_activation=args.fc_activation,
         fc_dropout=args.fc_dropout,
         outdim=1,
+        # conv="GatedGCNConv",
+        conv="GatedGCNConv1",
     )
     print(model)
 

@@ -8,9 +8,10 @@ https://arxiv.org/pdf/1711.07553v2.pdf
 
 import torch
 from torch import nn
+import warnings
 from dgl import function as fn
 from gnn.layer.hgatconv import NodeAttentionLayer
-import warnings
+from gnn.layer.utils import LinearN
 
 
 class GatedGCNConv(nn.Module):
@@ -18,6 +19,7 @@ class GatedGCNConv(nn.Module):
         self,
         input_dim,
         output_dim,
+        num_fc_layers=1,
         graph_norm=True,
         batch_norm=True,
         activation=nn.ELU(),
@@ -33,15 +35,18 @@ class GatedGCNConv(nn.Module):
         if input_dim != output_dim:
             self.residual = False
 
-        self.A = nn.Linear(input_dim, output_dim, bias=True)
-        self.B = nn.Linear(input_dim, output_dim, bias=True)
-        self.C = nn.Linear(input_dim, output_dim, bias=True)
-        self.D = nn.Linear(input_dim, output_dim, bias=True)
-        self.E = nn.Linear(input_dim, output_dim, bias=True)
-        self.F = nn.Linear(input_dim, output_dim, bias=True)
-        self.G = nn.Linear(input_dim, output_dim, bias=True)
-        self.H = nn.Linear(input_dim, output_dim, bias=True)
-        self.I = nn.Linear(input_dim, output_dim, bias=True)
+        out_sizes = [output_dim] * num_fc_layers
+        acts = [activation] * (num_fc_layers - 1) + [nn.Identity()]
+        use_bias = [True] * num_fc_layers
+        self.A = LinearN(input_dim, out_sizes, acts, use_bias)
+        self.B = LinearN(input_dim, out_sizes, acts, use_bias)
+        self.C = LinearN(input_dim, out_sizes, acts, use_bias)
+        self.D = LinearN(input_dim, out_sizes, acts, use_bias)
+        self.E = LinearN(input_dim, out_sizes, acts, use_bias)
+        self.F = LinearN(input_dim, out_sizes, acts, use_bias)
+        self.G = LinearN(output_dim, out_sizes, acts, use_bias)
+        self.H = LinearN(output_dim, out_sizes, acts, use_bias)
+        self.I = LinearN(input_dim, out_sizes, acts, use_bias)
 
         if self.batch_norm:
             self.bn_node_h = nn.BatchNorm1d(output_dim)
@@ -186,11 +191,12 @@ class GatedGCNConv(nn.Module):
     #     )
 
 
-class GatedGCNConv2(GatedGCNConv):
+class GatedGCNConv1(GatedGCNConv):
     def __init__(
         self,
         input_dim,
         output_dim,
+        num_fc_layers=1,
         graph_norm=True,
         batch_norm=True,
         activation=nn.ELU(),
@@ -198,7 +204,14 @@ class GatedGCNConv2(GatedGCNConv):
         dropout=0.0,
     ):
         super().__init__(
-            input_dim, output_dim, graph_norm, batch_norm, activation, residual, dropout
+            input_dim,
+            output_dim,
+            num_fc_layers,
+            graph_norm,
+            batch_norm,
+            activation,
+            residual,
+            dropout,
         )
 
         self.graph_norm = graph_norm
@@ -209,12 +222,15 @@ class GatedGCNConv2(GatedGCNConv):
         if input_dim != output_dim:
             self.residual = False
 
-        self.A = nn.Linear(input_dim, output_dim, bias=True)
-        self.B = nn.Linear(input_dim, output_dim, bias=True)
-        self.C = nn.Linear(input_dim, output_dim, bias=True)
-        self.D = nn.Linear(input_dim, output_dim, bias=True)
-        self.E = nn.Linear(input_dim, output_dim, bias=True)
-        self.F = nn.Linear(input_dim, output_dim, bias=True)
+        out_sizes = [output_dim] * num_fc_layers
+        acts = [activation] * (num_fc_layers - 1) + [nn.Identity()]
+        use_bias = [True] * num_fc_layers
+        self.A = LinearN(input_dim, out_sizes, acts, use_bias)
+        self.B = LinearN(input_dim, out_sizes, acts, use_bias)
+        self.C = LinearN(input_dim, out_sizes, acts, use_bias)
+        self.D = LinearN(input_dim, out_sizes, acts, use_bias)
+        self.E = LinearN(input_dim, out_sizes, acts, use_bias)
+        self.F = LinearN(input_dim, out_sizes, acts, use_bias)
 
         if self.batch_norm:
             self.bn_node_h = nn.BatchNorm1d(output_dim)
@@ -235,7 +251,7 @@ class GatedGCNConv2(GatedGCNConv):
             in_feats={"atom": output_dim, "bond": output_dim, "global": input_dim},
             out_feats=output_dim,
             num_heads=1,
-            num_fc_layers=1,
+            num_fc_layers=num_fc_layers,
             feat_drop=0.0,
             attn_drop=0.0,
             negative_slope=0.2,
