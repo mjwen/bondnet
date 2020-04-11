@@ -30,6 +30,7 @@ def parse_args():
     # gated layer
     parser.add_argument("--gated-num-layers", type=int, default=3)
     parser.add_argument("--gated-hidden-size", type=int, nargs="+", default=[64, 64, 64])
+    parser.add_argument("--gated-num-fc-layers", type=int, default=1)
     parser.add_argument("--gated-graph-norm", type=int, default=0)
     parser.add_argument("--gated-batch-norm", type=int, default=1)
     parser.add_argument("--gated-activation", type=str, default="ReLU")
@@ -284,9 +285,9 @@ def main(args):
     # sdf_file = "~/Applications/db_access/mol_builder/struct_n200.sdf"
     # label_file = "~/Applications/db_access/mol_builder/label_n200.txt"
     # feature_file = "~/Applications/db_access/mol_builder/feature_n200.yaml"
-    sdf_file = "~/Applications/db_access/mol_builder/zinc_struct_bond_rgrn_n200.sdf"
-    label_file = "~/Applications/db_access/mol_builder/zinc_label_bond_rgrn_n200.txt"
-    feature_file = "~/Applications/db_access/mol_builder/zinc_feature_bond_rgrn_n200.yaml"
+    sdf_file = "~/Applications/db_access/zinc_bde/zinc_struct_bond_rgrn_n200.sdf"
+    label_file = "~/Applications/db_access/zinc_bde/zinc_label_bond_rgrn_n200.txt"
+    feature_file = "~/Applications/db_access/zinc_bde/zinc_feature_bond_rgrn_n200.yaml"
     dataset = ElectrolyteBondDataset(
         grapher=get_grapher(),
         sdf_file=sdf_file,
@@ -326,6 +327,7 @@ def main(args):
         embedding_size=args.embedding_size,
         gated_num_layers=args.gated_num_layers,
         gated_hidden_size=args.gated_hidden_size,
+        gated_num_fc_layers=args.gated_num_fc_layers,
         gated_graph_norm=args.gated_graph_norm,
         gated_batch_norm=args.gated_batch_norm,
         gated_activation=args.gated_activation,

@@ -378,8 +378,8 @@ def main(args):
         fc_activation=args.fc_activation,
         fc_dropout=args.fc_dropout,
         outdim=1,
-        # conv="GatedGCNConv",
-        conv="GatedGCNConv1",
+        conv="GatedGCNConv",
+        # conv="GatedGCNConv1",
     )
     print(model)
 

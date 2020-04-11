@@ -19,6 +19,7 @@ class GatedGCNBond(nn.Module):
         embedding_size=32,
         gated_num_layers=3,
         gated_hidden_size=[64, 64, 32],
+        gated_num_fc_layers=1,
         gated_graph_norm=True,
         gated_batch_norm=True,
         gated_activation="ReLU",
@@ -60,6 +61,7 @@ class GatedGCNBond(nn.Module):
                 GatedGCNConv(
                     input_dim=in_size,
                     output_dim=gated_hidden_size[i],
+                    num_fc_layers=gated_num_fc_layers,
                     graph_norm=gated_graph_norm,
                     batch_norm=gated_batch_norm,
                     activation=gated_activation,
