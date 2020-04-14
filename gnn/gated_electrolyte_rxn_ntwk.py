@@ -226,7 +226,7 @@ def write_features(
                     bg, feats, label["reaction"], norm_atom, norm_bond
                 )
 
-                feature_data.append(feats)
+                feature_data.append(feats.cpu().numpy())
 
                 target = (
                     torch.mul(label["value"], label["scaler_stdev"])
@@ -283,7 +283,7 @@ def error_analysis(model, nodes, data_loader, filename, device=None):
             pred = model(bg, feats, label["reaction"], norm_atom, norm_bond)
             pred = pred.view(-1)
 
-            pred = pred.numpy() * stdev + mean
+            pred = pred.cpu() * stdev + mean
             tgt = tgt * stdev + mean
             predictions.append(pred.numpy())
             targets.append(tgt.numpy())
