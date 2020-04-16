@@ -1270,7 +1270,7 @@ class ReactionCollection:
 
         # all molecules in existing (and complementary) reactions
         # note, mol_reservoir is updated in calling grp.order_reactions
-        mol_reservoir = list(mol_reservoir)
+        mol_reservoir = sorted(mol_reservoir, key=lambda m: m.formula)
         mol_id_to_index_mapping = {m.id: i for i, m in enumerate(mol_reservoir)}
 
         all_labels = []  # one per reaction
@@ -1383,7 +1383,7 @@ class ReactionCollection:
 
         # all molecules in existing (and complementary) reactions
         # note, mol_reservoir is updated in calling grp.order_reactions
-        mol_reservoir = list(mol_reservoir)
+        mol_reservoir = sorted(mol_reservoir, key=lambda m: m.formula)
         mol_id_to_index_mapping = {m.id: i for i, m in enumerate(mol_reservoir)}
 
         all_labels = []  # one per reaction

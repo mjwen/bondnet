@@ -51,16 +51,21 @@ def read_nrel_bde_dataset(filename):
 
         except ValueError:  # not in mol reservoir
 
-            try:
-                # create molecules
-                m = Chem.AddHs(Chem.MolFromSmiles(s))
-                AllChem.EmbedMolecule(m, randomSeed=35)
-                m = rdkit_mol_to_wrapper_mol(m, charge=0, mol_id=len(molecules))
-                molecules.append(m)
-                smiles.append(s)
+            # try:
+            # create molecules
+            m = Chem.AddHs(Chem.MolFromSmiles(s))
+            AllChem.EmbedMolecule(m, randomSeed=35)
+            m = rdkit_mol_to_wrapper_mol(m, charge=0, mol_id=len(molecules))
 
-            except ValueError:  # cannot convert smiles string to mol
-                m = None
+            # m = pybel.readstring("smi", s).OBMol
+            # m.AddHydrogens()
+            # m = ob_mol_to_wrapper_mol(m, charge=0, mol_id=len(molecules))
+
+            molecules.append(m)
+            smiles.append(s)
+
+        # except ValueError:  # cannot convert smiles string to mol
+        #     m = None
 
         return m
 

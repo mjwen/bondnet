@@ -120,14 +120,15 @@ class BabelMolAdaptor2(BabelMolAdaptor):
 
         # graph bonds (note that although MoleculeGraph uses multigrpah, but duplicate
         # bonds are removed when calling in MoleculeGraph.with_local_env_strategy
-        graph_bonds = []
-        for i, j, _ in mol_graph.graph.edges.data():
-            graph_bonds.append(sorted([idx_map[i], idx_map[j]]))
+        graph_bonds = [
+            sorted([idx_map[i], idx_map[j]]) for i, j, _ in mol_graph.graph.edges.data()
+        ]
 
         # open babel bonds
-        ob_bonds = []
-        for bond in ob.OBMolBondIter(self.openbabel_mol):
-            ob_bonds.append(sorted([bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()]))
+        ob_bonds = [
+            sorted([b.GetBeginAtomIdx(), b.GetEndAtomIdx()])
+            for b in ob.OBMolBondIter(self.openbabel_mol)
+        ]
 
         # add and and remove bonds
         for bond in graph_bonds:
