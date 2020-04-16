@@ -14,6 +14,7 @@ from gnn.database.reaction import (
     ReactionExtractorFromReactant,
 )
 from gnn.database.zinc_bde import read_zinc_bde_dataset
+from gnn.database.nrel_bde import read_nrel_bde_dataset
 from gnn.utils import pickle_load, expand_path, create_directory
 from gnn.data.feature_analyzer import read_sdf, read_label
 
@@ -810,6 +811,26 @@ def zinc_create_struct_label_dataset_reaction_network_based_regression(
     )
 
 
+def nrel_create_struct_label_dataset_reaction_network_based_regression(
+    filename="~/Documents/Dataset/NREL_BDE/rdf_data_190531_n200.csv",
+):
+    reactions = read_nrel_bde_dataset(filename)
+    extractor = ReactionCollection(reactions)
+
+    extractor.create_struct_label_dataset_reaction_network_based_regression(
+        # struct_file="~/Applications/db_access/zinc_bde/zinc_struct_rxn_ntwk_rgrn.sdf",
+        # label_file="~/Applications/db_access/zinc_bde/zinc_label_rxn_ntwk_rgrn.yaml",
+        # feature_file="~/Applications/db_access/zinc_bde/zinc_feature_rxn_ntwk_rgrn.yaml",
+        struct_file="~/Applications/db_access/nrel_bde/nrel_struct_rxn_ntwk_rgrn_n200.sdf",
+        label_file="~/Applications/db_access/nrel_bde/nrel_label_rxn_ntwk_rgrn_n200.yaml",
+        feature_file="~/Applications/db_access/nrel_bde/nrel_feature_rxn_ntwk_rgrn_n200.yaml",
+        group_mode="all",
+        # this should be False, since we already removed iso_bond_groups
+        # in read_nrel_bde_dataset
+        one_per_iso_bond_group=False,
+    )
+
+
 if __name__ == "__main__":
     # eg_buckets()
     # eg_extract_A_to_B()
@@ -846,6 +867,10 @@ if __name__ == "__main__":
     # for the zinc dataset
     ######################################################################################
 
-    zinc_create_struct_label_dataset_bond_based_regression()
-
+    # zinc_create_struct_label_dataset_bond_based_regression()
     # zinc_create_struct_label_dataset_reaction_network_based_regression()
+
+    ######################################################################################
+    # for the nrel dataset
+    ######################################################################################
+    nrel_create_struct_label_dataset_reaction_network_based_regression()

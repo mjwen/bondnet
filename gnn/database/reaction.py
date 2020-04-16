@@ -26,7 +26,9 @@ class Reaction:
 
     # NOTE most methods in this class only works for A->B and A->B+C type reactions
 
-    def __init__(self, reactants, products, broken_bond=None, free_energy=None):
+    def __init__(
+        self, reactants, products, broken_bond=None, free_energy=None, identifier=None
+    ):
 
         assert len(reactants) == 1, "incorrect number of reactants, should be 1"
         assert 1 <= len(products) <= 2, "incorrect number of products, should be 1 or 2"
@@ -38,6 +40,7 @@ class Reaction:
 
         self._broken_bond = broken_bond
         self._free_energy = free_energy
+        self._id = identifier
 
         self._atom_mapping = None
         self._bond_mapping_by_int_index = None
@@ -375,21 +378,26 @@ class Reaction:
         return d
 
     def get_id(self):
-        # ids = [m.id for m in self.reactants + self.products]
-        # str_ids = "-".join(ids)
-        # return str_ids
 
-        ##########
-        # set id to reactant id and broken bond of reactant
-        ##########
-        mol = self.reactants[0]
+        if self._id is None:
 
-        # broken bond in sdf idx
-        broken_bond = mol.graph_bond_idx_to_ob_bond_idx(self.get_broken_bond())
+            # ids = [m.id for m in self.reactants + self.products]
+            # str_ids = "-".join(ids)
+            # return str_ids
 
-        str_id = str(mol.id) + "_broken_bond-" + str(broken_bond)
+            ##########
+            # set id to reactant id and broken bond of reactant
+            ##########
+            mol = self.reactants[0]
 
-        return str_id
+            # broken bond in sdf idx
+            broken_bond = mol.graph_bond_idx_to_ob_bond_idx(self.get_broken_bond())
+
+            str_id = str(mol.id) + "_broken_bond-" + str(broken_bond)
+
+            self._id = str_id
+
+        return self._id
 
     def __expr__(self):
         if len(self.products) == 1:
