@@ -2,6 +2,7 @@ import itertools
 import os
 import glob
 import numpy as np
+import subprocess
 from collections import defaultdict
 from pprint import pprint
 import matplotlib as mpl
@@ -12,6 +13,7 @@ from gnn.database.reaction import (
     ReactionCollection,
     ReactionExtractorFromMolSet,
     ReactionExtractorFromReactant,
+    get_molecules_from_reactions,
 )
 from gnn.database.zinc_bde import read_zinc_bde_dataset
 from gnn.database.nrel_bde import read_nrel_bde_dataset
@@ -811,20 +813,49 @@ def zinc_create_struct_label_dataset_reaction_network_based_regression(
     )
 
 
+######################################################################################
+# for the nrel dataset
+######################################################################################
+def nrel_plot_molecules(
+    filename="~/Documents/Dataset/NREL_BDE/rdf_data_190531_n200.csv",
+    plot_prefix="~/Applications/db_access/nrel_bde",
+):
+    reactions = read_nrel_bde_dataset(filename)
+    molecules = get_molecules_from_reactions(reactions)
+
+    for m in molecules:
+
+        fname = os.path.join(
+            plot_prefix,
+            "mol_png/{}_{}_{}_{}.png".format(
+                m.formula, m.charge, m.id, str(m.free_energy).replace(".", "dot")
+            ),
+        )
+        # m.draw(fname, show_atom_idx=True)
+        m.draw3(filename=fname, show_atom_idx=True)
+
+        fname = expand_path(fname)
+        subprocess.run(["convert", fname, "-trim", "-resize", "100%", fname])
+
+        fname = os.path.join(
+            plot_prefix,
+            "mol_pdb/{}_{}_{}_{}.pdb".format(
+                m.formula, m.charge, m.id, str(m.free_energy).replace(".", "dot")
+            ),
+        )
+        m.write(fname, file_format="pdb")
+
+
 def nrel_create_struct_label_dataset_reaction_network_based_regression(
     filename="~/Documents/Dataset/NREL_BDE/rdf_data_190531_n200.csv",
 ):
     reactions = read_nrel_bde_dataset(filename)
     extractor = ReactionCollection(reactions)
 
-    extractor.create_struct_label_dataset_reaction_network_based_regression(
+    extractor.create_struct_label_dataset_reaction_network_based_regression_simple(
         struct_file="~/Applications/db_access/nrel_bde/nrel_struct_rxn_ntwk_rgrn_n200.sdf",
         label_file="~/Applications/db_access/nrel_bde/nrel_label_rxn_ntwk_rgrn_n200.yaml",
         feature_file="~/Applications/db_access/nrel_bde/nrel_feature_rxn_ntwk_rgrn_n200.yaml",
-        group_mode="all",
-        # this should be False, since we already removed iso_bond_groups
-        # in read_nrel_bde_dataset
-        one_per_iso_bond_group=False,
     )
 
 
@@ -870,4 +901,5 @@ if __name__ == "__main__":
     ######################################################################################
     # for the nrel dataset
     ######################################################################################
+    # nrel_plot_molecules()
     nrel_create_struct_label_dataset_reaction_network_based_regression()

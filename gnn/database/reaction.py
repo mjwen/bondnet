@@ -1423,6 +1423,63 @@ class ReactionCollection:
         if feature_file is not None:
             self.write_feature(mol_reservoir, bond_indices=None, filename=feature_file)
 
+    def create_struct_label_dataset_reaction_network_based_regression_simple(
+        self, struct_file="sturct.sdf", label_file="label.txt", feature_file=None,
+    ):
+        """
+        Write the reaction
+
+        This is a much simplified version of
+        `create_struct_label_dataset_reaction_network_based_regression_simple`.
+
+        Here, will not group and order reactions and remove duplicate. We simply
+        convert a list of reactions into the data format.
+
+
+        Args:
+            struct_file (str): filename of the sdf structure file
+            label_file (str): filename of the label
+            feature_file (str): filename for the feature file, if `None`, do not write it
+        """
+
+        # all molecules in existing reactions
+        reactions = self.reactions
+        mol_reservoir = get_molecules_from_reactions(reactions)
+        mol_reservoir = sorted(mol_reservoir, key=lambda m: m.formula)
+        mol_id_to_index_mapping = {m.id: i for i, m in enumerate(mol_reservoir)}
+
+        all_labels = []  # one per reaction
+
+        # reactions: all reactions associated with a bond
+        for i, rxn in enumerate(reactions):
+            energy = rxn.get_free_energy()
+
+            # change to index (in mol_reservoir) representation
+            reactant_ids = [mol_id_to_index_mapping[m.id] for m in rxn.reactants]
+            product_ids = [mol_id_to_index_mapping[m.id] for m in rxn.products]
+
+            # bond mapping between product sdf and reactant sdf
+            data = {
+                "value": energy,
+                "reactants": reactant_ids,
+                "products": product_ids,
+                "atom_mapping": rxn.atom_mapping(),
+                "bond_mapping": rxn.bond_mapping_by_sdf_int_index(),
+                "id": rxn.get_id(),
+                "index": i,
+            }
+            all_labels.append(data)
+
+        # write sdf
+        self.write_sdf(mol_reservoir, struct_file)
+
+        # label file
+        yaml_dump(all_labels, label_file)
+
+        # write feature
+        if feature_file is not None:
+            self.write_feature(mol_reservoir, bond_indices=None, filename=feature_file)
+
     def create_struct_label_dataset_reaction_based_classification(
         self,
         struct_file="sturct.sdf",
