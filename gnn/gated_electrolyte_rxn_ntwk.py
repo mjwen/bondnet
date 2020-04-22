@@ -16,13 +16,7 @@ from gnn.data.dataloader import DataLoaderReactionNetwork
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import AtomFeaturizer, BondAsNodeFeaturizer, MolWeightFeaturizer
 from gnn.post_analysis import write_error
-from gnn.utils import (
-    pickle_dump,
-    seed_torch,
-    load_checkpoints,
-    AverageMeter,
-    ProgressMeter,
-)
+from gnn.utils import pickle_dump, seed_torch, load_checkpoints, save_checkpoints
 
 
 def parse_args():
@@ -64,6 +58,7 @@ def parse_args():
 
     # training
     parser.add_argument("--gpu", type=int, default=-1, help="GPU index. -1 to use CPU.")
+    parser.add_argument("--start-epoch", type=int, default=0)
     parser.add_argument("--epochs", type=int, default=1000, help="number of epochs")
     parser.add_argument("--batch-size", type=int, default=100, help="batch size")
     parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
@@ -128,24 +123,13 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
         metric_fn (function): the function should be using a `sum` reduction method.
     """
 
-    batch_time = AverageMeter("Time", ":6.3f")
-    data_time = AverageMeter("Data", ":6.3f")
-    progress = ProgressMeter(
-        len(data_loader), [batch_time, data_time], prefix="Epoch: [train]"
-    )
-
     model.train()
 
     epoch_loss = 0.0
     accuracy = 0.0
     count = 0.0
 
-    end = time.time()
     for it, (bg, label) in enumerate(data_loader):
-
-        # measure data loading time
-        data_time.update(time.time() - end)
-
         feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
         target = label["value"]
         norm_atom = label["norm_atom"]
@@ -171,14 +155,6 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
         accuracy += metric_fn(pred, target, stdev).detach().item()
         count += len(target)
 
-        # measure elapsed time
-        batch_time.update(time.time() - end)
-        end = time.time()
-
-        # show time info
-        if it == len(data_loader) - 1:
-            progress.display(it)
-
     epoch_loss /= it + 1
     accuracy /= count
 
@@ -192,24 +168,13 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
     Args:
         metric_fn (function): the function should be using a `sum` reduction method.
     """
-    batch_time = AverageMeter("Time", ":6.3f")
-    data_time = AverageMeter("Data", ":6.3f")
-    progress = ProgressMeter(
-        len(data_loader), [batch_time, data_time], prefix="Epoch: [evaluate]"
-    )
-
     model.eval()
 
     with torch.no_grad():
         accuracy = 0.0
         count = 0.0
 
-        end = time.time()
         for it, (bg, label) in enumerate(data_loader):
-
-            # measure data loading time
-            data_time.update(time.time() - end)
-
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
             target = label["value"]
             norm_atom = label["norm_atom"]
@@ -228,14 +193,6 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
 
             accuracy += metric_fn(pred, target, stdev).detach().item()
             count += len(target)
-
-            # measure elapsed time
-            batch_time.update(time.time() - end)
-            end = time.time()
-
-            # show time info
-            if it == len(data_loader) - 1:
-                progress.display(it)
 
     return accuracy / count
 
@@ -474,21 +431,24 @@ def main(args):
     )
     stopper = EarlyStopping(patience=150)
 
-    checkpoints_objs = {"model": model, "optimizer": optimizer, "scheduler": scheduler}
+    # load checkpoint
+    best = np.finfo(np.float32).max
+    state_dict_objs = {"model": model, "optimizer": optimizer, "scheduler": scheduler}
     if args.restore:
         try:
-            load_checkpoints(checkpoints_objs)
-            print("Successfully load checkpoints")
+            checkpoint = load_checkpoints(state_dict_objs)
+            args.start_epoch = checkpoint["epoch"]
+            best = checkpoint["best"]
+            print(f"Successfully load checkpoints, best {best}, epoch {args.start_epoch}")
         except FileNotFoundError as e:
             warnings.warn(str(e) + " Continue without loading checkpoints.")
             pass
 
+    # start training
     print("\n\n# Epoch     Loss         TrainAcc        ValAcc     Time (s)")
     sys.stdout.flush()
 
-    t0 = time.time()
-
-    for epoch in range(args.epochs):
+    for epoch in range(args.start_epoch, args.epochs):
         ti = time.time()
 
         # train
@@ -511,12 +471,21 @@ def main(args):
         # evaluate
         val_acc = evaluate(model, feature_names, val_loader, metric, args.device)
 
-        if stopper.step(val_acc, checkpoints_objs, msg="epoch " + str(epoch)):
-            # save results for hyperparam tune
-            pickle_dump(float(stopper.best_score), args.output_file)
+        if stopper.step(val_acc):
+            pickle_dump(best, args.output_file)  # save results for hyperparam tune
             break
 
         scheduler.step(val_acc)
+
+        is_best = val_acc < best
+        if is_best:
+            best = val_acc
+
+        # save checkpoint
+        misc_objs = {"best": best, "epoch": epoch}
+        save_checkpoints(
+            state_dict_objs, misc_objs, is_best, msg=f"epoch: {epoch}, score {val_acc}"
+        )
 
         tt = time.time() - ti
 
@@ -529,12 +498,10 @@ def main(args):
             sys.stdout.flush()
 
     # save results for hyperparam tune
-    pickle_dump(float(stopper.best_score), args.output_file)
+    pickle_dump(best, args.output_file)
 
     # load best to calculate test accuracy
-    load_checkpoints(checkpoints_objs)
-
-    test_acc = evaluate(model, feature_names, test_loader, metric, args.device)
+    load_checkpoints(state_dict_objs)
 
     # write features for post analysis
     write_features(
@@ -546,8 +513,9 @@ def main(args):
         args.device,
     )
 
-    tt = time.time() - t0
-    print("\n#TestAcc: {:12.6e} | Total time (s): {:.2f}\n".format(test_acc, tt))
+    test_acc = evaluate(model, feature_names, test_loader, metric, args.device)
+    print("\n#TestAcc: {:12.6e} \n".format(test_acc))
+
     print("\nFinish training at:", datetime.now())
 
 

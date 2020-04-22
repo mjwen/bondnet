@@ -167,13 +167,11 @@ class EarlyStopping:
         self.best_score = None
         self.early_stop = False
 
-    def step(self, score, objs, msg=None):
+    def step(self, score):
         if self.best_score is None:
             self.best_score = score
-            save_checkpoints(objs, "{}  {}".format(msg, score))
         elif score < self.best_score:
             self.best_score = score
-            save_checkpoints(objs, "{}  {}".format(msg, score))
             self.counter = 0
         else:
             self.counter += 1

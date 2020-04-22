@@ -8,9 +8,9 @@ import dgl
 import logging
 import warnings
 import sys
-import itertools
-import glob
 import shutil
+import itertools
+import copy
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -109,39 +109,42 @@ def seed_torch(seed=35):
     dgl.random.seed(seed)
 
 
-def save_checkpoints(objects, msg=None):
+def save_checkpoints(
+    state_dict_objects, misc_objects, is_best, msg=None, filename="checkpoint.pkl"
+):
     """
     Save checkpoints for all objects for later recovery.
 
     Args:
-        objects (dict): A dictionary of objects to save. The keys are identifier to the
-            objects.
-        msg (str): a message to log.
+        state_dict_objects (dict): A dictionary of objects to save. The object should
+            have state_dict() (e.g. model, optimizer, ...)
+        misc_objects (dict): plain python obeject to save
+        filename (str): filename for the checkpoint
 
     """
+    objects = copy.copy(misc_objects)
+    for k, obj in state_dict_objects.items():
+        objects[k] = obj.state_dict()
+    torch.save(objects, filename)
+    if is_best:
+        shutil.copyfile(filename, "best_checkpoint.pkl")
+        if msg is not None:
+            logger.info(msg)
 
-    m = "Save checkpoints: "
-    for k, obj in objects.items():
-        filename = "{}_checkpoint.pkl".format(k)
-        torch.save(obj.state_dict(), filename)
-        m += "{}, ".format(filename)
-    if msg is not None:
-        m += msg
-    logger.info(m)
 
-
-def load_checkpoints(objects):
+def load_checkpoints(state_dict_objects, filename="checkpoint.pkl"):
     """
     Load checkpoints for all objects for later recovery.
 
     Args:
-        objects (dict): A dictionary of objects to save. The keys are identifier to the
-        objects.
+        state_dict_objects (dict): A dictionary of objects to save. The object should
+            have state_dict() (e.g. model, optimizer, ...)
     """
-    for k, obj in objects.items():
-        filename = "{}_checkpoint.pkl".format(k)
-        obj.load_state_dict(torch.load(filename))
-        logger.info("Load checkpoints {}".format(filename))
+    checkpoints = torch.load(filename)
+    for k, obj in state_dict_objects.items():
+        state_dict = checkpoints.pop(k)
+        obj.load_state_dict(state_dict)
+    return checkpoints
 
 
 class Timer:
