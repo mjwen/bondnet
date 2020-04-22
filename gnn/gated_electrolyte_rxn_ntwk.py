@@ -16,7 +16,13 @@ from gnn.data.dataloader import DataLoaderReactionNetwork
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import AtomFeaturizer, BondAsNodeFeaturizer, MolWeightFeaturizer
 from gnn.post_analysis import write_error
-from gnn.utils import pickle_dump, seed_torch, load_checkpoints
+from gnn.utils import (
+    pickle_dump,
+    seed_torch,
+    load_checkpoints,
+    AverageMeter,
+    ProgressMeter,
+)
 
 
 def parse_args():
@@ -122,13 +128,24 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
         metric_fn (function): the function should be using a `sum` reduction method.
     """
 
+    batch_time = AverageMeter("Time", ":6.3f")
+    data_time = AverageMeter("Data", ":6.3f")
+    progress = ProgressMeter(
+        len(data_loader), [batch_time, data_time], prefix="Epoch: [train]"
+    )
+
     model.train()
 
     epoch_loss = 0.0
     accuracy = 0.0
     count = 0.0
 
+    end = time.time()
     for it, (bg, label) in enumerate(data_loader):
+
+        # measure data loading time
+        data_time.update(time.time() - end)
+
         feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
         target = label["value"]
         norm_atom = label["norm_atom"]
@@ -154,6 +171,14 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
         accuracy += metric_fn(pred, target, stdev).detach().item()
         count += len(target)
 
+        # measure elapsed time
+        batch_time.update(time.time() - end)
+        end = time.time()
+
+        # show time info
+        if it == len(data_loader) - 1:
+            progress.display(it)
+
     epoch_loss /= it + 1
     accuracy /= count
 
@@ -167,13 +192,24 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
     Args:
         metric_fn (function): the function should be using a `sum` reduction method.
     """
+    batch_time = AverageMeter("Time", ":6.3f")
+    data_time = AverageMeter("Data", ":6.3f")
+    progress = ProgressMeter(
+        len(data_loader), [batch_time, data_time], prefix="Epoch: [evaluate]"
+    )
+
     model.eval()
 
     with torch.no_grad():
         accuracy = 0.0
         count = 0.0
 
-        for bg, label in data_loader:
+        end = time.time()
+        for it, (bg, label) in enumerate(data_loader):
+
+            # measure data loading time
+            data_time.update(time.time() - end)
+
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
             target = label["value"]
             norm_atom = label["norm_atom"]
@@ -192,6 +228,14 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
 
             accuracy += metric_fn(pred, target, stdev).detach().item()
             count += len(target)
+
+            # measure elapsed time
+            batch_time.update(time.time() - end)
+            end = time.time()
+
+            # show time info
+            if it == len(data_loader) - 1:
+                progress.display(it)
 
     return accuracy / count
 
