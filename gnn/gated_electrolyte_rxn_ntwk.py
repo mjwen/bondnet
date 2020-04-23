@@ -16,7 +16,13 @@ from gnn.data.dataloader import DataLoaderReactionNetwork
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import AtomFeaturizer, BondAsNodeFeaturizer, MolWeightFeaturizer
 from gnn.post_analysis import write_error
-from gnn.utils import pickle_dump, seed_torch, load_checkpoints, save_checkpoints
+from gnn.utils import (
+    load_checkpoints,
+    save_checkpoints,
+    seed_torch,
+    pickle_dump,
+    yaml_dump,
+)
 
 
 def parse_args():
@@ -65,9 +71,7 @@ def parse_args():
     parser.add_argument("--weight-decay", type=float, default=0.0, help="weight decay")
     parser.add_argument("--restore", type=int, default=0, help="read checkpoints")
     parser.add_argument(
-        "--dataset-state-dict-filename",
-        type=str,
-        default="dataset_state_dict_filename.pkl",
+        "--dataset-state-dict-filename", type=str, default="dataset_state_dict.pkl",
     )
 
     # output file (needed by hypertunity)
@@ -118,6 +122,9 @@ def parse_args():
             "length of `fc-hidden-size` should be equal to `num-fc-layers`, but got "
             "{} and {}.".format(args.fc_hidden_size, args.fc_num_layers)
         )
+
+    # same args
+    yaml_dump(args, "train_args.yaml")
 
     return args
 
