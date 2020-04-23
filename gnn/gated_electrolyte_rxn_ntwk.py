@@ -1,4 +1,5 @@
 import sys
+import os
 import time
 import warnings
 import torch
@@ -337,6 +338,14 @@ def main(args):
 
     if args.restore:
         dataset_state_dict_filename = args.dataset_state_dict_filename
+        if dataset_state_dict_filename is None:
+            warnings.warn("Restore with `args.dataset_state_dict_filename` set to None.")
+        if not os.path.exists(dataset_state_dict_filename):
+            warnings.warn(
+                f"`{dataset_state_dict_filename} not found; set "
+                f"args.dataset_state_dict_filename` to None"
+            )
+            dataset_state_dict_filename = None
     else:
         dataset_state_dict_filename = None
 
@@ -411,7 +420,7 @@ def main(args):
 
         # load saved model
         checkpoints_objs = {"model": model}
-        load_checkpoints(checkpoints_objs)
+        load_checkpoints(checkpoints_objs, "checkpoint.pkl")
 
         if args.post_analysis == "write_feature":
             # write_feature
@@ -455,7 +464,7 @@ def main(args):
     state_dict_objs = {"model": model, "optimizer": optimizer, "scheduler": scheduler}
     if args.restore:
         try:
-            checkpoint = load_checkpoints(state_dict_objs)
+            checkpoint = load_checkpoints(state_dict_objs, "checkpoint.pkl")
             args.start_epoch = checkpoint["epoch"]
             best = checkpoint["best"]
             print(f"Successfully load checkpoints, best {best}, epoch {args.start_epoch}")
@@ -520,7 +529,7 @@ def main(args):
     pickle_dump(best, args.output_file)
 
     # load best to calculate test accuracy
-    load_checkpoints(state_dict_objs)
+    load_checkpoints(state_dict_objs, "best_checkpoint.pkl")
 
     # write features for post analysis
     write_features(
