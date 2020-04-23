@@ -32,6 +32,9 @@ class BaseDataset:
         Then MAE is |y^-y| = |y'^ - y'| *std(y), i.e. we just need to multiple
         standard deviation to get back to the original scale. Similar analysis
         applies to RMSE.
+    state_dict_filename (str or None): If `None`, feature mean and std (if
+        feature_transformer is True) and label mean and std (if label_transformer is True)
+        are computed from the dataset; otherwise, they are read from the file.
     """
 
     def __init__(
@@ -43,6 +46,7 @@ class BaseDataset:
         feature_transformer=True,
         label_transformer=True,
         dtype="float32",
+        state_dict_filename=None,
     ):
 
         if dtype not in ["float32", "float64"]:
@@ -55,11 +59,16 @@ class BaseDataset:
         self.feature_transformer = feature_transformer
         self.label_transformer = label_transformer
         self.dtype = dtype
+        self.state_dict_filename = state_dict_filename
 
         self.graphs = None
         self.labels = None
         self._feature_size = None
         self._feature_name = None
+        self._feature_scaler_mean = None
+        self._feature_scaler_std = None
+        self._label_scaler_mean = None
+        self._label_scaler_std = None
 
         self._load()
 
@@ -83,7 +92,7 @@ class BaseDataset:
 
         Args:
               ntypes (list of str): types of nodes.
-              
+
         Returns:
              list: sizes of features corresponding to note types in `ntypes`.
         """
@@ -97,6 +106,26 @@ class BaseDataset:
         assert len(ntypes) == len(size), msg
 
         return size
+
+    def state_dict(self):
+        d = {
+            "feature_size": self._feature_size,
+            "feature_name": self._feature_name,
+            "feature_scaler_mean": self._feature_scaler_mean,
+            "feature_scaler_std": self._feature_scaler_std,
+            "label_scaler_mean": self._label_scaler_mean,
+            "label_scaler_std": self._label_scaler_std,
+        }
+
+        return d
+
+    def load_state_dict(self, d):
+        self._feature_size = d["feature_size"]
+        self._feature_name = d["feature_name"]
+        self._feature_scaler_mean = d["feature_scaler_mean"]
+        self._feature_scaler_std = d["feature_scaler_std"]
+        self._label_scaler_mean = d["label_scaler_mean"]
+        self._label_scaler_std = d["label_scaler_std"]
 
     def _load(self):
         """Read data from files and then featurize."""

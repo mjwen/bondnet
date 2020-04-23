@@ -546,17 +546,37 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
 
         # feature transformers
         if self.feature_transformer:
-            graphs_not_none = graphs[graphs_not_none_indices]
 
-            feature_scaler = GraphFeatureStandardScaler()
+            if self.state_dict_filename is None:
+                feature_scaler = GraphFeatureStandardScaler(mean=None, std=None)
+            else:
+                logger.info(f"Load dataset state dict from: {self.state_dict_filename}")
+                state_dict = torch.load(self.state_dict_filename)
+                self.load_state_dict(state_dict)
+                assert (
+                    self._feature_scaler_mean is not None
+                ), "`feature_scaler_mean` is None, you may forget to call load_state_dict"
+                assert (
+                    self._feature_scaler_std is not None
+                ), "`feature_scaler_std` is None, you may forget to call load_state_dict"
+
+                feature_scaler = GraphFeatureStandardScaler(
+                    mean=self._feature_scaler_mean, std=self._feature_scaler_std
+                )
+
+            graphs_not_none = graphs[graphs_not_none_indices]
             graphs_not_none = feature_scaler(graphs_not_none)
 
             # update graphs
             for i, g in zip(graphs_not_none_indices, graphs_not_none):
                 graphs[i] = g
 
-            logger.info("Feature scaler mean: {}".format(feature_scaler.mean))
-            logger.info("Feature scaler std: {}".format(feature_scaler.std))
+            if self.state_dict_filename is None:
+                self._feature_scaler_mean = feature_scaler.mean
+                self._feature_scaler_std = feature_scaler.std
+
+            logger.info(f"Feature scaler mean: {self._feature_scaler_mean}")
+            logger.info(f"Feature scaler std: {self._feature_scaler_std}")
 
         # create reaction
         reactions = []
@@ -589,17 +609,29 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
         # create reaction network
         self.reaction_network = ReactionNetwork(graphs, reactions)
 
+        # feature transformers
         if self.label_transformer:
 
             # normalization
-            values = [lb["value"] for lb in self.labels]  # list of 0D tensor
-            # np and torch compute slightly differently std (depending on `ddof` of np)
-            # here we choose to use np
-            mean = float(np.mean(values))
-            std = float(np.std(values))
-            values = (torch.stack(values) - mean) / std
-            mean = torch.tensor(mean, dtype=getattr(torch, self.dtype))
-            std = torch.tensor(std, dtype=getattr(torch, self.dtype))
+            values = torch.stack([lb["value"] for lb in self.labels])  # 1D tensor
+
+            if self.state_dict_filename is None:
+                mean = torch.mean(values)
+                std = torch.std(values)
+            else:
+                logger.info(f"Load dataset state dict from: {self.state_dict_filename}")
+                state_dict = torch.load(self.state_dict_filename)
+                self.load_state_dict(state_dict)
+                assert (
+                    self._label_scaler_mean is not None
+                ), "`label_scaler_mean` is None, you may forget to call load_state_dict"
+                assert (
+                    self._label_scaler_std is not None
+                ), "`label_scaler_std` is None, you may forget to call load_state_dict"
+                mean = self._label_scaler_mean
+                std = self._label_scaler_std
+
+            values = (values - mean) / std
 
             # update label
             for i, lb in enumerate(values):
@@ -607,10 +639,14 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
                 self.labels[i]["scaler_mean"] = mean
                 self.labels[i]["scaler_stdev"] = std
 
-            logger.info("Label scaler mean: {}".format(mean))
-            logger.info("Label scaler std: {}".format(std))
+            if self.state_dict_filename is None:
+                self._label_scaler_mean = mean
+                self._label_scaler_std = std
 
-        logger.info("Finish loading {} reactions...".format(len(self.labels)))
+            logger.info(f"Label scaler mean: {mean}")
+            logger.info(f"Label scaler std: {std}")
+
+        logger.info(f"Finish loading {len(self.labels)} reactions...")
 
     def __getitem__(self, item):
         rn, rxn, lb = self.reaction_network, self.reaction_ids[item], self.labels[item]

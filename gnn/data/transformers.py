@@ -7,7 +7,7 @@ from dgl import DGLGraph
 from gnn.utils import warn_stdout
 
 
-def _transform(X, copy, with_mean, with_std, threshold=1.0e-3):
+def _transform(X, copy, with_mean=True, with_std=True, threshold=1.0e-3):
     """
     Args:
         X: a list of 1D tensor or a 2D tensor
@@ -44,12 +44,10 @@ class StandardScaler:
         2D array with each column standardized.
     """
 
-    def __init__(self, copy=True, with_mean=True, with_std=True):
+    def __init__(self, copy=True, mean=None, std=None):
         self.copy = copy
-        self.with_mean = with_mean
-        self.with_std = with_std
-        self._mean = None
-        self._std = None
+        self._mean = mean
+        self._std = std
 
     @property
     def mean(self):
@@ -60,7 +58,12 @@ class StandardScaler:
         return self._std
 
     def __call__(self, X):
-        X, self._mean, self._std = _transform(X, self.copy, self.with_mean, self.with_std)
+
+        if self._mean is not None and self._std is not None:
+            X = (X - self._mean) / self._std
+        else:
+            X, self._mean, self._std = _transform(X, self.copy)
+
         return X
 
 
@@ -69,19 +72,18 @@ class GraphFeatureStandardScaler:
     Standardize features using `sklearn.preprocessing.StandardScaler`.
 
     Args:
-        graphs (list of graphs): the list of graphs where the features are stored.
-
+        mean (dict or None):
+        std (dict or None):
+        
     Returns:
         A list of graphs with updated feats. Note, the input graphs' features are also
         updated in-place.
     """
 
-    def __init__(self, copy=True, with_mean=True, with_std=True):
+    def __init__(self, copy=True, mean=None, std=None):
         self.copy = copy
-        self.with_mean = with_mean
-        self.with_std = with_std
-        self._mean = None
-        self._std = None
+        self._mean = mean
+        self._std = std
 
     @property
     def mean(self):
@@ -92,6 +94,7 @@ class GraphFeatureStandardScaler:
         return self._std
 
     def __call__(self, graphs):
+
         g = graphs[0]
         if isinstance(g, DGLGraph):
             return self._homo_graph(graphs)
@@ -117,25 +120,25 @@ class GraphFeatureStandardScaler:
         dtype = node_feats[0].dtype
 
         # standardize
-        self._std = {}
-        self._mean = {}
-        node_feats, mean, std = _transform(
-            torch.cat(node_feats), self.copy, self.with_mean, self.with_std
-        )
-        node_feats = torch.tensor(node_feats, dtype=dtype)
-        mean = torch.tensor(mean, dtype=dtype)
-        std = torch.tensor(std, dtype=dtype)
-        self._mean["node"] = mean
-        self.std["node"] = std
+        if self._mean is not None and self._std is not None:
+            node_feats = (torch.cat(node_feats) - self._mean["node"]) / self._std["node"]
+            edge_feats = (torch.cat(edge_feats) - self._mean["edge"]) / self._std["edge"]
+        else:
+            self._std = {}
+            self._mean = {}
+            node_feats, mean, std = _transform(torch.cat(node_feats), self.copy)
+            node_feats = torch.tensor(node_feats, dtype=dtype)
+            mean = torch.tensor(mean, dtype=dtype)
+            std = torch.tensor(std, dtype=dtype)
+            self._mean["node"] = mean
+            self._std["node"] = std
 
-        edge_feats, mean, std = _transform(
-            torch.cat(edge_feats), self.copy, self.with_mean, self.with_std
-        )
-        edge_feats = torch.tensor(edge_feats, dtype=dtype)
-        mean = torch.tensor(mean, dtype=dtype)
-        std = torch.tensor(std, dtype=dtype)
-        self._mean["edge"] = mean
-        self._std["edge"] = std
+            edge_feats, mean, std = _transform(torch.cat(edge_feats), self.copy)
+            edge_feats = torch.tensor(edge_feats, dtype=dtype)
+            mean = torch.tensor(mean, dtype=dtype)
+            std = torch.tensor(std, dtype=dtype)
+            self._mean["edge"] = mean
+            self._std["edge"] = std
 
         # assign data back
         node_feats = torch.split(node_feats, node_feats_size)
@@ -143,6 +146,7 @@ class GraphFeatureStandardScaler:
         for g, n, e in zip(graphs, node_feats, edge_feats):
             g.ndata["feat"] = n
             g.edata["feat"] = e
+
         return graphs
 
     def _hetero_graph(self, graphs):
@@ -160,20 +164,28 @@ class GraphFeatureStandardScaler:
 
         dtype = node_feats[node_types[0]][0].dtype
 
-        # standardize and update
-        self._std = {}
-        self._mean = {}
-        for nt in node_types:
-            feats, mean, std = _transform(
-                torch.cat(node_feats[nt]), self.copy, self.with_mean, self.with_std
-            )
-            feats = torch.tensor(feats, dtype=dtype)
-            mean = torch.tensor(mean, dtype=dtype)
-            std = torch.tensor(std, dtype=dtype)
+        # standardize
+        if self._mean is not None and self._std is not None:
+            for nt in node_types:
+                feats = (torch.cat(node_feats[nt]) - self._mean[nt]) / self._std[nt]
+                node_feats[nt] = feats
 
-            self._mean[nt] = mean
-            self._std[nt] = std
-            feats = torch.split(feats, node_feats_size[nt])
+        else:
+            self._std = {}
+            self._mean = {}
+
+            for nt in node_types:
+                feats, mean, std = _transform(torch.cat(node_feats[nt]), self.copy)
+                node_feats[nt] = torch.tensor(feats, dtype=dtype)
+                mean = torch.tensor(mean, dtype=dtype)
+                std = torch.tensor(std, dtype=dtype)
+                self._mean[nt] = mean
+                self._std[nt] = std
+
+        # assign data back
+        for nt in node_types:
+            feats = torch.split(node_feats[nt], node_feats_size[nt])
             for g, ft in zip(graphs, feats):
                 g.nodes[nt].data["feat"] = ft
+
         return graphs

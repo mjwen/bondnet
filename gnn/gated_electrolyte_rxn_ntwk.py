@@ -64,6 +64,11 @@ def parse_args():
     parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
     parser.add_argument("--weight-decay", type=float, default=0.0, help="weight decay")
     parser.add_argument("--restore", type=int, default=0, help="read checkpoints")
+    parser.add_argument(
+        "--dataset-state-dict-filename",
+        type=str,
+        default="dataset_state_dict_filename.pkl",
+    )
 
     # output file (needed by hypertunity)
     parser.add_argument("--output_file", type=str, default="results.pkl")
@@ -323,6 +328,11 @@ def main(args):
         "~/Applications/db_access/zinc_bde/zinc_feature_rxn_ntwk_rgrn_n200.yaml"
     )
 
+    if args.restore:
+        dataset_state_dict_filename = args.dataset_state_dict_filename
+    else:
+        dataset_state_dict_filename = None
+
     dataset = ElectrolyteReactionNetworkDataset(
         grapher=get_grapher(),
         sdf_file=sdf_file,
@@ -330,7 +340,9 @@ def main(args):
         feature_file=feature_file,
         feature_transformer=True,
         label_transformer=True,
+        state_dict_filename=dataset_state_dict_filename,
     )
+    torch.save(dataset.state_dict(), args.dataset_state_dict_filename)
 
     trainset, valset, testset = train_validation_test_split(
         dataset, validation=0.1, test=0.1

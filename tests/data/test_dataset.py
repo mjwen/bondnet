@@ -15,6 +15,7 @@ from gnn.data.featurizer import (
     BondAsEdgeCompleteFeaturizer,
     GlobalFeaturizerCharge,
 )
+import torch
 
 
 test_files = os.path.join(os.path.dirname(__file__), "testdata")
@@ -207,11 +208,11 @@ def test_electrolyte_reaction_label():
 
 def test_electrolyte_reaction_network_label():
     def assert_label(lt):
-        ref_label_class = [0, 1]
+        ref_label_class = torch.tensor([0.0, 1.0])
 
         if lt:
-            mean = np.mean(ref_label_class)
-            std = np.std(ref_label_class)
+            mean = torch.mean(ref_label_class)
+            std = torch.std(ref_label_class)
             ref_label_class = (ref_label_class - mean) / std
             ref_ts = std
 
