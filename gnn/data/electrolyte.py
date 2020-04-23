@@ -526,6 +526,20 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
             f"and {self.feature_file} ..."
         )
 
+        if self.state_dict_filename is not None:
+            logger.info(f"Load dataset state dict from: {self.state_dict_filename}")
+            state_dict = torch.load(self.state_dict_filename)
+            self.load_state_dict(state_dict)
+
+        # get species
+        if self.state_dict_filename is None:
+            species = get_dataset_species(self.sdf_file)
+            self._species = species
+        else:
+            assert (
+                self._species is not None
+            ), "Corrupted state_dict file, `species` not found"
+
         # read label, feature, and sdf files
         raw_labels = yaml_load(self.label_file)
         if self.feature_file is not None:
@@ -533,7 +547,7 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
         else:
             features = [None] * len(raw_labels)
         graphs = build_graphs_from_sdf(
-            self.sdf_file, self.grapher, features, len(raw_labels)
+            self.sdf_file, self.grapher, features, len(raw_labels), self._species
         )
         graphs = np.asarray(graphs)
         graphs_not_none_indices = [i for i, g in enumerate(graphs) if g is not None]
@@ -550,15 +564,12 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
             if self.state_dict_filename is None:
                 feature_scaler = GraphFeatureStandardScaler(mean=None, std=None)
             else:
-                logger.info(f"Load dataset state dict from: {self.state_dict_filename}")
-                state_dict = torch.load(self.state_dict_filename)
-                self.load_state_dict(state_dict)
                 assert (
                     self._feature_scaler_mean is not None
-                ), "`feature_scaler_mean` is None, you may forget to call load_state_dict"
+                ), "Corrupted state_dict file, `feature_scaler_mean` not found"
                 assert (
                     self._feature_scaler_std is not None
-                ), "`feature_scaler_std` is None, you may forget to call load_state_dict"
+                ), "Corrupted state_dict file, `feature_scaler_std` not found"
 
                 feature_scaler = GraphFeatureStandardScaler(
                     mean=self._feature_scaler_mean, std=self._feature_scaler_std
@@ -619,15 +630,12 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
                 mean = torch.mean(values)
                 std = torch.std(values)
             else:
-                logger.info(f"Load dataset state dict from: {self.state_dict_filename}")
-                state_dict = torch.load(self.state_dict_filename)
-                self.load_state_dict(state_dict)
                 assert (
                     self._label_scaler_mean is not None
-                ), "`label_scaler_mean` is None, you may forget to call load_state_dict"
+                ), "Corrupted state_dict file, `label_scaler_mean` not found"
                 assert (
                     self._label_scaler_std is not None
-                ), "`label_scaler_std` is None, you may forget to call load_state_dict"
+                ), "Corrupted state_dict file, `label_scaler_std` not found"
                 mean = self._label_scaler_mean
                 std = self._label_scaler_std
 
@@ -656,10 +664,9 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
         return len(self.reaction_ids)
 
 
-def build_graphs_from_sdf(filename, grapher, features, N):
+def build_graphs_from_sdf(filename, grapher, features, N, species):
 
     supp = Chem.SDMolSupplier(filename, sanitize=True, removeHs=False)
-    species = get_dataset_species(filename)
 
     graphs = []
     for i, (mol, feats) in enumerate(zip(supp, features)):

@@ -9,6 +9,7 @@ from gnn.data.electrolyte import ElectrolyteReactionNetworkDataset
 from gnn.data.dataloader import DataLoaderReactionNetwork
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import AtomFeaturizer, BondAsNodeFeaturizer, MolWeightFeaturizer
+from gnn.database.convertor import convert_smiles_csv
 from gnn.utils import load_checkpoints
 
 
@@ -16,13 +17,13 @@ def parse_args():
     parser = argparse.ArgumentParser(description="BDENet bond energy predictor")
 
     parser.add_argument(
+        "-f", "--file", type=str, help="name of files storing the molecules",
+    )
+    parser.add_argument(
         "-m", "--molecule", type=str, help="smiles string of the molecule",
     )
     parser.add_argument(
         "-c", "--charge", type=int, default=0, help="charge of the molecule",
-    )
-    parser.add_argument(
-        "-f", "--file", type=str, help="name of files storing the molecules",
     )
     parser.add_argument(
         "--format",
@@ -48,6 +49,10 @@ def parse_args():
 
     args = parser.parse_args()
 
+    # TODO add support for other format
+    if args.molecule is not None:
+        raise NotImplementedError("-m (--molecule) not support yet")
+
     # arguments compatibility check
     def check_compatibility(a1, a2):
         if getattr(args, a1) is not None and getattr(args, a2) is not None:
@@ -59,16 +64,13 @@ def parse_args():
 
 
 def create_files(args):
+    # TODO add support for other format
 
-    ### dataset
-    # sdf_file = "~/Applications/db_access/mol_builder/struct_rxn_ntwk_rgrn_n200.sdf"
-    # label_file = "~/Applications/db_access/mol_builder/label_rxn_ntwk_rgrn_n200.yaml"
-    # feature_file = "~/Applications/db_access/mol_builder/feature_rxn_ntwk_rgrn_n200.yaml"
-    sdf_file = "~/Applications/db_access/zinc_bde/zinc_struct_rxn_ntwk_rgrn_n200.sdf"
-    label_file = "~/Applications/db_access/zinc_bde/zinc_label_rxn_ntwk_rgrn_n200.yaml"
-    feature_file = (
-        "~/Applications/db_access/zinc_bde/zinc_feature_rxn_ntwk_rgrn_n200.yaml"
-    )
+    # convert smiles csv file
+    sdf_file = "/tmp/struct.sdf"
+    label_file = "/tmp/label.yaml"
+    feature_file = "/tmp/feature.yaml"
+    convert_smiles_csv(args.file, sdf_file, label_file, feature_file)
 
     return sdf_file, label_file, feature_file
 
@@ -182,4 +184,5 @@ def main(args):
 
 if __name__ == "__main__":
     args = parse_args()
+    args.file = "/Users/mjwen/Applications/db_access/prediction/smiles_reactions.csv"
     main(args)

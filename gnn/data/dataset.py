@@ -69,6 +69,7 @@ class BaseDataset:
         self._feature_scaler_std = None
         self._label_scaler_mean = None
         self._label_scaler_std = None
+        self._species = None
 
         self._load()
 
@@ -115,6 +116,7 @@ class BaseDataset:
             "feature_scaler_std": self._feature_scaler_std,
             "label_scaler_mean": self._label_scaler_mean,
             "label_scaler_std": self._label_scaler_std,
+            "species": self._species,
         }
 
         return d
@@ -126,6 +128,7 @@ class BaseDataset:
         self._feature_scaler_std = d["feature_scaler_std"]
         self._label_scaler_mean = d["label_scaler_mean"]
         self._label_scaler_std = d["label_scaler_std"]
+        self._species = d["species"]
 
     def _load(self):
         """Read data from files and then featurize."""
