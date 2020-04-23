@@ -97,4 +97,4 @@ def get_dataset_species(filename):
         species = [a.GetSymbol() for a in atoms]
         system_species.update(species)
 
-    return list(system_species)
+    return sorted(system_species)
