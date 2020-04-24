@@ -383,12 +383,14 @@ def main(args):
 
     feature_names = ["atom", "bond", "global"]
     set2set_ntypes_direct = ["global"]
+    feature_size = dataset.feature_size
 
     # feature_names = ["atom", "bond"]
     # set2set_ntypes_direct = None
+    # feature_size = {k: v for k, v in dataset.feature_size.items() if k != "global"}
 
     model = GatedGCNReactionNetwork(
-        in_feats=dataset.feature_size,
+        in_feats=feature_size,
         embedding_size=args.embedding_size,
         gated_num_layers=args.gated_num_layers,
         gated_hidden_size=args.gated_hidden_size,
@@ -408,7 +410,7 @@ def main(args):
         fc_dropout=args.fc_dropout,
         outdim=1,
         conv="GatedGCNConv",
-        # conv="GatedGCNConv1",
+        # conv="GatedGCNConv2",
     )
     print(model)
 

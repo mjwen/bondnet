@@ -4,7 +4,7 @@ Heterogeneous Graph Attention Networks on molecule level property.
 
 import warnings
 import torch.nn as nn
-from gnn.layer.gatedconv import GatedGCNConv, GatedGCNConv1
+from gnn.layer.gatedconv import GatedGCNConv, GatedGCNConv1, GatedGCNConv2
 from gnn.layer.readout import Set2SetThenCat
 from gnn.layer.utils import UnifySize
 from gnn.utils import warn_stdout
@@ -74,6 +74,8 @@ class GatedGCNMol(nn.Module):
             conv_fn = GatedGCNConv
         elif conv == "GatedGCNConv1":
             conv_fn = GatedGCNConv1
+        elif conv == "GatedGCNConv2":
+            conv_fn = GatedGCNConv2
         else:
             raise ValueError()
 

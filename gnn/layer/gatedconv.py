@@ -192,6 +192,10 @@ class GatedGCNConv(nn.Module):
 
 
 class GatedGCNConv1(GatedGCNConv):
+    """
+    Compared with GatedGCNConv, we use hgat attention layer to update global feature.  
+    """
+
     def __init__(
         self,
         input_dim,
@@ -349,6 +353,148 @@ class GatedGCNConv1(GatedGCNConv):
         feats = {"atom": h, "bond": e, "global": u}
 
         return feats
+
+
+class GatedGCNConv2(GatedGCNConv):
+    def __init__(
+        self,
+        input_dim,
+        output_dim,
+        num_fc_layers=1,
+        graph_norm=True,
+        batch_norm=True,
+        activation=nn.ELU(),
+        residual=False,
+        dropout=0.0,
+    ):
+        super(GatedGCNConv, self).__init__()
+        self.graph_norm = graph_norm
+        self.batch_norm = batch_norm
+        self.activation = activation
+        self.residual = residual
+
+        if input_dim != output_dim:
+            self.residual = False
+
+        out_sizes = [output_dim] * num_fc_layers
+        acts = [activation] * (num_fc_layers - 1) + [nn.Identity()]
+        use_bias = [True] * num_fc_layers
+        self.A = LinearN(input_dim, out_sizes, acts, use_bias)
+        self.B = LinearN(input_dim, out_sizes, acts, use_bias)
+        # self.C = LinearN(input_dim, out_sizes, acts, use_bias)
+        self.D = LinearN(input_dim, out_sizes, acts, use_bias)
+        self.E = LinearN(input_dim, out_sizes, acts, use_bias)
+        # self.F = LinearN(input_dim, out_sizes, acts, use_bias)
+        # self.G = LinearN(output_dim, out_sizes, acts, use_bias)
+        # self.H = LinearN(output_dim, out_sizes, acts, use_bias)
+        # self.I = LinearN(input_dim, out_sizes, acts, use_bias)
+
+        if self.batch_norm:
+            self.bn_node_h = nn.BatchNorm1d(output_dim)
+            self.bn_node_e = nn.BatchNorm1d(output_dim)
+        # self.bn_node_u = nn.BatchNorm1d(output_dim)
+
+        delta = 1e-3
+        if dropout >= delta:
+            self.dropout = nn.Dropout(dropout)
+        else:
+            warnings.warn(f"dropout ({dropout}) smaller than {delta}. Ignored.")
+            self.dropout = nn.Identity()
+
+    def forward(self, g, feats, norm_atom, norm_bond):
+
+        g = g.local_var()
+
+        h = feats["atom"]
+        e = feats["bond"]
+        # u = feats["global"]
+
+        # for residual connection
+        h_in = h
+        e_in = e
+        # u_in = u
+
+        g.nodes["atom"].data.update({"Ah": self.A(h), "Dh": self.D(h), "Eh": self.E(h)})
+        g.nodes["bond"].data.update({"Be": self.B(e)})
+        # g.nodes["global"].data.update({"Cu": self.C(u), "Fu": self.F(u)})
+
+        # update bond feature e
+        g.multi_update_all(
+            {
+                "a2b": (fn.copy_u("Ah", "m"), fn.sum("m", "e")),  # A * (h_i + h_j)
+                "b2b": (fn.copy_u("Be", "m"), fn.sum("m", "e")),  # B * e_ij
+                # "g2b": (fn.copy_u("Cu", "m"), fn.sum("m", "e")),  # C * u
+            },
+            "sum",
+        )
+        e = g.nodes["bond"].data["e"]
+        if self.graph_norm:
+            e = e * norm_bond
+        if self.batch_norm:
+            e = self.bn_node_e(e)
+        e = self.activation(e)
+        if self.residual:
+            e = e_in + e
+        g.nodes["bond"].data["e"] = e
+
+        # update atom feature h
+
+        # Copy Eh to bond nodes, without reduction.
+        # This is the first arrow in: Eh_j -> bond node -> atom i node
+        # The second arrow is done in self.message_fn and self.reduce_fn below
+        g.update_all(fn.copy_u("Eh", "Eh_j"), self.reduce_fn_a2b, etype="a2b")
+
+        g.multi_update_all(
+            {
+                "a2a": (fn.copy_u("Dh", "m"), fn.sum("m", "h")),  # D * h_i
+                "b2a": (self.message_fn, self.reduce_fn),  # e_ij [Had] (E * hj)
+                # "g2a": (fn.copy_u("Fu", "m"), fn.sum("m", "h")),  # F * u
+            },
+            "sum",
+        )
+        h = g.nodes["atom"].data["h"]
+        if self.graph_norm:
+            h = h * norm_atom
+        if self.batch_norm:
+            h = self.bn_node_h(h)
+        h = self.activation(h)
+        if self.residual:
+            h = h_in + h
+        g.nodes["atom"].data["h"] = h
+
+        # # update global feature u
+        # g.nodes["atom"].data.update({"Gh": self.G(h)})
+        # g.nodes["bond"].data.update({"He": self.H(e)})
+        # g.nodes["global"].data.update({"Iu": self.I(u)})
+        # g.multi_update_all(
+        #     {
+        #         "a2g": (fn.copy_u("Gh", "m"), fn.mean("m", "u")),  # G * (mean_i h_i)
+        #         "b2g": (fn.copy_u("He", "m"), fn.mean("m", "u")),  # H * (mean_ij e_ij)
+        #         "g2g": (fn.copy_u("Iu", "m"), fn.sum("m", "u")),  # I * u
+        #     },
+        #     "sum",
+        # )
+        # u = g.nodes["global"].data["u"]
+        # if self.batch_norm:
+        #     u = self.bn_node_u(u)
+        # u = self.activation(u)
+        # if self.residual:
+        #     u = u_in + u
+
+        # dropout
+        h = self.dropout(h)
+        e = self.dropout(e)
+        # u = self.dropout(u)
+
+        # feats = {"atom": h, "bond": e, "global": u}
+        feats = {"atom": h, "bond": e}
+
+        return feats
+
+    # def __repr__(self):
+    #     return "{}(in_channels={}, out_channels={})".format(
+    #         self.__class__.__name__, self.in_channels, self.out_channels
+    #     )
 
 
 def select_not_equal(x, y):

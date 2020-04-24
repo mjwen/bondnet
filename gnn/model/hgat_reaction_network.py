@@ -119,7 +119,9 @@ def mol_graph_to_rxn_graph(graph, feats, reactions):
         }
         mappings = {"atom": rxn.atom_mapping_as_list, "bond": rxn.bond_mapping_as_list}
 
-        g, fts = create_rxn_graph(reactants, products, mappings, has_bonds)
+        g, fts = create_rxn_graph(
+            reactants, products, mappings, has_bonds, tuple(feats.keys())
+        )
         reaction_graphs.append(g)
         reaction_feats.append(fts)
 
@@ -132,7 +134,14 @@ def mol_graph_to_rxn_graph(graph, feats, reactions):
     return batched_graph, batched_feats
 
 
-def create_rxn_graph(reactants, products, mappings, has_bonds, ft_name="ft"):
+def create_rxn_graph(
+    reactants,
+    products,
+    mappings,
+    has_bonds,
+    ntypes=("atom", "bond", "global"),
+    ft_name="ft",
+):
     """
     A reaction is represented by:
 
@@ -145,6 +154,7 @@ def create_rxn_graph(reactants, products, mappings, has_bonds, ft_name="ft"):
             as value, which is a mapping between reactant feature and product feature
             of the same atom (bond).
         has_bonds (dict): whether the reactants and products have bonds.
+        ntypes (list): node types of which the feature are manipulated
         ft_name (str): key of feature inf data dict
 
     Returns:
@@ -158,7 +168,7 @@ def create_rxn_graph(reactants, products, mappings, has_bonds, ft_name="ft"):
     graph = reactants[0]
 
     feats = dict()
-    for nt in graph.ntypes:
+    for nt in ntypes:
         reactants_ft = [p.nodes[nt].data[ft_name] for p in reactants]
         products_ft = [p.nodes[nt].data[ft_name] for p in products]
 
