@@ -1,47 +1,13 @@
-# pylint: disable=no-member
 import torch
-import dgl
 import numpy as np
 from gnn.layer.hgatconv import (
-    UnifySize,
     NodeAttentionLayer,
     HGATConv,
     heterograph_edge_softmax,
 )
+from gnn.layer.utils import UnifySize
 
-
-def make_hetero_graph():
-    r"""
-    Make a heterograph for COHH
-            O (0)
-            || (0)
-            C (1)
-        /(1)  \ (2)
-        H (2)  H (3)
-    A global node u is attached to all atoms and bonds.
-    """
-
-    g = dgl.heterograph(
-        {
-            ("atom", "a2b", "bond"): [(0, 0), (1, 0), (1, 1), (1, 2), (2, 1), (3, 2)],
-            ("bond", "b2a", "atom"): [(0, 0), (0, 1), (1, 1), (1, 2), (2, 1), (2, 3)],
-            ("atom", "a2g", "global"): [(i, 0) for i in range(4)],
-            ("global", "g2a", "atom"): [(0, i) for i in range(4)],
-            ("bond", "b2g", "global"): [(i, 0) for i in range(3)],
-            ("global", "g2b", "bond"): [(0, i) for i in range(3)],
-        }
-    )
-    feats_size = {"atom": 2, "bond": 3, "global": 4}
-
-    feats = {}
-    for ntype, size in feats_size.items():
-        num_node = g.number_of_nodes(ntype)
-        ft = torch.randn(num_node, size)
-
-        g.nodes[ntype].data.update({"feat": ft})
-        feats[ntype] = ft
-
-    return g, feats
+from ..utils import make_hetero_CH2O
 
 
 def test_unify_size():
@@ -57,7 +23,7 @@ def test_unify_size():
 
 def test_edge_softmax():
 
-    g, _ = make_hetero_graph()
+    g, _ = make_hetero_CH2O()
 
     master_node = "atom"
     attn_nodes = ["bond", "global"]
@@ -72,7 +38,10 @@ def test_edge_softmax():
             np.arange(nedge * feat_size).reshape(nedge, feat_size), dtype=np.float32
         )
         edge_data.append(torch.from_numpy(d))
-    a = heterograph_edge_softmax(g, master_node, attn_nodes, attn_edges, edge_data)
+
+    edge_types = [(n, e, master_node) for n, e in zip(attn_nodes, attn_edges)]
+
+    a = heterograph_edge_softmax(g, edge_types, edge_data)
 
     # check the softmax for edges connected to atom 1
     # atom 1 is connected to bond 0,1,2 (with bond edge indices 1,2,4) and the single
@@ -94,7 +63,7 @@ def test_node_attn_layer():
     out_feats = 8
     num_heads = 2
 
-    g, _ = make_hetero_graph()
+    g, _ = make_hetero_CH2O()
     natoms = g.number_of_nodes("atom")
     nbonds = g.number_of_nodes("bond")
     atom_feats = torch.randn(natoms, in_feats)
@@ -105,7 +74,7 @@ def test_node_attn_layer():
         master_node="atom",
         attn_nodes=["bond", "global"],
         attn_edges=["b2a", "g2a"],
-        in_feats=in_feats,
+        in_feats={nt: in_feats for nt in ("atom", "bond", "global")},
         out_feats=out_feats,
         num_heads=num_heads,
         activation=None,
@@ -125,7 +94,7 @@ def test_hgat_conv_layer():
     }
     attn_order = ["atom", "bond", "global"]
 
-    g, feats = make_hetero_graph()
+    g, feats = make_hetero_CH2O()
     num_nodes = {}
     in_feats = []
     for ntype in attn_order:
@@ -134,11 +103,9 @@ def test_hgat_conv_layer():
 
     out_feats = 5
     num_heads = 2
-    gat_layer = HGATConv(
-        attn_mechanism, attn_order, in_feats, out_feats, num_heads, unify_size=True
-    )
+    gat_layer = HGATConv(attn_mechanism, attn_order, in_feats, out_feats, num_heads)
     out = gat_layer(g, feats)
 
     assert set(out.keys()) == set(attn_order)
     for k, v in out.items():
-        assert np.array_equal(v.shape, [num_nodes[k], out_feats])
+        assert np.array_equal(v.shape, (num_nodes[k], out_feats * num_heads))

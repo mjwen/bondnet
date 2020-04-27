@@ -1,145 +1,161 @@
+import warnings
+from collections import defaultdict
+import numpy as np
 import torch
 from torch import nn
-import warnings
-from gnn.data.dataloader import DataLoader
+from torch.nn import functional as F
 
 
-class MSELoss(nn.Module):
-    r"""
-    Mean squared loss between input and target with an additional binary argument
-    `indicator` to ignore some contributions.
-
-    The unreduced (with :attr:`reduction` set to ``'none'``) loss can be described as:
-
-    .. math::
-        \ell(x, y) = L = \{l_1,\dots,l_N\}^\top, \quad
-        l_n = \left( x_n - y_n \right)^2 \dot z_n,
-
-    where :math:`N` is the batch size. If :attr:`reduction` is not ``'none'``
-    (default ``'mean'``), then:
-
-    .. math::
-        \ell(x, y) =
-        \begin{cases}
-            \operatorname{sum}(L)/\operatorname{sum}(indicators), &  \text{if reduction} = \text{'mean';}\\
-            \operatorname{sum}(L),  &  \text{if reduction} = \text{'sum'.}
-        \end{cases}
-
-    :math:`x` and :math:`y` are tensors of arbitrary shapes with a total
-    of :math:`n` elements each, and :math:`z` is a 1D tensor that should be of the same
-    length as :math:`y`.
-
-    Args:
-        reduction (str): reduction mechanism
-        scale (float): to scale the loss by this constant, merely for numerical stability
-
-    Shapes:
-        input: (N, *)
-        target: (N, *)
-        indicator: (N,)
-
-    Returns:
-        0D tensor of the results
+class WeightedMSELoss(nn.Module):
     """
+    Weighted MSE Loss that weighs each element differently.
 
-    def __init__(self, reduction="mean", scale=1.0):
-        self.reduction = reduction
-        self.scale = scale
-        super(MSELoss, self).__init__()
+    Weight will be multiplied to the squares of difference.
+    All settings are the same as the :meth:`torch.nn.MSELoss`, except that if
+    `reduction` is `mean`, the loss will be divided by the sum of `weight`, instead of
+    the batch size.
 
-    def forward(self, input, target, indicator):
-
-        if target.size() != input.size():
-            warnings.warn(
-                "Using a target size ({}) that is different to the input size ({}). "
-                "This will likely lead to incorrect results due to broadcasting. "
-                "Please ensure they have the same size.".format(
-                    target.size(), input.size()
-                )
-            )
-
-        if len(target) != len(indicator):
-            raise ValueError(
-                "Using indicator length({}) that is different from target length({}). "
-                "They should of the same length".format(len(indicator), len(target))
-            )
-
-        ret = self.scale * ((input - target) ** 2) * indicator
-        if self.reduction != "none":
-            if self.reduction == "mean":
-                ret = torch.sum(ret) / torch.sum(indicator)
-            else:
-                ret = torch.sum(ret)
-
-        return ret
-
-
-class MAELoss(nn.Module):
-    r"""
-    Mean absolute error between input and target with an additional binary argument
-    `indicator` to ignore some contributions.
-
-    The unreduced (with :attr:`reduction` set to ``'none'``) loss can be described as:
-
-    .. math::
-        \ell(x, y) = L = \{l_1,\dots,l_N\}^\top, \quad
-        l_n = \| x_n - y_n \| \dot z_n,
-
-    where :math:`N` is the batch size. If :attr:`reduction` is not ``'none'``
-    (default ``'mean'``), then:
-
-    .. math::
-        \ell(x, y) =
-        \begin{cases}
-            \operatorname{sum}(L)/\operatorname{sum}(indicators), &  \text{if reduction} = \text{'mean';}\\
-            \operatorname{sum}(L),  &  \text{if reduction} = \text{'sum'.}
-        \end{cases}
-
-    :math:`x` and :math:`y` are tensors of arbitrary shapes with a total
-    of :math:`n` elements each, and :math:`z` is a 1D tensor that should be of the same
-    length as :math:`y`.
+    The weight could be used to ignore some elements in `target` by setting the
+    corresponding elements in weight to 0, and it can also be used to scale the element
+    differently.
 
     Args:
-        reduction (str): reduction mechanism
-
-    Shapes:
-        input: (N, *)
-        target: (N, *)
-        indicator: (N,)
-
-    Returns:
-        0D tensor of the results
+        weight (Tensor): is weight is `None` this behaves exactly the same as
+        :meth:`torch.nn.MSELoss`.
     """
 
     def __init__(self, reduction="mean"):
         self.reduction = reduction
-        super(MAELoss, self).__init__()
+        super(WeightedMSELoss, self).__init__()
 
-    def forward(self, input, target, indicator):
+    def forward(self, input, target, weight):
 
-        if target.size() != input.size():
-            warnings.warn(
-                "Using a target size ({}) that is different to the input size ({}). "
-                "This will likely lead to incorrect results due to broadcasting. "
-                "Please ensure they have the same size.".format(
-                    target.size(), input.size()
+        if weight is None:
+            return F.l1_loss(input, target, reduction=self.reduction)
+        else:
+            if input.size() != target.size() != weight.size():
+                warnings.warn(
+                    "Input size ({}) is different from the target size ({}) or weight "
+                    "size ({}). This will likely lead to incorrect results due "
+                    "to broadcasting. Please ensure they have the same size.".format(
+                        input.size(), target.size(), weight.size()
+                    )
                 )
-            )
 
-        if len(target) != len(indicator):
-            raise ValueError(
-                "Using indicator length({}) that is different from target length({}). "
-                "They should of the same length".format(len(indicator), len(target))
-            )
+            rst = ((input - target) ** 2) * weight
+            if self.reduction != "none":
+                if self.reduction == "mean":
+                    rst = torch.sum(rst) / torch.sum(weight)
+                else:
+                    rst = torch.sum(rst)
 
-        ret = torch.abs(input - target) * indicator
-        if self.reduction != "none":
-            if self.reduction == "mean":
-                ret = torch.sum(ret) / torch.sum(indicator)
-            else:
-                ret = torch.sum(ret)
+            return rst
 
-        return ret
+
+class WeightedL1Loss(nn.Module):
+    """
+    Weighted L1 Loss that weighs each element differently.
+
+    Weight will be multiplied to the squares of difference.
+    All settings are the same as the :meth:`torch.nn.L1Loss`, except that if
+    `reduction` is `mean`, the loss will be divided by the sum of `weight`, instead of
+    the batch size.
+
+    The weight could be used to ignore some elements in `target` by setting the
+    corresponding elements in weight to 0, and it can also be used to scale the element
+    differently.
+
+    Args:
+        weight (Tensor): is weight is `None` this behaves exactly the same as
+        :meth:`torch.nn.L1Loss`.
+    """
+
+    def __init__(self, reduction="mean"):
+        self.reduction = reduction
+        super(WeightedL1Loss, self).__init__()
+
+    def forward(self, input, target, weight):
+
+        if weight is None:
+            return F.l1_loss(input, target, reduction=self.reduction)
+        else:
+            if input.size() != target.size() != weight.size():
+                warnings.warn(
+                    "Input size ({}) is different from the target size ({}) or weight "
+                    "size ({}). This will likely lead to incorrect results due "
+                    "to broadcasting. Please ensure they have the same size.".format(
+                        input.size(), target.size(), weight.size()
+                    )
+                )
+
+            rst = torch.abs(input - target) * weight
+            if self.reduction != "none":
+                if self.reduction == "mean":
+                    rst = torch.sum(rst) / torch.sum(weight)
+                else:
+                    rst = torch.sum(rst)
+
+            return rst
+
+
+class OrderAccuracy:
+    """
+    Order energies of bonds from the same molecule and compute the first `max_n`
+    hit accuracy.
+    """
+
+    def __init__(self, max_n=3):
+        self.max_n = max_n
+
+    def step(self, predictions, targets, mol_sources):
+        """
+
+        Args:
+            predictions (list): prediction made by the model
+            targets (list): target of the prediction
+            mol_sources (list): identifier (str or int) indicating the source of the
+                corresponding entry.
+
+        Returns:
+            list: mean ordering accuracy
+
+        """
+        # group by mol source
+        group = defaultdict(list)
+        for pred, tgt, m in zip(predictions, targets, mol_sources):
+            group[m].append([pred, tgt])
+
+        # analyzer order accuracy for each group
+        scores = []
+        for _, g in group.items():
+            data = np.asarray(g)
+            pred = data[:, 0]
+            tgt = data[:, 1]
+            s = [self.smallest_n_score(pred, tgt, n) for n in range(1, self.max_n + 1)]
+            scores.append(s)
+        mean_score = np.mean(scores, axis=0)
+
+        return mean_score
+
+    @staticmethod
+    def smallest_n_score(prediction, target, n=2):
+        """
+        Measure how many smallest n elements of source are in that of the target.
+
+        Args:
+            prediction (1D array):
+            target (1D array):
+            n (int): the number of elements to consider
+
+        Returns:
+            A float of value {0,1/n, 2/n, ..., n/n}, depending the intersection of the
+            smallest n elements between source and target.
+        """
+        # first n args that will sort the array
+        p_args = list(np.argsort(prediction)[:n])
+        t_args = list(np.argsort(target)[:n])
+        intersection = set(p_args).intersection(set(t_args))
+        return len(intersection) / len(p_args)
 
 
 class EarlyStopping:
@@ -150,56 +166,16 @@ class EarlyStopping:
         self.best_score = None
         self.early_stop = False
 
-    def step(self, acc, model, msg=None):
-        score = acc
+    def step(self, score):
         if self.best_score is None:
             self.best_score = score
-            self.save_checkpoint(model, msg)
-        elif score > self.best_score:
+        elif score < self.best_score:
+            self.best_score = score
+            self.counter = 0
+        else:
             self.counter += 1
             if not self.silent:
                 print("EarlyStopping counter: {}/{}".format(self.counter, self.patience))
             if self.counter >= self.patience:
                 self.early_stop = True
-        else:
-            self.best_score = score
-            self.save_checkpoint(model, msg)
-            self.counter = 0
         return self.early_stop
-
-    def save_checkpoint(self, model, msg):
-        """
-        Saves model when validation loss decrease.
-        """
-        torch.save(model.state_dict(), "es_checkpoint.pkl")
-        with open("es_message.log", "w") as f:
-            f.write(str(msg))
-
-
-def evaluate(model, dataset, metric_fn, nodes, device=None):
-    """
-    Evaluate the accuracy of a dataset for a given metric specified by the metric_fn.
-
-    Args:
-        model (callable): the model to compute prediction
-        dataset: the dataset
-        metric_fn (callable): a metric function to evaluate the accuracy
-        nodes (list of str): the graph nodes on which feats reside
-        device (str): to device to perform the computation. e.g. `cpu`, `cuda`
-
-    Returns:
-        float: accuracy
-    """
-    model.eval()
-    size = len(dataset)  # whole dataset
-    data_loader = DataLoader(dataset, batch_size=size, shuffle=False)
-
-    with torch.no_grad():
-        for bg, label in data_loader:
-            feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-            if device is not None:
-                feats = {k: v.to(device) for k, v in feats.items()}
-                label = {k: v.to(device) for k, v in label.items()}
-            pred = model(bg, feats)
-            accuracy = metric_fn(pred, label["energies"], label["indicators"])
-            return accuracy

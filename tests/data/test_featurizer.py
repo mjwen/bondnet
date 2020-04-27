@@ -1,181 +1,150 @@
 import numpy as np
-from collections import defaultdict
-from rdkit import Chem
 from gnn.data.featurizer import (
     AtomFeaturizer,
-    BondFeaturizer,
-    GlobalStateFeaturizer,
-    HeteroMoleculeGraph,
+    BondAsNodeFeaturizer,
+    BondAsNodeCompleteFeaturizer,
+    BondAsEdgeBidirectedFeaturizer,
+    BondAsEdgeCompleteFeaturizer,
+    GlobalFeaturizerChargeSpin,
+    MolWeightFeaturizer,
+    DistanceBins,
+    RBF,
 )
-from gnn.data.utils import get_atom_to_bond_map, get_bond_to_atom_map
-
-
-def make_EC_mol():
-    sdf = """5d1a79e59ab9e0c05b1de572
- OpenBabel11151914373D
-
-  7  7  0  0  0  0  0  0  0  0999 V2000
-    0.0852   -0.2958   -0.5026 O   0  3  0  0  0  0  0  0  0  0  0  0
-    1.4391   -0.0921   -0.0140 C   0  0  0  0  0  0  0  0  0  0  0  0
-    2.1032   -1.4653    0.0152 C   0  0  0  0  0  0  0  0  0  0  0  0
-    1.9476   -2.1383   -1.1784 O   0  0  0  0  0  0  0  0  0  0  0  0
-    0.3604   -1.7027   -1.7840 Li  0  5  0  0  0  0  0  0  0  0  0  0
-   -0.3721    0.5500   -0.5368 H   0  0  0  0  0  0  0  0  0  0  0  0
-    1.4039    0.3690    0.9792 H   0  0  0  0  0  0  0  0  0  0  0  0
-  1  2  1  0  0  0  0
-  1  5  1  0  0  0  0
-  2  3  1  0  0  0  0
-  2  7  1  0  0  0  0
-  4  3  1  0  0  0  0
-  5  4  1  0  0  0  0
-  6  1  1  0  0  0  0
-M  CHG  2   1   1   5  -1
-M  ZCH  2   1   0   5   0
-M  ZBO  1   2   0
-M  END
-$$$$
-    """
-    return Chem.MolFromMolBlock(sdf, sanitize=True, removeHs=False)
+from .utils import make_a_mol
 
 
 def test_atom_featurizer():
-    m = make_EC_mol()
+    m = make_a_mol()
     species = list(set([a.GetSymbol() for a in m.GetAtoms()]))
-    featurizer = AtomFeaturizer(species)
-    feat = featurizer(m)
+    featurizer = AtomFeaturizer()
+    feat = featurizer(m, dataset_species=species)
     size = featurizer.feature_size
     assert np.array_equal(feat["feat"].shape, (m.GetNumAtoms(), size))
     assert len(featurizer.feature_name) == size
 
 
-def test_bond_featurizer():
-    m = make_EC_mol()
-    featurizer = BondFeaturizer()
+def test_bond_as_node_featurizer():
+    m = make_a_mol()
+    featurizer = BondAsNodeFeaturizer(length_featurizer="bin")
     feat = featurizer(m)
     size = featurizer.feature_size
-    assert np.array_equal(feat["feat"].shape, (m.GetNumAtoms(), size))
+    assert np.array_equal(feat["feat"].shape, (m.GetNumBonds(), size))
     assert len(featurizer.feature_name) == size
 
 
-def test_global_state_featurizer():
-    featurizer = GlobalStateFeaturizer()
-    feat = featurizer(charge=1)
-    assert featurizer.feature_size == 3
+def test_bond_as_node_complete_featurizer():
+    m = make_a_mol()
+    natoms = m.GetNumAtoms()
+    nbonds = natoms * (natoms - 1) // 2
+
+    featurizer = BondAsNodeCompleteFeaturizer(length_featurizer="bin")
+    feat = featurizer(m)
     size = featurizer.feature_size
+    assert np.array_equal(feat["feat"].shape, (nbonds, size))
+    assert len(featurizer.feature_name) == size
+
+
+def test_bond_as_edge_bidirected_featurizer():
+    def assert_featurizer(self_loop):
+        m = make_a_mol()
+        featurizer = BondAsEdgeBidirectedFeaturizer(
+            self_loop=self_loop, length_featurizer="bin"
+        )
+        feat = featurizer(m)
+        size = featurizer.feature_size
+
+        natoms = m.GetNumAtoms()
+        nbonds = m.GetNumBonds()
+        if self_loop:
+            nedges = 2 * nbonds + natoms
+        else:
+            nedges = 2 * nbonds
+
+        assert np.array_equal(feat["feat"].shape, (nedges, size))
+        assert len(featurizer.feature_name) == size
+
+    assert_featurizer(True)
+    assert_featurizer(False)
+
+
+def test_bond_as_edge_complete_featurizer():
+    def assert_featurizer(self_loop):
+        m = make_a_mol()
+        featurizer = BondAsEdgeCompleteFeaturizer(
+            self_loop=self_loop, length_featurizer="bin"
+        )
+        feat = featurizer(m)
+        size = featurizer.feature_size
+
+        natoms = m.GetNumAtoms()
+        if self_loop:
+            nedges = natoms ** 2
+        else:
+            nedges = natoms * (natoms - 1)
+
+        assert np.array_equal(feat["feat"].shape, (nedges, size))
+        assert len(featurizer.feature_name) == size
+
+    assert_featurizer(True)
+    assert_featurizer(False)
+
+
+def test_mol_charge_featurizer():
+    featurizer = GlobalFeaturizerChargeSpin()
+    feat = featurizer(
+        None,
+        extra_feats_info={
+            "charge": 1,
+            "spin_multiplicity": 0,
+            "atom_spin": [0.1, 0, 3, 0.6],
+        },
+    )
+    size = featurizer.feature_size
+    assert size == 7
     assert np.array_equal(feat["feat"].shape, (1, size))
     assert len(featurizer.feature_name) == size
 
 
-def test_build_graph():
-    m = make_EC_mol()
-    grapher = HeteroMoleculeGraph(self_loop=False)
-    g = grapher.build_graph(m)
-
-    nodes = ["atom", "bond", "global"]
-    edges = ["a2b", "b2a", "a2g", "g2a", "b2g", "g2b"]
-    assert set(g.ntypes) == set(nodes)
-    assert set(g.etypes) == set(edges)
-    num_nodes = [g.number_of_nodes(n) for n in nodes]
-    assert num_nodes == [7, 7, 1]
-    num_edges = [g.number_of_edges(e) for e in edges]
-    assert num_edges == [14, 14, 7, 7, 7, 7]
-
-    bond_to_atom_map = {
-        0: [0, 1],
-        1: [0, 4],
-        2: [1, 2],
-        3: [1, 6],
-        4: [2, 3],
-        5: [3, 4],
-        6: [0, 5],
-    }
-    atom_to_bond_map = defaultdict(list)
-    for b, atoms in bond_to_atom_map.items():
-        for a in atoms:
-            atom_to_bond_map[a].append(b)
-    atom_to_bond_map = {a: sorted(bonds) for a, bonds in atom_to_bond_map.items()}
-
-    ref_b2a_map = get_bond_to_atom_map(g)
-    ref_a2b_map = get_atom_to_bond_map(g)
-    assert bond_to_atom_map == ref_b2a_map
-    assert atom_to_bond_map == ref_a2b_map
+def test_mol_weight_featurizer():
+    m = make_a_mol()
+    featurizer = MolWeightFeaturizer()
+    feat = featurizer(m)
+    size = featurizer.feature_size
+    assert size == 3
+    assert np.array_equal(feat["feat"].shape, (1, size))
+    assert len(featurizer.feature_name) == size
 
 
-def test_build_graph_self_loop():
-    m = make_EC_mol()
-    grapher = HeteroMoleculeGraph(self_loop=True)
-    g = grapher.build_graph(m)
+def test_dist_bins():
+    dist_b = DistanceBins(low=2, high=6, num_bins=10)
+    print(dist_b.bins)
 
-    nodes = ["atom", "bond", "global"]
-    edges = ["a2b", "b2a", "a2g", "g2a", "b2g", "g2b", "a2a", "b2b", "g2g"]
-    assert set(g.ntypes) == set(nodes)
-    assert set(g.etypes) == set(edges)
-    num_nodes = [g.number_of_nodes(n) for n in nodes]
-    assert num_nodes == [7, 7, 1]
-    num_edges = [g.number_of_edges(e) for e in edges]
-    assert num_edges == [14, 14, 7, 7, 7, 7, 7, 7, 1]
+    ref = np.zeros(10)
+    ref[1] = 1
+    assert np.array_equal(dist_b(2), ref)
 
-    bond_to_atom_map = {
-        0: [0, 1],
-        1: [0, 4],
-        2: [1, 2],
-        3: [1, 6],
-        4: [2, 3],
-        5: [3, 4],
-        6: [0, 5],
-    }
-    atom_to_bond_map = defaultdict(list)
-    for b, atoms in bond_to_atom_map.items():
-        for a in atoms:
-            atom_to_bond_map[a].append(b)
-    atom_to_bond_map = {a: sorted(bonds) for a, bonds in atom_to_bond_map.items()}
+    ref = np.zeros(10)
+    ref[0] = 1
+    assert np.array_equal(dist_b(1.9999), ref)
 
-    ref_b2a_map = get_bond_to_atom_map(g)
-    ref_a2b_map = get_atom_to_bond_map(g)
-    assert bond_to_atom_map == ref_b2a_map
-    assert atom_to_bond_map == ref_a2b_map
+    ref = np.zeros(10)
+    ref[9] = 1
+    assert np.array_equal(dist_b(6), ref)
 
-    def get_self_loop_map(g, ntype):
-        num = g.number_of_nodes(ntype)
-        if ntype == "atom":
-            etype = "a2a"
-        elif ntype == "bond":
-            etype = "b2b"
-        elif ntype == "global":
-            etype = "g2g"
-        else:
-            raise ValueError("not supported node type: {}".format(ntype))
-        self_loop_map = dict()
-        for i in range(num):
-            suc = g.successors(i, etype)
-            self_loop_map[i] = list(suc)
-        return self_loop_map
-
-    for nt, n in zip(nodes, num_nodes):
-        assert get_self_loop_map(g, nt) == {i: [i] for i in range(n)}
+    ref = np.zeros(10)
+    ref[8] = 1
+    assert np.array_equal(dist_b(5.9999), ref)
 
 
-def test_graph_featurize():
-    # make sure the others work and then this should work
-    m = make_EC_mol()
-    species = list(set([a.GetSymbol() for a in m.GetAtoms()]))
-    charge = 1
+def test_rbf():
+    low = 0.0
+    high = 4.0
+    num_centers = 20
+    delta = (high - low) / (num_centers - 1)
 
-    atom_featurizer = AtomFeaturizer(species)
-    bond_featurizer = BondFeaturizer()
-    global_state_featurizer = GlobalStateFeaturizer()
-    grapher = HeteroMoleculeGraph(
-        atom_featurizer, bond_featurizer, global_state_featurizer
-    )
-    g = grapher.build_graph_and_featurize(m, charge)
-    assert np.array_equal(
-        g.nodes["atom"].data["feat"].shape,
-        (m.GetNumAtoms(), atom_featurizer.feature_size),
-    )
-    assert np.array_equal(
-        g.nodes["bond"].data["feat"].shape,
-        (m.GetNumBonds(), bond_featurizer.feature_size),
-    )
-    assert np.array_equal(
-        g.nodes["global"].data["feat"].shape, (1, global_state_featurizer.feature_size)
-    )
+    rbf = RBF(low, high, num_centers)
+    d = 1.42
+    val = rbf(d)
+
+    assert val[0] == np.exp(-1 / delta * (d - low) ** 2)
+    assert val[-1] == np.exp(-1 / delta * (d - high) ** 2)

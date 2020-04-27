@@ -1,135 +1,177 @@
-# pylint: disable=not-callable
+"""
+Do not assert feature and graph struct, which is handled by dgl.
+Here we mainly test the correctness of batch.
+"""
+
 import numpy as np
 import os
-import torch
-from collections import defaultdict
-from gnn.data.dataset import ElectrolyteDataset
-from gnn.data.dataloader import DataLoader
-from gnn.data.utils import get_atom_to_bond_map, get_bond_to_atom_map
-
-
-a_feat = torch.tensor(
-    [
-        [0.0, 1.0, 8.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
-        [1.0, 0.0, 6.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
-        [1.0, 0.0, 6.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 2.0],
-        [0.0, 1.0, 8.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
-        [0.0, 1.0, 8.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
-        [1.0, 0.0, 6.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 2.0],
-    ]
+from gnn.data.electrolyte import (
+    ElectrolyteBondDataset,
+    ElectrolyteReactionDataset,
+    ElectrolyteReactionNetworkDataset,
 )
-b_feat = torch.tensor(
-    [
-        [1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-    ]
+from gnn.data.qm9 import QM9Dataset
+from gnn.data.dataloader import (
+    DataLoaderBond,
+    DataLoader,
+    DataLoaderReaction,
+    DataLoaderReactionNetwork,
 )
-g_feat = torch.tensor([[0.0, 0.0, 1.0]])
+from gnn.data.grapher import HeteroMoleculeGraph, HomoCompleteGraph
+from gnn.data.featurizer import (
+    AtomFeaturizer,
+    BondAsNodeFeaturizer,
+    BondAsEdgeCompleteFeaturizer,
+    GlobalFeaturizerCharge,
+)
 
-ref_label_energies = [[0, 0.1, 0, 0.2, 0, 0.3], [0.4, 0, 0, 0.5, 0, 0]]
-ref_label_indicators = [[0, 1, 0, 0, 1, 0], [1, 0, 0, 1, 0, 0]]
+test_files = os.path.join(os.path.dirname(__file__), "testdata")
 
 
-def get_dataset():
-    test_files = os.path.dirname(__file__)
-    dataset = ElectrolyteDataset(
-        sdf_file=os.path.join(test_files, "EC_struct.sdf"),
-        label_file=os.path.join(test_files, "EC_label.txt"),
-        self_loop=False,
+def get_grapher_hetero():
+    return HeteroMoleculeGraph(
+        atom_featurizer=AtomFeaturizer(),
+        bond_featurizer=BondAsNodeFeaturizer(),
+        global_featurizer=GlobalFeaturizerCharge(),
+        self_loop=True,
     )
-    for g, _ in dataset:
-        g.nodes["atom"].data.update({"feat1": a_feat, "feat2": b_feat})
-        g.nodes["bond"].data.update({"feat1": a_feat, "feat2": b_feat})
-        g.nodes["global"].data.update({"feat_g": g_feat})
-    return dataset
 
 
-def assert_graph_feature(g, num_graphs):
-    if num_graphs == 1:
-        assert np.allclose(g.nodes["atom"].data["feat1"], a_feat)
-        assert np.allclose(g.nodes["atom"].data["feat2"], b_feat)
-        assert np.allclose(g.nodes["bond"].data["feat1"], a_feat)
-        assert np.allclose(g.nodes["bond"].data["feat2"], b_feat)
-        assert np.allclose(g.nodes["global"].data["feat_g"], g_feat)
-    elif num_graphs == 2:
-        assert np.allclose(
-            g.nodes["atom"].data["feat1"], np.concatenate((a_feat, a_feat))
-        )
-        assert np.allclose(
-            g.nodes["atom"].data["feat2"], np.concatenate((b_feat, b_feat))
-        )
-        assert np.allclose(
-            g.nodes["bond"].data["feat1"], np.concatenate((a_feat, a_feat))
-        )
-        assert np.allclose(
-            g.nodes["bond"].data["feat2"], np.concatenate((b_feat, b_feat))
-        )
-        assert np.allclose(
-            g.nodes["global"].data["feat_g"], np.concatenate((g_feat, g_feat))
-        )
-    else:
-        raise ValueError("num_graphs not supported")
-
-
-def assert_graph_struct(g, num_graphs):
-    nodes = ["atom", "bond", "global"]
-    edges = ["a2b", "b2a", "a2g", "g2a", "b2g", "g2b"]
-    assert g.ntypes == nodes
-    assert g.etypes == edges
-
-    if num_graphs == 1:
-        ref_num_nodes = [6, 6, 1]
-        ref_num_edges = [12, 12, 6, 6, 6, 6]
-        ref_b2a_map = {0: [0, 1], 1: [1, 3], 2: [2, 5], 3: [0, 2], 4: [1, 4], 5: [4, 5]}
-    elif num_graphs == 2:
-        ref_num_nodes = [12, 12, 2]
-        ref_num_edges = [24, 24, 12, 12, 12, 12]
-        ref_b2a_map = {0: [0, 1], 1: [1, 3], 2: [2, 5], 3: [0, 2], 4: [1, 4], 5: [4, 5]}
-        ref_b2a_map2 = {k + 6: [i + 6 for i in v] for k, v in ref_b2a_map.items()}
-        ref_b2a_map.update(ref_b2a_map2)
-    else:
-        raise ValueError("num_graphs not supported")
-
-    ref_a2b_map = defaultdict(list)
-    for b, atoms in ref_b2a_map.items():
-        for a in atoms:
-            ref_a2b_map[a].append(b)
-    ref_a2b_map = {a: sorted(bonds) for a, bonds in ref_a2b_map.items()}
-
-    num_nodes = [g.number_of_nodes(n) for n in nodes]
-    num_edges = [g.number_of_edges(e) for e in edges]
-    assert num_nodes == ref_num_nodes
-    assert num_edges == ref_num_edges
-
-    b2a_map = get_bond_to_atom_map(g)
-    a2b_map = get_atom_to_bond_map(g)
-    assert b2a_map == ref_b2a_map
-    assert a2b_map == ref_a2b_map
+def get_grapher_homo():
+    return HomoCompleteGraph(
+        atom_featurizer=AtomFeaturizer(), bond_featurizer=BondAsEdgeCompleteFeaturizer()
+    )
 
 
 def test_dataloader():
-    dataset = get_dataset()
+    def assert_label(lt):
+        ref_labels = np.asarray([[-0.3877, -40.47893], [-0.257, -56.525887]])
+        natoms = [5, 4]
 
-    # batch size 1 case
-    data_loader = DataLoader(dataset, batch_size=1, shuffle=False)
+        if lt:
+            homo = [ref_labels[0][0], ref_labels[1][0]]
+            std = np.std(homo)
+            homo = (homo - np.mean(homo)) / std
+            for i in range(len(ref_labels)):
+                ref_labels[i][0] = homo[i]
+                ref_labels[i][1] /= natoms[i]
+            ref_scales = [[std, natoms[0]], [std, natoms[1]]]
+
+        dataset = QM9Dataset(
+            grapher=get_grapher_homo(),
+            sdf_file=os.path.join(test_files, "gdb9_n2.sdf"),
+            label_file=os.path.join(test_files, "gdb9_n2.sdf.csv"),
+            properties=["homo", "u0"],  # homo is intensive and u0 is extensive
+            unit_conversion=False,
+            feature_transformer=True,
+            label_transformer=lt,
+        )
+
+        # batch size 1 case (exactly the same as test_dataset)
+        data_loader = DataLoader(dataset, batch_size=1, shuffle=False)
+        for i, (graph, labels) in enumerate(data_loader):
+            assert np.allclose(labels["value"], [ref_labels[i]])
+            if lt:
+                assert np.allclose(labels["scaler_stdev"], [ref_scales[i]])
+
+        # batch size 2 case
+        data_loader = DataLoader(dataset, batch_size=2, shuffle=False)
+        for graph, labels in data_loader:
+            assert np.allclose(labels["value"], ref_labels)
+            if lt:
+                assert np.allclose(labels["scaler_stdev"], ref_scales)
+
+    assert_label(False)
+    assert_label(True)
+
+
+def test_dataloader_bond():
+    def assert_label(lt):
+        ref_label_energies = [[0, 0.1, 0, 0.2, 0, 0.3], [0.4, 0, 0, 0.5, 0, 0]]
+        ref_label_indicators = [[0, 1, 0, 1, 0, 1], [1, 0, 0, 1, 0, 0]]
+
+        if lt:
+            non_zeros = [i for j in ref_label_energies for i in j if i != 0.0]
+            mean = np.mean(non_zeros)
+            std = np.std(non_zeros)
+            ref_label_energies = [
+                (np.asarray(a) - mean) / std for a in ref_label_energies
+            ]
+            ref_scales = [[std] * len(x) for x in ref_label_energies]
+
+        dataset = ElectrolyteBondDataset(
+            grapher=get_grapher_hetero(),
+            sdf_file=os.path.join(test_files, "electrolyte_struct_bond.sdf"),
+            label_file=os.path.join(test_files, "electrolyte_label_bond.txt"),
+            feature_file=os.path.join(test_files, "electrolyte_feature_bond.yaml"),
+            feature_transformer=False,
+            label_transformer=lt,
+        )
+
+        # batch size 1 case (exactly the same as test_dataset)
+        data_loader = DataLoaderBond(dataset, batch_size=1, shuffle=False)
+        for i, (graph, labels) in enumerate(data_loader):
+            assert np.allclose(labels["value"], ref_label_energies[i])
+            assert np.allclose(labels["indicator"], ref_label_indicators[i])
+            if lt:
+                assert np.allclose(labels["scaler_stdev"], ref_scales[i])
+
+        # batch size 2 case
+        data_loader = DataLoaderBond(dataset, batch_size=2, shuffle=False)
+        for graph, labels in data_loader:
+            assert np.allclose(labels["value"], np.concatenate(ref_label_energies))
+            assert np.allclose(labels["indicator"], np.concatenate(ref_label_indicators))
+            if lt:
+                assert np.allclose(labels["scaler_stdev"], np.concatenate(ref_scales))
+
+    assert_label(False)
+    assert_label(True)
+
+
+def test_dataloader_reaction():
+    ref_label_class = [0, 1]
+    ref_num_mols = [2, 3]
+
+    dataset = ElectrolyteReactionDataset(
+        grapher=get_grapher_hetero(),
+        sdf_file=os.path.join(test_files, "electrolyte_struct_rxn_clfn.sdf"),
+        label_file=os.path.join(test_files, "electrolyte_label_rxn_clfn.yaml"),
+        feature_file=os.path.join(test_files, "electrolyte_feature_rxn_clfn.yaml"),
+        feature_transformer=False,
+        label_transformer=False,
+    )
+
+    # batch size 1 case (exactly the same as test_dataset)
+    data_loader = DataLoaderReaction(dataset, batch_size=1, shuffle=False)
     for i, (graph, labels) in enumerate(data_loader):
-        # graph struct and feature
-        assert_graph_struct(graph, num_graphs=1)
-        assert_graph_feature(graph, num_graphs=1)
-        # assert label
-        assert np.allclose(labels["energies"], ref_label_energies[i])
-        assert np.allclose(labels["indicators"], ref_label_indicators[i])
+        assert np.allclose(labels["value"], ref_label_class[i])
+        assert np.allclose(labels["num_mols"], ref_num_mols[i])
 
     # batch size 2 case
-    data_loader = DataLoader(dataset, batch_size=2, shuffle=False)
+    data_loader = DataLoaderReaction(dataset, batch_size=2, shuffle=False)
     for graph, labels in data_loader:
-        # graph struct and feature
-        assert_graph_struct(graph, num_graphs=2)
-        assert_graph_feature(graph, num_graphs=2)
-        # assert label
-        assert np.allclose(labels["energies"], np.concatenate(ref_label_energies))
-        assert np.allclose(labels["indicators"], np.concatenate(ref_label_indicators))
+        assert np.allclose(labels["value"], ref_label_class)
+        assert np.allclose(labels["num_mols"], ref_num_mols)
+
+
+def test_dataloader_reaction_network():
+    ref_label_class = [0, 1]
+
+    dataset = ElectrolyteReactionNetworkDataset(
+        grapher=get_grapher_hetero(),
+        sdf_file=os.path.join(test_files, "electrolyte_struct_rxn_ntwk_clfn.sdf"),
+        label_file=os.path.join(test_files, "electrolyte_label_rxn_ntwk_clfn.yaml"),
+        feature_file=os.path.join(test_files, "electrolyte_feature_rxn_ntwk_clfn.yaml"),
+        feature_transformer=False,
+        label_transformer=False,
+    )
+
+    # batch size 1 case (exactly the same as test_dataset)
+    data_loader = DataLoaderReactionNetwork(dataset, batch_size=1, shuffle=False)
+    for i, (graph, labels) in enumerate(data_loader):
+        assert np.allclose(labels["value"], ref_label_class[i])
+
+    # batch size 2 case
+    data_loader = DataLoaderReactionNetwork(dataset, batch_size=2, shuffle=False)
+    for graph, labels in data_loader:
+        assert np.allclose(labels["value"], ref_label_class)

@@ -1,295 +1,183 @@
-"""
-The Li-EC electrolyte dataset.
-"""
-# pylint: disable=not-callable,no-member
-
 import numpy as np
-import torch
-import os
-import logging
-from gnn.utils import expand_path, pickle_dump, pickle_load
-from gnn.data.featurizer import (
-    AtomFeaturizer,
-    BondFeaturizer,
-    GlobalStateFeaturizer,
-    HeteroMoleculeGraph,
-)
-
-try:
-    from rdkit import Chem
-    from rdkit.Chem import rdmolops
-except ImportError:
-    pass
-
-
-logger = logging.getLogger(__name__)
+from collections import defaultdict
+from gnn.utils import expand_path
 
 
 class BaseDataset:
     """
     Base dataset class.
+
+   Args:
+    grapher (object): grapher object that build different types of graphs:
+        `hetero`, `homo_bidirected` and `homo_complete`.
+        For hetero graph, atom, bond, and global state are all represented as
+        graph nodes. For homo graph, atoms are represented as node and bond are
+        represented as graph edges.
+    sdf_file (str): path to the sdf file of the molecules. Preprocessed dataset
+        can be stored in a pickle file (e.g. with file extension of `pkl`) and
+        provided for fast recovery.
+    label_file (str): path to the label file. Similar to the sdf_file, pickled file
+        can be provided for fast recovery.
+    feature_file (str): path to the feature file. If `None` features will be
+        calculated only using rdkit. Otherwise, features can be provided through this
+        file.
+    feature_transformer (bool): If `True`, standardize the features by subtracting the
+        means and then dividing the standard deviations.
+    label_transformer (bool): If `True`, standardize the label by subtracting the
+        means and then dividing the standard deviations. More explicitly,
+        labels are standardized by y' = (y - mean(y))/std(y), the model will be
+        trained on this scaled value. However for metric measure (e.g. MAE) we need
+        to convert y' back to y, i.e. y = y' * std(y) + mean(y), the model
+        prediction is then y^ = y'^ *std(y) + mean(y), where ^ means predictions.
+        Then MAE is |y^-y| = |y'^ - y'| *std(y), i.e. we just need to multiple
+        standard deviation to get back to the original scale. Similar analysis
+        applies to RMSE.
+    state_dict_filename (str or None): If `None`, feature mean and std (if
+        feature_transformer is True) and label mean and std (if label_transformer is True)
+        are computed from the dataset; otherwise, they are read from the file.
     """
 
-    def __init__(self, dtype="float32"):
+    def __init__(
+        self,
+        grapher,
+        sdf_file,
+        label_file,
+        feature_file=None,
+        feature_transformer=True,
+        label_transformer=True,
+        dtype="float32",
+        state_dict_filename=None,
+    ):
+
         if dtype not in ["float32", "float64"]:
-            raise ValueError(
-                "`dtype` should be `float32` or `float64`, but got `{}`.".format(dtype)
-            )
+            raise ValueError(f"`dtype {dtype}` should be `float32` or `float64`.")
+
+        self.grapher = grapher
+        self.sdf_file = expand_path(sdf_file)
+        self.label_file = expand_path(label_file)
+        self.feature_file = None if feature_file is None else expand_path(feature_file)
+        self.feature_transformer = feature_transformer
+        self.label_transformer = label_transformer
         self.dtype = dtype
+        self.state_dict_filename = state_dict_filename
+
         self.graphs = None
         self.labels = None
         self._feature_size = None
+        self._feature_name = None
+        self._feature_scaler_mean = None
+        self._feature_scaler_std = None
+        self._label_scaler_mean = None
+        self._label_scaler_std = None
+        self._species = None
+
+        self._load()
 
     @property
     def feature_size(self):
         """
         Returns a dict of feature size with node type as the key.
         """
-        raise NotImplementedError
+        return self._feature_size
 
     @property
     def feature_name(self):
         """
         Returns a dict of feature name with node type as the key.
         """
-        raise NotImplementedError
+        return self._feature_name
 
     def get_feature_size(self, ntypes):
         """
-        Returns a list of the feature corresponding to the note types `ntypes`.
+        Get feature sizes.
+
+        Args:
+              ntypes (list of str): types of nodes.
+
+        Returns:
+             list: sizes of features corresponding to note types in `ntypes`.
         """
         size = []
-        for n in ntypes:
+        for nt in ntypes:
             for k in self.feature_size:
-                if n in k:
+                if nt in k:
                     size.append(self.feature_size[k])
         # TODO more checks needed e.g. one node get more than one size
-        msg = "cannot get feature size for nodes: {}".format(ntypes)
+        msg = f"cannot get feature size for nodes: {ntypes}"
         assert len(ntypes) == len(size), msg
+
         return size
+
+    def state_dict(self):
+        d = {
+            "feature_size": self._feature_size,
+            "feature_name": self._feature_name,
+            "feature_scaler_mean": self._feature_scaler_mean,
+            "feature_scaler_std": self._feature_scaler_std,
+            "label_scaler_mean": self._label_scaler_mean,
+            "label_scaler_std": self._label_scaler_std,
+            "species": self._species,
+        }
+
+        return d
+
+    def load_state_dict(self, d):
+        self._feature_size = d["feature_size"]
+        self._feature_name = d["feature_name"]
+        self._feature_scaler_mean = d["feature_scaler_mean"]
+        self._feature_scaler_std = d["feature_scaler_std"]
+        self._label_scaler_mean = d["label_scaler_mean"]
+        self._label_scaler_std = d["label_scaler_std"]
+        self._species = d["species"]
+
+    def _load(self):
+        """Read data from files and then featurize."""
+        raise NotImplementedError
 
     def __getitem__(self, item):
         """Get datapoint with index
 
         Args:
-            item (int): Datapoint index
+            item (int): data point index
 
         Returns:
-            g: DGLHeteroGraph for the ith datapoint
-            lb (dict): Labels of the datapoint
+            g (DGLGraph or DGLHeteroGraph): graph ith data point
+            lb (dict): Labels of the data point
         """
-        g, lb = self.graphs[item], self.labels[item]
+        g, lb, = self.graphs[item], self.labels[item]
         return g, lb
 
     def __len__(self):
-        """Length of the dataset
+        """Length of the dataset.
 
         Returns:
-            Length of Dataset
+            int: length of dataset
         """
         return len(self.graphs)
 
-
-class ElectrolyteDataset(BaseDataset):
-    """
-    The electrolyte dataset for Li-ion battery.
-
-    Args:
-        sdf_file (str): path to the sdf file of the molecules. Preprocessed dataset
-            can be stored in a pickle file (e.g. with file extension of `pkl`) and
-            provided for fast recovery.
-        label_file (str): path to the label file. Similar to the sdf_file, pickled file
-            can be provided for fast recovery.
-        self_loop (bool): whether to create self loop, i.e. a node is connected to
-            itself through an edge.
-    """
-
-    def __init__(
-        self, sdf_file, label_file, self_loop=True, pickle_dataset=False, dtype="float32"
-    ):
-        super(ElectrolyteDataset, self).__init__(dtype)
-        self.sdf_file = sdf_file
-        self.label_file = label_file
-        self.self_loop = self_loop
-        self.pickle_dataset = pickle_dataset
-
-        if self._is_pickled(self.sdf_file) != self._is_pickled(self.label_file):
-            raise ValueError("sdf file and label file does not have the same format")
-        if self._is_pickled(self.sdf_file):
-            self._pickled = True
-        else:
-            self._pickled = False
-
-        self._load()
-
-    @property
-    def feature_size(self):
-        return self._feature_size
-
-    @property
-    def feature_name(self):
-        return self._feature_name
-
-    def _load(self):
-        logger.info(
-            "Start loading dataset from {} and {}...".format(
-                self.sdf_file, self.label_file
-            )
-        )
-
-        if self._pickled:
-            self.graphs = pickle_load(self.sdf_file)
-            self.labels = pickle_load(self.label_file)
-            filename = self._default_stat_dict_filename()
-            d = self.load_stat_dict(filename)
-            self._feature_size = d["feature_size"]
-            self._feature_name = d["feature_name"]
-        else:
-
-            properties = self._read_label_file()
-            supp = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
-            species = self._get_species()
-            dataset_size = len(properties)
-
-            atom_featurizer = AtomFeaturizer(species, dtype=self.dtype)
-            bond_featurizer = BondFeaturizer(dtype=self.dtype)
-            global_featurizer = GlobalStateFeaturizer(dtype=self.dtype)
-
-            self.graphs = []
-            self.labels = []
-            for i, (mol, prop) in enumerate(zip(supp, properties)):
-
-                if i % 100 == 0:
-                    logger.info("Processing molecule {}/{}".format(i, dataset_size))
-
-                mol = rdmolops.AddHs(mol, explicitOnly=True)
-
-                charge = prop[0]
-                nbonds = int((len(prop) - 1) / 2)
-                dtype = getattr(torch, self.dtype)
-                bonds_energy = torch.tensor(prop[1 : nbonds + 1], dtype=dtype)
-                bonds_indicator = torch.tensor(prop[nbonds + 1 :], dtype=dtype)
-
-                grapher = HeteroMoleculeGraph(
-                    atom_featurizer=atom_featurizer,
-                    bond_featurizer=bond_featurizer,
-                    global_state_featurizer=global_featurizer,
-                    self_loop=self.self_loop,
-                )
-                g = grapher.build_graph_and_featurize(mol, charge)
-                # TODO the smiles can be removed (if we want to attach some thing, we can
-                # attach the moloid)
-                smile = Chem.MolToSmiles(mol)
-                g.smile = smile
-                self.graphs.append(g)
-
-                label = {"energies": bonds_energy, "indicators": bonds_indicator}
-                self.labels.append(label)
-
-            self._feature_size = {
-                "atom": atom_featurizer.feature_size,
-                "bond": bond_featurizer.feature_size,
-                "global": global_featurizer.feature_size,
-            }
-            self._feature_name = {
-                "atom": atom_featurizer.feature_name,
-                "bond": bond_featurizer.feature_name,
-                "global": global_featurizer.feature_name,
-            }
-
-            if self.pickle_dataset:
-                self.save_dataset()
-                filename = self._default_stat_dict_filename()
-                self.save_stat_dict(filename)
-
-        logger.info("Finish loading {} graphs...".format(len(self.labels)))
-
-    def save_dataset(self):
-        filename = os.path.splitext(self.sdf_file)[0] + ".pkl"
-        pickle_dump(self.graphs, filename)
-        filename = os.path.splitext(self.label_file)[0] + ".pkl"
-        pickle_dump(self.labels, filename)
-
-    def _default_stat_dict_filename(self):
-        filename = expand_path(self.sdf_file)
-        return os.path.join(
-            os.path.dirname(filename), self.__class__.__name__ + "_stat_dict.pkl"
-        )
-
-    def load_stat_dict(self, filename):
-        return pickle_load(filename)
-
-    def save_stat_dict(self, filename):
-        d = {"feature_size": self._feature_size, "feature_name": self._feature_name}
-        pickle_dump(d, filename)
-
-    def _read_label_file(self):
-        rslt = []
-        with open(self.label_file, "r") as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("#"):
-                    continue
-                line = [float(i) for i in line.split()]
-                rslt.append(line)
-        return rslt
-
-    def _get_species(self):
-        suppl = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
-        system_species = set()
-        for i, mol in enumerate(suppl):
-            try:
-                atoms = mol.GetAtoms()
-                species = [a.GetSymbol() for a in atoms]
-                system_species.update(species)
-            except AttributeError:
-                raise RuntimeError("Error reading mol '{}' from sdf file.".format(i))
-
-        return list(system_species)
-
-    # TODO we may need to implement normalization in featurizer and provide a wrapper
-    # here. But it seems we do not need to normalize label
-    # def set_mean_and_std(self, mean=None, std=None):
-    #     """Set mean and std or compute from labels for future normalization.
-
-    #     Parameters
-    #     ----------
-    #     mean : int or float
-    #         Default to be None.
-    #     std : int or float
-    #         Default to be None.
-    #     """
-    #     labels = np.array([i.numpy() for i in self.labels])
-    #     if mean is None:
-    #         mean = np.mean(labels, axis=0)
-    #     if std is None:
-    #         std = np.std(labels, axis=0)
-    #     self.mean = mean
-    #     self.std = std
-
-    @staticmethod
-    def _is_pickled(filename):
-        filename = expand_path(filename)
-        if os.path.splitext(filename)[1] == "pkl":
-            return True
-        else:
-            return False
+    def __repr__(self):
+        rst = "Dataset " + self.__class__.__name__ + "\n"
+        rst += "Length: {}\n".format(len(self))
+        for ft, sz in self.feature_size.items():
+            rst += "Feature: {}, size: {}\n".format(ft, sz)
+        for ft, nm in self.feature_name.items():
+            rst += "Feature: {}, name: {}\n".format(ft, nm)
+        return rst
 
 
 class Subset(BaseDataset):
     def __init__(self, dataset, indices):
+        self.dtype = dataset.dtype
         self.dataset = dataset
         self.indices = indices
-        self._feature_size = dataset.feature_size
-        self._feature_name = dataset.feature_name
 
     @property
     def feature_size(self):
-        return self._feature_size
+        return self.dataset.feature_size
 
     @property
     def feature_name(self):
-        return self._feature_name
+        return self.dataset.feature_name
 
     def __getitem__(self, idx):
         return self.dataset[self.indices[idx]]
@@ -298,7 +186,7 @@ class Subset(BaseDataset):
         return len(self.indices)
 
 
-def train_validation_test_split(dataset, validation=0.1, test=0.1, random_seed=35):
+def train_validation_test_split(dataset, validation=0.1, test=0.1, random_seed=None):
     """
     Split a dataset into training, validation, and test set.
 
@@ -323,11 +211,73 @@ def train_validation_test_split(dataset, validation=0.1, test=0.1, random_seed=3
     num_test = int(size * test)
     num_train = size - num_val - num_test
 
-    np.random.seed(random_seed)
+    if random_seed is not None:
+        np.random.seed(random_seed)
     idx = np.random.permutation(size)
     train_idx = idx[:num_train]
     val_idx = idx[num_train : num_train + num_val]
     test_idx = idx[num_train + num_val :]
+    return [
+        Subset(dataset, train_idx),
+        Subset(dataset, val_idx),
+        Subset(dataset, test_idx),
+    ]
+
+
+def train_validation_test_split_test_with_all_bonds_of_mol(
+    dataset, validation=0.1, test=0.1, random_seed=None
+):
+    """
+    Split a dataset into training, validation, and test set.
+
+    Different from `train_validation_test_split`, where the split of dataset is bond
+    based, here the bonds from a molecule either goes to (train, validation) set or
+    test set. This is used to evaluate the prediction order of bond energy.
+
+    The training set will be automatically determined based on `validation` and `test`,
+    i.e. train = 1 - validation - test.
+
+    Args:
+        dataset: the dataset
+        validation (float, optional): The amount of data (fraction) to be assigned to
+            validation set. Defaults to 0.1.
+        test (float, optional): The amount of data (fraction) to be assigned to test
+            set. Defaults to 0.1.
+        random_seed (int, optional): random seed that determines the permutation of the
+            dataset. Defaults to 35.
+
+    Returns:
+        [train set, validation set, test_set]
+    """
+    assert validation + test < 1.0, "validation + test >= 1"
+    size = len(dataset)
+    num_val = int(size * validation)
+    num_test = int(size * test)
+    num_train = size - num_val - num_test
+
+    # group by molecule
+    groups = defaultdict(list)
+    for i, (_, label) in enumerate(dataset):
+        groups[label["id"]].append(i)
+    groups = [val for key, val in groups.items()]
+
+    # permute on the molecule level
+    if random_seed is not None:
+        np.random.seed(random_seed)
+    idx = np.random.permutation(len(groups))
+    test_idx = []
+    train_val_idx = []
+    for i in idx:
+        if len(test_idx) < num_test:
+            test_idx.extend(groups[i])
+        else:
+            train_val_idx.extend(groups[i])
+
+    # permute on the bond level for train and validation
+    idx = np.random.permutation(train_val_idx)
+    train_idx = idx[:num_train]
+    val_idx = idx[num_train:]
+
     return [
         Subset(dataset, train_idx),
         Subset(dataset, val_idx),

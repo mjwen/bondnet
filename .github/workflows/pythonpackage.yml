@@ -7,10 +7,10 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     strategy:
-      max-parallel: 4
+      max-parallel: 3
       matrix:
         os: [ubuntu-latest]
-        python-version: [3.5, 3.6, 3.7, 3.8]
+        python-version: [3.6, 3.7, 3.8]
 
     steps:
     - uses: actions/checkout@v1
@@ -37,4 +37,5 @@ jobs:
     - name: Test with pytest
       run: |
         pip install pytest
-        pytest
+        # ignore the tests/database/ directory, where we need custom pymatgen
+        pytest -s --ignore tests/database/

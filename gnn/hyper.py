@@ -1,19 +1,21 @@
 import os
 import sys
 import hypertunity as ht
+from datetime import datetime
 
 domain = ht.Domain(
     {
-        "--gat-hidden-size": {32, 64, 128},
         "--num-gat-layers": {2, 3, 4},
-        "--num-heads": {4, 8, 12},
+        "--gat-hidden-size": {32, 64, 128},
+        "--num-heads": {4, 8},
         # "--feat-drop":{0.0},
         # "--attn-drop":{0.0},
         # "--negative-slope":{0.2},
-        "--residual": {0, 1},
+        "--gat-residual": {1},
         "--num-fc-layers": {2, 3, 4},
         "--fc-hidden-size": {32, 64, 128},
         # "--lr": [0.001, 0.01],
+        "--weight-decay": {0.001, 0.01},
         "--epochs": {10},
     }
 )
@@ -24,15 +26,19 @@ optimiser = ht.BayesianOptimisation(domain)
 
 reporter = ht.Table(domain, metrics=["score"])
 
-n_steps = 2
+n_steps = 3
 batch_size = 2
-filepath = os.path.join(os.path.dirname(__file__), "lithium.py")
 
 with ht.Scheduler(n_parallel=batch_size) as scheduler:
     for i in range(n_steps):
+        print(f"start step: {i} at {datetime.now()}")
         samples = optimiser.run_step(batch_size=batch_size, minimise=True)
         jobs = [
-            ht.Job(task=filepath, args=s.as_dict(), meta={"binary": "python"})
+            ht.Job(
+                task=os.path.join(os.getcwd(), "hgat_electrolyte_bonds.py"),
+                args=s.as_dict(),
+                meta={"binary": "python"},
+            )
             for s in samples
         ]
         scheduler.dispatch(jobs)
@@ -41,8 +47,8 @@ with ht.Scheduler(n_parallel=batch_size) as scheduler:
         ]
         optimiser.update(samples, evaluations)
         for s, e in zip(samples, evaluations):
-            print("sample: {}, evaluation: {}".format(s, e))
+            print(f"    sample: {s}, evaluation: {e}")
             sys.stdout.flush()
-            reporter.log((s, e), meta="decider layer, could be output dir")
+            # reporter.log((s, e), meta="decide layer, could be output dir")
 
-print(reporter.format(order="ascending"))
+# print(reporter.format(order="ascending"))
