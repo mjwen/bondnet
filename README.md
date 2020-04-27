@@ -1,7 +1,7 @@
 # Table of Contents
-- Introduction (#introduction)
-- Installation (#installation)
-- Usage (#usage)
+- [Introduction](#introduction)
+- [Installation](#installation)
+- [Usage](#usage)
 
 <a name="installation"></a>
 # Installation
@@ -33,9 +33,15 @@ Currently, we only support installation from source:
 <a name="usage"></a>
 # Usage
 
-We support multiple formats in predicting the bond dissociation energies. 
+## Use pretrained model for prediction
 
-1. smiles molecules and fragments given in a csv file (e.g.\ )
+We support multiple formats in predicting the bond dissociation energies. 
+The prediction can be made by running the script
+[predict_gated_electrolyte_rxn_ntwk.py](https://github.com/mjwen/gnn/blob/stable/gnn/predict_gated_electrolyte_rxn_ntwk.py) 
+at: `gnn/gnn/predict_gated_electrolyte_rxn_ntwk.py`.
+
+1. smiles molecules and fragments given in a csv file 
+(e.g. [smiles_reactions.csv](https://github.com/mjwen/gnn/blob/stable/gnn/pre_trained/examples/smiles_reactions.csv) )
     ```bash
     python predict_gated_electrolyte_rxn_ntwk.py -i smiles_reactions.csv -o results.csv 
     ```
@@ -45,3 +51,6 @@ We support multiple formats in predicting the bond dissociation energies.
     python predict_gated_electrolyte_rxn_ntwk.py -m C1COC(=O)O1  
     ```
 3. (to come) molecules in sdf file, and a yaml file specifying the bond breaking reactions
+
+
+## (to come) Train the model for your own dataset 
