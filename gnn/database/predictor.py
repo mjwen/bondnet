@@ -39,7 +39,7 @@ class PredictionBySmilesReaction:
     def __init__(self, filename):
         self.filename = expand_path(filename)
 
-    def read_smiles_csv(self):
+    def read_input(self):
         """
         Read reactions specified by smiles given in csv file.
 
@@ -129,7 +129,7 @@ class PredictionBySmilesReaction:
         return reactions
 
     # TODO should directly pass python data struct, instead of files.
-    def convert_smiles_csv(
+    def convert_format(
         self,
         struct_file="struct.sdf",
         label_file="label.yaml",
@@ -138,7 +138,7 @@ class PredictionBySmilesReaction:
         """
         Convert to standard files that the fitting code uses.
         """
-        reactions = self.read_smiles_csv()
+        reactions = self.read_input()
         extractor = ReactionCollection(reactions)
 
         extractor.create_struct_label_dataset_reaction_network_based_regression_simple(

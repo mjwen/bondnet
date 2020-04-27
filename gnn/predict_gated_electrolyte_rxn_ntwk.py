@@ -87,7 +87,7 @@ def get_predictor(args):
     sdf_file = "/tmp/struct.sdf"
     label_file = "/tmp/label.yaml"
     feature_file = "/tmp/feature.yaml"
-    predictor.convert_smiles_csv(sdf_file, label_file, feature_file)
+    predictor.convert_format(sdf_file, label_file, feature_file)
 
     return predictor, sdf_file, label_file, feature_file
 
