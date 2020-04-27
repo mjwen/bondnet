@@ -1,0 +1,7 @@
+reactant,fragment1,fragment2,charge_reactant,charge_fragment1,charge_fragment2
+NCCCC(=O)O,[CH2]CCC(=O)O,[NH2],0,0,0
+NCCCC(=O)O,[CH2]C(=O)O,[CH2]CN,0,0,0
+NCCCC(=O)O,O=[C]O,[CH2]CCN,0,0,0
+NCCCC(=O)O,NCCC[C]=O,[OH],0,0,0
+NCCCC(=O)O,NCCC[C]=O,[OH],0,1,-1
+C1=CC=CC=C1,[CH]=CC=CC=[CH],,0,0,
