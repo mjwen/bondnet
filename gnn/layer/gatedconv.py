@@ -8,10 +8,12 @@ https://arxiv.org/pdf/1711.07553v2.pdf
 
 import torch
 from torch import nn
-import warnings
+import logging
 from dgl import function as fn
 from gnn.layer.hgatconv import NodeAttentionLayer
 from gnn.layer.utils import LinearN
+
+logger = logging.getLogger(__name__)
 
 
 class GatedGCNConv(nn.Module):
@@ -57,7 +59,7 @@ class GatedGCNConv(nn.Module):
         if dropout >= delta:
             self.dropout = nn.Dropout(dropout)
         else:
-            warnings.warn(f"dropout ({dropout}) smaller than {delta}. Ignored.")
+            logger.warning(f"dropout ({dropout}) smaller than {delta}. Ignored.")
             self.dropout = nn.Identity()
 
     @staticmethod
@@ -245,7 +247,7 @@ class GatedGCNConv1(GatedGCNConv):
         if dropout >= delta:
             self.dropout = nn.Dropout(dropout)
         else:
-            warnings.warn(f"dropout ({dropout}) smaller than {delta}. Ignored.")
+            logger.warning(f"dropout ({dropout}) smaller than {delta}. Ignored.")
             self.dropout = nn.Identity()
 
         self.node_attn_layer = NodeAttentionLayer(
@@ -398,7 +400,7 @@ class GatedGCNConv2(GatedGCNConv):
         if dropout >= delta:
             self.dropout = nn.Dropout(dropout)
         else:
-            warnings.warn(f"dropout ({dropout}) smaller than {delta}. Ignored.")
+            logger.warning(f"dropout ({dropout}) smaller than {delta}. Ignored.")
             self.dropout = nn.Identity()
 
     def forward(self, g, feats, norm_atom, norm_bond):

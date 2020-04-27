@@ -1,4 +1,5 @@
 import os
+import sys
 import torch
 import argparse
 import yaml
@@ -8,8 +9,12 @@ from gnn.model.gated_reaction_network import GatedGCNReactionNetwork
 from gnn.data.electrolyte import ElectrolyteReactionNetworkDataset
 from gnn.data.dataloader import DataLoaderReactionNetwork
 from gnn.data.grapher import HeteroMoleculeGraph
-from gnn.data.featurizer import AtomFeaturizer, BondAsNodeFeaturizer, MolWeightFeaturizer
-from gnn.database.convertor import convert_smiles_csv
+from gnn.data.featurizer import (
+    AtomFeaturizer,
+    BondAsNodeFeaturizer,
+    GlobalFeaturizerCharge,
+)
+from gnn.database.predictor import PredictionBySmilesReaction
 from gnn.utils import load_checkpoints
 
 
@@ -17,7 +22,10 @@ def parse_args():
     parser = argparse.ArgumentParser(description="BDENet bond energy predictor")
 
     parser.add_argument(
-        "-f", "--file", type=str, help="name of files storing the molecules",
+        "-i", "--infile", type=str, help="name of input file storing the molecules",
+    )
+    parser.add_argument(
+        "-o", "--outfile", type=str, help="name of output file for the results",
     )
     parser.add_argument(
         "-m", "--molecule", type=str, help="smiles string of the molecule",
@@ -30,7 +38,7 @@ def parse_args():
         type=str,
         default="smi",
         choices=["smi", "sdf"],
-        help="directory name of the pre-trained model",
+        help="format of the molecules",
     )
     parser.add_argument(
         "--model",
@@ -42,8 +50,8 @@ def parse_args():
         "--batch-size",
         type=int,
         default=100,
-        help="batch size for evaluation; larger value gives faster prediction speed but "
-        "requires more memory. The final result should be exactly the same regardless "
+        help="batch size for evaluation; larger value gives faster prediction speed "
+        "but requires more memory. The final result should be the same regardless "
         "of the choice of this value. ",
     )
 
@@ -58,26 +66,30 @@ def parse_args():
         if getattr(args, a1) is not None and getattr(args, a2) is not None:
             raise ValueError(f"Arguments `{a1}` and `{a2}` should not be used together.")
 
-    check_compatibility("molecule", "file")
+    check_compatibility("molecule", "infile")
+
+    # for now, we only support file node
+    # args.infile = "/Users/mjwen/Applications/db_access/prediction/smiles_reactions.csv"
+    # args.outfile = "smiles_reactions_rst.csv"
+    if args.infile is None:
+        print("Argument `--infile` required but not provided.")
+        print("To see the usage: `python predict_gated_electrolyte_rxn_ntwk.py -h`")
+        sys.exit(0)
 
     return args
 
 
-def create_files(args):
-    # TODO add support for other format
+def get_predictor(args):
 
-    # convert smiles csv file
+    # TODO add support for other format
+    # smiles csv file
+    predictor = PredictionBySmilesReaction(args.infile)
     sdf_file = "/tmp/struct.sdf"
     label_file = "/tmp/label.yaml"
     feature_file = "/tmp/feature.yaml"
-    convert_smiles_csv(args.file, sdf_file, label_file, feature_file)
+    predictor.convert_smiles_csv(sdf_file, label_file, feature_file)
 
-    return sdf_file, label_file, feature_file
-
-
-def write_result(predictions, args):
-    for i, x in enumerate(predictions):
-        print(i, x)
+    return predictor, sdf_file, label_file, feature_file
 
 
 def evaluate(model, nodes, data_loader, device=None):
@@ -112,7 +124,7 @@ def evaluate(model, nodes, data_loader, device=None):
 def get_grapher():
     atom_featurizer = AtomFeaturizer()
     bond_featurizer = BondAsNodeFeaturizer(length_featurizer=None)
-    global_featurizer = MolWeightFeaturizer()
+    global_featurizer = GlobalFeaturizerCharge()
     grapher = HeteroMoleculeGraph(
         atom_featurizer=atom_featurizer,
         bond_featurizer=bond_featurizer,
@@ -124,12 +136,11 @@ def get_grapher():
 
 def main(args):
 
-    model_dir = os.path.join(os.path.dirname(gnn.__file__), "pre_trained", args.model)
-
     # convert input to model files
-    sdf_file, label_file, feature_file = create_files(args)
+    predictor, sdf_file, label_file, feature_file = get_predictor(args)
 
     # load dataset
+    model_dir = os.path.join(os.path.dirname(gnn.__file__), "pre_trained", args.model)
     dataset = ElectrolyteReactionNetworkDataset(
         grapher=get_grapher(),
         sdf_file=sdf_file,
@@ -179,10 +190,10 @@ def main(args):
     # evaluate
     predictions = evaluate(model, feature_names, data_loader)
 
-    write_result(predictions, args)
+    # write the results
+    predictor.write_results(predictions, args.outfile)
 
 
 if __name__ == "__main__":
     args = parse_args()
-    args.file = "/Users/mjwen/Applications/db_access/prediction/smiles_reactions.csv"
     main(args)

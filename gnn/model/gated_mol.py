@@ -2,12 +2,13 @@
 Heterogeneous Graph Attention Networks on molecule level property.
 """
 
-import warnings
+import logging
 import torch.nn as nn
 from gnn.layer.gatedconv import GatedGCNConv, GatedGCNConv1, GatedGCNConv2
 from gnn.layer.readout import Set2SetThenCat
 from gnn.layer.utils import UnifySize
-from gnn.utils import warn_stdout
+
+logger = logging.getLogger(__name__)
 
 
 class GatedGCNMol(nn.Module):
@@ -118,8 +119,7 @@ class GatedGCNMol(nn.Module):
         # need dropout?
         delta = 1e-3
         if fc_dropout < delta:
-            warnings.showwarning = warn_stdout
-            warnings.warn(
+            logger.warning(
                 f"`fc_dropout = {fc_dropout}` provided for {self.__class__.__name__} "
                 f"smaller than {delta}. Ignored."
             )
