@@ -44,17 +44,20 @@ The prediction can be made by running the script
 [predict_gated_electrolyte_rxn_ntwk.py](https://github.com/mjwen/gnn/blob/stable/gnn/predict_gated_electrolyte_rxn_ntwk.py) 
 at: `gnn/gnn/predict_gated_electrolyte_rxn_ntwk.py`.
 
-1. smiles molecules and fragments given in a csv file 
+1. (to come) all bonds in a molecule given by a smiles string, e.g.:
+    ```bash
+    python predict_gated_electrolyte_rxn_ntwk.py -m C1COC(=O)O1  
+    ```
+2. smiles molecules and fragments given in a csv file 
 (e.g. [smiles_reactions.csv](https://github.com/mjwen/gnn/blob/stable/gnn/pre_trained/examples/smiles_reactions.csv) )
     ```bash
     python predict_gated_electrolyte_rxn_ntwk.py -i smiles_reactions.csv -o results.csv 
     ```
-
-2. (to come) all bonds in a molecule given by a smiles string, e.g.:
+  
+3. molecules in sdf file and a yaml file specifying the bond breaking reactions
     ```bash
-    python predict_gated_electrolyte_rxn_ntwk.py -m C1COC(=O)O1  
+    python predict_gated_electrolyte_rxn_ntwk.py -t sdf -i sdf_label.txt -o results.yaml
     ```
-3. (to come) molecules in sdf file, and a yaml file specifying the bond breaking reactions
 
 
 ## (to come) Train the model for your own dataset 

@@ -14,7 +14,10 @@ from gnn.data.featurizer import (
     BondAsNodeFeaturizer,
     GlobalFeaturizerCharge,
 )
-from gnn.database.predictor import PredictionBySmilesReaction
+from gnn.database.predictor import (
+    PredictionBySmilesReaction,
+    PredictionByStructLabelFeatFiles,
+)
 from gnn.utils import load_checkpoints
 
 
@@ -34,6 +37,7 @@ def parse_args():
         "-c", "--charge", type=int, default=0, help="charge of the molecule",
     )
     parser.add_argument(
+        "-t",
         "--format",
         type=str,
         default="smi",
@@ -57,16 +61,19 @@ def parse_args():
 
     args = parser.parse_args()
 
-    # TODO add support for other format
-    if args.molecule is not None:
-        raise NotImplementedError("-m (--molecule) not support yet")
-
     # arguments compatibility check
     def check_compatibility(a1, a2):
         if getattr(args, a1) is not None and getattr(args, a2) is not None:
             raise ValueError(f"Arguments `{a1}` and `{a2}` should not be used together.")
 
     check_compatibility("molecule", "infile")
+
+    return args
+
+
+def get_predictor(args):
+
+    # TODO add support for other format
 
     # for now, we only support file node
     # args.infile = "/Users/mjwen/Applications/db_access/prediction/smiles_reactions.csv"
@@ -76,18 +83,38 @@ def parse_args():
         print("To see the usage: `python predict_gated_electrolyte_rxn_ntwk.py -h`")
         sys.exit(0)
 
-    return args
+    unsupported = False
 
+    if args.format == "smi":
 
-def get_predictor(args):
+        # single smiles string
+        if args.molecule is not None:
+            raise NotImplementedError
 
-    # TODO add support for other format
-    # smiles csv file
-    predictor = PredictionBySmilesReaction(args.infile)
-    sdf_file = "/tmp/struct.sdf"
-    label_file = "/tmp/label.yaml"
-    feature_file = "/tmp/feature.yaml"
-    predictor.convert_format(sdf_file, label_file, feature_file)
+        # smiles csv file
+        elif args.infile is not None:
+            predictor = PredictionBySmilesReaction(args.infile)
+            sdf_file = "/tmp/struct.sdf"
+            label_file = "/tmp/label.yaml"
+            feature_file = "/tmp/feature.yaml"
+            predictor.convert_format(sdf_file, label_file, feature_file)
+
+        else:
+            unsupported = True
+
+    elif args.format == "sdf":
+
+        # sdf file
+        if args.infile is not None:
+            predictor = PredictionByStructLabelFeatFiles(args.infile)
+            sdf_file, label_file, feature_file = predictor.convert_format()
+        else:
+            unsupported = True
+
+    if unsupported:
+        print("Unsupported combinatoin of arguments combination.")
+        print("To see the usage: `python predict_gated_electrolyte_rxn_ntwk.py -h`")
+        sys.exit(0)
 
     return predictor, sdf_file, label_file, feature_file
 

@@ -8,6 +8,7 @@ from rdkit.Chem import AllChem
 from gnn.database.molwrapper import rdkit_mol_to_wrapper_mol
 from gnn.database.reaction import Reaction, ReactionCollection
 from gnn.utils import expand_path
+from gnn.utils import yaml_load, yaml_dump
 
 
 class PredictionBySmilesReaction:
@@ -155,3 +156,41 @@ class PredictionBySmilesReaction:
         rst = df.to_csv(filename, index=False)
         if rst is not None:
             print(rst)
+
+
+class PredictionByStructLabelFeatFiles:
+    """
+    Make predictions based on the files used by the training script:
+    struct.sdf, label.yaml, and feature.yaml.
+    Args:
+        filename (str): a file containing the path to the three files:
+        struct file
+        label file
+        feature file
+    """
+
+    def __init__(self, filename):
+        with open(expand_path(filename)) as f:
+            lines = f.readlines()
+        lines = [expand_path(ln.strip()) for ln in lines]
+        self.struct_file = lines[0]
+        self.label_file = lines[1]
+        self.feature_file = lines[2]
+
+    # TODO should directly pass python data struct, instead of files.
+    def convert_format(self):
+        return self.struct_file, self.label_file, self.feature_file
+
+    def write_results(self, predictions, filename):
+        """
+        Append prediction as the last column of a dataframe and write csv file.
+        """
+        labels = yaml_load(self.label_file)
+        for d, pred in zip(labels, predictions):
+            d["prediction"] = float(pred)
+
+        filename = expand_path(filename) if filename is not None else filename
+        if filename is not None:
+            yaml_dump(labels, filename)
+        else:
+            print(labels)
