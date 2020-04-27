@@ -308,8 +308,7 @@ class HGATConv(nn.Module):
             master_feats = updated_feats[ntype]
             attn_feats = [updated_feats[t] for t in self.attn_mechanism[ntype]["nodes"]]
             ft = self.layers[ntype](graph, master_feats, attn_feats)
-            # flatten the head dimension
-            updated_feats[ntype] = self.resize_layers[ntype](ft.flatten(start_dim=1))
+            updated_feats[ntype] = ft.flatten(start_dim=1)  # flatten the head dimension
         return updated_feats
 
 
