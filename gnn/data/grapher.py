@@ -94,6 +94,9 @@ class HomoBidirectedGraph(BaseGraph):
             nodes = g.nodes()
             g.add_edges(nodes, nodes)
 
+        # add name
+        g.mol_name = mol.GetProp("_Name")
+
         return g
 
     def featurize(self, g, mol, **kwargs):
@@ -136,6 +139,9 @@ class HomoCompleteGraph(BaseGraph):
                 [i for i in range(num_atoms) for j in range(num_atoms - 1)],
                 [j for i in range(num_atoms) for j in range(num_atoms) if i != j],
             )
+
+        # add name
+        g.mol_name = mol.GetProp("_Name")
 
         return g
 
@@ -218,6 +224,9 @@ class HeteroMoleculeGraph(BaseGraph):
             )
         g = dgl.heterograph(edges_dict)
 
+        # add name
+        g.mol_name = mol.GetProp("_Name")
+
         return g
 
     def featurize(self, g, mol, **kwargs):
@@ -295,6 +304,9 @@ class HeteroCompleteGraph(BaseGraph):
                 }
             )
         g = dgl.heterograph(edges_dict)
+
+        # add name
+        g.mol_name = mol.GetProp("_Name")
 
         return g
 

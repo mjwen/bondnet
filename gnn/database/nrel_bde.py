@@ -2,9 +2,10 @@ import logging
 import pandas as pd
 from rdkit import Chem
 from rdkit.Chem import AllChem
-from gnn.database.molwrapper import rdkit_mol_to_wrapper_mol
+from gnn.database.molwrapper import rdkit_mol_to_wrapper_mol, ob_mol_to_wrapper_mol
 from gnn.database.reaction import Reaction
 from gnn.utils import expand_path
+import pybel
 
 
 logger = logging.getLogger(__name__)
@@ -52,14 +53,17 @@ def read_nrel_bde_dataset(filename):
         except ValueError:  # not in mol reservoir
 
             # try:
-            # create molecules
-            m = Chem.AddHs(Chem.MolFromSmiles(s))
-            AllChem.EmbedMolecule(m, randomSeed=35)
-            m = rdkit_mol_to_wrapper_mol(m, charge=0, mol_id=len(molecules))
 
-            # m = pybel.readstring("smi", s).OBMol
-            # m.AddHydrogens()
-            # m = ob_mol_to_wrapper_mol(m, charge=0, mol_id=len(molecules))
+            # # create molecules
+            # m = Chem.AddHs(Chem.MolFromSmiles(s))
+            # AllChem.EmbedMolecule(m, randomSeed=35)
+            # m = rdkit_mol_to_wrapper_mol(m, charge=0, mol_id=len(molecules))
+
+            m = pybel.readstring("smi", s)
+            m.addh()
+            m.make3D()
+            m.localopt()
+            m = ob_mol_to_wrapper_mol(m.OBMol, charge=0, mol_id=len(molecules))
 
             molecules.append(m)
             smiles.append(s)

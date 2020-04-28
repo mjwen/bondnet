@@ -617,6 +617,18 @@ def rdkit_mol_to_wrapper_mol(m, charge=0, mol_id=None):
     return MoleculeWrapperFromAtomsAndBonds(species, coords, charge, bonds, mol_id)
 
 
+def ob_mol_to_wrapper_mol(m, charge=0, mol_id=None):
+
+    species = [a.GetAtomicNum() for a in ob.OBMolAtomIter(m)]
+    coords = [[a.GetX(), a.GetY(), a.GetZ()] for a in ob.OBMolAtomIter(m)]
+    bonds = [
+        sorted([b.GetBeginAtomIdx(), b.GetEndAtomIdx()]) for b in ob.OBMolBondIter(m)
+    ]
+    bonds = np.asarray(bonds) - 1  # convert to zero index
+
+    return MoleculeWrapperFromAtomsAndBonds(species, coords, charge, bonds, mol_id)
+
+
 def write_sdf_csv_dataset(
     molecules,
     struct_file="struct_mols.sdf",
