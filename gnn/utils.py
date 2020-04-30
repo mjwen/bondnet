@@ -97,15 +97,15 @@ def stat_cuda(msg):
     )
 
 
-def seed_torch(seed=35):
+def seed_torch(seed=35, cudnn_benchmark=False, cudnn_deterministic=False):
     random.seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)  # if using multi-GPU
-    torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = cudnn_benchmark
+    torch.backends.cudnn.deterministic = cudnn_deterministic
     dgl.random.seed(seed)
 
 
@@ -132,7 +132,7 @@ def save_checkpoints(
             logger.info(msg)
 
 
-def load_checkpoints(state_dict_objects, filename="checkpoint.pkl"):
+def load_checkpoints(state_dict_objects, map_location=None, filename="checkpoint.pkl"):
     """
     Load checkpoints for all objects for later recovery.
 
@@ -140,7 +140,7 @@ def load_checkpoints(state_dict_objects, filename="checkpoint.pkl"):
         state_dict_objects (dict): A dictionary of objects to save. The object should
             have state_dict() (e.g. model, optimizer, ...)
     """
-    checkpoints = torch.load(filename)
+    checkpoints = torch.load(filename, map_location)
     for k, obj in state_dict_objects.items():
         state_dict = checkpoints.pop(k)
         obj.load_state_dict(state_dict)
