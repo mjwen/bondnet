@@ -62,8 +62,9 @@ def read_nrel_bde_dataset(filename):
 
     # convert smiles to molecules
     smiles = sorted(unique_smiles, key=lambda k: unique_smiles[k])
+    # molecules = [smiles_to_molwrapper(s) for s in smiles]
     with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
-        molecules = p.map(get_mol, smiles)
+        molecules = p.map(smiles_to_molwrapper, smiles)
 
     # find unsuccessful conversion
     bad_mol_indices = {i for i, m in enumerate(molecules) if m is None}
@@ -104,25 +105,48 @@ def read_nrel_bde_dataset(filename):
     return reactions
 
 
-def get_mol(s):
-    """Create molecules from smiles string.
+def smiles_to_molwrapper(s):
+    """Convert a smiles molecule to a :class:`MoleculeWrapper` molecule.
+
+       3D coords are created using RDkit: embedding then MMFF force filed (or UFF force
+       field).
     """
+
+    # babel way to do it
+    # m = pybel.readstring("smi", s)
+    # m.addh()
+    # m.make3D()
+    # m.localopt()
+    # m = ob_mol_to_wrapper_mol(m.OBMol, charge=0, mol_id=s)
+
+    def optimize_till_converge(method, m):
+        maxiters = 200
+        while True:
+            error = method(m, maxIters=maxiters)
+            if error == 1:
+                maxiters *= 2
+            else:
+                return error
 
     try:
         # create molecules
         m = Chem.AddHs(Chem.MolFromSmiles(s))
-        AllChem.EmbedMolecule(m, randomSeed=35)
-        AllChem.MMFFOptimizeMolecule(m)
+
+        # embedding
+        error = AllChem.EmbedMolecule(m, randomSeed=35)
+        if error == -1:  # https://sourceforge.net/p/rdkit/mailman/message/33386856/
+            AllChem.EmbedMolecule(m, randomSeed=35, useRandomCoords=True)
+
+        # optimize, try MMFF first, if fails then UFF
+        error = optimize_till_converge(AllChem.MMFFOptimizeMolecule, m)
+        if error == -1:  # MMFF cannot be set up
+            optimize_till_converge(AllChem.UFFOptimizeMolecule, m)
+
         m = rdkit_mol_to_wrapper_mol(m, charge=0, mol_id=s)
 
-        # m = pybel.readstring("smi", s)
-        # m.addh()
-        # m.make3D()
-        # m.localopt()
-        # m = ob_mol_to_wrapper_mol(m.OBMol, charge=0, mol_id=s)
-
     # cannot convert smiles string to mol
-    except ValueError:
+    except ValueError as e:
+        logger.warning(f"Cannot convert smiles to mol: {e}")
         m = None
 
     return m
