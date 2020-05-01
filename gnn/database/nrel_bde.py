@@ -29,7 +29,6 @@ def read_nrel_bde_dataset(filename):
         except KeyError:
             idx = len(smiles)
             smiles[s] = idx
-
         return idx
 
     filename = expand_path(filename)
@@ -59,7 +58,6 @@ def read_nrel_bde_dataset(filename):
         reactions_by_smiles_idx.append((idx_r, idx_p1, idx_p2, rid, bde))
         if i % 1000 == 0:
             logger.info(f"Finding unique smiles; processing {i}/{len(selected_rxns)}")
-
     unique_smiles_index_to_smiles = {v: k for k, v in unique_smiles.items()}
 
     logger.info(f"Total number of molecules: {3*len(reactions_by_smiles_idx)}")

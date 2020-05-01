@@ -634,7 +634,7 @@ def ob_mol_to_wrapper_mol(m, charge=0, mol_id=None):
     return MoleculeWrapperFromAtomsAndBonds(species, coords, charge, bonds, mol_id)
 
 
-def smiles_to_wrapper_mol(s):
+def smiles_to_wrapper_mol(s, charge=0):
     """Convert a smiles molecule to a :class:`MoleculeWrapper` molecule.
 
        3D coords are created using RDkit: embedding then MMFF force filed (or UFF force
@@ -659,7 +659,8 @@ def smiles_to_wrapper_mol(s):
 
     try:
         # create molecules
-        m = Chem.AddHs(Chem.MolFromSmiles(s))
+        m = Chem.MolFromSmiles(s)
+        m = Chem.AddHs(m)
 
         # embedding
         error = AllChem.EmbedMolecule(m, randomSeed=35)
@@ -671,7 +672,7 @@ def smiles_to_wrapper_mol(s):
         if error == -1:  # MMFF cannot be set up
             optimize_till_converge(AllChem.UFFOptimizeMolecule, m)
 
-        m = rdkit_mol_to_wrapper_mol(m, charge=0, mol_id=s)
+        m = rdkit_mol_to_wrapper_mol(m, charge=charge, mol_id=s)
 
     # cannot convert smiles string to mol
     except ValueError as e:
