@@ -1,6 +1,7 @@
 import itertools
 import copy
 import logging
+import multiprocessing
 from collections.abc import Iterable
 import numpy as np
 import networkx as nx
@@ -72,8 +73,16 @@ class Reaction:
                     self.reactants[0], self.products[0], self.products[1], first_only=True
                 )
             if not bonds:
+                msg = f"Reaction id: {self.get_id()}. "
+                msg += "Reactants id: "
+                for m in self.reactants:
+                    msg += f"{m.id} "
+                msg += "Products id: "
+                for m in self.products:
+                    msg += f"{m.id} "
                 raise RuntimeError(
-                    "invalid reaction (cannot break a reactant bond to get products)"
+                    f"invalid reaction (cannot break a reactant bond to get products). "
+                    f"{msg}"
                 )
             # only one element in `bonds` because of `first_only = True`
             self._broken_bond = bonds[0]
@@ -1441,6 +1450,7 @@ class ReactionCollection:
             label_file (str): filename of the label
             feature_file (str): filename for the feature file, if `None`, do not write it
         """
+        logger.info("Start creating struct label feature files for rxn ntwk regression")
 
         # all molecules in existing reactions
         reactions = self.reactions
@@ -1448,11 +1458,12 @@ class ReactionCollection:
         mol_reservoir = sorted(mol_reservoir, key=lambda m: m.formula)
         mol_id_to_index_mapping = {m.id: i for i, m in enumerate(mol_reservoir)}
 
-        all_labels = []  # one per reaction
+        # use multiprocessing to get atom mappings since they are relatively expensive
+        with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
+            mappings = p.map(get_atom_bond_mapping, reactions)
 
-        # reactions: all reactions associated with a bond
-        for i, rxn in enumerate(reactions):
-            energy = rxn.get_free_energy()
+        all_labels = []  # one per reaction
+        for i, (rxn, mps) in enumerate(zip(reactions, mappings)):
 
             # change to index (in mol_reservoir) representation
             reactant_ids = [mol_id_to_index_mapping[m.id] for m in rxn.reactants]
@@ -1460,11 +1471,11 @@ class ReactionCollection:
 
             # bond mapping between product sdf and reactant sdf
             data = {
-                "value": energy,
+                "value": rxn.get_free_energy(),
                 "reactants": reactant_ids,
                 "products": product_ids,
-                "atom_mapping": rxn.atom_mapping(),
-                "bond_mapping": rxn.bond_mapping_by_sdf_int_index(),
+                "atom_mapping": mps[0],
+                "bond_mapping": mps[1],
                 "id": rxn.get_id(),
                 "index": i,
             }
@@ -1479,6 +1490,8 @@ class ReactionCollection:
         # write feature
         if feature_file is not None:
             self.write_feature(mol_reservoir, bond_indices=None, filename=feature_file)
+
+        logger.info("Finish creating struct label feature files for rxn ntwk regression")
 
     def create_struct_label_dataset_reaction_based_classification(
         self,
@@ -2543,3 +2556,9 @@ def get_same_bond_breaking_reactions_between_two_reaction_groups(
                 ) or (mgs1[0].isomorphic_to(mgs2[1]) and mgs1[1].isomorphic_to(mgs2[0])):
                     res.append((group1[b1], group2[b2]))
     return res
+
+
+def get_atom_bond_mapping(rxn):
+    atom_mp = rxn.atom_mapping()
+    bond_mp = rxn.bond_mapping_by_sdf_int_index()
+    return atom_mp, bond_mp
