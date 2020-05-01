@@ -634,6 +634,53 @@ def ob_mol_to_wrapper_mol(m, charge=0, mol_id=None):
     return MoleculeWrapperFromAtomsAndBonds(species, coords, charge, bonds, mol_id)
 
 
+def smiles_to_wrapper_mol(s):
+    """Convert a smiles molecule to a :class:`MoleculeWrapper` molecule.
+
+       3D coords are created using RDkit: embedding then MMFF force filed (or UFF force
+       field).
+    """
+
+    # babel way to do it
+    # m = pybel.readstring("smi", s)
+    # m.addh()
+    # m.make3D()
+    # m.localopt()
+    # m = ob_mol_to_wrapper_mol(m.OBMol, charge=0, mol_id=s)
+
+    def optimize_till_converge(method, m):
+        maxiters = 200
+        while True:
+            error = method(m, maxIters=maxiters)
+            if error == 1:
+                maxiters *= 2
+            else:
+                return error
+
+    try:
+        # create molecules
+        m = Chem.AddHs(Chem.MolFromSmiles(s))
+
+        # embedding
+        error = AllChem.EmbedMolecule(m, randomSeed=35)
+        if error == -1:  # https://sourceforge.net/p/rdkit/mailman/message/33386856/
+            AllChem.EmbedMolecule(m, randomSeed=35, useRandomCoords=True)
+
+        # optimize, try MMFF first, if fails then UFF
+        error = optimize_till_converge(AllChem.MMFFOptimizeMolecule, m)
+        if error == -1:  # MMFF cannot be set up
+            optimize_till_converge(AllChem.UFFOptimizeMolecule, m)
+
+        m = rdkit_mol_to_wrapper_mol(m, charge=0, mol_id=s)
+
+    # cannot convert smiles string to mol
+    except ValueError as e:
+        logger.warning(f"Cannot convert smiles to mol: {e}")
+        m = None
+
+    return m
+
+
 def write_sdf_csv_dataset(
     molecules,
     struct_file="struct_mols.sdf",
