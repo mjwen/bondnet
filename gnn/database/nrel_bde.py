@@ -1,4 +1,5 @@
 import logging
+import multiprocessing
 import pandas as pd
 from rdkit import Chem
 from rdkit.Chem import AllChem
@@ -39,71 +40,81 @@ def read_nrel_bde_dataset(filename):
             rxn_set.add(rxn)
             selected_rxns.append(row)
 
-    print("Number of reactions:", df.shape[0])
-    print("Duplicate reactions:", df.shape[0] - len(selected_rxns))
-    print("Remaining reactions:", len(selected_rxns))
+    logger.info(f"Number of reactions: {df.shape[0]}")
+    logger.info(f"Duplicate reactions: {df.shape[0] - len(selected_rxns)}")
+    logger.info(f"Remaining reactions: {len(selected_rxns)}")
 
-    def get_mol(smiles, molecules, s):
-        """get molecules; create if not exist
-        """
-        try:
-            idx = smiles.index(s)
-            m = molecules[idx]
+    # find a unique smiles and represent reactions by index in it
+    unique_smiles = {}
+    reactions_by_smiles_idx = []
+    for i, rxn in enumerate(selected_rxns):
+        idx, rid, reactant, bond_index, product1, product2, bde, bond_type = rxn
+        idx_r = get_idx(unique_smiles, reactant)
+        idx_p1 = get_idx(unique_smiles, product1)
+        idx_p2 = get_idx(unique_smiles, product2)
+        reactions_by_smiles_idx.append((idx_r, idx_p1, idx_p2, rid, bde))
+        if i % 1000 == 0:
+            logger.info(f"Finding unique smiles; processing {i}/{len(selected_rxns)}")
 
-        except ValueError:  # not in mol reservoir
+    logger.info(f"Total number of molecules: {3*len(reactions_by_smiles_idx)}")
+    logger.info(f"Unique molecules: {len(unique_smiles)}")
 
-            # try:
+    # convert smiles to molecules
+    unique_smiles = sorted(unique_smiles, key=lambda k: unique_smiles[k])
 
-            # # create molecules
-            # m = Chem.AddHs(Chem.MolFromSmiles(s))
-            # AllChem.EmbedMolecule(m, randomSeed=35)
-            # m = rdkit_mol_to_wrapper_mol(m, charge=0, mol_id=len(molecules))
-
-            m = pybel.readstring("smi", s)
-            m.addh()
-            m.make3D()
-            m.localopt()
-            m = ob_mol_to_wrapper_mol(m.OBMol, charge=0, mol_id=len(molecules))
-
-            molecules.append(m)
-            smiles.append(s)
-
-        # except ValueError:  # cannot convert smiles string to mol
-        #     m = None
-
-        return m
+    with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
+        molecules = p.map(get_mol, unique_smiles)
 
     # convert to reactions
-    # molecules with same smiles string will be created once and shared
-    molecule_smiles = []
-    molecules = []
     reactions = []
-    for rxn in selected_rxns:
-        idx, rid, reactant, bond_index, product1, product2, bde, bond_type = rxn
-        r = get_mol(molecule_smiles, molecules, reactant)
-        if r is None:
-            continue
-        p1 = get_mol(molecule_smiles, molecules, product1)
-        if p1 is None:
-            continue
-        p2 = get_mol(molecule_smiles, molecules, product2)
-        if p2 is None:
-            continue
-
+    for idx_r, idx_p1, idx_p2, rid, bde in reactions_by_smiles_idx:
         reactions.append(
             Reaction(
-                reactants=[r],
-                products=[p1, p2],
+                reactants=[molecules[idx_r]],
+                products=[molecules[idx_p1], molecules[idx_p2]],
                 broken_bond=None,
                 free_energy=bde,
                 identifier=rid,
             )
         )
 
-    print("Number of eactions after conversion:", len(reactions))
-    print("Unique molecules in all reactions:", len(molecules))
+    logger.info(f"Finish converting {len(reactions)} reactions")
 
     return reactions
+
+
+def get_mol(s):
+    """Create molecules from smiles string.
+    """
+
+    try:
+        # create molecules
+        m = Chem.AddHs(Chem.MolFromSmiles(s))
+        AllChem.EmbedMolecule(m, randomSeed=35)
+        AllChem.MMFFOptimizeMolecule(m)
+        m = rdkit_mol_to_wrapper_mol(m, charge=0, mol_id=s)
+
+        # m = pybel.readstring("smi", s)
+        # m.addh()
+        # m.make3D()
+        # m.localopt()
+        # m = ob_mol_to_wrapper_mol(m.OBMol, charge=0, mol_id=s)
+
+    # cannot convert smiles string to mol
+    except ValueError:
+        m = None
+
+    return m
+
+
+def get_idx(smiles, s):
+    try:
+        idx = smiles[s]
+    except KeyError:
+        idx = len(smiles)
+        smiles[s] = idx
+
+    return idx
 
 
 if __name__ == "__main__":

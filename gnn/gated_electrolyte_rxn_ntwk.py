@@ -330,10 +330,15 @@ def main(args):
     # sdf_file = "~/Applications/db_access/mol_builder/struct_rxn_ntwk_rgrn_n200.sdf"
     # label_file = "~/Applications/db_access/mol_builder/label_rxn_ntwk_rgrn_n200.yaml"
     # feature_file = "~/Applications/db_access/mol_builder/feature_rxn_ntwk_rgrn_n200.yaml"
-    sdf_file = "~/Applications/db_access/zinc_bde/zinc_struct_rxn_ntwk_rgrn_n200.sdf"
-    label_file = "~/Applications/db_access/zinc_bde/zinc_label_rxn_ntwk_rgrn_n200.yaml"
+    # sdf_file = "~/Applications/db_access/zinc_bde/zinc_struct_rxn_ntwk_rgrn_n200.sdf"
+    # label_file = "~/Applications/db_access/zinc_bde/zinc_label_rxn_ntwk_rgrn_n200.yaml"
+    # feature_file = (
+    #     "~/Applications/db_access/zinc_bde/zinc_feature_rxn_ntwk_rgrn_n200.yaml"
+    # )
+    sdf_file = "~/Applications/db_access/nrel_bde/nrel_struct_rxn_ntwk_rgrn_n200.sdf"
+    label_file = "~/Applications/db_access/nrel_bde/nrel_label_rxn_ntwk_rgrn_n200.yaml"
     feature_file = (
-        "~/Applications/db_access/zinc_bde/zinc_feature_rxn_ntwk_rgrn_n200.yaml"
+        "~/Applications/db_access/nrel_bde/nrel_feature_rxn_ntwk_rgrn_n200.yaml"
     )
 
     if args.restore:

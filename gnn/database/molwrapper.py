@@ -607,7 +607,12 @@ class MoleculeWrapperFromAtomsAndBonds(MoleculeWrapper):
 def rdkit_mol_to_wrapper_mol(m, charge=0, mol_id=None):
 
     species = [m.GetAtomWithIdx(i).GetSymbol() for i in range(m.GetNumAtoms())]
-    coords = m.GetConformer().GetPositions()
+
+    # coords = m.GetConformer().GetPositions()
+    # NOTE, the above way to get coords results in segfault on linux, so we use the below
+    # workaround
+    conformer = m.GetConformer()
+    coords = [[x for x in conformer.GetAtomPosition(i)] for i in range(m.GetNumAtoms())]
 
     bonds = []
     for i in range(m.GetNumBonds()):

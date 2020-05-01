@@ -18,7 +18,7 @@ from gnn.database.predictor import (
     PredictionBySmilesReaction,
     PredictionByStructLabelFeatFiles,
 )
-from gnn.utils import load_checkpoints
+from gnn.utils import yaml_load, load_checkpoints
 
 
 def parse_args():
@@ -216,6 +216,18 @@ def main(args):
 
     # evaluate
     predictions = evaluate(model, feature_names, data_loader)
+
+    # in case some entry fail
+    if len(predictions) != len(dataset):
+        pred = []
+        idx = 0
+        for entry_id, failed in dataset.failed:
+            if failed:
+                pred.append(None)
+            else:
+                pred.append(predictions[idx])
+                idx += 1
+        predictions = pred
 
     # write the results
     predictor.write_results(predictions, args.outfile)

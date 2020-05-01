@@ -213,7 +213,7 @@ def bond_label_fraction(top_n=2):
     print("### number of bonds in dataset (mean):", np.mean(num_bonds))
     print("### number of bonds in dataset (median):", np.median(num_bonds))
     for i, fr in enumerate(frac):
-        print(f"### label{i} bond ratio in dataset (mean): {np.mean(fr)}",)
+        print(f"### label{i} bond ratio in dataset (mean): {np.mean(fr)}")
         print(f"### label{i} bond ratio in dataset (mean): {np.median(fr)}")
 
 
