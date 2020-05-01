@@ -12,8 +12,8 @@ from rdkit import Chem
 from gnn.data.dataset import BaseDataset
 from gnn.data.transformers import StandardScaler, GraphFeatureStandardScaler
 from gnn.data.reaction_network import Reaction, ReactionNetwork
-from gnn.utils import yaml_load, np_split_by_size
 from gnn.data.utils import get_dataset_species
+from gnn.utils import yaml_load, np_split_by_size
 
 
 logger = logging.getLogger(__name__)
@@ -592,29 +592,32 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
         # create reaction
         reactions = []
         self.labels = []
+        self._failed = OrderedDict()
         for i, lb in enumerate(raw_labels):
             mol_ids = lb["reactants"] + lb["products"]
-            corrupted = False
+
             for d in mol_ids:
+                # ignore reaction whose reactants or products molecule is None
                 if d not in graphs_not_none_indices:
-                    corrupted = True
+                    self._failed[lb["id"]] = True
                     break
-            # ignore reaction whose reactants or products molecule is None
-            if corrupted:
-                continue
-            rxn = Reaction(
-                reactants=lb["reactants"],
-                products=lb["products"],
-                atom_mapping=lb["atom_mapping"],
-                bond_mapping=lb["bond_mapping"],
-                id=lb["id"],
-            )
-            reactions.append(rxn)
-            label = {
-                "value": torch.tensor(lb["value"], dtype=getattr(torch, self.dtype)),
-                "id": lb["id"],
-            }
-            self.labels.append(label)
+            else:
+                rxn = Reaction(
+                    reactants=lb["reactants"],
+                    products=lb["products"],
+                    atom_mapping=lb["atom_mapping"],
+                    bond_mapping=lb["bond_mapping"],
+                    id=lb["id"],
+                )
+                reactions.append(rxn)
+                label = {
+                    "value": torch.tensor(lb["value"], dtype=getattr(torch, self.dtype)),
+                    "id": lb["id"],
+                }
+                self.labels.append(label)
+
+                self._failed[lb["id"]] = False
+
         self.reaction_ids = list(range(len(reactions)))
 
         # create reaction network

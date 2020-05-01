@@ -20,10 +20,17 @@ def read_nrel_bde_dataset(filename):
         filename (str): csv file containing the bde info
 
     Returns:
-        mols (list): a sequence of :class:`MoleculeWrapper`.
-        energies (list of dict): bond energies. Each dict for one molecule, with bond
-            index (a tuple) as key and bond energy as value.
+        list: a sequence of :class:`gnn.database.reaction.Reaction`
     """
+
+    def get_idx(smiles, s):
+        try:
+            idx = smiles[s]
+        except KeyError:
+            idx = len(smiles)
+            smiles[s] = idx
+
+        return idx
 
     filename = expand_path(filename)
     df = pd.read_csv(filename, header=0, index_col=None)
@@ -53,11 +60,12 @@ def read_nrel_bde_dataset(filename):
         if i % 1000 == 0:
             logger.info(f"Finding unique smiles; processing {i}/{len(selected_rxns)}")
 
-    logger.info(f"Total number of molecules: {3*len(reactions_by_smiles_idx)}")
-    logger.info(f"Unique molecules: {len(unique_smiles)}")
     unique_smiles_index_to_smiles = {v: k for k, v in unique_smiles.items()}
 
-    # convert smiles to molecules
+    logger.info(f"Total number of molecules: {3*len(reactions_by_smiles_idx)}")
+    logger.info(f"Unique molecules: {len(unique_smiles)}")
+
+    # convert smiles to wrapper molecules
     smiles = sorted(unique_smiles, key=lambda k: unique_smiles[k])
     # molecules = [smiles_to_wrapper_mol(s) for s in smiles]
     with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
@@ -100,17 +108,3 @@ def read_nrel_bde_dataset(filename):
     logger.info(f"Finish converting {len(reactions)} reactions")
 
     return reactions
-
-
-def get_idx(smiles, s):
-    try:
-        idx = smiles[s]
-    except KeyError:
-        idx = len(smiles)
-        smiles[s] = idx
-
-    return idx
-
-
-if __name__ == "__main__":
-    rxns = read_nrel_bde_dataset("~/Documents/Dataset/NREL_BDE/rdf_data_190531_n200.csv")

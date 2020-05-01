@@ -25,16 +25,16 @@ def parse_args():
     parser = argparse.ArgumentParser(description="BDENet bond energy predictor")
 
     parser.add_argument(
-        "-i", "--infile", type=str, help="name of input file storing the molecules",
+        "-i", "--infile", type=str, help="name of input file storing the molecules"
     )
     parser.add_argument(
-        "-o", "--outfile", type=str, help="name of output file for the results",
+        "-o", "--outfile", type=str, help="name of output file for the results"
     )
     parser.add_argument(
-        "-m", "--molecule", type=str, help="smiles string of the molecule",
+        "-m", "--molecule", type=str, help="smiles string of the molecule"
     )
     parser.add_argument(
-        "-c", "--charge", type=int, default=0, help="charge of the molecule",
+        "-c", "--charge", type=int, default=0, help="charge of the molecule"
     )
     parser.add_argument(
         "-t",
@@ -212,16 +212,16 @@ def main(args):
         outdim=1,
         conv="GatedGCNConv",
     )
-    load_checkpoints({"model": model}, os.path.join(model_dir, "checkpoint.pkl"))
+    load_checkpoints({"model": model}, filename=os.path.join(model_dir, "checkpoint.pkl"))
 
     # evaluate
     predictions = evaluate(model, feature_names, data_loader)
 
     # in case some entry fail
-    if len(predictions) != len(dataset):
+    if len(predictions) != len(dataset.failed):
         pred = []
         idx = 0
-        for entry_id, failed in dataset.failed:
+        for entry_id, failed in dataset.failed.items():
             if failed:
                 pred.append(None)
             else:

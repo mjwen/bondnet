@@ -119,11 +119,7 @@ class PredictionBySmilesReaction:
             reactions.append(
                 # free_energy is not used, we provide 0.0 taking the place
                 Reaction(
-                    reactants,
-                    products,
-                    broken_bond=None,
-                    free_energy=0.0,
-                    identifier=idx,
+                    reactants, products, broken_bond=None, free_energy=0.0, identifier=idx
                 )
             )
 
@@ -146,12 +142,27 @@ class PredictionBySmilesReaction:
             struct_file, label_file, feature_file
         )
 
-    def write_results(self, predictions, filename):
+    def write_results(self, predictions, filename="bde_result.csv"):
         """
         Append prediction as the last column of a dataframe and write csv file.
         """
         df = pd.read_csv(self.filename, header=0, index_col=None)
         df["bond_energy"] = predictions
+
+        failed = []
+        for i, p in enumerate(predictions):
+            if p is None:
+                row = df.iloc[i]
+                failed.append(str(d["id"]))
+
+        # if any failed
+        if failed:
+            msg = ", ".join(failed)
+            print(
+                f"These reactions failed when converting their molecules, and therefore "
+                f"predictions for them are not made: {msg}"
+            )
+
         filename = expand_path(filename) if filename is not None else filename
         rst = df.to_csv(filename, index=False)
         if rst is not None:
@@ -181,13 +192,28 @@ class PredictionByStructLabelFeatFiles:
     def convert_format(self):
         return self.struct_file, self.label_file, self.feature_file
 
-    def write_results(self, predictions, filename):
+    def write_results(self, predictions, filename="bed_result.yaml"):
         """
-        Append prediction as the last column of a dataframe and write csv file.
+        Add prediction value as 'prediction' of each reaction (given by a dict) in the
+        label file.
         """
         labels = yaml_load(self.label_file)
-        for d, pred in zip(labels, predictions):
-            d["prediction"] = float(pred)
+
+        failed = []
+        for d, p in zip(labels, predictions):
+            if p is None:
+                failed.append(str(d["id"]))
+                d["prediction"] = p
+            else:
+                d["prediction"] = float(p)
+
+        # if any failed
+        if failed:
+            msg = ", ".join(failed)
+            print(
+                f"These reactions failed when converting their molecules, and therefore "
+                f"predictions for them are not made: {msg}"
+            )
 
         filename = expand_path(filename) if filename is not None else filename
         if filename is not None:

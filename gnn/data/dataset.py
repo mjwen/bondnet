@@ -70,6 +70,7 @@ class BaseDataset:
         self._label_scaler_mean = None
         self._label_scaler_std = None
         self._species = None
+        self._failed = None
 
         self._load()
 
@@ -107,6 +108,18 @@ class BaseDataset:
         assert len(ntypes) == len(size), msg
 
         return size
+
+    @property
+    def failed(self):
+        """
+        Whether an entry (molecule, reaction) fails upon converting using rdkit.
+
+        Returns:
+            dict: with entry id as the key and a bool as the key to indicate it fails
+                or not
+            None: is this info is not set
+        """
+        return self._failed
 
     def state_dict(self):
         d = {
