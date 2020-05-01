@@ -45,7 +45,7 @@ def read_nrel_bde_dataset(filename):
     logger.info(f"Remaining reactions: {len(selected_rxns)}")
 
     # find a unique smiles and represent reactions by index in it
-    unique_smiles = {}
+    unique_smiles = {}  # smiles as key, index as value
     reactions_by_smiles_idx = []
     for i, rxn in enumerate(selected_rxns):
         idx, rid, reactant, bond_index, product1, product2, bde, bond_type = rxn
@@ -58,25 +58,46 @@ def read_nrel_bde_dataset(filename):
 
     logger.info(f"Total number of molecules: {3*len(reactions_by_smiles_idx)}")
     logger.info(f"Unique molecules: {len(unique_smiles)}")
+    unique_smiles_index_to_smiles = {v: k for k, v in unique_smiles.items()}
 
     # convert smiles to molecules
-    unique_smiles = sorted(unique_smiles, key=lambda k: unique_smiles[k])
-
+    smiles = sorted(unique_smiles, key=lambda k: unique_smiles[k])
     with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
-        molecules = p.map(get_mol, unique_smiles)
+        molecules = p.map(get_mol, smiles)
+
+    # find unsuccessful conversion
+    bad_mol_indices = {i for i, m in enumerate(molecules) if m is None}
+    if bad_mol_indices:
+        bad_ones = ""
+        for idx in bad_mol_indices:
+            bad_ones += f"{unique_smiles_index_to_smiles[idx]}, "
+        logger.warning(f"Bad mol; (rdkit conversion failed): {bad_ones}")
 
     # convert to reactions
     reactions = []
     for idx_r, idx_p1, idx_p2, rid, bde in reactions_by_smiles_idx:
-        reactions.append(
-            Reaction(
-                reactants=[molecules[idx_r]],
-                products=[molecules[idx_p1], molecules[idx_p2]],
-                broken_bond=None,
-                free_energy=bde,
-                identifier=rid,
+        for i in (idx_r, idx_p1, idx_p2):
+            if i in bad_mol_indices:
+                logger.warning(
+                    "Ignore bad reaction (conversion its mol failed): "
+                    "{} -> {} + {}. Bad mol is: {}".format(
+                        unique_smiles_index_to_smiles[idx_r],
+                        unique_smiles_index_to_smiles[idx_p1],
+                        unique_smiles_index_to_smiles[idx_p2],
+                        unique_smiles_index_to_smiles[i],
+                    )
+                )
+                break
+        else:
+            reactions.append(
+                Reaction(
+                    reactants=[molecules[idx_r]],
+                    products=[molecules[idx_p1], molecules[idx_p2]],
+                    broken_bond=None,
+                    free_energy=bde,
+                    identifier=rid,
+                )
             )
-        )
 
     logger.info(f"Finish converting {len(reactions)} reactions")
 
@@ -118,7 +139,4 @@ def get_idx(smiles, s):
 
 
 if __name__ == "__main__":
-
-    reactions = read_nrel_bde_dataset(
-        "~/Documents/Dataset/NREL_BDE/rdf_data_190531_n200.csv"
-    )
+    rxns = read_nrel_bde_dataset("~/Documents/Dataset/NREL_BDE/rdf_data_190531_n200.csv")
