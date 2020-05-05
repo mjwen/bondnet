@@ -16,6 +16,7 @@ from gnn.data.featurizer import (
 )
 from gnn.database.predictor import (
     PredictionBySmilesReaction,
+    PredictionBySDFChargeReactionFiles,
     PredictionByStructLabelFeatFiles,
 )
 from gnn.utils import yaml_load, load_checkpoints
@@ -25,7 +26,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="BDENet bond energy predictor")
 
     parser.add_argument(
-        "-i", "--infile", type=str, help="name of input file storing the molecules"
+        "-i", "--infile", type=str, nargs="+", help="name of input files",
     )
     parser.add_argument(
         "-o", "--outfile", type=str, help="name of output file for the results"
@@ -41,7 +42,7 @@ def parse_args():
         "--format",
         type=str,
         default="smi",
-        choices=["smi", "sdf"],
+        choices=["smi", "sdf", "internal"],
         help="format of the molecules",
     )
     parser.add_argument(
@@ -73,8 +74,6 @@ def parse_args():
 
 def get_predictor(args):
 
-    # TODO add support for other format
-
     # for now, we only support file node
     # args.infile = "/Users/mjwen/Applications/db_access/prediction/smiles_reactions.csv"
     # args.outfile = "smiles_reactions_rst.csv"
@@ -83,8 +82,7 @@ def get_predictor(args):
         print("To see the usage: `python predict_gated_electrolyte_rxn_ntwk.py -h`")
         sys.exit(0)
 
-    unsupported = False
-
+    supported = False
     if args.format == "smi":
 
         # single smiles string
@@ -92,28 +90,54 @@ def get_predictor(args):
             raise NotImplementedError
 
         # smiles csv file
-        elif args.infile is not None:
-            predictor = PredictionBySmilesReaction(args.infile)
+        elif args.infile is not None and len(args.infile) == 1:
+            fname = args.infile[0]
+            predictor = PredictionBySmilesReaction(fname)
             sdf_file = "/tmp/struct.sdf"
             label_file = "/tmp/label.yaml"
             feature_file = "/tmp/feature.yaml"
             predictor.convert_format(sdf_file, label_file, feature_file)
+            supported = True
 
-        else:
-            unsupported = True
-
+    # sdf 3 files: mol (in sdf), charge (in plain text), reaction (csv)
     elif args.format == "sdf":
+        if args.infile is not None and len(args.infile) == 3:
+            mol_file, cg_file, rxn_file = args.infile
+            predictor = PredictionBySDFChargeReactionFiles(mol_file, cg_file, rxn_file)
+            sdf_file = "/tmp/struct.sdf"
+            label_file = "/tmp/label.yaml"
+            feature_file = "/tmp/feature.yaml"
+            predictor.convert_format(sdf_file, label_file, feature_file)
+            supported = True
 
-        # sdf file
-        if args.infile is not None:
+    # internal 3 files: sdf file, label file, feature file
+    elif args.format == "interal":
+        if args.infile is not None and len(args.infile) == 3:
             predictor = PredictionByStructLabelFeatFiles(args.infile)
             sdf_file, label_file, feature_file = predictor.convert_format()
-        else:
-            unsupported = True
+            supported = True
 
-    if unsupported:
-        print("Unsupported combinatoin of arguments combination.")
-        print("To see the usage: `python predict_gated_electrolyte_rxn_ntwk.py -h`")
+    if not supported:
+        msg = "Unsupported arguments combination. Examples are:\n"
+
+        # smiles csv file
+        msg += (
+            "python predict_gated_electrolyte_rxn_ntwk.py  "
+            "-i smiles_rxns.csv  "
+            "-o results.csv\n"
+        )
+
+        # sdf 3 files: mol (in sdf), charge (in plain text), reaction (csv)
+        msg += (
+            "python predict_gated_electrolyte_rxn_ntwk.py  "
+            "-t sdf  "
+            "-i molecules.sdf charges.txt reactions.csv  "
+            "-o results.csv\n"
+        )
+
+        msg += "For more: python predict_gated_electrolyte_rxn_ntwk.py -h\n"
+
+        print(msg)
         sys.exit(0)
 
     return predictor, sdf_file, label_file, feature_file
