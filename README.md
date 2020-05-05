@@ -48,15 +48,20 @@ at: `gnn/gnn/predict_gated_electrolyte_rxn_ntwk.py`.
     ```bash
     python predict_gated_electrolyte_rxn_ntwk.py -m C1COC(=O)O1  
     ```
-2. smiles molecules and fragments given in a csv file 
-(e.g. [smiles_reactions.csv](https://github.com/mjwen/gnn/blob/stable/gnn/pre_trained/examples/smiles_reactions.csv) )
+2. smiles molecules given in a csv file 
+(e.g. [smiles_reactions.csv](https://github.com/mjwen/gnn/blob/stable/gnn/pre_trained/examples/smiles_reactions.csv). 
+ See [README](https://github.com/mjwen/gnn/blob/stable/gnn/pre_trained/examples/README.md)
+   there for its format.)
     ```bash
-    python predict_gated_electrolyte_rxn_ntwk.py -i smiles_reactions.csv -o results.csv 
+    python predict_gated_electrolyte_rxn_ntwk.py  -i smiles_reactions.csv  -o results.csv 
     ```
   
-3. molecules in sdf file and a yaml file specifying the bond breaking reactions
+3. molecules in an sdf file, charges in a plain text file, and reactions in a csv file
+ (see [here](https://github.com/mjwen/gnn/blob/stable/gnn/pre_trained/examples) for
+  examples and the [README](https://github.com/mjwen/gnn/blob/stable/gnn/pre_trained/examples/README.md)
+   there for formats of the files.):
     ```bash
-    python predict_gated_electrolyte_rxn_ntwk.py -t sdf -i sdf_label.txt -o results.yaml
+    python predict_gated_electrolyte_rxn_ntwk.py  -t sdf  -i molecules.sdf charges.txt reactions.csv  -o results.csv
     ```
 
 

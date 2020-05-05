@@ -27,7 +27,7 @@ class PredictionBySmilesReaction:
             The latter assumes charge of all molecules are zero.
 
             If there is only one fragment (e.g. break a bond in a ring), fragment2 and
-            charge_fragments should be blank, and the above two format becomes (Don't
+            charge_fragment2 should be blank, and the above two format becomes (Don't
             forget the trailing comma):
 
             reactant,fragment1,,charge_reactant,charge_fragment1,
