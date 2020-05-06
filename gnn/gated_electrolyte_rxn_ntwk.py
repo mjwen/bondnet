@@ -5,10 +5,12 @@ import warnings
 import torch
 import argparse
 import numpy as np
-import pandas as pd
 from datetime import datetime
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.nn import MSELoss
+import torch.distributed as dist
+import torch.multiprocessing as mp
+from torch.nn.parallel import DistributedDataParallel as DDP
 from gnn.metric import WeightedL1Loss, EarlyStopping
 from gnn.model.gated_reaction_network import GatedGCNReactionNetwork
 from gnn.data.dataset import train_validation_test_split
@@ -16,7 +18,6 @@ from gnn.data.electrolyte import ElectrolyteReactionNetworkDataset
 from gnn.data.dataloader import DataLoaderReactionNetwork
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import AtomFeaturizer, BondAsNodeFeaturizer, MolWeightFeaturizer
-from gnn.post_analysis import write_error
 from gnn.utils import (
     load_checkpoints,
     save_checkpoints,
@@ -24,6 +25,8 @@ from gnn.utils import (
     pickle_dump,
     yaml_dump,
 )
+
+best = np.finfo(np.float32).max
 
 
 def parse_args():
@@ -64,7 +67,6 @@ def parse_args():
     parser.add_argument("--fc-dropout", type=float, default=0.0)
 
     # training
-    parser.add_argument("--gpu", type=int, default=-1, help="GPU index. -1 to use CPU.")
     parser.add_argument("--start-epoch", type=int, default=0)
     parser.add_argument("--epochs", type=int, default=1000, help="number of epochs")
     parser.add_argument("--batch-size", type=int, default=100, help="batch size")
@@ -72,22 +74,36 @@ def parse_args():
     parser.add_argument("--weight-decay", type=float, default=0.0, help="weight decay")
     parser.add_argument("--restore", type=int, default=0, help="read checkpoints")
     parser.add_argument(
-        "--dataset-state-dict-filename", type=str, default="dataset_state_dict.pkl",
+        "--dataset-state-dict-filename", type=str, default="dataset_state_dict.pkl"
     )
+    # gpu
+    parser.add_argument(
+        "--gpu", type=int, default=None, help="GPU index. None to use CPU."
+    )
+    parser.add_argument(
+        "--distributed",
+        type=int,
+        default=0,
+        help="DDP training, --gpu is ignored if this is True",
+    )
+    parser.add_argument(
+        "--num-gpu",
+        type=int,
+        default=None,
+        help="Number of GPU to use in distributed mode; ignored otherwise.",
+    )
+    parser.add_argument(
+        "--dist-url",
+        default="tcp://localhost:13456",
+        type=str,
+        help="url used to set up distributed training",
+    )
+    parser.add_argument("--dist-backend", type=str, default="nccl")
 
     # output file (needed by hypertunity)
     parser.add_argument("--output_file", type=str, default="results.pkl")
 
-    parser.add_argument(
-        "--post-analysis", type=str, default="none", help="post analysis type"
-    )
-
     args = parser.parse_args()
-
-    if args.gpu >= 0 and torch.cuda.is_available():
-        args.device = torch.device("cuda:{}".format(args.gpu))
-    else:
-        args.device = None
 
     if len(args.gated_hidden_size) == 1:
         args.gated_hidden_size = args.gated_hidden_size * args.gated_num_layers
@@ -116,8 +132,8 @@ def parse_args():
 
     if len(args.fc_hidden_size) == 1:
         # val = args.fc_hidden_size[0]
-        val = args.gated_hidden_size[-1]
-        args.fc_hidden_size = [val // 2 ** i for i in range(args.fc_num_layers)]
+        val = 2 * args.gated_hidden_size[-1]
+        args.fc_hidden_size = [max(val // 2 ** i, 8) for i in range(args.fc_num_layers)]
     else:
         assert len(args.fc_hidden_size) == args.fc_num_layers, (
             "length of `fc-hidden-size` should be equal to `num-fc-layers`, but got "
@@ -210,106 +226,6 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
     return accuracy / count
 
 
-def write_features(
-    model, nodes, all_data_loader, feat_filename, meta_filename, device=None
-):
-    model.eval()
-
-    all_feature = []
-    all_label = []
-    all_ids = []
-    loader_names = []
-
-    with torch.no_grad():
-        for name, data_loader in all_data_loader.items():
-
-            feature_data = []
-            label_data = []
-            ids = []
-            for bg, label in data_loader:
-                feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-                norm_atom = label["norm_atom"]
-                norm_bond = label["norm_bond"]
-
-                if device is not None:
-                    feats = {k: v.to(device) for k, v in feats.items()}
-                    norm_atom = norm_atom.to(device)
-                    norm_bond = norm_bond.to(device)
-
-                feats = model.feature_before_fc(
-                    bg, feats, label["reaction"], norm_atom, norm_bond
-                )
-
-                feature_data.append(feats.cpu().numpy())
-
-                target = (
-                    torch.mul(label["value"], label["scaler_stdev"])
-                    + label["scaler_mean"]
-                )
-                label_data.append(target.numpy())
-                ids.append([rxn.id for rxn in label["reaction"]])
-
-            all_feature.append(np.concatenate(feature_data))
-            all_label.append(np.concatenate(label_data))
-            all_ids.append(np.concatenate(ids))
-            loader_names.append(name)
-
-    # features
-    feats = np.concatenate(all_feature)
-
-    # metadata
-    loader_source = [[nm] * len(lb) for nm, lb in zip(loader_names, all_label)]
-    metadata = {
-        "ids": np.concatenate(all_ids),
-        "energy": np.concatenate(all_label),
-        "loader": np.concatenate(loader_source),
-    }
-
-    # write files
-    df = pd.DataFrame(feats)
-    df.to_csv(feat_filename, sep="\t", header=False, index=False)
-    df = pd.DataFrame(metadata)
-    df.to_csv(meta_filename, sep="\t", index=False)
-
-
-def error_analysis(model, nodes, data_loader, filename, device=None):
-    model.eval()
-
-    predictions = []
-    targets = []
-    ids = []
-
-    with torch.no_grad():
-
-        for bg, label in data_loader:
-            feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-            tgt = label["value"]
-            mean = label["scaler_mean"]
-            stdev = label["scaler_stdev"]
-            norm_atom = label["norm_atom"]
-            norm_bond = label["norm_bond"]
-
-            if device is not None:
-                feats = {k: v.to(device) for k, v in feats.items()}
-                norm_atom = norm_atom.to(device)
-                norm_bond = norm_bond.to(device)
-
-            pred = model(bg, feats, label["reaction"], norm_atom, norm_bond)
-            pred = pred.view(-1)
-
-            pred = pred.cpu() * stdev + mean
-            tgt = tgt * stdev + mean
-            predictions.append(pred.numpy())
-            targets.append(tgt.numpy())
-            ids.append([rxn.id for rxn in label["reaction"]])
-
-    predictions = np.concatenate(predictions)
-    targets = np.concatenate(targets)
-    ids = np.concatenate(ids)
-
-    write_error(predictions, targets, ids, sort=True, filename=filename)
-
-
 def get_grapher():
     atom_featurizer = AtomFeaturizer()
     bond_featurizer = BondAsNodeFeaturizer(length_featurizer=None)
@@ -323,8 +239,23 @@ def get_grapher():
     return grapher
 
 
-def main(args):
-    print("\n\nStart training at:", datetime.now())
+def main_worker(gpu, world_size, args):
+    global best
+    args.gpu = gpu
+
+    if not args.distributed or (args.distributed and args.gpu == 0):
+        print("\n\nStart training at:", datetime.now())
+
+    if args.distributed:
+        dist.init_process_group(
+            args.dist_backend,
+            init_method=args.dist_url,
+            world_size=world_size,
+            rank=args.gpu,
+        )
+        # Explicitly setting seed to make sure that models created in two processes
+        # start from same random weights and biases.
+        seed_torch()
 
     ### dataset
     # sdf_file = "~/Applications/db_access/mol_builder/struct_rxn_ntwk_rgrn_n200.sdf"
@@ -333,7 +264,7 @@ def main(args):
     # sdf_file = "~/Applications/db_access/zinc_bde/zinc_struct_rxn_ntwk_rgrn_n200.sdf"
     # label_file = "~/Applications/db_access/zinc_bde/zinc_label_rxn_ntwk_rgrn_n200.yaml"
     # feature_file = (
-    #     "~/Applications/db_access/zinc_bde/zinc_feature_rxn_ntwk_rgrn_n200.yaml"
+    #    "~/Applications/db_access/zinc_bde/zinc_feature_rxn_ntwk_rgrn_n200.yaml"
     # )
     sdf_file = "~/Applications/db_access/nrel_bde/nrel_struct_rxn_ntwk_rgrn_n200.sdf"
     label_file = "~/Applications/db_access/nrel_bde/nrel_label_rxn_ntwk_rgrn_n200.yaml"
@@ -343,6 +274,7 @@ def main(args):
 
     if args.restore:
         dataset_state_dict_filename = args.dataset_state_dict_filename
+
         if dataset_state_dict_filename is None:
             warnings.warn("Restore with `args.dataset_state_dict_filename` set to None.")
         if not os.path.exists(dataset_state_dict_filename):
@@ -363,19 +295,30 @@ def main(args):
         label_transformer=True,
         state_dict_filename=dataset_state_dict_filename,
     )
-    torch.save(dataset.state_dict(), args.dataset_state_dict_filename)
 
     trainset, valset, testset = train_validation_test_split(
         dataset, validation=0.1, test=0.1
     )
-    print(
-        "Trainset size: {}, valset size: {}: testset size: {}.".format(
-            len(trainset), len(valset), len(testset)
+
+    if not args.distributed or (args.distributed and args.gpu == 0):
+        torch.save(dataset.state_dict(), args.dataset_state_dict_filename)
+
+        print(
+            "Trainset size: {}, valset size: {}: testset size: {}.".format(
+                len(trainset), len(valset), len(testset)
+            )
         )
-    )
+
+    if args.distributed:
+        train_sampler = torch.utils.data.distributed.DistributedSampler(trainset)
+    else:
+        train_sampler = None
 
     train_loader = DataLoaderReactionNetwork(
-        trainset, batch_size=args.batch_size, shuffle=True
+        trainset,
+        batch_size=args.batch_size,
+        shuffle=(train_sampler is None),
+        sampler=train_sampler,
     )
     # larger val and test set batch_size is faster but needs more memory
     # adjust the batch size of to fit memory
@@ -417,40 +360,16 @@ def main(args):
         conv="GatedGCNConv",
         # conv="GatedGCNConv2",
     )
-    print(model)
 
-    if args.device is not None:
-        model.to(device=args.device)
+    if not args.distributed or (args.distributed and args.gpu == 0):
+        print(model)
 
-    if args.post_analysis != "none":
-        print(f"\nStart post analysis ({args.post_analysis}) at:", datetime.now())
-
-        # load saved model
-        checkpoints_objs = {"model": model}
-        load_checkpoints(checkpoints_objs, "checkpoint.pkl")
-
-        if args.post_analysis == "write_feature":
-            # write_feature
-            write_features(
-                model,
-                feature_names,
-                {"train": train_loader, "validation": val_loader},
-                "feats.tsv",
-                "feats_metadata.tsv",
-                args.device,
-            )
-        elif args.post_analysis == "error_analysis":
-            loaders = [train_loader, val_loader, test_loader]
-            fnames = ["train_error.txt", "val_error.txt", "test_error.txt"]
-            for ld, nm in zip(loaders, fnames):
-                error_analysis(model, feature_names, ld, nm, args.device)
-        else:
-            raise ValueError(f"not supported post analysis type: {args.post_analysis}")
-
-        print(f"\nFinish post analysis ({args.post_analysis}) at:", datetime.now())
-
-        # we only do post analysis and do not need to train; so exist here
-        sys.exit(0)
+    if args.gpu is not None:
+        model.to(args.gpu)
+    if args.distributed:
+        ddp_model = DDP(model, device_ids=[args.gpu])
+        ddp_model.feature_before_fc = model.feature_before_fc
+        model = ddp_model
 
     ### optimizer, loss, and metric
     optimizer = torch.optim.Adam(
@@ -467,44 +386,53 @@ def main(args):
     stopper = EarlyStopping(patience=150)
 
     # load checkpoint
-    best = np.finfo(np.float32).max
     state_dict_objs = {"model": model, "optimizer": optimizer, "scheduler": scheduler}
     if args.restore:
         try:
-            checkpoint = load_checkpoints(state_dict_objs, "checkpoint.pkl")
+
+            if args.gpu is None:
+                checkpoint = load_checkpoints(state_dict_objs, filename="checkpoint.pkl")
+            else:
+                # Map model to be loaded to specified single gpu.
+                loc = "cuda:{}".format(args.gpu)
+                checkpoint = load_checkpoints(
+                    state_dict_objs, map_location=loc, filename="checkpoint.pkl"
+                )
+
             args.start_epoch = checkpoint["epoch"]
             best = checkpoint["best"]
             print(f"Successfully load checkpoints, best {best}, epoch {args.start_epoch}")
+
         except FileNotFoundError as e:
             warnings.warn(str(e) + " Continue without loading checkpoints.")
             pass
 
     # start training
-    print("\n\n# Epoch     Loss         TrainAcc        ValAcc     Time (s)")
-    sys.stdout.flush()
+    if not args.distributed or (args.distributed and args.gpu == 0):
+        print("\n\n# Epoch     Loss         TrainAcc        ValAcc     Time (s)")
+        sys.stdout.flush()
 
     for epoch in range(args.start_epoch, args.epochs):
         ti = time.time()
 
+        # In distributed mode, calling the set_epoch method is needed to make shuffling
+        # work; each process will use the same random seed otherwise.
+        if args.distributed:
+            train_sampler.set_epoch(epoch)
+
         # train
         loss, train_acc = train(
-            optimizer, model, feature_names, train_loader, loss_func, metric, args.device
+            optimizer, model, feature_names, train_loader, loss_func, metric, args.gpu
         )
 
         # bad, we get nan
         if np.isnan(loss):
-            print(
-                "\n\nBad, we get nan for loss. Turn debug on and hope to catch "
-                "it. Note, although we load the checkpoints before the failing, "
-                "the debug may still fail because the data loader is random and "
-                "thus the data feeded are different from what causes the failing "
-                "when running directly. The only hope is that the error can reoccur."
-            )
+            print("\n\nBad, we get nan for loss. Existing")
             sys.stdout.flush()
             sys.exit(1)
 
         # evaluate
-        val_acc = evaluate(model, feature_names, val_loader, metric, args.device)
+        val_acc = evaluate(model, feature_names, val_loader, metric, args.gpu)
 
         if stopper.step(val_acc):
             pickle_dump(best, args.output_file)  # save results for hyperparam tune
@@ -517,45 +445,57 @@ def main(args):
             best = val_acc
 
         # save checkpoint
-        misc_objs = {"best": best, "epoch": epoch}
-        save_checkpoints(
-            state_dict_objs, misc_objs, is_best, msg=f"epoch: {epoch}, score {val_acc}"
-        )
+        if not args.distributed or (args.distributed and args.gpu == 0):
 
-        tt = time.time() - ti
+            misc_objs = {"best": best, "epoch": epoch}
 
-        print(
-            "{:5d}   {:12.6e}   {:12.6e}   {:12.6e}   {:.2f}".format(
-                epoch, loss, train_acc, val_acc, tt
+            save_checkpoints(
+                state_dict_objs,
+                misc_objs,
+                is_best,
+                msg=f"epoch: {epoch}, score {val_acc}",
             )
-        )
-        if epoch % 10 == 0:
-            sys.stdout.flush()
 
-    # save results for hyperparam tune
-    pickle_dump(best, args.output_file)
+            tt = time.time() - ti
+
+            print(
+                "{:5d}   {:12.6e}   {:12.6e}   {:12.6e}   {:.2f}".format(
+                    epoch, loss, train_acc, val_acc, tt
+                )
+            )
+            if epoch % 10 == 0:
+                sys.stdout.flush()
 
     # load best to calculate test accuracy
-    load_checkpoints(state_dict_objs, "best_checkpoint.pkl")
+    if args.gpu is None:
+        checkpoint = load_checkpoints(state_dict_objs, filename="best_checkpoint.pkl")
+    else:
+        # Map model to be loaded to specified single  gpu.
+        loc = "cuda:{}".format(args.gpu)
+        checkpoint = load_checkpoints(
+            state_dict_objs, map_location=loc, filename="best_checkpoint.pkl"
+        )
 
-    # write features for post analysis
-    write_features(
-        model,
-        feature_names,
-        {"train": train_loader, "validation": val_loader},
-        "feats.tsv",
-        "feats_metadata.tsv",
-        args.device,
-    )
+    if not args.distributed or (args.distributed and args.gpu == 0):
+        test_acc = evaluate(model, feature_names, test_loader, metric, args.gpu)
 
-    test_acc = evaluate(model, feature_names, test_loader, metric, args.device)
-    print("\n#TestAcc: {:12.6e} \n".format(test_acc))
-
-    print("\nFinish training at:", datetime.now())
+        print("\n#TestAcc: {:12.6e} \n".format(test_acc))
+        print("\nFinish training at:", datetime.now())
 
 
-# do not make it main because we need to run hypertunity
-seed_torch()
-args = parse_args()
-print(args)
-main(args)
+def main():
+    args = parse_args()
+    print(args)
+
+    if args.distributed:
+        # DDP
+        world_size = torch.cuda.device_count() if args.num_gpu is None else args.num_gpu
+        mp.spawn(main_worker, nprocs=world_size, args=(world_size, args))
+
+    else:
+        # train on CPU or a single GPU
+        main_worker(args.gpu, None, args)
+
+
+if __name__ == "__main__":
+    main()

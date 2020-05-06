@@ -33,7 +33,7 @@ One csv file is needed (e.g. smiles_reactions.csv).
  
  ## Molecules given in SDF (structure data format)
 
-Three files are needed in total:
+Three files are needed:
 
 1. molecule file (e.g. molecules.sdf)
 
