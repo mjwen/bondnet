@@ -115,8 +115,9 @@ class BaseDataset:
         Whether an entry (molecule, reaction) fails upon converting using rdkit.
 
         Returns:
-            dict: with entry id as the key and a bool as the key to indicate it fails
-                or not
+            list of bool: each element indicates whether a entry fails. The size of
+                this list is the same as the labels, each one corresponds a label in
+                the same order.
             None: is this info is not set
         """
         return self._failed

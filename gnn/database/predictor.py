@@ -2,6 +2,7 @@
 Functions to convert data files to standard files the model accepts.
 """
 
+import logging
 import pandas as pd
 import multiprocessing
 from gnn.database.molwrapper import smiles_to_wrapper_mol, rdkit_mol_to_wrapper_mol
@@ -9,6 +10,8 @@ from gnn.database.reaction import Reaction, ReactionCollection
 from gnn.utils import expand_path
 from gnn.utils import yaml_load, yaml_dump
 from rdkit import Chem
+
+logger = logging.getLogger(__name__)
 
 
 class PredictionBySmilesReaction:
@@ -279,10 +282,10 @@ class PredictionBySDFChargeReactionFiles:
         bad_mol_indices = {i for i, m in enumerate(molecules) if m is None}
 
         for rxn in df_rxns.itertuples():
-            idx, idx_r, idx_p1, idx_p2 = rxn
+            i, idx_r, idx_p1, idx_p2 = rxn
             for idx in (idx_r, idx_p1, idx_p2):
                 if idx in bad_mol_indices:
-                    failed.append((True, None))
+                    failed.append((True, idx))
                     break
             else:
                 failed.append((False, None))
@@ -297,7 +300,7 @@ class PredictionBySDFChargeReactionFiles:
                         products=products,
                         broken_bond=None,
                         free_energy=0.0,  # not used we provide 0.0 taking the place
-                        identifier=idx,
+                        identifier=i,
                     )
                 )
 
@@ -331,12 +334,13 @@ class PredictionBySDFChargeReactionFiles:
         all_predictions = []
         all_failed = []
         p_idx = 0
-        for i, (fail, _) in enumerate(self.failed):
+        for i, (fail, reason) in enumerate(self.failed):
             row = df.iloc[i]
             str_row = ",".join([str(i) for i in row])
 
             # failed at conversion to mol wrapper stage
             if fail:
+                logger.info(f"Reaction {i} fails because molecule {reason} fails")
                 all_failed.append(str_row)
                 all_predictions.append(None)
 
@@ -345,6 +349,7 @@ class PredictionBySDFChargeReactionFiles:
 
                 # failed at prediction stage
                 if pred is None:
+                    logger.info(f"Reaction {i} fails because prediction cannot be made")
                     all_failed.append(str_row)
 
                 all_predictions.append(pred)

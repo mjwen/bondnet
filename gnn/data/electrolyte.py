@@ -592,14 +592,14 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
         # create reaction
         reactions = []
         self.labels = []
-        self._failed = OrderedDict()
+        self._failed = []
         for i, lb in enumerate(raw_labels):
             mol_ids = lb["reactants"] + lb["products"]
 
             for d in mol_ids:
                 # ignore reaction whose reactants or products molecule is None
                 if d not in graphs_not_none_indices:
-                    self._failed[lb["id"]] = True
+                    self._failed.append(True)
                     break
             else:
                 rxn = Reaction(
@@ -616,7 +616,7 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
                 }
                 self.labels.append(label)
 
-                self._failed[lb["id"]] = False
+                self._failed.append(False)
 
         self.reaction_ids = list(range(len(reactions)))
 
