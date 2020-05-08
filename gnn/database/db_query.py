@@ -11,29 +11,165 @@ import pymatgen
 from pymatgen.analysis.graphs import MoleculeGraph
 from pymatgen.analysis.local_env import OpenBabelNN
 from pymatgen.analysis.fragmenter import metal_edge_extender
+from pymatgen.core.structure import Molecule
+from pymatgen.io.babel import BabelMolAdaptor
 from atomate.qchem.database import QChemCalcDb
 from gnn.database.molwrapper import MoleculeWrapper
 from gnn.utils import create_directory, expand_path
+import openbabel as ob
 
 logger = logging.getLogger(__name__)
+
+
+class BabelMolAdaptor2(BabelMolAdaptor):
+    """
+    Fix to BabelMolAdaptor (see FIX below):
+    1. Add and remove bonds between mol graph and obmol, since the connectivity of mol
+    graph can be edited and different from the underlying pymatgen mol.
+    """
+
+    @staticmethod
+    def from_molecule_graph(mol_graph):
+        if not isinstance(mol_graph, MoleculeGraph):
+            raise ValueError("not get mol graph")
+        self = BabelMolAdaptor2(mol_graph.molecule)
+        # FIX 1
+        self._add_and_remove_bond(mol_graph)
+        return self
+
+    def add_bond(self, idx1, idx2, order=0):
+        """
+        Add a bond to an openbabel molecule with the specified order
+
+        Args:
+           idx1 (int): The atom index of one of the atoms participating the in bond
+           idx2 (int): The atom index of the other atom participating in the bond
+           order (float): Bond order of the added bond
+        """
+        # check whether bond exists
+        for obbond in ob.OBMolBondIter(self.openbabel_mol):
+            if (obbond.GetBeginAtomIdx() == idx1 and obbond.GetEndAtomIdx() == idx2) or (
+                obbond.GetBeginAtomIdx() == idx2 and obbond.GetEndAtomIdx() == idx1
+            ):
+                raise Exception("bond exists not added")
+        self.openbabel_mol.AddBond(idx1, idx2, order)
+
+    def _add_and_remove_bond(self, mol_graph):
+        """
+        Add bonds in mol_graph not in obmol to obmol, and remove bonds in obmol but
+        not in mol_graph.
+        """
+
+        # graph idx to ob idx map
+        idx_map = dict()
+        natoms = self.openbabel_mol.NumAtoms()
+        for graph_idx in range(natoms):
+            coords = list(mol_graph.graph.nodes[graph_idx]["coords"])
+            for atom in ob.OBMolAtomIter(self.openbabel_mol):
+                c = [atom.GetX(), atom.GetY(), atom.GetZ()]
+                if np.allclose(c, coords):
+                    idx_map[graph_idx] = atom.GetIdx()
+                    break
+            if graph_idx not in idx_map:
+                raise Exception("atom not found in obmol.")
+
+        # graph bonds (note that although MoleculeGraph uses multigrpah, but duplicate
+        # bonds are removed when calling in MoleculeGraph.with_local_env_strategy
+        graph_bonds = [
+            sorted([idx_map[i], idx_map[j]]) for i, j, _ in mol_graph.graph.edges.data()
+        ]
+
+        # open babel bonds
+        ob_bonds = [
+            sorted([b.GetBeginAtomIdx(), b.GetEndAtomIdx()])
+            for b in ob.OBMolBondIter(self.openbabel_mol)
+        ]
+
+        # add and and remove bonds
+        for bond in graph_bonds:
+            if bond not in ob_bonds:
+                self.add_bond(*bond, order=0)
+        for bond in ob_bonds:
+            if bond not in graph_bonds:
+                self.remove_bond(*bond)
+
+
+class BabelMolAdaptor3(BabelMolAdaptor2):
+    """
+    Compared to BabelMolAdaptor2, this corrects the bonds and then do other stuff like
+    PerceiveBondOrders.
+    NOTE: this seems create problems that OpenBabel cannot satisfy valence rule.
+
+    Fix to BabelMolAdaptor (see FIX below):
+    1. Add and remove bonds between mol graph and obmol, since the connectivity of mol
+    graph can be edited and different from the underlying pymatgen mol.
+    """
+
+    def __init__(self, mol_graph):
+        """
+        Initializes with pymatgen Molecule or OpenBabel"s OBMol.
+
+        """
+        mol = mol_graph.molecule
+        if isinstance(mol, Molecule):
+            if not mol.is_ordered:
+                raise ValueError("OpenBabel Molecule only supports ordered molecules.")
+
+            # For some reason, manually adding atoms does not seem to create
+            # the correct OBMol representation to do things like force field
+            # optimization. So we go through the indirect route of creating
+            # an XYZ file and reading in that file.
+            obmol = ob.OBMol()
+            obmol.BeginModify()
+            for site in mol:
+                coords = [c for c in site.coords]
+                atomno = site.specie.Z
+                obatom = ob.OBAtom()
+                obatom.thisown = 0
+                obatom.SetAtomicNum(atomno)
+                obatom.SetVector(*coords)
+                obmol.AddAtom(obatom)
+                del obatom
+            obmol.ConnectTheDots()
+
+            self._obmol = obmol
+
+            # FIX 1
+            self._add_and_remove_bond(mol_graph)
+
+            obmol.PerceiveBondOrders()
+            obmol.SetTotalSpinMultiplicity(mol.spin_multiplicity)
+            obmol.SetTotalCharge(mol.charge)
+            obmol.Center()
+            obmol.Kekulize()
+            obmol.EndModify()
+
+        elif isinstance(mol, ob.OBMol):
+            self._obmol = mol
+
+    @staticmethod
+    def from_molecule_graph(mol_graph):
+        if not isinstance(mol_graph, MoleculeGraph):
+            raise ValueError("not get mol graph")
+        return BabelMolAdaptor2(mol_graph)
 
 
 class MoleculeWrapperTaskCollection(MoleculeWrapper):
     def __init__(self, db_entry, use_metal_edge_extender=True, optimized=True):
 
-        super(MoleculeWrapperTaskCollection, self).__init__()
+        # id
+        identifier = str(db_entry["_id"])
 
-        self.id = str(db_entry["_id"])
-
+        # pymatgen mol
         if optimized:
             if db_entry["state"] != "successful":
                 raise UnsuccessfulEntryError
             try:
-                self.pymatgen_mol = pymatgen.Molecule.from_dict(
+                pymatgen_mol = pymatgen.Molecule.from_dict(
                     db_entry["output"]["optimized_molecule"]
                 )
             except KeyError:
-                self.pymatgen_mol = pymatgen.Molecule.from_dict(
+                pymatgen_mol = pymatgen.Molecule.from_dict(
                     db_entry["output"]["initial_molecule"]
                 )
                 print(
@@ -42,20 +178,43 @@ class MoleculeWrapperTaskCollection(MoleculeWrapper):
                     )
                 )
         else:
-            self.pymatgen_mol = pymatgen.Molecule.from_dict(
+            pymatgen_mol = pymatgen.Molecule.from_dict(
                 db_entry["input"]["initial_molecule"]
             )
 
-        self.mol_graph = MoleculeGraph.with_local_env_strategy(
-            self.pymatgen_mol,
-            OpenBabelNN(order=True),
-            reorder=False,
-            extend_structure=False,
+        # mol graph
+        mol_graph = MoleculeGraph.with_local_env_strategy(
+            pymatgen_mol, OpenBabelNN(order=True), reorder=False, extend_structure=False,
         )
         if use_metal_edge_extender:
-            self.mol_graph = metal_edge_extender(self.mol_graph)
+            mol_graph = metal_edge_extender(self.mol_graph)
 
-        self.free_energy = self._get_free_energy(db_entry, self.id, self.formula)
+        # free energy
+        free_energy = self._get_free_energy(db_entry, self.id, self.formula)
+
+        super(MoleculeWrapperTaskCollection, self).__init__(
+            pymatgen_mol, mol_graph, free_energy, identifier
+        )
+
+    def create_ob_mol(self):
+        ob_adaptor = BabelMolAdaptor2.from_molecule_graph(self.mol_graph)
+        return ob_adaptor.openbabel_mol
+
+    @property
+    def atomization_free_energy(self):
+        charge0_atom_energy = {
+            "H": -13.899716296436546,
+            "Li": -203.8840240968338,
+            "C": -1028.6825101424483,
+            "O": -2040.4807693439561,
+            "F": -2714.237000742088,
+            "P": -9283.226337212582,
+        }
+
+        e = self.free_energy
+        for spec, num in self.composition_dict.items():
+            e -= charge0_atom_energy[spec] * num
+        return e
 
     def pack_features(self, use_obabel_idx=True):
         feats = dict()
@@ -94,37 +253,53 @@ class MoleculeWrapperTaskCollection(MoleculeWrapper):
 
 class MoleculeWrapperMolBuilder(MoleculeWrapper):
     def __init__(self, db_entry):
-        super(MoleculeWrapperMolBuilder, self).__init__()
 
-        self.id = str(db_entry["_id"])
+        # id
+        identifier = str(db_entry["_id"])
 
+        # pymatgen mol
         try:
-            self.pymatgen_mol = pymatgen.Molecule.from_dict(db_entry["molecule"])
+            pymatgen_mol = pymatgen.Molecule.from_dict(db_entry["molecule"])
         except KeyError as e:
-            print(self.__class__.__name__, e, "molecule", self.id)
+            print(self.__class__.__name__, e, "molecule", identifier)
             raise UnsuccessfulEntryError
+        formula = pymatgen_mol.composition.alphabetical_formula.replace(" ", "")
 
+        # mol graph
         try:
-            self.mol_graph = MoleculeGraph.from_dict(db_entry["mol_graph"])
+            mol_graph = MoleculeGraph.from_dict(db_entry["mol_graph"])
         except KeyError as e:
             # NOTE it would be better that we can get MoleculeGraph from database
             if db_entry["nsites"] == 1:  # single atom molecule
-                self.mol_graph = MoleculeGraph.with_local_env_strategy(
-                    self.pymatgen_mol,
+                mol_graph = MoleculeGraph.with_local_env_strategy(
+                    pymatgen_mol,
                     OpenBabelNN(order=True),
                     reorder=False,
                     extend_structure=False,
                 )
             else:
-                print(self.__class__.__name__, e, "free energy", self.id, self.formula)
+                print(
+                    "conversion failed",
+                    self.__class__.__name__,
+                    e,
+                    "free energy",
+                    identifier,
+                    formula,
+                )
                 raise UnsuccessfulEntryError
 
+        # free energy
         try:
-            self.free_energy = db_entry["free_energy"]
+            free_energy = db_entry["free_energy"]
         except KeyError as e:
-            print(self.__class__.__name__, e, "free energy", self.id, self.formula)
+            print(self.__class__.__name__, e, "free energy", identifier, formula)
             raise UnsuccessfulEntryError
 
+        super(MoleculeWrapperMolBuilder, self).__init__(
+            pymatgen_mol, mol_graph, free_energy, identifier
+        )
+
+        # other properties
         try:
             self.resp = db_entry["resp"]
         except KeyError as e:
@@ -151,8 +326,11 @@ class MoleculeWrapperMolBuilder(MoleculeWrapper):
                 print(self.__class__.__name__, e, "critic", self.id, self.formula)
                 raise UnsuccessfulEntryError
 
+    def create_ob_mol(self):
+        ob_adaptor = BabelMolAdaptor2.from_molecule_graph(self.mol_graph)
+        return ob_adaptor.openbabel_mol
+
     def convert_to_babel_mol_graph(self, use_metal_edge_extender=True):
-        self._ob_adaptor = None
         self.mol_graph = MoleculeGraph.with_local_env_strategy(
             self.pymatgen_mol,
             OpenBabelNN(order=True),
@@ -163,7 +341,6 @@ class MoleculeWrapperMolBuilder(MoleculeWrapper):
             self.mol_graph = metal_edge_extender(self.mol_graph)
 
     def convert_to_critic_mol_graph(self):
-        self._ob_adaptor = None
         bonds = dict()
         try:
             for key, val in self.critic["bonding"].items():
@@ -174,6 +351,22 @@ class MoleculeWrapperMolBuilder(MoleculeWrapper):
             print(self.__class__.__name__, e, "critic bonding", self.id)
             raise UnsuccessfulEntryError
         self.mol_graph = MoleculeGraph.with_edges(self.pymatgen_mol, bonds)
+
+    @property
+    def atomization_free_energy(self):
+        charge0_atom_energy = {
+            "H": -13.899716296436546,
+            "Li": -203.8840240968338,
+            "C": -1028.6825101424483,
+            "O": -2040.4807693439561,
+            "F": -2714.237000742088,
+            "P": -9283.226337212582,
+        }
+
+        e = self.free_energy
+        for spec, num in self.composition_dict.items():
+            e -= charge0_atom_energy[spec] * num
+        return e
 
     def pack_features(self, use_obabel_idx=True, broken_bond=None):
         """

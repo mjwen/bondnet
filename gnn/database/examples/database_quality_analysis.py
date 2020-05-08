@@ -349,22 +349,22 @@ def compare_connectivity_across_graph_builder(
     for m in molecules[:1500]:
 
         # mol builder
-        m.make_picklable()
+        m.delete_ob_mol()
         m1 = copy.deepcopy(m)
 
         # babel builder
         m.convert_to_babel_mol_graph(use_metal_edge_extender=False)
-        m.make_picklable()
+        m.delete_ob_mol()
         m2 = copy.deepcopy(m)
 
         # babel builder with extender
         m.convert_to_babel_mol_graph(use_metal_edge_extender=True)
-        m.make_picklable()
+        m.delete_ob_mol()
         m3 = copy.deepcopy(m)
 
         # critic
         m.convert_to_critic_mol_graph()
-        m.make_picklable()
+        m.delete_ob_mol()
         m4 = copy.deepcopy(m)
 
         if not only_different or not m3.mol_graph.isomorphic_to(m4.mol_graph):

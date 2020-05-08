@@ -863,7 +863,7 @@ if __name__ == "__main__":
     # eg_buckets()
     # eg_extract_A_to_B()
     # eg_extract_A_to_B_C()
-    # eg_extract_one_bond_break()
+    eg_extract_one_bond_break()
     # subselect_reactions()
 
     # plot_reaction_energy_difference_arcoss_reactant_charge()
@@ -888,7 +888,7 @@ if __name__ == "__main__":
     # create_struct_label_dataset_reaction_based_regression()
     # create_struct_label_dataset_reaction_based_classification()
 
-    # create_struct_label_dataset_reaction_network_based_regression()
+    create_struct_label_dataset_reaction_network_based_regression()
     # create_struct_label_dataset_reaction_network_based_classification()
 
     ######################################################################################
@@ -902,4 +902,4 @@ if __name__ == "__main__":
     # for the nrel dataset
     ######################################################################################
     # nrel_plot_molecules()
-    nrel_create_struct_label_dataset_reaction_network_based_regression()
+    # nrel_create_struct_label_dataset_reaction_network_based_regression()

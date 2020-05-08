@@ -2287,7 +2287,7 @@ class ReactionExtractorFromMolSet:
         logger.info("Start writing reactions to file: {}".format(filename))
 
         for m in get_molecules_from_reactions(self.reactions):
-            m.make_picklable()
+            m.delete_ob_mol()
         d = {
             "@module": self.__class__.__module__,
             "@class": self.__class__.__name__,

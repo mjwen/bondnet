@@ -13,194 +13,14 @@ from svglib.svglib import svg2rlg
 from reportlab.graphics import renderPDF, renderPM
 import networkx as nx
 import pymatgen
-from pymatgen.core.structure import Molecule
 from pymatgen.analysis.graphs import MoleculeGraph, MolGraphSplitError
-from pymatgen.io.babel import BabelMolAdaptor
 from rdkit import Chem
 from rdkit.Chem import Draw, AllChem
 import openbabel as ob
+import pybel
 from gnn.utils import create_directory, expand_path, yaml_dump
 
 logger = logging.getLogger(__name__)
-
-
-class BabelMolAdaptor2(BabelMolAdaptor):
-    """
-    Fix to BabelMolAdaptor (see FIX below):
-    1. Set spin_multiplicity and charge after EndModify, otherwise, it does not take
-    effect.
-    2. Add and remove bonds between mol graph and obmol, since the connectivity of mol
-    graph can be edited and different from the underlying pymatgen mol.
-    """
-
-    def __init__(self, mol):
-        """
-        Initializes with pymatgen Molecule or OpenBabel"s OBMol.
-
-        Args:
-            mol: pymatgen's Molecule or OpenBabel OBMol
-        """
-        if isinstance(mol, Molecule):
-            if not mol.is_ordered:
-                raise ValueError("OpenBabel Molecule only supports ordered molecules.")
-
-            # For some reason, manually adding atoms does not seem to create
-            # the correct OBMol representation to do things like force field
-            # optimization. So we go through the indirect route of creating
-            # an XYZ file and reading in that file.
-            obmol = ob.OBMol()
-            obmol.BeginModify()
-            for site in mol:
-                coords = [c for c in site.coords]
-                atomno = site.specie.Z
-                obatom = ob.OBAtom()
-                obatom.thisown = 0
-                obatom.SetAtomicNum(atomno)
-                obatom.SetVector(*coords)
-                obmol.AddAtom(obatom)
-                del obatom
-            obmol.ConnectTheDots()
-            obmol.PerceiveBondOrders()
-            obmol.Center()
-            obmol.Kekulize()
-            obmol.EndModify()
-
-            # FIX 1
-            obmol.SetTotalSpinMultiplicity(mol.spin_multiplicity)
-            obmol.SetTotalCharge(mol.charge)
-
-            self._obmol = obmol
-        elif isinstance(mol, ob.OBMol):
-            self._obmol = mol
-
-    @staticmethod
-    def from_molecule_graph(mol_graph):
-        if not isinstance(mol_graph, MoleculeGraph):
-            raise ValueError("not get mol graph")
-        self = BabelMolAdaptor2(mol_graph.molecule)
-        # FIX 2
-        self._add_and_remove_bond(mol_graph)
-        return self
-
-    def add_bond(self, idx1, idx2, order=0):
-        """
-        Add a bond to an openbabel molecule with the specified order
-
-        Args:
-           idx1 (int): The atom index of one of the atoms participating the in bond
-           idx2 (int): The atom index of the other atom participating in the bond
-           order (float): Bond order of the added bond
-        """
-        # check whether bond exists
-        for obbond in ob.OBMolBondIter(self.openbabel_mol):
-            if (obbond.GetBeginAtomIdx() == idx1 and obbond.GetEndAtomIdx() == idx2) or (
-                obbond.GetBeginAtomIdx() == idx2 and obbond.GetEndAtomIdx() == idx1
-            ):
-                raise Exception("bond exists not added")
-        self.openbabel_mol.AddBond(idx1, idx2, order)
-
-    def _add_and_remove_bond(self, mol_graph):
-        """
-        Add bonds in mol_graph not in obmol to obmol, and remove bonds in obmol but
-        not in mol_graph.
-        """
-
-        # graph idx to ob idx map
-        idx_map = dict()
-        natoms = self.openbabel_mol.NumAtoms()
-        for graph_idx in range(natoms):
-            coords = list(mol_graph.graph.nodes[graph_idx]["coords"])
-            for atom in ob.OBMolAtomIter(self.openbabel_mol):
-                c = [atom.GetX(), atom.GetY(), atom.GetZ()]
-                if np.allclose(c, coords):
-                    idx_map[graph_idx] = atom.GetIdx()
-                    break
-            if graph_idx not in idx_map:
-                raise Exception("atom not found in obmol.")
-
-        # graph bonds (note that although MoleculeGraph uses multigrpah, but duplicate
-        # bonds are removed when calling in MoleculeGraph.with_local_env_strategy
-        graph_bonds = [
-            sorted([idx_map[i], idx_map[j]]) for i, j, _ in mol_graph.graph.edges.data()
-        ]
-
-        # open babel bonds
-        ob_bonds = [
-            sorted([b.GetBeginAtomIdx(), b.GetEndAtomIdx()])
-            for b in ob.OBMolBondIter(self.openbabel_mol)
-        ]
-
-        # add and and remove bonds
-        for bond in graph_bonds:
-            if bond not in ob_bonds:
-                self.add_bond(*bond, order=0)
-        for bond in ob_bonds:
-            if bond not in graph_bonds:
-                self.remove_bond(*bond)
-
-
-class BabelMolAdaptor3(BabelMolAdaptor2):
-    """
-    Compared to BabelMolAdaptor2, this corrects the bonds and then do other stuff like
-    PerceiveBondOrders.
-    NOTE: this seems create problems that OpenBabel cannot satisfy valence rule.
-
-    Fix to BabelMolAdaptor (see FIX below):
-    1. Set spin_multiplicity and charge after EndModify, otherwise, it does not take
-    effect.
-    2. Add and remove bonds between mol graph and obmol, since the connectivity of mol
-    graph can be edited and different from the underlying pymatgen mol.
-    """
-
-    def __init__(self, mol_graph):
-        """
-        Initializes with pymatgen Molecule or OpenBabel"s OBMol.
-
-        """
-        mol = mol_graph.molecule
-        if isinstance(mol, Molecule):
-            if not mol.is_ordered:
-                raise ValueError("OpenBabel Molecule only supports ordered molecules.")
-
-            # For some reason, manually adding atoms does not seem to create
-            # the correct OBMol representation to do things like force field
-            # optimization. So we go through the indirect route of creating
-            # an XYZ file and reading in that file.
-            obmol = ob.OBMol()
-            obmol.BeginModify()
-            for site in mol:
-                coords = [c for c in site.coords]
-                atomno = site.specie.Z
-                obatom = ob.OBAtom()
-                obatom.thisown = 0
-                obatom.SetAtomicNum(atomno)
-                obatom.SetVector(*coords)
-                obmol.AddAtom(obatom)
-                del obatom
-            obmol.ConnectTheDots()
-
-            self._obmol = obmol
-
-            # FIX 2
-            self._add_and_remove_bond(mol_graph)
-
-            obmol.PerceiveBondOrders()
-            obmol.Center()
-            obmol.Kekulize()
-            obmol.EndModify()
-
-            # FIX 1
-            obmol.SetTotalSpinMultiplicity(mol.spin_multiplicity)
-            obmol.SetTotalCharge(mol.charge)
-
-        elif isinstance(mol, ob.OBMol):
-            self._obmol = mol
-
-    @staticmethod
-    def from_molecule_graph(mol_graph):
-        if not isinstance(mol_graph, MoleculeGraph):
-            raise ValueError("not get mol graph")
-        return BabelMolAdaptor3(mol_graph)
 
 
 class MoleculeWrapper:
@@ -213,54 +33,18 @@ class MoleculeWrapper:
     MoleculeWrapperFromAtomsAndBonds.
     """
 
-    def __init__(self):
-        # should be set upon creation
-        self.id = None
-        self.free_energy = None
-        self.pymatgen_mol = None
-        self.mol_graph = None
+    def __init__(self, pymatgen_mol, mol_graph, free_energy=None, id=None):
+        self.pymatgen_mol = pymatgen_mol
+        self.mol_graph = mol_graph
+        self.free_energy = free_energy
+        self.id = id
 
         # set when corresponding method is called
-        self._ob_adaptor = None
+        self._ob_mol = None
         self._fragments = None
         self._isomorphic_bonds = None
         self._graph_idx_to_ob_idx_map = None
         self._ob_idx_to_graph_idx_map = None
-
-    @property
-    def ob_adaptor(self):
-        if self._ob_adaptor is None:
-            self._ob_adaptor = BabelMolAdaptor2.from_molecule_graph(self.mol_graph)
-        return self._ob_adaptor
-
-    @property
-    def ob_mol(self):
-        return self.ob_adaptor.openbabel_mol
-
-    @property
-    def pybel_mol(self):
-        return self.ob_adaptor.pybel_mol
-
-    @property
-    def rdkit_mol(self):
-        sdf = self.write(file_format="sdf")
-        return Chem.MolFromMolBlock(sdf)
-
-    @property
-    def atomization_free_energy(self):
-        charge0_atom_energy = {
-            "H": -13.899716296436546,
-            "Li": -203.8840240968338,
-            "C": -1028.6825101424483,
-            "O": -2040.4807693439561,
-            "F": -2714.237000742088,
-            "P": -9283.226337212582,
-        }
-
-        e = self.free_energy
-        for spec, num in self.composition_dict.items():
-            e -= charge0_atom_energy[spec] * num
-        return e
 
     @property
     def charge(self):
@@ -316,6 +100,35 @@ class MoleculeWrapper:
     @property
     def weight(self):
         return self.pymatgen_mol.composition.weight
+
+    @property
+    def ob_mol(self):
+        if self._ob_mol is None:
+            self._ob_mol = self.create_ob_mol()
+        return self._ob_mol
+
+    def create_ob_mol(self):
+        raise NotImplementedError
+
+    def delete_ob_mol(self):
+        """
+        This is needed in two places:
+        1. ob mol is not pickable, so if we want to pickle this class, we need to
+            delete it.
+        2. when writing out sdf files, calling the `write` function a second time will
+            write a different sdf than the first time. So we may want to delete it and
+            create a new ob mol each time we write sdf.
+        """
+        self._ob_mol = None
+
+    @property
+    def pybel_mol(self):
+        return pybel.Molecule(self._ob_mol)
+
+    @property
+    def rdkit_mol(self):
+        sdf = self.write(file_format="sdf")
+        return Chem.MolFromMolBlock(sdf)
 
     @property
     def fragments(self):
@@ -410,9 +223,6 @@ class MoleculeWrapper:
         idx0 = self.ob_idx_to_graph_idx_map[bond[0]]
         idx1 = self.ob_idx_to_graph_idx_map[bond[1]]
         return (idx0, idx1)
-
-    def make_picklable(self):
-        self._ob_adaptor = None
 
     def get_sdf_bond_indices(self, sdf=None):
         sdf = sdf or self.write(file_format="sdf")
@@ -710,9 +520,9 @@ def write_sdf_csv_dataset(
                 continue
 
             # The same pybel mol will write different sdf file when it is called
-            # the first time and other times. We create a new one by setting
-            # `_ob_adaptor` to None here so that it will write the correct one.
-            m._ob_adaptor = None
+            # the first time and other times. We create a new one here so that it will
+            # write the correct one.
+            m.delete_ob_mol()
             sdf = m.write(file_format="sdf", message=m.id + " int_id-" + str(i))
             fx.write(sdf)
             fy.write("{},{:.15g}\n".format(m.id, m.atomization_free_energy))
@@ -781,7 +591,10 @@ def write_edge_label_based_on_bond(
                 logger.info("Excluding single atom molecule {}".format(m.formula))
                 continue
 
-            m._ob_adaptor = None
+            # The same pybel mol will write different sdf file when it is called
+            # the first time and other times. We create a new one here so that it will
+            # write the correct one.
+            m.delete_ob_mol()
             sdf = m.write(file_format="sdf", message=m.id + " int_id-" + str(i))
             f.write(sdf)
             labels.append(get_bond_label(m))
