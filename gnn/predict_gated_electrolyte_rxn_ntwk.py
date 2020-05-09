@@ -19,7 +19,7 @@ from gnn.database.predictor import (
     PredictionBySDFChargeReactionFiles,
     PredictionByStructLabelFeatFiles,
 )
-from gnn.utils import yaml_load, load_checkpoints
+from gnn.utils import load_checkpoints
 
 
 def parse_args():
@@ -208,6 +208,11 @@ def main(args):
     # model
     feature_names = ["atom", "bond", "global"]
     set2set_ntypes_direct = ["global"]
+    feature_size = dataset.feature_size
+
+    # feature_names = ["atom", "bond"]
+    # set2set_ntypes_direct = None
+    # feature_size = {k: v for k, v in dataset.feature_size.items() if k != "global"}
 
     # NOTE cannot use gnn.utils.yaml_load, seems a bug in yaml.
     #  see: https://github.com/yaml/pyyaml/issues/266
@@ -215,7 +220,7 @@ def main(args):
         model_args = yaml.load(f, Loader=yaml.Loader)
 
     model = GatedGCNReactionNetwork(
-        in_feats=dataset.feature_size,
+        in_feats=feature_size,
         embedding_size=model_args.embedding_size,
         gated_num_layers=model_args.gated_num_layers,
         gated_hidden_size=model_args.gated_hidden_size,
@@ -245,7 +250,7 @@ def main(args):
     if len(predictions) != len(dataset.failed):
         pred = []
         idx = 0
-        for entry_id, failed in dataset.failed.items():
+        for failed in dataset.failed:
             if failed:
                 pred.append(None)
             else:
