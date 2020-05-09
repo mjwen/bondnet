@@ -350,13 +350,13 @@ class Reaction:
             # b: product sdf bond index (tuple)
             for ib, b in enumerate(psb):
                 # product graph bond index (tuple)
-                pgb = tuple(sorted(p.ob_bond_idx_to_graph_bond_idx(b)))
+                pgb = tuple(sorted(p.ob_to_graph_bond_idx_map(b)))
 
                 # reactant graph bond index (tuple)
                 rgb = p2r[pgb]
 
                 # reactant sdf bond index (tuple)
-                rsbt = reactant.graph_bond_idx_to_ob_bond_idx(rgb)
+                rsbt = reactant.graph_to_ob_bond_idx_map(rgb)
 
                 # reactant sdf bond index (int)
                 rsbi = reactant_index_tuple2int[rsbt]
@@ -400,7 +400,7 @@ class Reaction:
             mol = self.reactants[0]
 
             # broken bond in sdf idx
-            broken_bond = mol.graph_bond_idx_to_ob_bond_idx(self.get_broken_bond())
+            broken_bond = mol.graph_to_ob_bond_idx_map(self.get_broken_bond())
 
             str_id = str(mol.id) + "_broken_bond-" + str(broken_bond)
 
@@ -1459,8 +1459,9 @@ class ReactionCollection:
         mol_id_to_index_mapping = {m.id: i for i, m in enumerate(mol_reservoir)}
 
         # use multiprocessing to get atom mappings since they are relatively expensive
-        with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
-            mappings = p.map(get_atom_bond_mapping, reactions)
+        mappings = [get_atom_bond_mapping(r) for r in reactions]
+        # with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
+        #    mappings = p.map(get_atom_bond_mapping, reactions)
 
         all_labels = []  # one per reaction
         for i, (rxn, mps) in enumerate(zip(reactions, mappings)):
@@ -1770,7 +1771,7 @@ class ReactionCollection:
             for ib, bond in enumerate(sdf_bonds):
 
                 # change index from ob to graph
-                bond = tuple(sorted(reactant.ob_bond_idx_to_graph_bond_idx(bond)))
+                bond = tuple(sorted(reactant.ob_to_graph_bond_idx_map(bond)))
 
                 # when one_per_iso_bond_group is `True`, some bonds are deleted
                 if bond not in rxns_dict:
@@ -1888,7 +1889,7 @@ class ReactionCollection:
                         "    # {} {} {} {}\n".format(
                             attr["reactants"],
                             attr["products"],
-                            reactant.graph_bond_idx_to_ob_bond_idx(attr["broken_bond"]),
+                            reactant.graph_to_ob_bond_idx_map(attr["broken_bond"]),
                             attr["bond_energy"],
                         )
                     )
@@ -1922,7 +1923,7 @@ class ReactionCollection:
             sdf_bonds = reactant.get_sdf_bond_indices()
             for ib, bond in enumerate(sdf_bonds):
                 # change index from ob to graph
-                bond = tuple(sorted(reactant.ob_bond_idx_to_graph_bond_idx(bond)))
+                bond = tuple(sorted(reactant.ob_to_graph_bond_idx_map(bond)))
 
                 # when one_per_iso_bond_group is `True`, some bonds are deleted
                 if bond not in rxns_dict:
@@ -1992,7 +1993,7 @@ class ReactionCollection:
                 rxns_by_ob_bond = dict()
                 for rxn in rsr.reactions:
                     bond = rxn.get_broken_bond()
-                    bond = tuple(sorted(reactant.graph_bond_idx_to_ob_bond_idx(bond)))
+                    bond = tuple(sorted(reactant.graph_to_ob_bond_idx_map(bond)))
                     # we need this because the order of bond changes in sdf file
                     rxns_by_ob_bond[bond] = rxn
 

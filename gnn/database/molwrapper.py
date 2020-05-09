@@ -13,6 +13,8 @@ from svglib.svglib import svg2rlg
 from reportlab.graphics import renderPDF, renderPM
 import networkx as nx
 import pymatgen
+from pymatgen.core.structure import Molecule
+from pymatgen.io.babel import BabelMolAdaptor
 from pymatgen.analysis.graphs import MoleculeGraph, MolGraphSplitError
 from rdkit import Chem
 from rdkit.Chem import Draw, AllChem
@@ -23,19 +25,142 @@ from gnn.utils import create_directory, expand_path, yaml_dump
 logger = logging.getLogger(__name__)
 
 
+class BabelMolAdaptor2(BabelMolAdaptor):
+    """
+    Fix to BabelMolAdaptor (see FIX below):
+    1. Add and remove bonds between mol graph and obmol, since the connectivity of mol
+    graph can be edited and different from the underlying pymatgen mol.
+    """
+
+    @staticmethod
+    def from_molecule_graph(mol_graph):
+        if not isinstance(mol_graph, MoleculeGraph):
+            raise ValueError("not get mol graph")
+        self = BabelMolAdaptor2(mol_graph.molecule)
+        # FIX 1
+        self._add_and_remove_bond(mol_graph)
+        return self
+
+    def add_bond(self, idx1, idx2, order=0):
+        """
+        Add a bond to an openbabel molecule with the specified order
+
+        Args:
+           idx1 (int): The atom index of one of the atoms participating the in bond
+           idx2 (int): The atom index of the other atom participating in the bond
+           order (float): Bond order of the added bond
+        """
+        # check whether bond exists
+        for obbond in ob.OBMolBondIter(self.openbabel_mol):
+            if (obbond.GetBeginAtomIdx() == idx1 and obbond.GetEndAtomIdx() == idx2) or (
+                obbond.GetBeginAtomIdx() == idx2 and obbond.GetEndAtomIdx() == idx1
+            ):
+                raise Exception("bond exists not added")
+        self.openbabel_mol.AddBond(idx1, idx2, order)
+
+    def _add_and_remove_bond(self, mol_graph):
+        """
+        Add bonds in mol_graph not in obmol to obmol, and remove bonds in obmol but
+        not in mol_graph.
+        """
+
+        idx_map = graph2ob_atom_idx_map(mol_graph, self.openbabel_mol)
+
+        # graph bonds (note that although MoleculeGraph uses multigrpah, but duplicate
+        # bonds are removed when calling in MoleculeGraph.with_local_env_strategy
+        graph_bonds = [
+            sorted([idx_map[i], idx_map[j]]) for i, j, _ in mol_graph.graph.edges.data()
+        ]
+
+        # open babel bonds
+        ob_bonds = [
+            sorted([b.GetBeginAtomIdx(), b.GetEndAtomIdx()])
+            for b in ob.OBMolBondIter(self.openbabel_mol)
+        ]
+
+        # add and and remove bonds
+        for bond in graph_bonds:
+            if bond not in ob_bonds:
+                self.add_bond(*bond, order=0)
+        for bond in ob_bonds:
+            if bond not in graph_bonds:
+                self.remove_bond(*bond)
+
+
+class BabelMolAdaptor3(BabelMolAdaptor2):
+    """
+    Compared to BabelMolAdaptor2, this corrects the bonds and then do other stuff like
+    PerceiveBondOrders.
+    NOTE: this seems create problems that OpenBabel cannot satisfy valence rule.
+
+    Fix to BabelMolAdaptor (see FIX below):
+    1. Add and remove bonds between mol graph and obmol, since the connectivity of mol
+    graph can be edited and different from the underlying pymatgen mol.
+    """
+
+    def __init__(self, mol_graph):
+        """
+        Initializes with pymatgen Molecule or OpenBabel"s OBMol.
+
+        """
+        mol = mol_graph.molecule
+        if isinstance(mol, Molecule):
+            if not mol.is_ordered:
+                raise ValueError("OpenBabel Molecule only supports ordered molecules.")
+
+            # For some reason, manually adding atoms does not seem to create
+            # the correct OBMol representation to do things like force field
+            # optimization. So we go through the indirect route of creating
+            # an XYZ file and reading in that file.
+            obmol = ob.OBMol()
+            obmol.BeginModify()
+            for site in mol:
+                coords = [c for c in site.coords]
+                atomno = site.specie.Z
+                obatom = ob.OBAtom()
+                obatom.thisown = 0
+                obatom.SetAtomicNum(atomno)
+                obatom.SetVector(*coords)
+                obmol.AddAtom(obatom)
+                del obatom
+            obmol.ConnectTheDots()
+
+            self._obmol = obmol
+
+            # FIX 1
+            self._add_and_remove_bond(mol_graph)
+
+            obmol.PerceiveBondOrders()
+            obmol.SetTotalSpinMultiplicity(mol.spin_multiplicity)
+            obmol.SetTotalCharge(mol.charge)
+            obmol.Center()
+            obmol.Kekulize()
+            obmol.EndModify()
+
+        elif isinstance(mol, ob.OBMol):
+            self._obmol = mol
+
+    @staticmethod
+    def from_molecule_graph(mol_graph):
+        if not isinstance(mol_graph, MoleculeGraph):
+            raise ValueError("not get mol graph")
+        return BabelMolAdaptor2(mol_graph)
+
+
 class MoleculeWrapper:
     """
     A wrapper arould pymatgen Molecule, MoleculeGraph, BabelAdaptor... to make it
     easier to use molecules.
 
-    This is a base class, and typically you do not use this directly but instead using
-    the derived class, e.g. MoleculeWrapperMolBuilder, MoleculeWrapperTaskCollection,
-    MoleculeWrapperFromAtomsAndBonds.
+    Arguments:
+        mol_graph (MoleculeGraph): pymatgen molecule graph instance
+        free_energy (float): free energy of the molecule
+        id (str): (unique) identification of the molecule
     """
 
-    def __init__(self, pymatgen_mol, mol_graph, free_energy=None, id=None):
-        self.pymatgen_mol = pymatgen_mol
+    def __init__(self, mol_graph, free_energy=None, id=None):
         self.mol_graph = mol_graph
+        self.pymatgen_mol = mol_graph.molecule
         self.free_energy = free_energy
         self.id = id
 
@@ -43,20 +168,42 @@ class MoleculeWrapper:
         self._ob_mol = None
         self._fragments = None
         self._isomorphic_bonds = None
-        self._graph_idx_to_ob_idx_map = None
-        self._ob_idx_to_graph_idx_map = None
+        self._graph_to_ob_atom_idx_map = None
+        self._ob_to_graph_atom_idx_map = None
 
     @property
     def charge(self):
+        """
+        Returns:
+            int: charge of the molecule
+        """
         return self.pymatgen_mol.charge
 
     @property
-    def spin_multiplicity(self):
-        return self.pymatgen_mol.spin_multiplicity
+    def formula(self):
+        """
+        Returns:
+            str: chemical formula of the molecule, e.g. H2CO3.
+        """
+        f = self.pymatgen_mol.composition.alphabetical_formula
+        return f.replace(" ", "")
 
     @property
-    def graph(self):
-        return self.mol_graph.graph
+    def composition_dict(self):
+        """
+        Returns:
+            dict: with chemical species as key and number of the species as value.
+        """
+        d = self.pymatgen_mol.composition.as_dict()
+        return {k: int(v) for k, v in d.items()}
+
+    @property
+    def weight(self):
+        """
+        Returns:
+            int: molecule weight
+        """
+        return self.pymatgen_mol.composition.weight
 
     @property
     def atoms(self):
@@ -70,45 +217,53 @@ class MoleculeWrapper:
         return [v for k, v in sorted(nodes, key=lambda pair: pair[0])]
 
     @property
+    def species(self):
+        """
+        Species of atoms. Order is the same as self.atoms.
+        Returns:
+            list: Species string.
+        """
+        return [v["specie"] for v in self.atoms]
+
+    @property
+    def coords(self):
+        """
+        Returns:
+            2D array: of shape (N, 3) where N is the number of atoms.
+        """
+        return np.asarray([v["coords"] for v in self.atoms])
+
+    @property
     def bonds(self):
         """
         Returns:
             dict: with bond index (a tuple of atom indices) as the key and and bond
                 attributes as the value.
-
         """
         return {tuple(sorted([i, j])): attr for i, j, attr in self.graph.edges.data()}
 
     @property
-    def species(self):
-        return [v["specie"] for v in self.atoms]
-
-    @property
-    def coords(self):
-        return np.asarray([v["coords"] for v in self.atoms])
-
-    @property
-    def formula(self):
-        f = self.pymatgen_mol.composition.alphabetical_formula
-        return f.replace(" ", "")
-
-    @property
-    def composition_dict(self):
-        d = self.pymatgen_mol.composition.as_dict()
-        return {k: int(v) for k, v in d.items()}
-
-    @property
-    def weight(self):
-        return self.pymatgen_mol.composition.weight
+    def graph(self):
+        """
+        Returns:
+            networkx graph used by mol_graph
+        """
+        return self.mol_graph.graph
 
     @property
     def ob_mol(self):
+        """
+        Returns:
+            OpenBabel molecule
+
+        """
         if self._ob_mol is None:
-            self._ob_mol = self.create_ob_mol()
+            self._ob_mol = self._create_ob_mol()
         return self._ob_mol
 
-    def create_ob_mol(self):
-        raise NotImplementedError
+    @ob_mol.setter
+    def ob_mol(self, m):
+        self._ob_mol = m
 
     def delete_ob_mol(self):
         """
@@ -132,6 +287,14 @@ class MoleculeWrapper:
 
     @property
     def fragments(self):
+        """
+        Get fragments of the molecule by breaking all the bonds.
+
+        Returns:
+            A dictionary with bond index (a tuple (idx1, idx2)) as key, and a list
+            of the mol_graphs of the fragments as value (each list is of size 1 or 2).
+            The dictionary is empty if the mol has no bonds.
+        """
         if self._fragments is None:
             self._fragments = self.get_fragments()
         return self._fragments
@@ -192,39 +355,46 @@ class MoleculeWrapper:
         return self._isomorphic_bonds
 
     @property
-    def graph_idx_to_ob_idx_map(self):
-        if self._graph_idx_to_ob_idx_map is None:
-            self._graph_idx_to_ob_idx_map = dict()
-            for graph_idx in range(len(self.atoms)):
-                coords = list(self.graph.nodes[graph_idx]["coords"])
-                for atom in ob.OBMolAtomIter(self.ob_mol):
-                    c = [atom.GetX(), atom.GetY(), atom.GetZ()]
-                    if np.allclose(c, coords):
-                        self._graph_idx_to_ob_idx_map[graph_idx] = atom.GetIdx()
-                        break
-                if graph_idx not in self._graph_idx_to_ob_idx_map:
-                    raise Exception("atom not found.")
-        return self._graph_idx_to_ob_idx_map
-
-    def graph_bond_idx_to_ob_bond_idx(self, bond):
-        idx0 = self.graph_idx_to_ob_idx_map[bond[0]]
-        idx1 = self.graph_idx_to_ob_idx_map[bond[1]]
-        return (idx0, idx1)
+    def graph_to_ob_atom_idx_map(self):
+        """
+        Returns:
+            dict: atom index in graph as key in ob mol as value
+        """
+        if self._graph_to_ob_atom_idx_map is None:
+            self._graph_to_ob_atom_idx_map = graph2ob_atom_idx_map(
+                self.mol_graph, self.ob_mol
+            )
+        return self._graph_to_ob_atom_idx_map
 
     @property
-    def ob_idx_to_graph_idx_map(self):
-        if self._ob_idx_to_graph_idx_map is None:
-            self._ob_idx_to_graph_idx_map = dict()
-            for k, v in self.graph_idx_to_ob_idx_map.items():
-                self._ob_idx_to_graph_idx_map[v] = k
-        return self._ob_idx_to_graph_idx_map
+    def ob_to_graph_atom_idx_map(self):
+        """
+        Returns:
+            dict: atom index in ob mol as key in mol graph
+        """
+        if self._ob_to_graph_atom_idx_map is None:
+            self._ob_to_graph_atom_idx_map = {
+                v: k for k, v in self.graph_to_ob_atom_idx_map.items()
+            }
+        return self._ob_to_graph_atom_idx_map
 
-    def ob_bond_idx_to_graph_bond_idx(self, bond):
-        idx0 = self.ob_idx_to_graph_idx_map[bond[0]]
-        idx1 = self.ob_idx_to_graph_idx_map[bond[1]]
-        return (idx0, idx1)
+    def graph_to_ob_bond_idx_map(self, bond):
+        idx0 = self.graph_to_ob_atom_idx_map[bond[0]]
+        idx1 = self.graph_to_ob_atom_idx_map[bond[1]]
+        return idx0, idx1
+
+    def ob_to_graph_bond_idx_map(self, bond):
+        idx0 = self.ob_to_graph_atom_idx_map[bond[0]]
+        idx1 = self.ob_to_graph_atom_idx_map[bond[1]]
+        return idx0, idx1
 
     def get_sdf_bond_indices(self, sdf=None):
+        """
+        Get the indices of bonds as specified in the sdf file.
+
+        Returns:
+            list of tuple: each tuple specifies a bond.
+        """
         sdf = sdf or self.write(file_format="sdf")
         lines = sdf.split("\n")
         split_3 = lines[3].split()
@@ -243,7 +413,9 @@ class MoleculeWrapper:
 
         Returns:
             A dictionary with key of bond index (a tuple (idx1, idx2)), and value a list
-            of the new mol_graphs (could be empty if the mol has no bonds).
+            of the mol_graphs of the fragments (of size 1 or 2 and could be empty if the
+            mol has no
+            bonds).
         """
         sub_mols = {}
 
@@ -287,6 +459,14 @@ class MoleculeWrapper:
             return mapping
 
     def write(self, filename=None, file_format="sdf", message=None):
+        """Write a molecule out.
+
+        Args:
+            filename (str): name of the file to write the output. If None, return the
+                output as string.
+            message (str): message to attach to a molecule. If `file_format` is sdf,
+                this is the first line the molecule block in the sdf.
+        """
         if filename is not None:
             filename = expand_path(filename)
             create_directory(filename)
@@ -389,62 +569,69 @@ class MoleculeWrapper:
         subprocess.run(["rm", sdf_name])
         subprocess.run(["rm", svg_name])
 
+    def pack_features(self, use_obabel_idx=True, broken_bond=None):
+        feats = dict()
+        feats["charge"] = self.charge
+        return feats
+
+    def _create_ob_mol(self):
+        ob_adaptor = BabelMolAdaptor2.from_molecule_graph(self.mol_graph)
+        return ob_adaptor.openbabel_mol
+
 
 class MoleculeWrapperFromAtomsAndBonds(MoleculeWrapper):
     """
     A molecule wrapper class that creates molecules by giving species, coords,
-    and bonds. It will not have many properties, e.g. free_energy.
+    and bonds.
     """
 
     def __init__(self, species, coords, charge, bonds, mol_id=None, free_energy=None):
 
-        super(MoleculeWrapperFromAtomsAndBonds, self).__init__()
-
-        self.id = mol_id
-        self.pymatgen_mol = pymatgen.Molecule(species, coords, charge)
-
+        pymatgen_mol = pymatgen.Molecule(species, coords, charge)
         bonds = {tuple(sorted(b)): None for b in bonds}
-        self.mol_graph = MoleculeGraph.with_edges(self.pymatgen_mol, bonds)
-        self.free_energy = free_energy
+        mol_graph = MoleculeGraph.with_edges(pymatgen_mol, bonds)
 
-    def pack_features(self, use_obabel_idx=True, broken_bond=None):
-        feats = dict()
-        feats["charge"] = self.charge
-
-        return feats
+        super(MoleculeWrapperFromAtomsAndBonds, self).__init__(
+            mol_graph, free_energy, mol_id
+        )
 
 
-def rdkit_mol_to_wrapper_mol(m, charge=0, mol_id=None):
+def rdkit_mol_to_wrapper_mol(m, charge=0, free_energy=None, mol_id=None):
 
-    species = [m.GetAtomWithIdx(i).GetSymbol() for i in range(m.GetNumAtoms())]
+    # use V3000 to minimize conversion error in V2000, see (although it is not sure how
+    # relevant it is)
+    # https://depth-first.com/articles/2012/01/11/on-the-futility-of-extending-the-molfile-format/
+    sdf = Chem.MolToMolBlock(m, forceV3000=True)
+    pb_mol = pybel.readstring("sdf", sdf)
+    ob_mol = pb_mol.OBMol
 
-    # coords = m.GetConformer().GetPositions()
-    # NOTE, the above way to get coords results in segfault on linux, so we use the below
-    # workaround
-    conformer = m.GetConformer()
-    coords = [[x for x in conformer.GetAtomPosition(i)] for i in range(m.GetNumAtoms())]
-
-    bonds = []
-    for i in range(m.GetNumBonds()):
-        b = m.GetBondWithIdx(i)
-        bonds.append([b.GetBeginAtomIdx(), b.GetEndAtomIdx()])
-
-    return MoleculeWrapperFromAtomsAndBonds(species, coords, charge, bonds, mol_id)
+    return ob_mol_to_wrapper_mol(ob_mol, charge, free_energy, mol_id)
 
 
-def ob_mol_to_wrapper_mol(m, charge=0, mol_id=None):
+def ob_mol_to_wrapper_mol(m, charge=0, free_energy=None, mol_id=None):
+    """
+    Convert an openbabel mol to wrapper mol.
+
+    The created wrapper mol cannot be pickled, because the passed ob mol `m` cannot be
+    pickled.
+    """
 
     species = [a.GetAtomicNum() for a in ob.OBMolAtomIter(m)]
     coords = [[a.GetX(), a.GetY(), a.GetZ()] for a in ob.OBMolAtomIter(m)]
-    bonds = [
-        sorted([b.GetBeginAtomIdx(), b.GetEndAtomIdx()]) for b in ob.OBMolBondIter(m)
-    ]
+    bonds = [[b.GetBeginAtomIdx(), b.GetEndAtomIdx()] for b in ob.OBMolBondIter(m)]
     bonds = np.asarray(bonds) - 1  # convert to zero index
 
-    return MoleculeWrapperFromAtomsAndBonds(species, coords, charge, bonds, mol_id)
+    pymatgen_mol = pymatgen.Molecule(species, coords, charge)
+    bonds = {tuple(sorted(b)): None for b in bonds}
+    mol_graph = MoleculeGraph.with_edges(pymatgen_mol, bonds)
+
+    mw = MoleculeWrapper(mol_graph, free_energy, mol_id)
+    mw.ob_mol = m
+
+    return mw
 
 
-def smiles_to_wrapper_mol(s, charge=0):
+def smiles_to_wrapper_mol(s, charge=0, free_energy=None):
     """Convert a smiles molecule to a :class:`MoleculeWrapper` molecule.
 
        3D coords are created using RDkit: embedding then MMFF force filed (or UFF force
@@ -603,3 +790,31 @@ def write_edge_label_based_on_bond(
 
     yaml_dump(labels, expand_path(label_filename))
     yaml_dump(charges, expand_path(feature_filename))
+
+
+def graph2ob_atom_idx_map(mol_graph, ob_mol):
+    """
+    Create an atom index mapping between mol graph and ob mol.
+
+    This is implemented by comparing coords.
+
+    Returns:
+        dict: with atom index in mol graph as key and atom index in ob mol as value.
+    """
+    mapping = dict()
+
+    nodes = mol_graph.graph.nodes.data()
+    graph_coords = [v["coords"] for k, v in sorted(nodes, key=lambda pair: pair[0])]
+
+    ob_coords = [[a.GetX(), a.GetY(), a.GetZ()] for a in ob.OBMolAtomIter(ob_mol)]
+    ob_index = [a.GetIdx() for a in ob.OBMolAtomIter(ob_mol)]
+
+    for i, gc in enumerate(graph_coords):
+        for idx, oc in zip(ob_index, ob_coords):
+            if np.allclose(oc, gc):
+                mapping[i] = idx
+                break
+        else:
+            raise RuntimeError("Cannot create atom index mapping between ")
+
+    return mapping

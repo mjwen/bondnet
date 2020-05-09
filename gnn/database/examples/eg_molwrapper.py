@@ -5,8 +5,8 @@ from gnn.utils import pickle_load, expand_path
 
 
 def write_dataset():
-    filename = "~/Applications/db_access/mol_builder/molecules.pkl"
-    # filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
+    # filename = "~/Applications/db_access/mol_builder/molecules.pkl"
+    filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
     mols = pickle_load(filename)
 
     # mols = mols[len(mols) * 739 // 2048 : len(mols) * 740 // 2048]

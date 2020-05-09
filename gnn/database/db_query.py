@@ -11,147 +11,11 @@ import pymatgen
 from pymatgen.analysis.graphs import MoleculeGraph
 from pymatgen.analysis.local_env import OpenBabelNN
 from pymatgen.analysis.fragmenter import metal_edge_extender
-from pymatgen.core.structure import Molecule
-from pymatgen.io.babel import BabelMolAdaptor
 from atomate.qchem.database import QChemCalcDb
 from gnn.database.molwrapper import MoleculeWrapper
 from gnn.utils import create_directory, expand_path
-import openbabel as ob
 
 logger = logging.getLogger(__name__)
-
-
-class BabelMolAdaptor2(BabelMolAdaptor):
-    """
-    Fix to BabelMolAdaptor (see FIX below):
-    1. Add and remove bonds between mol graph and obmol, since the connectivity of mol
-    graph can be edited and different from the underlying pymatgen mol.
-    """
-
-    @staticmethod
-    def from_molecule_graph(mol_graph):
-        if not isinstance(mol_graph, MoleculeGraph):
-            raise ValueError("not get mol graph")
-        self = BabelMolAdaptor2(mol_graph.molecule)
-        # FIX 1
-        self._add_and_remove_bond(mol_graph)
-        return self
-
-    def add_bond(self, idx1, idx2, order=0):
-        """
-        Add a bond to an openbabel molecule with the specified order
-
-        Args:
-           idx1 (int): The atom index of one of the atoms participating the in bond
-           idx2 (int): The atom index of the other atom participating in the bond
-           order (float): Bond order of the added bond
-        """
-        # check whether bond exists
-        for obbond in ob.OBMolBondIter(self.openbabel_mol):
-            if (obbond.GetBeginAtomIdx() == idx1 and obbond.GetEndAtomIdx() == idx2) or (
-                obbond.GetBeginAtomIdx() == idx2 and obbond.GetEndAtomIdx() == idx1
-            ):
-                raise Exception("bond exists not added")
-        self.openbabel_mol.AddBond(idx1, idx2, order)
-
-    def _add_and_remove_bond(self, mol_graph):
-        """
-        Add bonds in mol_graph not in obmol to obmol, and remove bonds in obmol but
-        not in mol_graph.
-        """
-
-        # graph idx to ob idx map
-        idx_map = dict()
-        natoms = self.openbabel_mol.NumAtoms()
-        for graph_idx in range(natoms):
-            coords = list(mol_graph.graph.nodes[graph_idx]["coords"])
-            for atom in ob.OBMolAtomIter(self.openbabel_mol):
-                c = [atom.GetX(), atom.GetY(), atom.GetZ()]
-                if np.allclose(c, coords):
-                    idx_map[graph_idx] = atom.GetIdx()
-                    break
-            if graph_idx not in idx_map:
-                raise Exception("atom not found in obmol.")
-
-        # graph bonds (note that although MoleculeGraph uses multigrpah, but duplicate
-        # bonds are removed when calling in MoleculeGraph.with_local_env_strategy
-        graph_bonds = [
-            sorted([idx_map[i], idx_map[j]]) for i, j, _ in mol_graph.graph.edges.data()
-        ]
-
-        # open babel bonds
-        ob_bonds = [
-            sorted([b.GetBeginAtomIdx(), b.GetEndAtomIdx()])
-            for b in ob.OBMolBondIter(self.openbabel_mol)
-        ]
-
-        # add and and remove bonds
-        for bond in graph_bonds:
-            if bond not in ob_bonds:
-                self.add_bond(*bond, order=0)
-        for bond in ob_bonds:
-            if bond not in graph_bonds:
-                self.remove_bond(*bond)
-
-
-class BabelMolAdaptor3(BabelMolAdaptor2):
-    """
-    Compared to BabelMolAdaptor2, this corrects the bonds and then do other stuff like
-    PerceiveBondOrders.
-    NOTE: this seems create problems that OpenBabel cannot satisfy valence rule.
-
-    Fix to BabelMolAdaptor (see FIX below):
-    1. Add and remove bonds between mol graph and obmol, since the connectivity of mol
-    graph can be edited and different from the underlying pymatgen mol.
-    """
-
-    def __init__(self, mol_graph):
-        """
-        Initializes with pymatgen Molecule or OpenBabel"s OBMol.
-
-        """
-        mol = mol_graph.molecule
-        if isinstance(mol, Molecule):
-            if not mol.is_ordered:
-                raise ValueError("OpenBabel Molecule only supports ordered molecules.")
-
-            # For some reason, manually adding atoms does not seem to create
-            # the correct OBMol representation to do things like force field
-            # optimization. So we go through the indirect route of creating
-            # an XYZ file and reading in that file.
-            obmol = ob.OBMol()
-            obmol.BeginModify()
-            for site in mol:
-                coords = [c for c in site.coords]
-                atomno = site.specie.Z
-                obatom = ob.OBAtom()
-                obatom.thisown = 0
-                obatom.SetAtomicNum(atomno)
-                obatom.SetVector(*coords)
-                obmol.AddAtom(obatom)
-                del obatom
-            obmol.ConnectTheDots()
-
-            self._obmol = obmol
-
-            # FIX 1
-            self._add_and_remove_bond(mol_graph)
-
-            obmol.PerceiveBondOrders()
-            obmol.SetTotalSpinMultiplicity(mol.spin_multiplicity)
-            obmol.SetTotalCharge(mol.charge)
-            obmol.Center()
-            obmol.Kekulize()
-            obmol.EndModify()
-
-        elif isinstance(mol, ob.OBMol):
-            self._obmol = mol
-
-    @staticmethod
-    def from_molecule_graph(mol_graph):
-        if not isinstance(mol_graph, MoleculeGraph):
-            raise ValueError("not get mol graph")
-        return BabelMolAdaptor2(mol_graph)
 
 
 class MoleculeWrapperTaskCollection(MoleculeWrapper):
@@ -193,12 +57,12 @@ class MoleculeWrapperTaskCollection(MoleculeWrapper):
         free_energy = self._get_free_energy(db_entry, self.id, self.formula)
 
         super(MoleculeWrapperTaskCollection, self).__init__(
-            pymatgen_mol, mol_graph, free_energy, identifier
+            mol_graph, free_energy, identifier
         )
 
-    def create_ob_mol(self):
-        ob_adaptor = BabelMolAdaptor2.from_molecule_graph(self.mol_graph)
-        return ob_adaptor.openbabel_mol
+    @property
+    def spin_multiplicity(self):
+        return self.pymatgen_mol.spin_multiplicity
 
     @property
     def atomization_free_energy(self):
@@ -216,7 +80,7 @@ class MoleculeWrapperTaskCollection(MoleculeWrapper):
             e -= charge0_atom_energy[spec] * num
         return e
 
-    def pack_features(self, use_obabel_idx=True):
+    def pack_features(self, use_obabel_idx=True, broken_bond=None):
         feats = dict()
 
         # molecule level
@@ -269,7 +133,6 @@ class MoleculeWrapperMolBuilder(MoleculeWrapper):
         try:
             mol_graph = MoleculeGraph.from_dict(db_entry["mol_graph"])
         except KeyError as e:
-            # NOTE it would be better that we can get MoleculeGraph from database
             if db_entry["nsites"] == 1:  # single atom molecule
                 mol_graph = MoleculeGraph.with_local_env_strategy(
                     pymatgen_mol,
@@ -296,7 +159,7 @@ class MoleculeWrapperMolBuilder(MoleculeWrapper):
             raise UnsuccessfulEntryError
 
         super(MoleculeWrapperMolBuilder, self).__init__(
-            pymatgen_mol, mol_graph, free_energy, identifier
+            mol_graph, free_energy, identifier
         )
 
         # other properties
@@ -326,10 +189,6 @@ class MoleculeWrapperMolBuilder(MoleculeWrapper):
                 print(self.__class__.__name__, e, "critic", self.id, self.formula)
                 raise UnsuccessfulEntryError
 
-    def create_ob_mol(self):
-        ob_adaptor = BabelMolAdaptor2.from_molecule_graph(self.mol_graph)
-        return ob_adaptor.openbabel_mol
-
     def convert_to_babel_mol_graph(self, use_metal_edge_extender=True):
         self.mol_graph = MoleculeGraph.with_local_env_strategy(
             self.pymatgen_mol,
@@ -351,6 +210,10 @@ class MoleculeWrapperMolBuilder(MoleculeWrapper):
             print(self.__class__.__name__, e, "critic bonding", self.id)
             raise UnsuccessfulEntryError
         self.mol_graph = MoleculeGraph.with_edges(self.pymatgen_mol, bonds)
+
+    @property
+    def spin_multiplicity(self):
+        return self.pymatgen_mol.spin_multiplicity
 
     @property
     def atomization_free_energy(self):
@@ -414,7 +277,7 @@ class MoleculeWrapperMolBuilder(MoleculeWrapper):
         atom_spin = [i for i in self.atom_spin]
         if use_obabel_idx:
             for graph_idx in range(len(self.atoms)):
-                ob_idx = self.graph_idx_to_ob_idx_map[graph_idx]
+                ob_idx = self.graph_to_ob_atom_idx_map[graph_idx]
                 # -1 because ob index starts from 1
                 resp[ob_idx - 1] = self.resp[graph_idx]
                 mulliken[ob_idx - 1] = self.mulliken[graph_idx]

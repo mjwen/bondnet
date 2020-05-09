@@ -65,9 +65,9 @@ def read_nrel_bde_dataset(filename):
 
     # convert smiles to wrapper molecules
     smiles = sorted(unique_smiles, key=lambda k: unique_smiles[k])
-    # molecules = [smiles_to_wrapper_mol(s) for s in smiles]
-    with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
-        molecules = p.map(smiles_to_wrapper_mol, smiles)
+    molecules = [smiles_to_wrapper_mol(s) for s in smiles]
+    # with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
+    #    molecules = p.map(smiles_to_wrapper_mol, smiles)
 
     # find unsuccessful conversion
     bad_mol_indices = {i for i, m in enumerate(molecules) if m is None}
