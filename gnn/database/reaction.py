@@ -9,6 +9,7 @@ import networkx.algorithms.isomorphism as iso
 from pymatgen.analysis.graphs import _isomorphic
 from collections import defaultdict, OrderedDict
 from gnn.database.molwrapper import MoleculeWrapperFromAtomsAndBonds
+from gnn.parallel import parmap2
 from gnn.utils import create_directory, pickle_dump, pickle_load, yaml_dump, expand_path
 
 logger = logging.getLogger(__name__)
@@ -1459,9 +1460,10 @@ class ReactionCollection:
         mol_id_to_index_mapping = {m.id: i for i, m in enumerate(mol_reservoir)}
 
         # use multiprocessing to get atom mappings since they are relatively expensive
-        mappings = [get_atom_bond_mapping(r) for r in reactions]
-        # with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
-        #    mappings = p.map(get_atom_bond_mapping, reactions)
+        # mappings = [get_atom_bond_mapping(r) for r in reactions]
+        mappings = parmap2(
+            get_atom_bond_mapping, reactions, nprocs=multiprocessing.cpu_count()
+        )
 
         all_labels = []  # one per reaction
         for i, (rxn, mps) in enumerate(zip(reactions, mappings)):
