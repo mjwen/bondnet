@@ -140,9 +140,6 @@ def parse_args():
             "{} and {}.".format(args.fc_hidden_size, args.fc_num_layers)
         )
 
-    # same args
-    yaml_dump(args, "train_args.yaml")
-
     return args
 
 
@@ -302,7 +299,6 @@ def main_worker(gpu, world_size, args):
 
     if not args.distributed or (args.distributed and args.gpu == 0):
         torch.save(dataset.state_dict(), args.dataset_state_dict_filename)
-
         print(
             "Trainset size: {}, valset size: {}: testset size: {}.".format(
                 len(trainset), len(valset), len(testset)
@@ -337,8 +333,15 @@ def main_worker(gpu, world_size, args):
     # set2set_ntypes_direct = None
     # feature_size = {k: v for k, v in dataset.feature_size.items() if k != "global"}
 
+    args.feature_size = feature_size
+    args.set2set_ntypes_direct = set2set_ntypes_direct
+
+    # save args
+    if not args.distributed or (args.distributed and args.gpu == 0):
+        yaml_dump(args, "train_args.yaml")
+
     model = GatedGCNReactionNetwork(
-        in_feats=feature_size,
+        in_feats=args.feature_size,
         embedding_size=args.embedding_size,
         gated_num_layers=args.gated_num_layers,
         gated_hidden_size=args.gated_hidden_size,
@@ -350,7 +353,7 @@ def main_worker(gpu, world_size, args):
         gated_dropout=args.gated_dropout,
         num_lstm_iters=args.num_lstm_iters,
         num_lstm_layers=args.num_lstm_layers,
-        set2set_ntypes_direct=set2set_ntypes_direct,
+        set2set_ntypes_direct=args.set2set_ntypes_direct,
         fc_num_layers=args.fc_num_layers,
         fc_hidden_size=args.fc_hidden_size,
         fc_batch_norm=args.fc_batch_norm,
@@ -358,7 +361,6 @@ def main_worker(gpu, world_size, args):
         fc_dropout=args.fc_dropout,
         outdim=1,
         conv="GatedGCNConv",
-        # conv="GatedGCNConv2",
     )
 
     if not args.distributed or (args.distributed and args.gpu == 0):

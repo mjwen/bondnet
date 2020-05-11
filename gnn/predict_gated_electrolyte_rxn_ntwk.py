@@ -227,12 +227,7 @@ def main(args):
 
     # model
     feature_names = ["atom", "bond", "global"]
-    set2set_ntypes_direct = ["global"]
-    feature_size = dataset.feature_size
-
     # feature_names = ["atom", "bond"]
-    # set2set_ntypes_direct = None
-    # feature_size = {k: v for k, v in dataset.feature_size.items() if k != "global"}
 
     # NOTE cannot use gnn.utils.yaml_load, seems a bug in yaml.
     #  see: https://github.com/yaml/pyyaml/issues/266
@@ -240,7 +235,7 @@ def main(args):
         model_args = yaml.load(f, Loader=yaml.Loader)
 
     model = GatedGCNReactionNetwork(
-        in_feats=feature_size,
+        in_feats=model_args.feature_size,
         embedding_size=model_args.embedding_size,
         gated_num_layers=model_args.gated_num_layers,
         gated_hidden_size=model_args.gated_hidden_size,
@@ -252,7 +247,7 @@ def main(args):
         gated_dropout=model_args.gated_dropout,
         num_lstm_iters=model_args.num_lstm_iters,
         num_lstm_layers=model_args.num_lstm_layers,
-        set2set_ntypes_direct=set2set_ntypes_direct,
+        set2set_ntypes_direct=model_args.set2set_ntypes_direct,
         fc_num_layers=model_args.fc_num_layers,
         fc_hidden_size=model_args.fc_hidden_size,
         fc_batch_norm=model_args.fc_batch_norm,
