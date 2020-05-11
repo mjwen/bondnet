@@ -1,0 +1,426 @@
+- '@class': MoleculeGraph
+  '@module': pymatgen.analysis.graphs
+  graphs:
+    adjacency:
+    - - id: 2
+        key: 0
+      - id: 1
+        key: 0
+      - id: 3
+        key: 0
+      - id: 4
+        key: 0
+    - - id: 5
+        key: 0
+    - []
+    - []
+    - []
+    - []
+    directed: true
+    graph:
+    - - edge_weight_name
+      - weight
+    - - edge_weight_units
+      - ''
+    - - name
+      - bonds
+    multigraph: true
+    nodes:
+    - coords:
+      - -0.3703
+      - -0.0198
+      - -0.0162
+      id: 0
+      properties: {}
+      specie: C
+    - coords:
+      - 0.9569
+      - -0.3122
+      - -0.4129
+      id: 1
+      properties: {}
+      specie: O
+    - coords:
+      - -0.5229
+      - -0.3441
+      - 1.0161
+      id: 2
+      properties: {}
+      specie: H
+    - coords:
+      - -0.5488
+      - 1.0549
+      - -0.1019
+      id: 3
+      properties: {}
+      specie: H
+    - coords:
+      - -1.0628
+      - -0.5552
+      - -0.67
+      id: 4
+      properties: {}
+      specie: H
+    - coords:
+      - 1.548
+      - 0.1765
+      - 0.1848
+      id: 5
+      properties: {}
+      specie: H
+  molecule:
+    '@class': Molecule
+    '@module': pymatgen.core.structure
+    charge: 0
+    sites:
+    - name: C
+      properties: {}
+      species:
+      - element: C
+        occu: 1
+      xyz:
+      - -0.3703
+      - -0.0198
+      - -0.0162
+    - name: O
+      properties: {}
+      species:
+      - element: O
+        occu: 1
+      xyz:
+      - 0.9569
+      - -0.3122
+      - -0.4129
+    - name: H
+      properties: {}
+      species:
+      - element: H
+        occu: 1
+      xyz:
+      - -0.5229
+      - -0.3441
+      - 1.0161
+    - name: H
+      properties: {}
+      species:
+      - element: H
+        occu: 1
+      xyz:
+      - -0.5488
+      - 1.0549
+      - -0.1019
+    - name: H
+      properties: {}
+      species:
+      - element: H
+        occu: 1
+      xyz:
+      - -1.0628
+      - -0.5552
+      - -0.67
+    - name: H
+      properties: {}
+      species:
+      - element: H
+        occu: 1
+      xyz:
+      - 1.548
+      - 0.1765
+      - 0.1848
+    spin_multiplicity: 1
+- '@class': MoleculeGraph
+  '@module': pymatgen.analysis.graphs
+  graphs:
+    adjacency:
+    - - id: 2
+        key: 0
+      - id: 1
+        key: 0
+      - id: 3
+        key: 0
+    - []
+    - []
+    - []
+    directed: true
+    graph:
+    - - edge_weight_name
+      - weight
+    - - edge_weight_units
+      - ''
+    - - name
+      - bonds
+    multigraph: true
+    nodes:
+    - coords:
+      - -0.0
+      - 0.0
+      - -0.0
+      id: 0
+      properties: {}
+      specie: C
+    - coords:
+      - 1.0726
+      - -0.1459
+      - 0.016
+      id: 1
+      properties: {}
+      specie: H
+    - coords:
+      - -0.6628
+      - -0.8559
+      - 0.0059
+      id: 2
+      properties: {}
+      specie: H
+    - coords:
+      - -0.4097
+      - 1.0018
+      - -0.022
+      id: 3
+      properties: {}
+      specie: H
+  molecule:
+    '@class': Molecule
+    '@module': pymatgen.core.structure
+    charge: 0
+    sites:
+    - name: C
+      properties: {}
+      species:
+      - element: C
+        occu: 1
+      xyz:
+      - -0.0
+      - 0.0
+      - -0.0
+    - name: H
+      properties: {}
+      species:
+      - element: H
+        occu: 1
+      xyz:
+      - 1.0726
+      - -0.1459
+      - 0.016
+    - name: H
+      properties: {}
+      species:
+      - element: H
+        occu: 1
+      xyz:
+      - -0.6628
+      - -0.8559
+      - 0.0059
+    - name: H
+      properties: {}
+      species:
+      - element: H
+        occu: 1
+      xyz:
+      - -0.4097
+      - 1.0018
+      - -0.022
+    spin_multiplicity: 2
+- '@class': MoleculeGraph
+  '@module': pymatgen.analysis.graphs
+  graphs:
+    adjacency:
+    - - id: 1
+        key: 0
+    - []
+    directed: true
+    graph:
+    - - edge_weight_name
+      - weight
+    - - edge_weight_units
+      - ''
+    - - name
+      - bonds
+    multigraph: true
+    nodes:
+    - coords:
+      - 0.4889
+      - 0.0
+      - 0.0
+      id: 0
+      properties: {}
+      specie: O
+    - coords:
+      - -0.4889
+      - 0.0
+      - 0.0
+      id: 1
+      properties: {}
+      specie: H
+  molecule:
+    '@class': Molecule
+    '@module': pymatgen.core.structure
+    charge: 0
+    sites:
+    - name: O
+      properties: {}
+      species:
+      - element: O
+        occu: 1
+      xyz:
+      - 0.4889
+      - 0.0
+      - 0.0
+    - name: H
+      properties: {}
+      species:
+      - element: H
+        occu: 1
+      xyz:
+      - -0.4889
+      - 0.0
+      - 0.0
+    spin_multiplicity: 2
+- '@class': MoleculeGraph
+  '@module': pymatgen.analysis.graphs
+  graphs:
+    adjacency:
+    - - id: 1
+        key: 0
+      - id: 2
+        key: 0
+      - id: 3
+        key: 0
+    - - id: 4
+        key: 0
+    - []
+    - []
+    - []
+    directed: true
+    graph:
+    - - edge_weight_name
+      - weight
+    - - edge_weight_units
+      - ''
+    - - name
+      - bonds
+    multigraph: true
+    nodes:
+    - coords:
+      - -0.4513
+      - -0.0966
+      - -0.0025
+      id: 0
+      properties: {}
+      specie: C
+    - coords:
+      - 0.8667
+      - -0.2752
+      - 0.2543
+      id: 1
+      properties: {}
+      specie: O
+    - coords:
+      - -1.0952
+      - -0.8859
+      - 0.3469
+      id: 2
+      properties: {}
+      specie: H
+    - coords:
+      - -0.7375
+      - 0.8002
+      - -0.5229
+      id: 3
+      properties: {}
+      specie: H
+    - coords:
+      - 1.4173
+      - 0.4575
+      - -0.0758
+      id: 4
+      properties: {}
+      specie: H
+  molecule:
+    '@class': Molecule
+    '@module': pymatgen.core.structure
+    charge: -1
+    sites:
+    - name: C
+      properties: {}
+      species:
+      - element: C
+        occu: 1
+      xyz:
+      - -0.4513
+      - -0.0966
+      - -0.0025
+    - name: O
+      properties: {}
+      species:
+      - element: O
+        occu: 1
+      xyz:
+      - 0.8667
+      - -0.2752
+      - 0.2543
+    - name: H
+      properties: {}
+      species:
+      - element: H
+        occu: 1
+      xyz:
+      - -1.0952
+      - -0.8859
+      - 0.3469
+    - name: H
+      properties: {}
+      species:
+      - element: H
+        occu: 1
+      xyz:
+      - -0.7375
+      - 0.8002
+      - -0.5229
+    - name: H
+      properties: {}
+      species:
+      - element: H
+        occu: 1
+      xyz:
+      - 1.4173
+      - 0.4575
+      - -0.0758
+    spin_multiplicity: 1
+- '@class': MoleculeGraph
+  '@module': pymatgen.analysis.graphs
+  graphs:
+    adjacency:
+    - []
+    directed: true
+    graph:
+    - - edge_weight_name
+      - weight
+    - - edge_weight_units
+      - ''
+    - - name
+      - bonds
+    multigraph: true
+    nodes:
+    - coords:
+      - 0.0
+      - 0.0
+      - 0.0
+      id: 0
+      properties: {}
+      specie: H
+  molecule:
+    '@class': Molecule
+    '@module': pymatgen.core.structure
+    charge: 1
+    sites:
+    - name: H
+      properties: {}
+      species:
+      - element: H
+        occu: 1
+      xyz:
+      - 0.0
+      - 0.0
+      - 0.0
+    spin_multiplicity: 1

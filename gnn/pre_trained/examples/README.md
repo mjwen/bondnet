@@ -31,7 +31,7 @@ One csv file is needed (e.g. smiles_reactions.csv).
     skip them all (if charges are 0), but you cannot mix the two formats.
     
  
- ## Molecules given in SDF (structure data format)
+ ## Molecules given in SDF
 
 Three files are needed:
 
@@ -55,4 +55,15 @@ Three files are needed:
     If there is only one fragment, this becomes (don't forget the trailing comma):
     
     ```reactant,fragment1,```
+
     
+ ## Molecule Graphs given in json or yaml files
+ 
+Two files are needed:
+
+1. molecule graph file (e.g. molecule_graphs.json, molecule_graphs.yaml) 
+   A json or yaml file lists all the molecule graphs. Each graph is represented by
+   a dict that can be obtained by `MoleculeGraph.as_dict()`. 
+
+2. reaction file (e.g. reactions.csv) 
+    The same as described in `Molecules given in SDF`.
