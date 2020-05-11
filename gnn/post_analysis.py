@@ -208,10 +208,12 @@ def write_features(model, nodes, data_loader, feat_filename, meta_filename):
     label_data = np.concatenate(label_data)
     ids = np.concatenate(ids)
 
+    species = ["-".join(x.split("-")[-2:]) for x in ids]
+
     # write files
     df = pd.DataFrame(feature_data)
     df.to_csv(feat_filename, sep="\t", header=False, index=False)
-    df = pd.DataFrame({"ids": ids, "energy": label_data})
+    df = pd.DataFrame({"ids": ids, "energy": label_data, "species": species})
     df.to_csv(meta_filename, sep="\t", index=False)
 
 

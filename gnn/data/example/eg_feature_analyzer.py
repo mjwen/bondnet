@@ -108,19 +108,21 @@ def tsne_analysis(
 
 
 def umap_analysis(
-    # feature_file="~/Applications/db_access/mol_builder/feats_analysis/feats_1k.tsv",
-    # metadata_file="~/Applications/db_access/mol_builder/feats_analysis/feats_metadata_1k.tsv",
-    feature_file="~/Applications/db_access/mol_builder/feats_analysis/feats_large.tsv",
-    metadata_file="~/Applications/db_access/mol_builder/feats_analysis/feats_metadata_large.tsv",
+    feature_file="~/Applications/db_access/mol_builder/feats_analysis/feats.tsv",
+    metadata_file="~/Applications/db_access/mol_builder/feats_analysis/feats_metadata.tsv",
+    # feature_file="~/Applications/db_access/mol_builder/feats_analysis/feats_large.tsv",
+    # metadata_file="~/Applications/db_access/mol_builder/feats_analysisfeats_metadata_large.tsv",
 ):
     analyzer = UMAPAnalyzer.from_csv(feature_file, metadata_file, sep="\t")
     analyzer.compute()
 
     filename = "~/Applications/db_access/mol_builder/feats_analysis/umap_embedding.pdf"
-    analyzer.plot_via_umap_points(metadata_key_as_color="energy", filename=filename)
+    # analyzer.plot_via_umap_points(metadata_key_as_color="energy", filename=filename)
+    analyzer.plot_via_umap_points(metadata_key_as_color="species", filename=filename)
 
     filename = "~/Applications/db_access/mol_builder/feats_analysis/umap_embedding.html"
-    analyzer.plot_via_umap_interactive(metadata_key_as_color="energy", filename=filename)
+    # analyzer.plot_via_umap_interactive(metadata_key_as_color="energy", filename=filename)
+    analyzer.plot_via_umap_interactive(metadata_key_as_color="species", filename=filename)
 
 
 def kmeans_analysis(

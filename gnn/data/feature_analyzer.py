@@ -190,24 +190,42 @@ class UMAPAnalyzer(BaseAnalyzer):
     def plot_via_umap_points(
         self, metadata_key_as_color="energy", filename="embedding.pdf"
     ):
-        umap_plot.points(
-            expand_path(filename),
-            self.model,
-            values=self.metadata[metadata_key_as_color],
-            theme="viridis",
-        )
+        if metadata_key_as_color == "energy":
+            umap_plot.points(
+                expand_path(filename),
+                self.model,
+                values=self.metadata[metadata_key_as_color],
+                theme="viridis",
+            )
+        elif metadata_key_as_color == "species":
+            umap_plot.points(
+                expand_path(filename),
+                self.model,
+                labels=self.metadata[metadata_key_as_color],
+                theme="viridis",
+            )
 
     def plot_via_umap_interactive(
         self, metadata_key_as_color="energy", filename="embedding.html"
     ):
-        umap_plot.interactive(
-            expand_path(filename),
-            self.model,
-            values=self.metadata[metadata_key_as_color],
-            hover_data=pd.DataFrame(self.metadata),
-            theme="viridis",
-            point_size=5,
-        )
+        if metadata_key_as_color == "energy":
+            umap_plot.interactive(
+                expand_path(filename),
+                self.model,
+                values=self.metadata[metadata_key_as_color],
+                hover_data=pd.DataFrame(self.metadata),
+                theme="viridis",
+                point_size=5,
+            )
+        elif metadata_key_as_color == "species":
+            umap_plot.interactive(
+                expand_path(filename),
+                self.model,
+                labels=self.metadata[metadata_key_as_color],
+                hover_data=pd.DataFrame(self.metadata),
+                theme="viridis",
+                point_size=5,
+            )
 
 
 class StdevThreshold(FeatureAggregator):
