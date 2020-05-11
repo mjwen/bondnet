@@ -2,10 +2,17 @@
 Functions to convert data files to standard files the model accepts.
 """
 
+import os
 import logging
 import pandas as pd
+import json
 import multiprocessing
-from gnn.database.molwrapper import smiles_to_wrapper_mol, rdkit_mol_to_wrapper_mol
+from pymatgen.analysis.graphs import MoleculeGraph
+from gnn.database.molwrapper import (
+    MoleculeWrapper,
+    smiles_to_wrapper_mol,
+    rdkit_mol_to_wrapper_mol,
+)
 from gnn.database.reaction import Reaction, ReactionCollection
 from gnn.utils import expand_path
 from gnn.utils import yaml_load, yaml_dump
@@ -237,7 +244,7 @@ class PredictionBySDFChargeReactionFiles:
         self.rxn_file = expand_path(rxn_file)
         self.nprocs = nprocs
 
-    def read_input(self):
+    def read_molecules(self):
 
         # read sdf mol file
         supp = Chem.SDMolSupplier(self.mol_file, sanitize=True, removeHs=False)
@@ -249,13 +256,6 @@ class PredictionBySDFChargeReactionFiles:
         with open(self.charge_file, "r") as f:
             for line in f:
                 charges.append(int(line.strip()))
-
-        # read reaction file
-        df_rxns = pd.read_csv(self.rxn_file, header=0, index_col=None)
-        num_columns = len(df_rxns.columns)
-        assert (
-            num_columns == 3
-        ), f"Corrupted input file; expecting 3 columns but got {num_columns}"
 
         # convert rdkit mols to wrapper molecules
         msg = (
@@ -275,6 +275,17 @@ class PredictionBySDFChargeReactionFiles:
                 mol_ids = list(range(len(rdkit_mols)))
                 args = zip(rdkit_mols, charges, mol_ids)
                 molecules = p.starmap(wrapper_rdkit_mol_to_wrapper_mol, args)
+
+        return molecules
+
+    def read_reactions(self, molecules):
+
+        # read reaction file
+        df_rxns = pd.read_csv(self.rxn_file, header=0, index_col=None)
+        num_columns = len(df_rxns.columns)
+        assert (
+            num_columns == 3
+        ), f"Corrupted input file; expecting 3 columns but got {num_columns}"
 
         # convert to reactions
         reactions = []
@@ -318,7 +329,8 @@ class PredictionBySDFChargeReactionFiles:
         """
         Convert to standard files that the fitting code uses.
         """
-        reactions = self.read_input()
+        molecules = self.read_molecules()
+        reactions = self.read_reactions(molecules)
         extractor = ReactionCollection(reactions)
 
         extractor.create_struct_label_dataset_reaction_network_based_regression_simple(
@@ -370,6 +382,43 @@ class PredictionBySDFChargeReactionFiles:
         rst = df.to_csv(filename, index=False)
         if rst is not None:
             print(rst)
+
+
+class PredictionByMolGraphReactionFiles(PredictionBySDFChargeReactionFiles):
+    """
+    Make predictions based on the two files: molecules.json (or molecules.yaml) and 
+        reactions.csv.
+
+        molecules.json (or molecules.yaml) stores all the molecules in the reactions
+        and it should be a list of MoleculeGraph.as_dict().
+    """
+
+    def __init__(self, mol_file, rxn_file, nprocs=None):
+        self.mol_file = expand_path(mol_file)
+        self.rxn_file = expand_path(rxn_file)
+        self.nprocs = nprocs
+
+    def read_molecules(self):
+
+        file_type = os.path.splitext(self.mol_file)[1]
+        if file_type == ".json":
+            with open(self.mol_file, "r") as f:
+                mol_graph_dicts = json.load(f)
+        elif file_type in [".yaml", ".yml"]:
+            mol_graph_dicts = yaml_load(self.mol_file)
+        else:
+            supported = [".json", ".yaml", ".yml"]
+            raise ValueError(
+                f"File extension of {self.mol_file} not supported; "
+                f"supported are: {supported}."
+            )
+
+        mol_graphs = [MoleculeGraph.from_dict(d) for d in mol_graph_dicts]
+        molecules = [
+            MoleculeWrapper(g, free_energy=0.0, id=i) for i, g in enumerate(mol_graphs)
+        ]
+
+        return molecules
 
 
 class PredictionByStructLabelFeatFiles:

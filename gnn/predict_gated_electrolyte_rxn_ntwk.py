@@ -17,6 +17,7 @@ from gnn.data.featurizer import (
 from gnn.database.predictor import (
     PredictionBySmilesReaction,
     PredictionBySDFChargeReactionFiles,
+    PredictionByMolGraphReactionFiles,
     PredictionByStructLabelFeatFiles,
 )
 from gnn.utils import load_checkpoints
@@ -42,7 +43,7 @@ def parse_args():
         "--format",
         type=str,
         default="smi",
-        choices=["smi", "sdf", "internal"],
+        choices=["smi", "sdf", "graph", "internal"],
         help="format of the molecules",
     )
     parser.add_argument(
@@ -110,6 +111,17 @@ def get_predictor(args):
             predictor.convert_format(sdf_file, label_file, feature_file)
             supported = True
 
+    # mol graph 2 files, mol (json or yaml), reaction (csv)
+    elif args.format == "graph":
+        if args.infile is not None and len(args.infile) == 2:
+            mol_file, rxn_file = args.infile
+            predictor = PredictionByMolGraphReactionFiles(mol_file, rxn_file)
+            sdf_file = "/tmp/struct.sdf"
+            label_file = "/tmp/label.yaml"
+            feature_file = "/tmp/feature.yaml"
+            predictor.convert_format(sdf_file, label_file, feature_file)
+            supported = True
+
     # internal 3 files: sdf file, label file, feature file
     elif args.format == "interal":
         if args.infile is not None and len(args.infile) == 3:
@@ -132,6 +144,14 @@ def get_predictor(args):
             "python predict_gated_electrolyte_rxn_ntwk.py  "
             "-t sdf  "
             "-i molecules.sdf charges.txt reactions.csv  "
+            "-o results.csv\n"
+        )
+
+        # mol graph 2 files, mol (json or yaml), reaction (csv)
+        msg += (
+            "python predict_gated_electrolyte_rxn_ntwk.py  "
+            "-t graph  "
+            "-i molecule_graphs.json reactions.csv  "
             "-o results.csv\n"
         )
 
