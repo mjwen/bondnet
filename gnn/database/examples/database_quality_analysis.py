@@ -57,8 +57,8 @@ def check_valence_mol(mol):
         """
         res = [(attr["specie"], []) for attr in m.atoms]
         for (a1, a2), _ in m.bonds.items():
-            s1 = m.atoms[a1]["specie"]
-            s2 = m.atoms[a2]["specie"]
+            s1 = m.species[a1]
+            s2 = m.species[a2]
             res[a1][1].append(s2)
             res[a2][1].append(s1)
         return res
@@ -69,7 +69,7 @@ def check_valence_mol(mol):
         "C": [1, 2, 3, 4],
         "O": [1, 2],
         "F": [1],
-        "P": [1, 2, 3, 5],
+        "P": [1, 2, 3, 5, 6],  # 6 for LiPF6
         "Li": Li_allowed,
     }
 
@@ -110,8 +110,8 @@ def check_bond_species_mol(mol):
         """
         res = []
         for (a1, a2), _ in m.bonds.items():
-            s1 = m.atoms[a1]["specie"]
-            s2 = m.atoms[a2]["specie"]
+            s1 = m.species[a1]
+            s2 = m.species[a2]
             res.append(sorted([s1, s2]))
         return res
 
@@ -187,7 +187,7 @@ def check_bond_length_mol(mol):
         ("P", "P"): 2.21,
     }
 
-    # multiply by 1.2 to give relax the rule a bit
+    # multiply by 1.2 to relax the rule a bit
     tmp = dict()
     for k, v in bond_length_limit.items():
         if v is not None:

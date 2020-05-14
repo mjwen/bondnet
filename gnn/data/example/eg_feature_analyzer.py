@@ -4,6 +4,7 @@ import numpy as np
 from collections import defaultdict
 from gnn.data.electrolyte import ElectrolyteBondDataset
 from gnn.data.qm9 import QM9Dataset
+import pandas as pd
 from gnn.data.feature_analyzer import (
     PCAAnalyzer,
     TSNEAnalyzer,
@@ -83,45 +84,90 @@ def corelation(dataset, excludes):
         plot_heat_map(corr, labels, filename)
 
 
+def select_data_by_species(feature_file, metadata_file):
+    """
+    Mask species that are not as dense as others.
+    """
+    features = pd.read_csv(feature_file, sep="\t", header=None, index_col=None)
+    features = features.to_numpy()
+    metadata = pd.read_csv(metadata_file, sep="\t", header=0, index_col=None)
+    metadata = metadata.to_dict(orient="list")
+    metadata = {k: np.asarray(v) for k, v in metadata.items()}
+
+    new_metadata = defaultdict(list)
+    keys = metadata.keys()
+    major_species = {"C-H", "C-C", "C-O", "C-F", "H-O"}
+    for i, species in enumerate(metadata["species"]):
+        if species in major_species:
+            for k in keys:
+                new_metadata[k].append(metadata[k][i])
+        else:
+            for k in keys:
+                if k == "species":
+                    new_metadata[k].append("others")
+                else:
+                    new_metadata[k].append(metadata[k][i])
+    metadata = {k: np.asarray(v) for k, v in new_metadata.items()}
+
+    return features, metadata
+
+
 def pca_analysis(
-    feature_file="~/Applications/db_access/mol_builder/feats_analysis/feats_1k.tsv",
-    metadata_file="~/Applications/db_access/mol_builder/feats_analysis/feats_metadata_1k.tsv",
+    feature_file="~/Applications/db_access/mol_builder/post_analysis/feats.tsv",
+    metadata_file="~/Applications/db_access/mol_builder/post_analysis/feats_metadata.tsv",
 ):
-    analyzer = PCAAnalyzer.from_csv(feature_file, metadata_file, sep="\t")
+    # analyzer = PCAAnalyzer.from_csv(feature_file, metadata_file, sep="\t")
+    # analyzer.compute()
+
+    features, metadata = select_data_by_species(feature_file, metadata_file)
+    analyzer = PCAAnalyzer(features, metadata)
     analyzer.compute()
 
-    filename = "~/Applications/db_access/mol_builder/feats_analysis/pca_embedding.pdf"
-    analyzer.plot(metadata_key_as_color="energy", filename=filename)
+    filename = "~/Applications/db_access/mol_builder/post_analysis/pca_embedding_eng.pdf"
+    analyzer.plot_via_umap_points(metadata_key_as_color="energy", filename=filename)
+    filename = "~/Applications/db_access/mol_builder/post_analysis/pca_embedding.pdf"
+    analyzer.plot_via_umap_points(metadata_key_as_color="species", filename=filename)
 
 
 def tsne_analysis(
-    # feature_file="~/Applications/db_access/mol_builder/feats_analysis/feats.tsv",
-    # metadata_file="~/Applications/db_access/mol_builder/feats_analysis/feats_metadata.tsv",
-    feature_file="~/Applications/db_access/mol_builder/feats_analysis/feats_1k.tsv",
-    metadata_file="~/Applications/db_access/mol_builder/feats_analysis/feats_metadata_1k.tsv",
+    feature_file="~/Applications/db_access/mol_builder/post_analysis/feats.tsv",
+    metadata_file="~/Applications/db_access/mol_builder/post_analysis/feats_metadata.tsv",
 ):
-    analyzer = TSNEAnalyzer.from_csv(feature_file, metadata_file, sep="\t")
+    # analyzer = TSNEAnalyzer.from_csv(feature_file, metadata_file, sep="\t")
+    # analyzer.compute()
+
+    features, metadata = select_data_by_species(feature_file, metadata_file)
+    analyzer = TSNEAnalyzer(features, metadata)
     analyzer.compute()
 
-    filename = "~/Applications/db_access/mol_builder/feats_analysis/tsne_embedding.pdf"
-    analyzer.plot(metadata_key_as_color="energy", filename=filename)
+    filename = "~/Applications/db_access/mol_builder/post_analysis/tsne_embedding_eng.pdf"
+    analyzer.plot_via_umap_points(metadata_key_as_color="energy", filename=filename)
+    filename = "~/Applications/db_access/mol_builder/post_analysis/tsne_embedding.pdf"
+    analyzer.plot_via_umap_points(metadata_key_as_color="species", filename=filename)
 
 
 def umap_analysis(
-    feature_file="~/Applications/db_access/mol_builder/feats_analysis/feats.tsv",
-    metadata_file="~/Applications/db_access/mol_builder/feats_analysis/feats_metadata.tsv",
-    # feature_file="~/Applications/db_access/mol_builder/feats_analysis/feats_large.tsv",
-    # metadata_file="~/Applications/db_access/mol_builder/feats_analysisfeats_metadata_large.tsv",
+    feature_file="~/Applications/db_access/mol_builder/post_analysis/feats.tsv",
+    metadata_file="~/Applications/db_access/mol_builder/post_analysis/feats_metadata.tsv",
 ):
-    analyzer = UMAPAnalyzer.from_csv(feature_file, metadata_file, sep="\t")
+
+    # analyzer = UMAPAnalyzer.from_csv(feature_file, metadata_file, sep="\t")
+    # analyzer.compute()
+
+    features, metadata = select_data_by_species(feature_file, metadata_file)
+    analyzer = UMAPAnalyzer(features, metadata)
     analyzer.compute()
 
-    filename = "~/Applications/db_access/mol_builder/feats_analysis/umap_embedding.pdf"
-    # analyzer.plot_via_umap_points(metadata_key_as_color="energy", filename=filename)
+    filename = "~/Applications/db_access/mol_builder/post_analysis/umap_embedding_eng.pdf"
+    analyzer.plot_via_umap_points(metadata_key_as_color="energy", filename=filename)
+    filename = "~/Applications/db_access/mol_builder/post_analysis/umap_embedding.pdf"
     analyzer.plot_via_umap_points(metadata_key_as_color="species", filename=filename)
 
-    filename = "~/Applications/db_access/mol_builder/feats_analysis/umap_embedding.html"
+    # filename = (
+    #     "~/Applications/db_access/mol_builder/post_analysis/umap_embedding_eng.html"
+    # )
     # analyzer.plot_via_umap_interactive(metadata_key_as_color="energy", filename=filename)
+    filename = "~/Applications/db_access/mol_builder/post_analysis/umap_embedding.html"
     analyzer.plot_via_umap_interactive(metadata_key_as_color="species", filename=filename)
 
 

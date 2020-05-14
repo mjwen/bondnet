@@ -402,10 +402,9 @@ class Reaction:
 
             # broken bond in sdf idx
             broken_bond = mol.graph_to_ob_bond_idx_map(self.get_broken_bond())
+            broken_bond = "-".join([str(i) for i in broken_bond])
             species = "-".join(sorted(self.get_broken_bond_attr()["species"]))
-            str_id = (
-                str(mol.id) + "_broken_bond-" + str(broken_bond) + "_species-" + species
-            )
+            str_id = str(mol.id) + "_broken_bond-" + broken_bond + "_species-" + species
 
             self._id = str_id
 

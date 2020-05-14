@@ -2,7 +2,10 @@
 This is the same functions as in umap.plot. The only difference is that instead of
 returning an ax and view in jupyter notebook, here `filename` is added as the first
 argument and save the plot to it.
+
+Also, we make it general to passing points directly, instead of umap objects.
 """
+import numpy as np
 import bokeh
 from bokeh.plotting import output_file
 import matplotlib.pyplot as plt
@@ -17,13 +20,13 @@ from umap.plot import interactive as umap_interactive
 
 def points(
     filename,
-    umap_object,
+    points,
     labels=None,
     values=None,
     theme=None,
     cmap="Blues",
     color_key=None,
-    color_key_cmap="Spectral",
+    color_key_cmap="Set2",
     background="white",
     width=800,
     height=800,
@@ -43,8 +46,8 @@ def points(
 
     Parameters
     ----------
-    umap_object: trained UMAP object
-        A trained UMAP object that has a 2D embedding.
+    filename: str, name of file to save the plot.
+    points: array, shape (n_samples, 2) embedding data
 
     labels: array, shape (n_samples,) (optional, default None)
         An array of labels (assumed integer or categorical),
@@ -135,10 +138,7 @@ def points(
         If you are using a notbooks and have ``%matplotlib inline`` set
         then this will simply display inline.
     """
-    if not hasattr(umap_object, "embedding_"):
-        raise ValueError(
-            "UMAP object must perform fit on data before it can be visualized"
-        )
+    points = np.asarray(points)
 
     if theme is not None:
         cmap = _themes[theme]["cmap"]
@@ -149,8 +149,6 @@ def points(
         raise ValueError(
             "Conflicting options; only one of labels or values should be set"
         )
-
-    points = umap_object.embedding_
 
     if subset_points is not None:
         if len(subset_points) != points.shape[0]:
@@ -205,28 +203,29 @@ def points(
         )
 
     ax.set(xticks=[], yticks=[])
-    if umap_object.metric != "euclidean":
-        ax.text(
-            0.99,
-            0.01,
-            "UMAP: metric={}, n_neighbors={}, min_dist={}".format(
-                umap_object.metric, umap_object.n_neighbors, umap_object.min_dist
-            ),
-            transform=ax.transAxes,
-            horizontalalignment="right",
-            color=font_color,
-        )
-    else:
-        ax.text(
-            0.99,
-            0.01,
-            "UMAP: n_neighbors={}, min_dist={}".format(
-                umap_object.n_neighbors, umap_object.min_dist
-            ),
-            transform=ax.transAxes,
-            horizontalalignment="right",
-            color=font_color,
-        )
+
+    # if umap_object.metric != "euclidean":
+    #     ax.text(
+    #         0.99,
+    #         0.01,
+    #         "UMAP: metric={}, n_neighbors={}, min_dist={}".format(
+    #             umap_object.metric, umap_object.n_neighbors, umap_object.min_dist
+    #         ),
+    #         transform=ax.transAxes,
+    #         horizontalalignment="right",
+    #         color=font_color,
+    #     )
+    # else:
+    #     ax.text(
+    #         0.99,
+    #         0.01,
+    #         "UMAP: n_neighbors={}, min_dist={}".format(
+    #             umap_object.n_neighbors, umap_object.min_dist
+    #         ),
+    #         transform=ax.transAxes,
+    #         horizontalalignment="right",
+    #         color=font_color,
+    #     )
 
     # note-mw
     # return ax

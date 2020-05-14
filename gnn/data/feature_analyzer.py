@@ -107,10 +107,6 @@ class BaseAnalyzer(abc.ABC):
 
         return cls(features, metadata)
 
-    # @classmethod
-    # def from_data_loader(cls, dataloaders):
-    #     raise NotImplementedError
-
     def write_embedding_to_csv(self, filename, sep=","):
         if self.embedding is not None:
             df = pd.DataFrame(self.embedding)
@@ -124,6 +120,46 @@ class BaseAnalyzer(abc.ABC):
 
     def plot(self, metadata_key_as_color="energy", filename="embedding.pdf"):
         plot_scatter([self.embedding], [self.metadata[metadata_key_as_color]], filename)
+
+    def plot_via_umap_points(
+        self, metadata_key_as_color="energy", filename="embedding.pdf"
+    ):
+        if metadata_key_as_color == "energy":
+            umap_plot.points(
+                expand_path(filename),
+                self.embedding,
+                values=self.metadata[metadata_key_as_color],
+                theme="blue",
+            )
+        elif metadata_key_as_color == "species":
+            umap_plot.points(
+                expand_path(filename),
+                self.embedding,
+                labels=self.metadata[metadata_key_as_color],
+                color_key_cmap="Paired",
+            )
+
+    def plot_via_umap_interactive(
+        self, metadata_key_as_color="energy", filename="embedding.html"
+    ):
+        if metadata_key_as_color == "energy":
+            umap_plot.interactive(
+                expand_path(filename),
+                self.model,
+                values=self.metadata[metadata_key_as_color],
+                hover_data=pd.DataFrame(self.metadata),
+                theme="viridis",
+                point_size=5,
+            )
+        elif metadata_key_as_color == "species":
+            umap_plot.interactive(
+                expand_path(filename),
+                self.model,
+                labels=self.metadata[metadata_key_as_color],
+                hover_data=pd.DataFrame(self.metadata),
+                color_key_cmap="Paired",
+                point_size=5,
+            )
 
 
 class PCAAnalyzer(BaseAnalyzer):
@@ -167,7 +203,7 @@ class UMAPAnalyzer(BaseAnalyzer):
         self,
         n_neighbors=100,
         n_components=2,
-        min_dist=0.1,
+        min_dist=0.5,
         metric="euclidean",
         verbose=True,
         n_epochs=1000,
@@ -186,46 +222,6 @@ class UMAPAnalyzer(BaseAnalyzer):
         self.embedding = embedding
 
         return self.embedding
-
-    def plot_via_umap_points(
-        self, metadata_key_as_color="energy", filename="embedding.pdf"
-    ):
-        if metadata_key_as_color == "energy":
-            umap_plot.points(
-                expand_path(filename),
-                self.model,
-                values=self.metadata[metadata_key_as_color],
-                theme="viridis",
-            )
-        elif metadata_key_as_color == "species":
-            umap_plot.points(
-                expand_path(filename),
-                self.model,
-                labels=self.metadata[metadata_key_as_color],
-                theme="viridis",
-            )
-
-    def plot_via_umap_interactive(
-        self, metadata_key_as_color="energy", filename="embedding.html"
-    ):
-        if metadata_key_as_color == "energy":
-            umap_plot.interactive(
-                expand_path(filename),
-                self.model,
-                values=self.metadata[metadata_key_as_color],
-                hover_data=pd.DataFrame(self.metadata),
-                theme="viridis",
-                point_size=5,
-            )
-        elif metadata_key_as_color == "species":
-            umap_plot.interactive(
-                expand_path(filename),
-                self.model,
-                labels=self.metadata[metadata_key_as_color],
-                hover_data=pd.DataFrame(self.metadata),
-                theme="viridis",
-                point_size=5,
-            )
 
 
 class StdevThreshold(FeatureAggregator):

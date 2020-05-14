@@ -8,6 +8,7 @@ dist/
 *.pkl
 *.pt
 *.json
+*.yaml
 *.svg
 *.sdf
 *.csv

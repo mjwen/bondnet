@@ -1,4 +1,3 @@
-from gnn.utils import expand_path
 import matplotlib.pyplot as plt
 import os
 import torch
@@ -10,13 +9,14 @@ import gnn
 from gnn.model.gated_reaction_network import GatedGCNReactionNetwork
 from gnn.data.electrolyte import ElectrolyteReactionNetworkDataset
 from gnn.data.dataloader import DataLoaderReactionNetwork
+from gnn.data.dataset import train_validation_test_split
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import (
     AtomFeaturizer,
     BondAsNodeFeaturizer,
     GlobalFeaturizerCharge,
 )
-from gnn.utils import load_checkpoints
+from gnn.utils import load_checkpoints, seed_torch, expand_path
 
 
 def parse_args():
@@ -65,7 +65,9 @@ def get_data_loader(sdf_file, label_file, feature_file, batch_size=100, model="2
         label_transformer=True,
         state_dict_filename=os.path.join(model_dir, "dataset_state_dict.pkl"),
     )
-    data_loader = DataLoaderReactionNetwork(dataset, batch_size=batch_size, shuffle=False)
+
+    _, _, testset = train_validation_test_split(dataset, validation=0.1, test=0.1)
+    data_loader = DataLoaderReactionNetwork(testset, batch_size=batch_size, shuffle=False)
 
     return data_loader
 
@@ -207,7 +209,6 @@ def write_features(model, nodes, data_loader, feat_filename, meta_filename):
     feature_data = np.concatenate(feature_data)
     label_data = np.concatenate(label_data)
     ids = np.concatenate(ids)
-
     species = ["-".join(x.split("-")[-2:]) for x in ids]
 
     # write files
@@ -246,57 +247,43 @@ def error_analysis(model, nodes, data_loader, filename):
     predictions = np.concatenate(predictions)
     targets = np.concatenate(targets)
     ids = np.concatenate(ids)
-
-    write_error(predictions, targets, ids, sort=True, filename=filename)
-
-
-def write_error(predictions, targets, ids, sort=True, filename="error.txt"):
-    """
-    Write the error to file.
-
-    Args:
-        predictions (list): model prediction.
-        targets (list): reference value.
-        ids (list): ids associated with errors.
-        sort (bool): whether to sort the error from low to high.
-        filename (str): filename to write out the result.
-    """
-    predictions = np.asarray(predictions)
-    targets = np.asarray(targets)
     errors = predictions - targets
 
-    if sort:
-        errors, predictions, targets, ids = zip(
-            *sorted(zip(errors, predictions, targets, ids), key=lambda pair: pair[0])
-        )
-    with open(expand_path(filename), "w") as f:
-        f.write("# error    prediction    target    id\n")
-        for e, p, t, i in zip(errors, predictions, targets, ids):
-            f.write("{:13.5e} {:13.5e} {:13.5e}    {}\n".format(e, p, t, i))
+    # sort by error
+    errors, predictions, targets, ids = zip(
+        *sorted(zip(errors, predictions, targets, ids), key=lambda pair: pair[0])
+    )
+    species = ["-".join(x.split("-")[-2:]) for x in ids]
 
-        # MAE, RMSE, and MAX Error
-        abs_e = np.abs(errors)
-        mae = np.mean(abs_e)
-        rmse = np.sqrt(np.mean(np.square(errors)))
-        max_e_idx = np.argmax(abs_e)
+    space_removed_ids = [
+        s.replace(", ", "-").replace("(", "").replace(")", "") for s in ids
+    ]
 
-        f.write("\n")
-        f.write(f"# MAE: {mae}\n")
-        f.write(f"# RMSE: {rmse}\n")
-        f.write(f"# MAX error: {abs_e[max_e_idx]}   {ids[max_e_idx]}\n")
+    df = pd.DataFrame(
+        {
+            "identifier": space_removed_ids,
+            "target": targets,
+            "prediction": predictions,
+            "error": errors,
+            "species": species,
+        }
+    )
+    df.to_csv(expand_path(filename), sep="\t", index=False)
 
 
 def main():
 
+    seed_torch()
+
     args = parse_args()
 
-    args.analysis_type = "write_feature"
-    # args.analysis_type = "error_analysis"
+    # args.analysis_type = "write_feature"
+    args.analysis_type = "error_analysis"
 
     # get dataset
-    sdf_file = "~/Applications/db_access/mol_builder/struct_rxn_ntwk_rgrn_n200.sdf"
-    label_file = "~/Applications/db_access/mol_builder/label_rxn_ntwk_rgrn_n200.yaml"
-    feature_file = "~/Applications/db_access/mol_builder/feature_rxn_ntwk_rgrn_n200.yaml"
+    sdf_file = "~/Applications/db_access/mol_builder/struct_rxn_ntwk_rgrn_qc.sdf"
+    label_file = "~/Applications/db_access/mol_builder/label_rxn_ntwk_rgrn_qc.yaml"
+    feature_file = "~/Applications/db_access/mol_builder/feature_rxn_ntwk_rgrn_qc.yaml"
 
     data_loader = get_data_loader(sdf_file, label_file, feature_file, model=args.model)
 
@@ -308,10 +295,14 @@ def main():
 
     if args.analysis_type == "write_feature":
         write_features(
-            model, feature_names, data_loader, "feats.tsv", "feats_metadata.tsv",
+            model,
+            feature_names,
+            data_loader,
+            "~/Applications/db_access/mol_builder/post_analysis/feats.tsv",
+            "~/Applications/db_access/mol_builder/post_analysis/feats_metadata.tsv",
         )
     elif args.analysis_type == "error_analysis":
-        fname = "evaluation_error.txt"
+        fname = "~/Applications/db_access/mol_builder/post_analysis/evaluation_error.tsv"
         error_analysis(model, feature_names, data_loader, fname)
     else:
         raise ValueError(f"not supported post analysis type: {args.analysis_type}")
