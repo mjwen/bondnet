@@ -109,8 +109,10 @@ class BaseAnalyzer(abc.ABC):
 
     def write_embedding_to_csv(self, filename, sep=","):
         if self.embedding is not None:
-            df = pd.DataFrame(self.embedding)
-            df.to_csv(filename, sep=sep, header=False, index=False)
+            df = pd.DataFrame(
+                {"1st_dim": self.embedding[:, 0], "2nd_dim": self.embedding[:, 1]}
+            )
+            df.to_csv(filename, sep=sep, header=True, index=False)
         else:
             raise RuntimeError("`embedding` is None, call `compute()` to get it first")
 
@@ -129,7 +131,7 @@ class BaseAnalyzer(abc.ABC):
                 expand_path(filename),
                 self.embedding,
                 values=self.metadata[metadata_key_as_color],
-                theme="blue",
+                theme="viridis",
             )
         elif metadata_key_as_color == "species":
             umap_plot.points(

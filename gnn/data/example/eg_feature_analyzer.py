@@ -167,8 +167,13 @@ def umap_analysis(
     #     "~/Applications/db_access/mol_builder/post_analysis/umap_embedding_eng.html"
     # )
     # analyzer.plot_via_umap_interactive(metadata_key_as_color="energy", filename=filename)
-    filename = "~/Applications/db_access/mol_builder/post_analysis/umap_embedding.html"
-    analyzer.plot_via_umap_interactive(metadata_key_as_color="species", filename=filename)
+    # filename = "~/applications/db_access/mol_builder/post_analysis/umap_embedding.html"
+    # analyzer.plot_via_umap_interactive(metadata_key_as_color="species", filename=filename)
+
+    analyzer.write_embedding_to_csv(
+        filename="~/applications/db_access/mol_builder/post_analysis/umap_embedding.tsv",
+        sep="\t",
+    )
 
 
 def kmeans_analysis(
