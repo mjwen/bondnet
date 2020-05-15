@@ -180,88 +180,88 @@ def plot_prediction_vs_target(filename, plot_name="pred_vs_target.pdf"):
     fig.savefig(plot_name, bbox_inches="tight")
 
 
-def write_features(model, nodes, data_loader, feat_filename, meta_filename):
+def evaluate(model, nodes, data_loader, compute_features=False):
     model.eval()
 
-    feature_data = []
-    label_data = []
-    ids = []
-
-    with torch.no_grad():
-
-        for bg, label in data_loader:
-            feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-            norm_atom = label["norm_atom"]
-            norm_bond = label["norm_bond"]
-
-            feats = model.feature_before_fc(
-                bg, feats, label["reaction"], norm_atom, norm_bond
-            )
-
-            feature_data.append(feats.cpu().numpy())
-
-            target = (
-                torch.mul(label["value"], label["scaler_stdev"]) + label["scaler_mean"]
-            )
-            label_data.append(target.numpy())
-            ids.append([rxn.id for rxn in label["reaction"]])
-
-    feature_data = np.concatenate(feature_data)
-    label_data = np.concatenate(label_data)
-    ids = np.concatenate(ids)
-    species = ["-".join(x.split("-")[-2:]) for x in ids]
-
-    # write files
-    df = pd.DataFrame(feature_data)
-    df.to_csv(feat_filename, sep="\t", header=False, index=False)
-    df = pd.DataFrame({"ids": ids, "energy": label_data, "species": species})
-    df.to_csv(meta_filename, sep="\t", index=False)
-
-
-def error_analysis(model, nodes, data_loader, filename):
-    model.eval()
-
-    predictions = []
     targets = []
+    predictions = []
     ids = []
+    features = []
 
     with torch.no_grad():
-
         for bg, label in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
             tgt = label["value"]
-            mean = label["scaler_mean"]
-            stdev = label["scaler_stdev"]
             norm_atom = label["norm_atom"]
             norm_bond = label["norm_bond"]
+            mean = label["scaler_mean"]
+            stdev = label["scaler_stdev"]
 
             pred = model(bg, feats, label["reaction"], norm_atom, norm_bond)
-            pred = pred.view(-1)
+            pred = pred.view(-1) * stdev + mean
 
-            pred = pred.cpu() * stdev + mean
             tgt = tgt * stdev + mean
+
             predictions.append(pred.numpy())
             targets.append(tgt.numpy())
             ids.append([rxn.id for rxn in label["reaction"]])
 
+            if compute_features:
+                feats = model.feature_before_fc(
+                    bg, feats, label["reaction"], norm_atom, norm_bond
+                )
+                features.append(feats.numpy())
+
     predictions = np.concatenate(predictions)
     targets = np.concatenate(targets)
     ids = np.concatenate(ids)
-    errors = predictions - targets
-
-    # sort by error
-    errors, predictions, targets, ids = zip(
-        *sorted(zip(errors, predictions, targets, ids), key=lambda pair: pair[0])
-    )
     species = ["-".join(x.split("-")[-2:]) for x in ids]
+    errors = predictions - targets
 
     space_removed_ids = [
         s.replace(", ", "-").replace("(", "").replace(")", "") for s in ids
     ]
 
+    if compute_features:
+        features = np.concatenate(features)
+    else:
+        features = None
+
+    return space_removed_ids, targets, predictions, errors, species, features
+
+
+def write_features(model, nodes, data_loader, feat_filename, meta_filename):
+    ids, targets, predictions, errors, species, features = evaluate(
+        model, nodes, data_loader, compute_features=True
+    )
+
+    df = pd.DataFrame(features)
+    df.to_csv(feat_filename, sep="\t", header=False, index=False)
     df = pd.DataFrame(
         {
-            "identifier": space_removed_ids,
+            "identifier": ids,
+            "target": targets,
+            "prediction": predictions,
+            "error": errors,
+            "species": species,
+        }
+    )
+    df.to_csv(meta_filename, sep="\t", index=False)
+
+
+def error_analysis(model, nodes, data_loader, filename):
+    ids, targets, predictions, errors, species, _ = evaluate(
+        model, nodes, data_loader, compute_features=False
+    )
+
+    # sort by error
+    ids, targets, predictions, errors, species = zip(
+        *sorted(zip(ids, targets, predictions, errors, species), key=lambda x: x[3])
+    )
+
+    df = pd.DataFrame(
+        {
+            "identifier": ids,
             "target": targets,
             "prediction": predictions,
             "error": errors,
@@ -277,8 +277,8 @@ def main():
 
     args = parse_args()
 
-    # args.analysis_type = "write_feature"
-    args.analysis_type = "error_analysis"
+    args.analysis_type = "write_feature"
+    # args.analysis_type = "error_analysis"
 
     # get dataset
     sdf_file = "~/Applications/db_access/mol_builder/struct_rxn_ntwk_rgrn_qc.sdf"
