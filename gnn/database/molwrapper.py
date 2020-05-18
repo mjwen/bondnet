@@ -886,7 +886,8 @@ def remove_metals(mol, metals={"Li": 1, "Mg": 2}):
 
 def create_rdkit_mol_from_mol_graph(mol_graph, metals={"Li": 1, "Mg": 2}):
     """
-    Create a rdkit molecule, with bond type perceived by babel. Done in steps:
+    Create a rdkit molecule from molecuel graph, with bond type perceived by babel.
+    Done in the below steps:
 
     1. create a babel mol without metal atoms.
     2. perceive bond order (coducted by BabelMolAdaptor)
@@ -899,7 +900,8 @@ def create_rdkit_mol_from_mol_graph(mol_graph, metals={"Li": 1, "Mg": 2}):
             as key.
 
     Returns:
-        rdkit Chem.Mol
+        m: rdkit Chem.Mol
+        bond_types (dict): bond types assigned to the created rdkit mol
     """
 
     pymatgen_mol = mol_graph.molecule
@@ -983,10 +985,10 @@ def create_rdkit_mol_from_mol_graph(mol_graph, metals={"Li": 1, "Mg": 2}):
 
     m = create_rdkit_mol(species, coords, bond_types, formal_charge)
 
-    return m
+    return m, bond_types
 
 
-def create_rdkit_mol(species, coords, bond_types, formal_charge=None):
+def create_rdkit_mol(species, coords, bond_types, formal_charge=None, name=None):
     """
     Create a rdkit mol from scratch.
 
@@ -998,6 +1000,7 @@ def create_rdkit_mol(species, coords, bond_types, formal_charge=None):
         bond_types (dict): with bond indices (2 tuple) as key and bond type
             (e.g. Chem.rdchem.BondType.DOUBLE) as value
         formal_charge (list): formal charge of each atom
+        name (str): name of the molecule
 
     Returns:
         rdkit Chem.Mol
@@ -1023,5 +1026,8 @@ def create_rdkit_mol(species, coords, bond_types, formal_charge=None):
     m = edm.GetMol()
     Chem.SanitizeMol(m)
     m.AddConformer(conformer, assignId=False)
+
+    if name is not None:
+        m.SetProp("_Name", str(name))
 
     return m

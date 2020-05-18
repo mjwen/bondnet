@@ -1,4 +1,4 @@
-from rdkit import Chem
+import numpy as np
 from rdkit.Chem import BondType
 from gnn.database.molwrapper import (
     remove_metals,
@@ -65,10 +65,37 @@ def test_create_rdkit_mol():
     formal_charge[6] = -1  # set Li to -1 because of dative bond
 
     m = create_rdkit_mol(species, coords, bond_types, formal_charge)
-    print(Chem.MolToMolBlock(m))
+
+    rd_species = [a.GetSymbol() for a in m.GetAtoms()]
+    rd_coords = m.GetConformer().GetPositions()
+    rd_bonds = dict()
+    for bond in m.GetBonds():
+        idx = (bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
+        tp = bond.GetBondType()
+        rd_bonds[idx] = tp
+
+    assert species == rd_species
+    assert np.allclose(coords, rd_coords)
+    assert bond_types == rd_bonds
 
 
 def test_create_rdkit_mol_from_mol_graph():
     mol_graph = create_LiEC_mol_graph()
-    m = create_rdkit_mol_from_mol_graph(mol_graph)
-    print(Chem.MolToMolBlock(m))
+
+    pymatgen_mol = mol_graph.molecule
+    species = [str(s) for s in pymatgen_mol.species]
+    coords = pymatgen_mol.cart_coords
+
+    m, bond_types = create_rdkit_mol_from_mol_graph(mol_graph)
+
+    rd_species = [a.GetSymbol() for a in m.GetAtoms()]
+    rd_coords = m.GetConformer().GetPositions()
+    rd_bonds = dict()
+    for bond in m.GetBonds():
+        idx = (bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
+        tp = bond.GetBondType()
+        rd_bonds[idx] = tp
+
+    assert species == rd_species
+    assert np.allclose(coords, rd_coords)
+    assert bond_types == rd_bonds
