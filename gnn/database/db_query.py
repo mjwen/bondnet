@@ -231,17 +231,13 @@ class MoleculeWrapperMolBuilder(MoleculeWrapper):
             e -= charge0_atom_energy[spec] * num
         return e
 
-    def pack_features(self, use_obabel_idx=True, broken_bond=None):
+    def pack_features(self, broken_bond=None):
         """
         Pack the features from QChem computations into a dict.
 
         Args:
-            use_obabel_idx (bool): If `True`, atom level features (e.g. `resp`) will
-                use babel atom index, otherwise, use graph atom index.
             broken_bond (tuple): If not `None`, include submolecule features, where
                 atom level features are assigned to submolecules upon bond breaking.
-                Note `broken_bond` should be given in graph atom index, regardless of
-                the value of `use_obabel_idx`.
 
         Returns:
             dict: features
@@ -275,13 +271,6 @@ class MoleculeWrapperMolBuilder(MoleculeWrapper):
         resp = [i for i in self.resp]
         mulliken = [i for i in self.mulliken]
         atom_spin = [i for i in self.atom_spin]
-        if use_obabel_idx:
-            for graph_idx in range(len(self.atoms)):
-                ob_idx = self.graph_to_ob_atom_idx_map[graph_idx]
-                # -1 because ob index starts from 1
-                resp[ob_idx - 1] = self.resp[graph_idx]
-                mulliken[ob_idx - 1] = self.mulliken[graph_idx]
-                atom_spin[ob_idx - 1] = self.atom_spin[graph_idx]
 
         feats["resp"] = resp
         feats["mulliken"] = mulliken

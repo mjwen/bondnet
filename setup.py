@@ -20,7 +20,7 @@ setup(
     name="gnn",
     version=get_version(),
     packages=find_packages(),
-    install_requires=["numpy", "pyyaml", "beautifultable", "sklearn", "svglib"],
+    install_requires=["numpy", "pyyaml", "beautifultable", "sklearn"],
     author="Mingjian Wen",
     author_email="wenxx151@gmail.com",
     url="https://github.com/mjwen/gnn",

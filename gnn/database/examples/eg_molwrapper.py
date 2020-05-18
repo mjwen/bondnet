@@ -20,19 +20,14 @@ def write_dataset():
     #         new_mols.append(m)
     # mols = new_mols
 
-    # struct_file = "~/Applications/db_access/mol_builder/struct_mols.sdf"
-    # label_file = "~/Applications/db_access/mol_builder/label_mols.csv"
-    # feature_file = "~/Applications/db_access/mol_builder/feature_mols.yaml"
     struct_file = "~/Applications/db_access/mol_builder/struct_mols_n200.sdf"
     label_file = "~/Applications/db_access/mol_builder/label_mols_n200.csv"
     feature_file = "~/Applications/db_access/mol_builder/feature_mols_n200.yaml"
     write_sdf_csv_dataset(mols, struct_file, label_file, feature_file)
 
 
-def write_edge_label_based_on_bond():
-    # filename = "~/Applications/db_access/mol_builder/molecules.pkl"
-    # filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
-    filename = "~/Applications/db_access/mol_builder/molecules_qc.pkl"
+def write_dataset_edge_label():
+    filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
     mols = pickle_load(filename)
 
     struct_file = "~/Applications/db_access/mol_builder/struct_mols_bond_annotation.sdf"
@@ -82,4 +77,4 @@ def get_single_atom_energy():
 if __name__ == "__main__":
 
     write_dataset()
-    # write_edge_label_based_on_bond()
+    # write_dataset_edge_label()

@@ -8,10 +8,7 @@ import logging
 import warnings
 import numpy as np
 import itertools
-import subprocess
 from collections import defaultdict
-from svglib.svglib import svg2rlg
-from reportlab.graphics import renderPDF, renderPM
 import networkx as nx
 import pymatgen
 from pymatgen.core.structure import Molecule
@@ -21,132 +18,132 @@ from rdkit import Chem
 from rdkit.Chem import Draw, AllChem, BondType
 from rdkit.Geometry import Point3D
 import openbabel as ob
-import pybel
 from gnn.utils import create_directory, expand_path, yaml_dump
 
 logger = logging.getLogger(__name__)
 
-
-class BabelMolAdaptor2(BabelMolAdaptor):
-    """
-    Fix to BabelMolAdaptor (see FIX below):
-    1. Add and remove bonds between mol graph and obmol, since the connectivity of mol
-    graph can be edited and different from the underlying pymatgen mol.
-    """
-
-    @staticmethod
-    def from_molecule_graph(mol_graph):
-        if not isinstance(mol_graph, MoleculeGraph):
-            raise ValueError("not get mol graph")
-        self = BabelMolAdaptor2(mol_graph.molecule)
-        # FIX 1
-        self._add_and_remove_bond(mol_graph)
-        return self
-
-    def add_bond(self, idx1, idx2, order=0):
-        """
-        Add a bond to an openbabel molecule with the specified order
-
-        Args:
-           idx1 (int): The atom index of one of the atoms participating the in bond
-           idx2 (int): The atom index of the other atom participating in the bond
-           order (float): Bond order of the added bond
-        """
-        # check whether bond exists
-        for obbond in ob.OBMolBondIter(self.openbabel_mol):
-            if (obbond.GetBeginAtomIdx() == idx1 and obbond.GetEndAtomIdx() == idx2) or (
-                obbond.GetBeginAtomIdx() == idx2 and obbond.GetEndAtomIdx() == idx1
-            ):
-                raise Exception("bond exists not added")
-        self.openbabel_mol.AddBond(idx1, idx2, order)
-
-    def _add_and_remove_bond(self, mol_graph):
-        """
-        Add bonds in mol_graph not in obmol to obmol, and remove bonds in obmol but
-        not in mol_graph.
-        """
-
-        idx_map = graph2ob_atom_idx_map(mol_graph, self.openbabel_mol)
-
-        # graph bonds (note that although MoleculeGraph uses multigrpah, but duplicate
-        # bonds are removed when calling in MoleculeGraph.with_local_env_strategy
-        graph_bonds = [
-            sorted([idx_map[i], idx_map[j]]) for i, j, _ in mol_graph.graph.edges.data()
-        ]
-
-        # open babel bonds
-        ob_bonds = [
-            sorted([b.GetBeginAtomIdx(), b.GetEndAtomIdx()])
-            for b in ob.OBMolBondIter(self.openbabel_mol)
-        ]
-
-        # add and and remove bonds
-        for bond in graph_bonds:
-            if bond not in ob_bonds:
-                self.add_bond(*bond, order=0)
-        for bond in ob_bonds:
-            if bond not in graph_bonds:
-                self.remove_bond(*bond)
-
-
-class BabelMolAdaptor3(BabelMolAdaptor2):
-    """
-    Compared to BabelMolAdaptor2, this corrects the bonds and then do other stuff like
-    PerceiveBondOrders.
-    NOTE: this seems create problems that OpenBabel cannot satisfy valence rule.
-
-    Fix to BabelMolAdaptor (see FIX below):
-    1. Add and remove bonds between mol graph and obmol, since the connectivity of mol
-    graph can be edited and different from the underlying pymatgen mol.
-    """
-
-    def __init__(self, mol_graph):
-        """
-        Initializes with pymatgen Molecule or OpenBabel"s OBMol.
-
-        """
-        mol = mol_graph.molecule
-        if isinstance(mol, Molecule):
-            if not mol.is_ordered:
-                raise ValueError("OpenBabel Molecule only supports ordered molecules.")
-
-            # For some reason, manually adding atoms does not seem to create
-            # the correct OBMol representation to do things like force field
-            # optimization. So we go through the indirect route of creating
-            # an XYZ file and reading in that file.
-            obmol = ob.OBMol()
-            obmol.BeginModify()
-            for site in mol:
-                coords = [c for c in site.coords]
-                atomno = site.specie.Z
-                obatom = ob.OBAtom()
-                obatom.thisown = 0
-                obatom.SetAtomicNum(atomno)
-                obatom.SetVector(*coords)
-                obmol.AddAtom(obatom)
-                del obatom
-            obmol.ConnectTheDots()
-
-            self._obmol = obmol
-
-            # FIX 1
-            self._add_and_remove_bond(mol_graph)
-
-            obmol.PerceiveBondOrders()
-            obmol.SetTotalSpinMultiplicity(mol.spin_multiplicity)
-            obmol.SetTotalCharge(mol.charge)
-            obmol.Center()
-            obmol.Kekulize()
-            obmol.EndModify()
-
-        elif isinstance(mol, ob.OBMol):
-            self._obmol = mol
-
-    @staticmethod
-    def from_molecule_graph(mol_graph):
-        if not isinstance(mol_graph, MoleculeGraph):
-            raise ValueError("not get mol graph")
-        return BabelMolAdaptor2(mol_graph)
+#
+# class BabelMolAdaptor2(BabelMolAdaptor):
+#     """
+#     Fix to BabelMolAdaptor (see FIX below):
+#     1. Add and remove bonds between mol graph and obmol, since the connectivity of mol
+#     graph can be edited and different from the underlying pymatgen mol.
+#     """
+#
+#     @staticmethod
+#     def from_molecule_graph(mol_graph):
+#         if not isinstance(mol_graph, MoleculeGraph):
+#             raise ValueError("not get mol graph")
+#         self = BabelMolAdaptor2(mol_graph.molecule)
+#         # FIX 1
+#         self._add_and_remove_bond(mol_graph)
+#         return self
+#
+#     def add_bond(self, idx1, idx2, order=0):
+#         """
+#         Add a bond to an openbabel molecule with the specified order
+#
+#         Args:
+#            idx1 (int): The atom index of one of the atoms participating the in bond
+#            idx2 (int): The atom index of the other atom participating in the bond
+#            order (float): Bond order of the added bond
+#         """
+#         # check whether bond exists
+#         for obbond in ob.OBMolBondIter(self.openbabel_mol):
+#             if (obbond.GetBeginAtomIdx() == idx1 and obbond.GetEndAtomIdx() == idx2) or (
+#                 obbond.GetBeginAtomIdx() == idx2 and obbond.GetEndAtomIdx() == idx1
+#             ):
+#                 raise Exception("bond exists not added")
+#         self.openbabel_mol.AddBond(idx1, idx2, order)
+#
+#     def _add_and_remove_bond(self, mol_graph):
+#         """
+#         Add bonds in mol_graph not in obmol to obmol, and remove bonds in obmol but
+#         not in mol_graph.
+#         """
+#
+#         idx_map = graph2ob_atom_idx_map(mol_graph, self.openbabel_mol)
+#
+#         # graph bonds (note that although MoleculeGraph uses multigrpah, but duplicate
+#         # bonds are removed when calling in MoleculeGraph.with_local_env_strategy
+#         graph_bonds = [
+#             sorted([idx_map[i], idx_map[j]]) for i, j, _ in mol_graph.graph.edges.data()
+#         ]
+#
+#         # open babel bonds
+#         ob_bonds = [
+#             sorted([b.GetBeginAtomIdx(), b.GetEndAtomIdx()])
+#             for b in ob.OBMolBondIter(self.openbabel_mol)
+#         ]
+#
+#         # add and and remove bonds
+#         for bond in graph_bonds:
+#             if bond not in ob_bonds:
+#                 self.add_bond(*bond, order=0)
+#         for bond in ob_bonds:
+#             if bond not in graph_bonds:
+#                 self.remove_bond(*bond)
+#
+#
+# class BabelMolAdaptor3(BabelMolAdaptor2):
+#     """
+#     Compared to BabelMolAdaptor2, this corrects the bonds and then do other stuff like
+#     PerceiveBondOrders.
+#     NOTE: this seems create problems that OpenBabel cannot satisfy valence rule.
+#
+#     Fix to BabelMolAdaptor (see FIX below):
+#     1. Add and remove bonds between mol graph and obmol, since the connectivity of mol
+#     graph can be edited and different from the underlying pymatgen mol.
+#     """
+#
+#     def __init__(self, mol_graph):
+#         """
+#         Initializes with pymatgen Molecule or OpenBabel"s OBMol.
+#
+#         """
+#         mol = mol_graph.molecule
+#         if isinstance(mol, Molecule):
+#             if not mol.is_ordered:
+#                 raise ValueError("OpenBabel Molecule only supports ordered molecules.")
+#
+#             # For some reason, manually adding atoms does not seem to create
+#             # the correct OBMol representation to do things like force field
+#             # optimization. So we go through the indirect route of creating
+#             # an XYZ file and reading in that file.
+#             obmol = ob.OBMol()
+#             obmol.BeginModify()
+#             for site in mol:
+#                 coords = [c for c in site.coords]
+#                 atomno = site.specie.Z
+#                 obatom = ob.OBAtom()
+#                 obatom.thisown = 0
+#                 obatom.SetAtomicNum(atomno)
+#                 obatom.SetVector(*coords)
+#                 obmol.AddAtom(obatom)
+#                 del obatom
+#             obmol.ConnectTheDots()
+#
+#             self._obmol = obmol
+#
+#             # FIX 1
+#             self._add_and_remove_bond(mol_graph)
+#
+#             obmol.PerceiveBondOrders()
+#             obmol.SetTotalSpinMultiplicity(mol.spin_multiplicity)
+#             obmol.SetTotalCharge(mol.charge)
+#             obmol.Center()
+#             obmol.Kekulize()
+#             obmol.EndModify()
+#
+#         elif isinstance(mol, ob.OBMol):
+#             self._obmol = mol
+#
+#     @staticmethod
+#     def from_molecule_graph(mol_graph):
+#         if not isinstance(mol_graph, MoleculeGraph):
+#             raise ValueError("not get mol graph")
+#         return BabelMolAdaptor2(mol_graph)
+#
 
 
 class MoleculeWrapper:
@@ -167,11 +164,9 @@ class MoleculeWrapper:
         self.id = id
 
         # set when corresponding method is called
-        self._ob_mol = None
+        self._rdkit_mol = None
         self._fragments = None
         self._isomorphic_bonds = None
-        self._graph_to_ob_atom_idx_map = None
-        self._ob_to_graph_atom_idx_map = None
 
     @property
     def charge(self):
@@ -187,8 +182,7 @@ class MoleculeWrapper:
         Returns:
             str: chemical formula of the molecule, e.g. H2CO3.
         """
-        f = self.pymatgen_mol.composition.alphabetical_formula
-        return f.replace(" ", "")
+        return self.pymatgen_mol.composition.alphabetical_formula.replace(" ", "")
 
     @property
     def composition_dict(self):
@@ -208,15 +202,12 @@ class MoleculeWrapper:
         return self.pymatgen_mol.composition.weight
 
     @property
-    def atoms(self):
+    def num_atoms(self):
         """
-        Sorted atoms of in the molecule.
-        
         Returns:
-            list: each component is a dict of atom attributes.
+            int: number of atoms in molecule
         """
-        nodes = self.graph.nodes.data()
-        return [v for k, v in sorted(nodes, key=lambda pair: pair[0])]
+        return len(self.pymatgen_mol)
 
     @property
     def species(self):
@@ -225,7 +216,7 @@ class MoleculeWrapper:
         Returns:
             list: Species string.
         """
-        return [v["specie"] for v in self.atoms]
+        return [str(s) for s in self.pymatgen_mol.species]
 
     @property
     def coords(self):
@@ -233,7 +224,7 @@ class MoleculeWrapper:
         Returns:
             2D array: of shape (N, 3) where N is the number of atoms.
         """
-        return np.asarray([v["coords"] for v in self.atoms])
+        return np.asarray(self.pymatgen_mol.cart_coords)
 
     @property
     def bonds(self):
@@ -253,39 +244,18 @@ class MoleculeWrapper:
         return self.mol_graph.graph
 
     @property
-    def ob_mol(self):
+    def rdkit_mol(self):
         """
         Returns:
-            OpenBabel molecule
-
+            rdkit molecule
         """
-        if self._ob_mol is None:
-            self._ob_mol = self._create_ob_mol()
-        return self._ob_mol
+        if self._rdkit_mol is None:
+            self._rdkit_mol, _ = create_rdkit_mol_from_mol_graph(self.mol_graph)
+        return self._rdkit_mol
 
-    @ob_mol.setter
-    def ob_mol(self, m):
-        self._ob_mol = m
-
-    def delete_ob_mol(self):
-        """
-        This is needed in two places:
-        1. ob mol is not pickable, so if we want to pickle this class, we need to
-            delete it.
-        2. when writing out sdf files, calling the `write` function a second time will
-            write a different sdf than the first time. So we may want to delete it and
-            create a new ob mol each time we write sdf.
-        """
-        self._ob_mol = None
-
-    @property
-    def pybel_mol(self):
-        return pybel.Molecule(self._ob_mol)
-
-    @property
-    def rdkit_mol(self):
-        sdf = self.write(file_format="sdf")
-        return Chem.MolFromMolBlock(sdf)
+    @rdkit_mol.setter
+    def rdkit_mol(self, m):
+        self._rdkit_mol = m
 
     @property
     def fragments(self):
@@ -356,6 +326,7 @@ class MoleculeWrapper:
 
         return self._isomorphic_bonds
 
+    # TODO the below four functions may not be needed, delete them once confirmed
     @property
     def graph_to_ob_atom_idx_map(self):
         """
@@ -429,7 +400,7 @@ class MoleculeWrapper:
                     [edge], allow_reverse=True, alterations=None
                 )
                 sub_mols[edge] = new_mgs
-            except MolGraphSplitError:  # cannot split, i.e. open ring
+            except MolGraphSplitError:  # cannot split, (breaking a bond in a ring)
                 new_mg = copy.deepcopy(self.mol_graph)
                 idx1, idx2 = edge
                 new_mg.break_edge(idx1, idx2, allow_reverse=True)
@@ -438,7 +409,7 @@ class MoleculeWrapper:
 
     def subgraph_atom_mapping(self, bond):
         """
-        Break a bond in a molecule and find the atoms mapping in the two subgraphs.
+        Find the atoms in the two subgraphs by breaking a bond in a molecule.
 
         Returns:
             tuple of list: each list contains the atoms in one subgraph.
@@ -449,7 +420,7 @@ class MoleculeWrapper:
 
         # A -> B breaking
         if nx.is_weakly_connected(original.graph):
-            mapping = list(range(len(self.atoms)))
+            mapping = list(range(self.num_atoms))
             return mapping, mapping
         # A -> B + C breaking
         else:
@@ -460,32 +431,41 @@ class MoleculeWrapper:
                 raise Exception("Mol not split into two parts")
             return mapping
 
-    def write(self, filename=None, file_format="sdf", message=None):
+    def write(self, filename=None, name=None, format="sdf", v3000=True):
         """Write a molecule out.
 
         Args:
             filename (str): name of the file to write the output. If None, return the
                 output as string.
-            message (str): message to attach to a molecule. If `file_format` is sdf,
-                this is the first line the molecule block in the sdf.
+            name (str): name of a molecule. If `file_format` is sdf, this is the first
+                line the molecule block in the sdf.
+            format (str): format of the molecule (e.g. sdf and smi).
+            v3000 (bool): whether to force v3000 form if format is `sdf`
         """
         if filename is not None:
             filename = expand_path(filename)
             create_directory(filename)
-        message = str(self.id) if message is None else message
-        self.ob_mol.SetTitle(message)
-        return self.pybel_mol.write(file_format, filename, overwrite=True)
+
+        name = str(self.id) if name is None else name
+        self.rdkit_mol.SetProp("_Name", name)
+
+        if format == "sdf":
+            if filename is None:
+                sdf = Chem.MolToMolBlock(self.rdkit_mol, forceV3000=v3000)
+                return sdf + "$$$$\n"
+            else:
+                return Chem.MolToMolFile(self.rdkit_mol, filename, forceV3000=v3000)
+
+        elif format == "smi":
+            return Chem.MolToSmiles(self.rdkit_mol)
+        else:
+            raise ValueError(f"format {format} currently not supported")
 
     def draw(self, filename=None, draw_2D=True, show_atom_idx=False):
         """
         Draw using rdkit.
         """
-        sdf = self.write(file_format="sdf")
-
-        m = Chem.MolFromMolBlock(sdf)
-        if m is None:
-            warnings.warn("cannot draw mol")
-            return
+        m = self.rdkit_mol
         if draw_2D:
             AllChem.Compute2DCoords(m)
         if show_atom_idx:
@@ -494,147 +474,74 @@ class MoleculeWrapper:
 
         filename = filename or "mol.png"
         filename = create_directory(filename)
+        filename = expand_path(filename)
         Draw.MolToFile(m, filename)
-
-    def draw2(self, filename=None, draw_2D=True, show_atom_idx=False):
-        """
-        Draw using pybel.
-        """
-
-        filename = filename or "mol.png"
-        filename = create_directory(filename)
-        if draw_2D:
-            usecoords = False
-        else:
-            usecoords = True
-        self.pybel_mol.draw(show=False, filename=filename, usecoords=usecoords)
-
-    def draw3(self, filename=None, draw_2D=True, show_atom_idx=False):
-        """
-        Draw using obabel cmdline tool.
-        """
-
-        sdf = self.write(file_format="sdf")
-
-        # remove sdf M attributes except the ones in except_M
-        # except_M = ["RAD"]
-        except_M = []
-        new_sdf = sdf.split("\n")
-        sdf = []
-        for line in new_sdf:
-            if "M" in line:
-                keep = False
-                for ecpt in except_M:
-                    if ecpt in line:
-                        keep = True
-                        break
-                if not keep:
-                    continue
-            sdf.append(line)
-        sdf = "\n".join(sdf)
-
-        # write the sdf to a file
-        sdf_name = "graph.sdf"
-        with open(sdf_name, "w") as f:
-            f.write(sdf)
-
-        # use obable to write svg file
-        svg_name = "graph.svg"
-        command = ["obabel", "graph.sdf", "-O", svg_name, "-xa", "-xd"]
-        if show_atom_idx:
-            command += ["-xi"]
-        subprocess.run(command)
-
-        # convert format
-        filename = filename or "mol.svg"
-        filename = create_directory(filename)
-        path, extension = os.path.splitext(filename)
-        if extension == ".svg":
-            subprocess.run(["cp", svg_name, filename])
-        else:
-            try:
-                drawing = svg2rlg(svg_name)
-                if extension == ".pdf":
-                    renderPDF.drawToFile(drawing, filename)
-                elif extension == ".png":
-                    renderPM.drawToFile(drawing, filename, fmt="PNG")
-                else:
-                    raise Exception(
-                        "file format `{}` not support. Supported are pdf and png.".format(
-                            extension
-                        )
-                    )
-            except AttributeError:
-                print("Cannot convert to {} file for {}".format(extension), self.id)
-
-        # remove temporary files
-        subprocess.run(["rm", sdf_name])
-        subprocess.run(["rm", svg_name])
 
     def pack_features(self, use_obabel_idx=True, broken_bond=None):
         feats = dict()
         feats["charge"] = self.charge
         return feats
 
-    def _create_ob_mol(self):
-        ob_adaptor = BabelMolAdaptor2.from_molecule_graph(self.mol_graph)
-        return ob_adaptor.openbabel_mol
 
-
-class MoleculeWrapperFromAtomsAndBonds(MoleculeWrapper):
+def create_wrapper_mol_from_atoms_and_bonds(
+    species, coords, bonds, charge=0, free_energy=None, identifier=None
+):
     """
-    A molecule wrapper class that creates molecules by giving species, coords,
-    and bonds.
+    Create a :class:`MoleculeWrapper` from atoms and bonds.
+
+    Args:
+        species (list of str): atom species str
+        coords (2D array): positions of atoms
+        bonds (list of tuple): each tuple is a bond (atom indices)
+        charge (int): chare of the molecule
+        free_energy (float): free energy of the molecule
+        identifier (str): (unique) identifier of the molecule
+
+    Returns:
+        MoleculeWrapper instance
     """
-
-    def __init__(self, species, coords, charge, bonds, mol_id=None, free_energy=None):
-
-        pymatgen_mol = pymatgen.Molecule(species, coords, charge)
-        bonds = {tuple(sorted(b)): None for b in bonds}
-        mol_graph = MoleculeGraph.with_edges(pymatgen_mol, bonds)
-
-        super(MoleculeWrapperFromAtomsAndBonds, self).__init__(
-            mol_graph, free_energy, mol_id
-        )
-
-
-def rdkit_mol_to_wrapper_mol(m, charge=0, free_energy=None, mol_id=None):
-
-    # use V3000 to minimize conversion error in V2000, see (although it is not sure how
-    # relevant it is)
-    # https://depth-first.com/articles/2012/01/11/on-the-futility-of-extending-the-molfile-format/
-    sdf = Chem.MolToMolBlock(m, forceV3000=True)
-    pb_mol = pybel.readstring("sdf", sdf)
-    ob_mol = pb_mol.OBMol
-
-    return ob_mol_to_wrapper_mol(ob_mol, charge, free_energy, mol_id)
-
-
-def ob_mol_to_wrapper_mol(m, charge=0, free_energy=None, mol_id=None):
-    """
-    Convert an openbabel mol to wrapper mol.
-
-    The created wrapper mol cannot be pickled, because the passed ob mol `m` cannot be
-    pickled.
-    """
-
-    species = [a.GetAtomicNum() for a in ob.OBMolAtomIter(m)]
-    coords = [[a.GetX(), a.GetY(), a.GetZ()] for a in ob.OBMolAtomIter(m)]
-    bonds = [[b.GetBeginAtomIdx(), b.GetEndAtomIdx()] for b in ob.OBMolBondIter(m)]
-    bonds = np.asarray(bonds) - 1  # convert to zero index
 
     pymatgen_mol = pymatgen.Molecule(species, coords, charge)
     bonds = {tuple(sorted(b)): None for b in bonds}
     mol_graph = MoleculeGraph.with_edges(pymatgen_mol, bonds)
 
-    mw = MoleculeWrapper(mol_graph, free_energy, mol_id)
-    mw.ob_mol = m
+    MoleculeWrapper(mol_graph, free_energy, identifier)
+
+
+def rdkit_mol_to_wrapper_mol(m, charge=0, free_energy=None, identifier=None):
+    """
+    Convert an rdkit molecule to a :class:`MoleculeWrapper` molecule.
+
+    This constructs a molecule graph from the rdkit mol and assigns the rdkit mol
+    to the molecule wrapper.
+
+    Args:
+        m (Chem.Mol): rdkit molecule
+        charge (int): charge of the molecule
+        free_energy (float): free energy of the molecule
+        identifier (str): (unique) identifier of the molecule
+
+    Returns:
+        MoleculeWrapper instance
+    """
+
+    species = [a.GetSymbol() for a in m.GetAtoms()]
+    coords = m.GetConformer().GetPositions()
+    bonds = [[b.GetBeginAtomIdx(), b.GetEndAtomIdx()] for b in m.GetBonds()]
+    bonds = {tuple(sorted(b)): None for b in bonds}
+
+    pymatgen_mol = pymatgen.Molecule(species, coords, charge)
+    mol_graph = MoleculeGraph.with_edges(pymatgen_mol, bonds)
+
+    mw = MoleculeWrapper(mol_graph, free_energy, identifier)
+    mw.rdkit_mol = m
 
     return mw
 
 
 def smiles_to_wrapper_mol(s, charge=0, free_energy=None):
-    """Convert a smiles molecule to a :class:`MoleculeWrapper` molecule.
+    """
+    Convert a smiles molecule to a :class:`MoleculeWrapper` molecule.
 
        3D coords are created using RDkit: embedding then MMFF force filed (or UFF force
        field).
@@ -671,7 +578,7 @@ def smiles_to_wrapper_mol(s, charge=0, free_energy=None):
         if error == -1:  # MMFF cannot be set up
             optimize_till_converge(AllChem.UFFOptimizeMolecule, m)
 
-        m = rdkit_mol_to_wrapper_mol(m, charge=charge, mol_id=s)
+        m = rdkit_mol_to_wrapper_mol(m, charge, free_energy, s)
 
     # cannot convert smiles string to mol
     except ValueError as e:
@@ -679,119 +586,6 @@ def smiles_to_wrapper_mol(s, charge=0, free_energy=None):
         m = None
 
     return m
-
-
-def write_sdf_csv_dataset(
-    molecules,
-    struct_file="struct_mols.sdf",
-    label_file="label_mols.csv",
-    feature_file="feature_mols.yaml",
-    exclude_single_atom=True,
-):
-    struct_file = expand_path(struct_file)
-    label_file = expand_path(label_file)
-
-    logger.info(
-        "Start writing dataset to files: {} and {}".format(struct_file, label_file)
-    )
-
-    feats = []
-
-    with open(struct_file, "w") as fx, open(label_file, "w") as fy:
-
-        fy.write("mol_id,atomization_energy\n")
-
-        i = 0
-        for m in molecules:
-
-            if exclude_single_atom and len(m.atoms) == 1:
-                logger.info("Excluding single atom molecule {}".format(m.formula))
-                continue
-
-            # The same pybel mol will write different sdf file when it is called
-            # the first time and other times. We create a new one here so that it will
-            # write the correct one.
-            m.delete_ob_mol()
-            sdf = m.write(file_format="sdf", message=m.id + " int_id-" + str(i))
-            fx.write(sdf)
-            fy.write("{},{:.15g}\n".format(m.id, m.atomization_free_energy))
-
-            feats.append(m.pack_features())
-            i += 1
-
-    # write feature file
-    yaml_dump(feats, feature_file)
-
-
-def write_edge_label_based_on_bond(
-    molecules,
-    sdf_filename="mols.sdf",
-    label_filename="bond_label.yaml",
-    feature_filename="feature.yaml",
-    exclude_single_atom=True,
-):
-    """
-    For a molecule from SDF file, creating complete graph for atoms and label the edges
-    based on whether its an actual bond or not.
-
-    The order of the edges are (0,1), (0,2), ... , (0, N-1), (1,2), (1,3), ...,
-    (N-2, N-1), where N is the number of atoms.
-
-    Args:
-        molecules (list): a sequence of MoleculeWrapper object
-        sdf_filename (str): name of the output sdf file
-        label_filename (str): name of the output label file
-        feature_filename (str): name of the output feature file
-    """
-
-    def get_bond_label(m):
-        """
-        Get to know whether an edge in a complete graph is a bond.
-
-        Returns:
-            list: bool to indicate whether an edge is a bond. The edges are in the order:
-                (0,1), (0,2), ..., (0,N-1), (1,2), (1,3), ..., (N, N-1), where N is the
-                number of atoms.
-        """
-        bonds = [b for b, attr in m.bonds.items()]
-        num_bonds = len(bonds)
-        if num_bonds < 1:
-            warnings.warn("molecular has no bonds")
-
-        num_atoms = len(m.atoms)
-        bond_label = []
-        for u, v in itertools.combinations(range(num_atoms), 2):
-            b = tuple(sorted([u, v]))
-            if b in bonds:
-                bond_label.append(True)
-            else:
-                bond_label.append(False)
-
-        return bond_label
-
-    labels = []
-    charges = []
-    sdf_filename = expand_path(sdf_filename)
-    with open(sdf_filename, "w") as f:
-        i = 0
-        for m in molecules:
-
-            if exclude_single_atom and len(m.atoms) == 1:
-                logger.info("Excluding single atom molecule {}".format(m.formula))
-                continue
-
-            # The same pybel mol will write different sdf file when it is called
-            # the first time and other times. We create a new one here so that it will
-            # write the correct one.
-            m.delete_ob_mol()
-            sdf = m.write(file_format="sdf", message=m.id + " int_id-" + str(i))
-            f.write(sdf)
-            labels.append(get_bond_label(m))
-            charges.append({"charge": m.charge})
-            i += 1
-
-    yaml_dump(labels, expand_path(label_filename))
-    yaml_dump(charges, expand_path(feature_filename))
 
 
 def graph2ob_atom_idx_map(mol_graph, ob_mol):
@@ -884,15 +678,60 @@ def remove_metals(mol, metals={"Li": 1, "Mg": 2}):
     return mol
 
 
+def create_rdkit_mol(species, coords, bond_types, formal_charge=None, name=None):
+    """
+    Create a rdkit mol from scratch.
+
+    Followed: https://sourceforge.net/p/rdkit/mailman/message/36474923/
+
+    Args:
+        species (list): species str of each molecule
+        coords (2D array): positions of atoms
+        bond_types (dict): with bond indices (2 tuple) as key and bond type
+            (e.g. Chem.rdchem.BondType.DOUBLE) as value
+        formal_charge (list): formal charge of each atom
+        name (str): name of the molecule
+
+    Returns:
+        rdkit Chem.Mol
+    """
+
+    m = Chem.Mol()
+    edm = Chem.EditableMol(m)
+    conformer = Chem.Conformer(len(species))
+
+    for i, (s, c) in enumerate(zip(species, coords)):
+        atom = Chem.Atom(s)
+        atom.SetNoImplicit(True)
+        if formal_charge is not None:
+            cg = formal_charge[i]
+            if cg is not None:
+                atom.SetFormalCharge(cg)
+        atom_idx = edm.AddAtom(atom)
+        conformer.SetAtomPosition(atom_idx, Point3D(*c))
+
+    for b, t in bond_types.items():
+        edm.AddBond(b[0], b[1], t)
+
+    m = edm.GetMol()
+    Chem.SanitizeMol(m)
+    m.AddConformer(conformer, assignId=False)
+
+    if name is not None:
+        m.SetProp("_Name", str(name))
+
+    return m
+
+
 def create_rdkit_mol_from_mol_graph(mol_graph, metals={"Li": 1, "Mg": 2}):
     """
-    Create a rdkit molecule from molecuel graph, with bond type perceived by babel.
+    Create a rdkit molecule from molecule graph, with bond type perceived by babel.
     Done in the below steps:
 
     1. create a babel mol without metal atoms.
-    2. perceive bond order (coducted by BabelMolAdaptor)
+    2. perceive bond order (conducted by BabelMolAdaptor)
     3. adjust formal charge of metal atoms so as not to violate valence rule
-    4. create rdkit mol based on speices, coords, bonds, and formal charge
+    4. create rdkit mol based on species, coords, bonds, and formal charge
 
     Args:
         mol_graph (pymatgen MoleculeGraph): molecule graph
@@ -964,7 +803,7 @@ def create_rdkit_mol_from_mol_graph(mol_graph, metals={"Li": 1, "Mg": 2}):
                 # Here we adjust the atom ordering in the bond for dative bond to make
                 # metal the end atom.
                 if atom1_spec in metals:
-                    bd = list(reversed(bd))
+                    bd = tuple(reversed(bd))
 
             # bond not found by babel (atom in ob mol)
             else:
@@ -988,46 +827,105 @@ def create_rdkit_mol_from_mol_graph(mol_graph, metals={"Li": 1, "Mg": 2}):
     return m, bond_types
 
 
-def create_rdkit_mol(species, coords, bond_types, formal_charge=None, name=None):
-    """
-    Create a rdkit mol from scratch.
+def write_sdf_csv_dataset(
+    molecules,
+    struct_file="struct_mols.sdf",
+    label_file="label_mols.csv",
+    feature_file="feature_mols.yaml",
+    exclude_single_atom=True,
+):
+    struct_file = expand_path(struct_file)
+    label_file = expand_path(label_file)
 
-    Followed: https://sourceforge.net/p/rdkit/mailman/message/36474923/
-    
+    logger.info(
+        "Start writing dataset to files: {} and {}".format(struct_file, label_file)
+    )
+
+    feats = []
+
+    with open(struct_file, "w") as fx, open(label_file, "w") as fy:
+
+        fy.write("mol_id,atomization_energy\n")
+
+        i = 0
+        for m in molecules:
+
+            if exclude_single_atom and m.num_atoms == 1:
+                logger.info("Excluding single atom molecule {}".format(m.formula))
+                continue
+
+            sdf = m.write(name=m.id + "_index-" + str(i))
+            fx.write(sdf)
+            fy.write("{},{:.15g}\n".format(m.id, m.atomization_free_energy))
+
+            feats.append(m.pack_features())
+            i += 1
+
+    # write feature file
+    yaml_dump(feats, feature_file)
+
+
+def write_edge_label_based_on_bond(
+    molecules,
+    sdf_filename="mols.sdf",
+    label_filename="bond_label.yaml",
+    feature_filename="feature.yaml",
+    exclude_single_atom=True,
+):
+    """
+    For a molecule from SDF file, creating complete graph for atoms and label the edges
+    based on whether its an actual bond or not.
+
+    The order of the edges are (0,1), (0,2), ... , (0, N-1), (1,2), (1,3), ...,
+    (N-2, N-1), where N is the number of atoms.
+
     Args:
-        species (list): species str of each molecule
-        coords (2D array): positions of atoms
-        bond_types (dict): with bond indices (2 tuple) as key and bond type
-            (e.g. Chem.rdchem.BondType.DOUBLE) as value
-        formal_charge (list): formal charge of each atom
-        name (str): name of the molecule
-
-    Returns:
-        rdkit Chem.Mol
+        molecules (list): a sequence of MoleculeWrapper object
+        sdf_filename (str): name of the output sdf file
+        label_filename (str): name of the output label file
+        feature_filename (str): name of the output feature file
     """
 
-    m = Chem.Mol()
-    edm = Chem.EditableMol(m)
-    conformer = Chem.Conformer(len(species))
+    def get_bond_label(m):
+        """
+        Get to know whether an edge in a complete graph is a bond.
 
-    for i, (s, c) in enumerate(zip(species, coords)):
-        atom = Chem.Atom(s)
-        atom.SetNoImplicit(True)
-        if formal_charge is not None:
-            cg = formal_charge[i]
-            if cg is not None:
-                atom.SetFormalCharge(cg)
-        atom_idx = edm.AddAtom(atom)
-        conformer.SetAtomPosition(atom_idx, Point3D(*c))
+        Returns:
+            list: bool to indicate whether an edge is a bond. The edges are in the order:
+                (0,1), (0,2), ..., (0,N-1), (1,2), (1,3), ..., (N, N-1), where N is the
+                number of atoms.
+        """
+        bonds = [b for b, attr in m.bonds.items()]
+        num_bonds = len(bonds)
+        if num_bonds < 1:
+            warnings.warn("molecular has no bonds")
 
-    for b, t in bond_types.items():
-        edm.AddBond(b[0], b[1], t)
+        bond_label = []
+        for u, v in itertools.combinations(range(m.num_atoms), 2):
+            b = tuple(sorted([u, v]))
+            if b in bonds:
+                bond_label.append(True)
+            else:
+                bond_label.append(False)
 
-    m = edm.GetMol()
-    Chem.SanitizeMol(m)
-    m.AddConformer(conformer, assignId=False)
+        return bond_label
 
-    if name is not None:
-        m.SetProp("_Name", str(name))
+    labels = []
+    charges = []
+    sdf_filename = expand_path(sdf_filename)
+    with open(sdf_filename, "w") as f:
+        i = 0
+        for m in molecules:
 
-    return m
+            if exclude_single_atom and m.num_atoms == 1:
+                logger.info("Excluding single atom molecule {}".format(m.formula))
+                continue
+
+            sdf = m.write(name=m.id + " int_id-" + str(i))
+            f.write(sdf)
+            labels.append(get_bond_label(m))
+            charges.append({"charge": m.charge})
+            i += 1
+
+    yaml_dump(labels, expand_path(label_filename))
+    yaml_dump(charges, expand_path(feature_filename))

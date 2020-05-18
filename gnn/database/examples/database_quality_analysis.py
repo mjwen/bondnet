@@ -55,7 +55,7 @@ def check_valence_mol(mol):
             where `bonded_atom_species` is a list.
             Each tuple represents an atom and its bonds.
         """
-        res = [(attr["specie"], []) for attr in m.atoms]
+        res = [(s, []) for s in m.species]
         for (a1, a2), _ in m.bonds.items():
             s1 = m.species[a1]
             s2 = m.species[a2]
@@ -424,7 +424,7 @@ def compare_connectivity_across_graph_builder(
             # edge distances
             f.write("atom pair distances:\n\n")
 
-            for a1, a2 in itertools.combinations(range(len(m.atoms)), 2):
+            for a1, a2 in itertools.combinations(range(m.num_atoms), 2):
                 dist = np.linalg.norm(m.coords[a1] - m.coords[a2])
                 f.write("{} {}: {:.3f}\n\n".format(a1 + 1, a2 + 1, dist))
 

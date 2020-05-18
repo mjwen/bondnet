@@ -466,8 +466,8 @@ class Reaction:
             return compare(pa, pb, a, b)
 
         def order_by_natoms(a, b):
-            pa = len(a.atoms)
-            pb = len(b.atoms)
+            pa = a.num_atoms
+            pb = b.num_atoms
             return compare(pa, pb, a, b)
 
         def order_by_nbonds(a, b):

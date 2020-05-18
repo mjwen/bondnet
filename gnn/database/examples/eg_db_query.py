@@ -62,12 +62,6 @@ def print_mol_property():
     for prop in properties:
         print("{}: {}".format(prop, getattr(m, prop)))
 
-    # using atom and bond
-    print("\n\nlooping m.atoms")
-    for attr in m.atoms:
-        print(attr)
-    print("direct access: m.atoms[0]:", m.atoms[0])
-
     print("\n\nlooping m.bonds")
     for bond, attr in m.bonds.items():
         print(bond, attr)
