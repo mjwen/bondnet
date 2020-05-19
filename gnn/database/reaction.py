@@ -24,9 +24,10 @@ class Reaction:
         reactants (list): MoleculeWrapper instances
         products (list): MoleculeWrapper instances
         broken_bond (tuple): indices of atoms associated with the broken bond
-    """
 
-    # NOTE most methods in this class only works for A->B and A->B+C type reactions
+    Note:
+        most methods in this class only works for A->B and A->B+C type reactions
+    """
 
     def __init__(
         self, reactants, products, broken_bond=None, free_energy=None, identifier=None
@@ -78,6 +79,10 @@ class Reaction:
             return energy
 
     def get_broken_bond(self):
+        """
+        Returns:
+            tuple: sorted index of broken bond (a 2-tuple of atom index)
+        """
         if self._broken_bond is None:
             if len(self.products) == 1:
                 bonds = is_valid_A_to_B_reaction(
@@ -1726,7 +1731,7 @@ class ReactionCollection:
             )
 
         all_reactants = []
-        broken_bond_idx = []  # int index in ob molecule
+        broken_bond_idx = []  # int index in sdf molecule
         broken_bond_pairs = []  # a tuple index in graph molecule
         label_class = []
         for grp in grouped_rxns:
@@ -1957,20 +1962,20 @@ class ReactionCollection:
             for rsr in grouped_reactions:
                 reactant = rsr.reactant
 
-                # get a mapping between babel bond and reactions
-                rxns_by_ob_bond = dict()
+                # get a mapping between sdf bond and reactions
+                rxns_by_sdf_bond = dict()
                 for rxn in rsr.reactions:
                     bond = rxn.get_broken_bond()
-                    rxns_by_ob_bond[bond] = rxn
+                    rxns_by_sdf_bond[bond] = rxn
 
                 # write bond energies in the same order as sdf file
                 energy = []
                 indicator = []
                 sdf_bonds = reactant.get_sdf_bond_indices(zero_based=True)
                 for ib, bond in enumerate(sdf_bonds):
-
-                    if bond in rxns_by_ob_bond:  # have reaction with breaking this bond
-                        rxn = rxns_by_ob_bond[bond]
+                    # have reaction that breaks this bond
+                    if bond in rxns_by_sdf_bond:
+                        rxn = rxns_by_sdf_bond[bond]
                         energy.append(rxn.get_free_energy())
                         indicator.append(1)
                     else:

@@ -21,6 +21,9 @@ from gnn.database.predictor import (
     PredictionByStructLabelFeatFiles,
 )
 from gnn.utils import load_checkpoints
+from rdkit import RDLogger
+
+RDLogger.logger().setLevel(RDLogger.ERROR)
 
 
 def parse_args():
