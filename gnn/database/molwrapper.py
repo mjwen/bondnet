@@ -673,14 +673,18 @@ def create_rdkit_mol_from_mol_graph(mol_graph, metals={"Li": 1, "Mg": 2}):
 
     # a metal atom can form multiple dative bond (e.g. bidentate LiEC), for such cases
     # we need to adjust the their formal charge so as not to violate valence rule
-    formal_charge = []
-    unique, counts = np.unique(bonds, return_counts=True)
-    for atom_idx, ct in zip(unique, counts):
-        s = species[atom_idx]
+
+    # initialize formal charge first so that atom does not form any bond has its formal
+    # charge set
+    formal_charge = [metals[s] if s in metals else None for s in species]
+
+    # atom_idx: idx of atoms in the molecule
+    # num_bonds: number of bonds the atom forms
+    atom_idx, num_bonds = np.unique(bonds, return_counts=True)
+    for i, ct in zip(atom_idx, num_bonds):
+        s = species[i]
         if s in metals:
-            formal_charge.append(int(metals[s] - ct))
-        else:
-            formal_charge.append(None)
+            formal_charge[i] = int(formal_charge[i] - ct)
 
     m = create_rdkit_mol(species, coords, bond_types, formal_charge)
 
