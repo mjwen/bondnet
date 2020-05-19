@@ -9,7 +9,6 @@ import networkx.algorithms.isomorphism as iso
 from pymatgen.analysis.graphs import _isomorphic
 from collections import defaultdict, OrderedDict
 from gnn.database.molwrapper import create_wrapper_mol_from_atoms_and_bonds
-from gnn.parallel import parmap2
 from gnn.utils import create_directory, pickle_dump, pickle_load, yaml_dump, expand_path
 
 logger = logging.getLogger(__name__)
@@ -23,7 +22,9 @@ class Reaction:
     Args:
         reactants (list): MoleculeWrapper instances
         products (list): MoleculeWrapper instances
-        broken_bond (tuple): indices of atoms associated with the broken bond
+        broken_bond (tuple or None): indices of atoms associated with the broken bond
+        free_energy (float or None): free energy of the reaction
+        identifier (str): (unique) identifier of the reaction
 
     Note:
         most methods in this class only works for A->B and A->B+C type reactions
@@ -1437,9 +1438,8 @@ class ReactionCollection:
 
         # use multiprocessing to get atom mappings since they are relatively expensive
         # mappings = [get_atom_bond_mapping(r) for r in reactions]
-        mappings = parmap2(
-            get_atom_bond_mapping, reactions, nprocs=multiprocessing.cpu_count()
-        )
+        with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
+            mappings = p.map(get_atom_bond_mapping, reactions)
 
         all_labels = []  # one per reaction
         for i, (rxn, mps) in enumerate(zip(reactions, mappings)):

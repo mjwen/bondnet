@@ -267,7 +267,9 @@ class PredictionBySDFChargeReactionFiles:
 
         if self.nprocs is None:
             molecules = [
-                rdkit_mol_to_wrapper_mol(m, charge=c, mol_id=i) if m is not None else None
+                rdkit_mol_to_wrapper_mol(m, charge=c, identifier=i)
+                if m is not None
+                else None
                 for i, (m, c) in enumerate(zip(rdkit_mols, charges))
             ]
         else:
@@ -415,7 +417,8 @@ class PredictionByMolGraphReactionFiles(PredictionBySDFChargeReactionFiles):
 
         mol_graphs = [MoleculeGraph.from_dict(d) for d in mol_graph_dicts]
         molecules = [
-            MoleculeWrapper(g, free_energy=0.0, id=i) for i, g in enumerate(mol_graphs)
+            MoleculeWrapper(g, free_energy=0.0, id=str(i))
+            for i, g in enumerate(mol_graphs)
         ]
 
         return molecules

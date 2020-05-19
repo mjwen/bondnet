@@ -22,7 +22,7 @@ def pickle_molecules():
     # db_collection = "task"
     db_collection = "mol_builder"
     entries = DatabaseOperation.query_db_entries(
-        db_collection=db_collection, num_entries=5000
+        db_collection=db_collection, num_entries=500
     )
 
     mols = DatabaseOperation.to_molecules(entries, db_collection=db_collection)
