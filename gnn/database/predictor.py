@@ -146,7 +146,7 @@ class PredictionBySmilesReaction:
                         products=products,
                         broken_bond=None,
                         free_energy=0.0,  # not used we provide 0.0 taking the place
-                        identifier=i,
+                        identifier=str(i),
                     )
                 )
 
@@ -267,7 +267,7 @@ class PredictionBySDFChargeReactionFiles:
 
         if self.nprocs is None:
             molecules = [
-                rdkit_mol_to_wrapper_mol(m, charge=c, identifier=i)
+                rdkit_mol_to_wrapper_mol(m, charge=c, identifier=str(i))
                 if m is not None
                 else None
                 for i, (m, c) in enumerate(zip(rdkit_mols, charges))
@@ -313,7 +313,7 @@ class PredictionBySDFChargeReactionFiles:
                         products=products,
                         broken_bond=None,
                         free_energy=0.0,  # not used we provide 0.0 taking the place
-                        identifier=i,
+                        identifier=str(i),
                     )
                 )
 

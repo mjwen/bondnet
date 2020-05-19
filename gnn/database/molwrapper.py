@@ -122,7 +122,9 @@ class MoleculeWrapper:
             rdkit molecule
         """
         if self._rdkit_mol is None:
-            self._rdkit_mol, _ = create_rdkit_mol_from_mol_graph(self.mol_graph)
+            self._rdkit_mol, _ = create_rdkit_mol_from_mol_graph(
+                self.mol_graph, name=str(self), force_sanitize=False
+            )
         return self._rdkit_mol
 
     @rdkit_mol.setter
@@ -349,6 +351,12 @@ class MoleculeWrapper:
         feats["charge"] = self.charge
         return feats
 
+    def __expr__(self):
+        return f"{self.id}_{self.formula}"
+
+    def __str__(self):
+        return self.__expr__()
+
 
 def create_wrapper_mol_from_atoms_and_bonds(
     species, coords, bonds, charge=0, free_energy=None, identifier=None
@@ -410,8 +418,8 @@ def smiles_to_wrapper_mol(s, charge=0, free_energy=None):
     """
     Convert a smiles molecule to a :class:`MoleculeWrapper` molecule.
 
-       3D coords are created using RDkit: embedding then MMFF force filed (or UFF force
-       field).
+    3D coords are created using RDkit: embedding then MMFF force filed (or UFF force
+     field).
     """
 
     def optimize_till_converge(method, m):
@@ -448,44 +456,23 @@ def smiles_to_wrapper_mol(s, charge=0, free_energy=None):
     return m
 
 
-def graph2ob_atom_idx_map(mol_graph, ob_mol):
+def pymatgen_2_babel_atom_idx_map(pmg_mol, ob_mol):
     """
-    Create an atom index mapping between mol graph and ob mol.
+    Create an atom index mapping between pymatgen mol and openbabel mol.
 
-    This is implemented by comparing coords.
+    This does not require pymatgen mol and ob mol has the same number of atoms.
+    But ob_mol can have smaller number of atoms.
+
+    Args:
+        pmg_mol (pymatgen.Molecule): pymatgen molecule
+        ob_mol (ob.Mol): openbabel molecule
 
     Returns:
-        dict: with atom index in mol graph as key and atom index in ob mol as value.
-    """
-    mapping = dict()
-
-    nodes = mol_graph.graph.nodes.data()
-    graph_coords = [v["coords"] for k, v in sorted(nodes, key=lambda pair: pair[0])]
-
-    ob_coords = [[a.GetX(), a.GetY(), a.GetZ()] for a in ob.OBMolAtomIter(ob_mol)]
-    ob_index = [a.GetIdx() for a in ob.OBMolAtomIter(ob_mol)]
-
-    for i, gc in enumerate(graph_coords):
-        for idx, oc in zip(ob_index, ob_coords):
-            if np.allclose(oc, gc):
-                mapping[i] = idx
-                break
-        else:
-            raise RuntimeError("Cannot create atom index mapping between ")
-
-    return mapping
-
-
-def pymatgen_2_babel_atom_idx_map(pymatgen_mol, ob_mol):
-    """
-    Create an atom index mapping between pymatgen mol and ob mol.
-
-    Compared to `graph2ob_atom_idx_map_2`, this does not require pymatgen mol and ob
-    mol has the same number of atoms, but ob_mol can have smaller number of atoms.
-
+        dict: with atom index in pymatgen mol as key and atom index in babel mol as
+            value. Value is `None` if there is not corresponding atom in babel.
     """
 
-    pmg_coords = pymatgen_mol.cart_coords
+    pmg_coords = pmg_mol.cart_coords
     ob_coords = [[a.GetX(), a.GetY(), a.GetZ()] for a in ob.OBMolAtomIter(ob_mol)]
     ob_index = [a.GetIdx() for a in ob.OBMolAtomIter(ob_mol)]
 
@@ -538,7 +525,9 @@ def remove_metals(mol, metals={"Li": 1, "Mg": 2}):
     return mol
 
 
-def create_rdkit_mol(species, coords, bond_types, formal_charge=None, name=None):
+def create_rdkit_mol(
+    species, coords, bond_types, formal_charge=None, name=None, force_sanitize=True
+):
     """
     Create a rdkit mol from scratch.
 
@@ -551,6 +540,10 @@ def create_rdkit_mol(species, coords, bond_types, formal_charge=None, name=None)
             (e.g. Chem.rdchem.BondType.DOUBLE) as value
         formal_charge (list): formal charge of each atom
         name (str): name of the molecule
+        force_sanitize (bool): whether to force the sanitization of molecule.
+            If `True` and the sanitization fails, it generally throw an error
+            and then stops. If `False`, will try to sanitize first, but if it fails,
+            will proceed smoothly giving a warning message.
 
     Returns:
         rdkit Chem.Mol
@@ -574,7 +567,13 @@ def create_rdkit_mol(species, coords, bond_types, formal_charge=None, name=None)
         edm.AddBond(b[0], b[1], t)
 
     m = edm.GetMol()
-    Chem.SanitizeMol(m)
+    if force_sanitize:
+        Chem.SanitizeMol(m)
+    else:
+        try:
+            Chem.SanitizeMol(m)
+        except Exception as e:
+            warnings.warn(f"Cannot sanitize molecule {name}, because {str(e)}")
     m.AddConformer(conformer, assignId=False)
 
     if name is not None:
@@ -583,7 +582,9 @@ def create_rdkit_mol(species, coords, bond_types, formal_charge=None, name=None)
     return m
 
 
-def create_rdkit_mol_from_mol_graph(mol_graph, metals={"Li": 1, "Mg": 2}):
+def create_rdkit_mol_from_mol_graph(
+    mol_graph, name=None, force_sanitize=False, metals={"Li": 1, "Mg": 2}
+):
     """
     Create a rdkit molecule from molecule graph, with bond type perceived by babel.
     Done in the below steps:
@@ -595,6 +596,8 @@ def create_rdkit_mol_from_mol_graph(mol_graph, metals={"Li": 1, "Mg": 2}):
 
     Args:
         mol_graph (pymatgen MoleculeGraph): molecule graph
+        name (str): name of the molecule
+        force_sanitize (bool): whether to force sanitization of the rdkit mol
         metals dict: with metal atom (str) as key and the number of valence electrons
             as key.
 
@@ -686,7 +689,7 @@ def create_rdkit_mol_from_mol_graph(mol_graph, metals={"Li": 1, "Mg": 2}):
         if s in metals:
             formal_charge[i] = int(formal_charge[i] - ct)
 
-    m = create_rdkit_mol(species, coords, bond_types, formal_charge)
+    m = create_rdkit_mol(species, coords, bond_types, formal_charge, name, force_sanitize)
 
     return m, bond_types
 

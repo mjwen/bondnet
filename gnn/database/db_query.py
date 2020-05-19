@@ -299,9 +299,11 @@ class DatabaseOperation:
 
         if db_file is None:
             if db_collection == "mol_builder":
-                db_file = "/Users/mjwen/Applications/db_access/sam_db_molecules.json"
+                db_file = (
+                    "/Users/mjwen/Applications/db_access/sam_db/sam_db_mol_builder.json"
+                )
             elif db_collection == "task":
-                db_file = "/Users/mjwen/Applications/db_access/sam_db.json"
+                db_file = "/Users/mjwen/Applications/db_access/sam_db/sam_db_tasks.json"
             else:
                 raise Exception("Unrecognized db_collection = {}".format(db_collection))
 

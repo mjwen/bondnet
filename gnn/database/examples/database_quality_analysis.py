@@ -3,6 +3,7 @@ import copy
 import numpy as np
 import subprocess
 import itertools
+from gnn.database.molwrapper import create_rdkit_mol_from_mol_graph
 from gnn.database.utils import TexWriter
 from gnn.utils import pickle_dump, pickle_load, expand_path
 
@@ -40,9 +41,9 @@ def plot_mol_graph(
         # plot_one(m, prefix)
 
 
-def check_valence_mol(mol):
+def check_connectivity_mol(mol):
     """
-    Check the valence of each atom in a mol, without considering their bonding to Li,
+    Check the connectivity of each atom in a mol, without considering their bonding to Li,
     since elements can form coordination bond with Li.
 
     For Li itself, we experiment with the bonds it has and see how it works.
@@ -63,7 +64,7 @@ def check_valence_mol(mol):
             res[a2][1].append(s1)
         return res
 
-    Li_allowed = [1, 2]
+    Li_allowed = [1, 2, 3]
     allowed_charge = {
         "H": [1],
         "C": [1, 2, 3, 4],
@@ -81,7 +82,7 @@ def check_valence_mol(mol):
     for a_s, n_s in neigh_species:
 
         if len(n_s) == 0 and len(neigh_species) == 1:
-            print("#####Error##### not connected atom in mol:", mol.id)
+            print("#####INFO##### single atom molecule:", mol.id)
 
         removed_Li = [s for s in n_s if s != "Li"]
         num_bonds = len(removed_Li)
@@ -154,8 +155,11 @@ def check_bond_length_mol(mol):
         return res
 
     #
+    # bond lengths references:
     # https://chem.libretexts.org/Bookshelves/Physical_and_Theoretical_Chemistry_Textbook_Maps/Supplemental_Modules_(Physical_and_Theoretical_Chemistry)/Chemical_Bonding/Fundamentals_of_Chemical_Bonding/Chemical_Bonds/Bond_Lengths_and_Energies
     # https://www.chem.tamu.edu/rgroup/connell/linkfiles/bonds.pdf
+    # page 29 https://slideplayer.com/slide/17256509/
+    #
     li_len = 2.8
     bond_length_limit = {
         # H
@@ -208,7 +212,7 @@ def check_bond_length_mol(mol):
     return do_fail, reason
 
 
-def check_valence(
+def check_connectivity(
     mols=None,
     # filename="~/Applications/db_access/mol_builder/molecules.pkl",
     filename="~/Applications/db_access/mol_builder/molecules_n200.pkl",
@@ -222,19 +226,52 @@ def check_valence(
     reason = []
 
     for m in mols:
-        do_fail, rsn = check_valence_mol(m)
+        do_fail, rsn = check_connectivity_mol(m)
         if do_fail:
             failed.append(m)
             reason.append(rsn)
         else:
             succeeded.append(m)
 
-    print("### Failed `check_mol_valence()`")
+    print("#" * 80)
+    print("### Failed `check_connectivity()`")
     print("### number of entries failed:", len(failed))
     print("idx    id    atom specie    num bonds (without considering Li)")
     for i, (m, r) in enumerate(zip(failed, reason)):
         print(i, m.id, r)
-    filename = "~/Applications/db_access/mol_builder/failed_check_mol_valence.pkl"
+    filename = "~/Applications/db_access/mol_builder/failed_check_connectivity.pkl"
+    pickle_dump(failed, filename)
+
+    return succeeded
+
+
+def check_rdkit_sanitize(
+    mols=None,
+    # filename="~/Applications/db_access/mol_builder/molecules.pkl",
+    filename="~/Applications/db_access/mol_builder/molecules_n200.pkl",
+):
+    if mols is None:
+        mols = pickle_load(filename)
+
+    succeeded = []
+    failed = []
+    reason = []
+
+    for m in mols:
+        try:
+            create_rdkit_mol_from_mol_graph(m.mol_graph, force_sanitize=True)
+            succeeded.append(m)
+        except Exception as e:
+            failed.append(m)
+            reason.append(str(e))
+
+    print("#" * 80)
+    print("### Failed `check_rdkit_sanitize()`")
+    print("### number of entries failed:", len(failed))
+    print("idx    id    failing_reason")
+    for i, (m, r) in enumerate(zip(failed, reason)):
+        print(i, m.id, r)
+    filename = "~/Applications/db_access/mol_builder/failed_check_rdkit_sanitize.pkl"
     pickle_dump(failed, filename)
 
     return succeeded
@@ -260,6 +297,7 @@ def check_bond_species(
         else:
             succeeded.append(m)
 
+    print("#" * 80)
     print("### Failed `check_bond_species()`")
     print("### number of entries failed:", len(failed))
     print("index    id     reason")
@@ -292,6 +330,7 @@ def check_bond_length(
         else:
             succeeded.append(m)
 
+    print("#" * 80)
     print("### Failed `check_bond_length()`")
     print("### number of entries failed:", len(failed))
     print("index    id     bond     length (limit)")
@@ -311,7 +350,8 @@ def check_all(
 
     print("Number of mols before any check:", len(mols))
 
-    mols = check_valence(mols=mols)
+    mols = check_connectivity(mols=mols)
+    mols = check_rdkit_sanitize(mols=mols)
     mols = check_bond_species(mols=mols)
     mols = check_bond_length(mols=mols)
 
@@ -326,7 +366,12 @@ def compare_connectivity_across_graph_builder(
     # filename="~/Applications/db_access/mol_builder/molecules_n200.pkl",
     tex_file="~/Applications/db_access/mol_builder/tex_mol_connectivity_comparison.tex",
     only_different=True,
-    checker=[check_valence_mol, check_bond_length_mol, check_bond_species_mol],
+    checker=[
+        check_connectivity_mol,
+        check_rdkit_sanitize,
+        check_bond_length_mol,
+        check_bond_species_mol,
+    ],
 ):
     """
     Plot the mol connectivity and see how different they are.
@@ -517,7 +562,8 @@ def compare_connectivity_across_graph_builder(
 
 if __name__ == "__main__":
 
-    # check_valence()
+    # check_connectivity()
+    # check_rdkit_sanitize()
     # check_bond_species()
     # check_bond_length()
     check_all()

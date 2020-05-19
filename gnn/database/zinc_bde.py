@@ -65,7 +65,7 @@ def read_zinc_bde_dataset(dirname):
             logger.warning(f"bad mol: {fname}")
         else:
             title, energies = parse_title_and_energies(fname)
-            mw = rdkit_mol_to_wrapper_mol(m, charge=0, mol_id=title)
+            mw = rdkit_mol_to_wrapper_mol(m, charge=0, identifier=title)
             mols.append(mw)
             bond_energies.append(energies)
     logger.warning(f"{n_bad} bad mols ignored.")
