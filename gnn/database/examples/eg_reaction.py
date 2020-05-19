@@ -667,7 +667,7 @@ def create_struct_label_dataset_bond_based_regression(
     # ##############
     # extractor.filter_reactions_by_bond_type_and_order(bond_type=("C", "C"))
 
-    extractor.create_struct_label_dataset_bond_based_regressssion(
+    extractor.create_struct_label_dataset_bond_based_regression(
         struct_file="~/Applications/db_access/mol_builder/struct_n200.sdf",
         label_file="~/Applications/db_access/mol_builder/label_n200.txt",
         feature_file="~/Applications/db_access/mol_builder/feature_n200.yaml",
@@ -780,7 +780,7 @@ def zinc_create_struct_label_dataset_bond_based_regression(
     reactions = extractor.extract_with_energies()
     extractor = ReactionCollection(reactions)
 
-    extractor.create_struct_label_dataset_bond_based_regressssion(
+    extractor.create_struct_label_dataset_bond_based_regression(
         struct_file="~/Applications/db_access/zinc_bde/zinc_struct_bond_rgrn.sdf",
         label_file="~/Applications/db_access/zinc_bde/zinc_label_bond_rgrn.txt",
         feature_file="~/Applications/db_access/zinc_bde/zinc_feature_bond_rgrn.yaml",

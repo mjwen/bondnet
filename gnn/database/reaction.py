@@ -8,7 +8,7 @@ import networkx as nx
 import networkx.algorithms.isomorphism as iso
 from pymatgen.analysis.graphs import _isomorphic
 from collections import defaultdict, OrderedDict
-from gnn.database.molwrapper import MoleculeWrapperFromAtomsAndBonds
+from gnn.database.molwrapper import create_wrapper_mol_from_atoms_and_bonds
 from gnn.parallel import parmap2
 from gnn.utils import create_directory, pickle_dump, pickle_load, yaml_dump, expand_path
 
@@ -49,13 +49,27 @@ class Reaction:
         self._bond_mapping_by_tuple_index = None
         self._bond_mapping_by_sdf_int_index = None
 
+    def get_id(self):
+        if self._id is None:
+            # set id to reactant id and broken bond of reactant
+            mol = self.reactants[0]
+            broken_bond = "-".join([str(i) for i in self.get_broken_bond()])
+            species = "-".join(sorted(self.get_broken_bond_attr()["species"]))
+            str_id = str(mol.id) + "_broken_bond-" + broken_bond + "_species-" + species
+            self._id = str_id
+
+        return self._id
+
     def get_free_energy(self):
         if self._free_energy is not None:
             return self._free_energy
         else:
-            energy = 0
+            energy = 0.0
             for mol in self.reactants:
-                energy -= mol.free_energy
+                if mol.free_energy is None:
+                    return None
+                else:
+                    energy -= mol.free_energy
             for mol in self.products:
                 if mol.free_energy is None:
                     return None
@@ -82,27 +96,23 @@ class Reaction:
                 for m in self.products:
                     msg += f"{m.id} "
                 raise RuntimeError(
-                    f"invalid reaction (cannot break a reactant bond to get products). "
-                    f"{msg}"
+                    f"Cannot break a reactant bond to get products; "
+                    f"invalid reaction: {msg}"
                 )
             # only one element in `bonds` because of `first_only = True`
             self._broken_bond = bonds[0]
 
-        return self._broken_bond
+        return tuple(sorted(self._broken_bond))
 
     def get_broken_bond_attr(self):
         """
-        Returns a dict of the species and bond order of the broken bond.
+        Returns a dict of attributes of the broken bond.
         """
         reactant = self.reactants[0]
         u, v = self.get_broken_bond()
-        species = [reactant.species[u], reactant.species[v]]
-        try:
-            # key=0 because of MultiGraph
-            order = reactant.graph.get_edge_data(u, v, key=0)["weight"]
-        except KeyError:
-            order = 0
-        return {"species": species, "order": order}
+        species = (reactant.species[u], reactant.species[v])
+
+        return {"species": species}
 
     def atom_mapping(self):
         """
@@ -123,19 +133,21 @@ class Reaction:
            O     N
            1     2
         and (note the index of H changes it 0)
-            H 0
+           H 0
 
-        The function will give use atom mapping:
+        This function generates the atom mapping:
         [{0:0, 1:1, 2:2}, {0:3}]
+        where the first dict is the mapping for product 1 and the second dict is the
+        mapping for product 2.
 
         Returns:
-            list: each element is a dict mapping the atoms from product to reactant
+            list: each element is a dict that maps the atoms from product to reactant.
         """
         if self._atom_mapping is not None:
             return self._atom_mapping
 
         # get subgraphs of reactant by breaking the bond
-        # if A->B reaction, there is one element in sugraphs
+        # if A->B reaction, there is one element in subgraphs
         # if A->B+C reaction, there are two
         bond = self.get_broken_bond()
         original = copy.deepcopy(self.reactants[0].mol_graph)
@@ -143,9 +155,8 @@ class Reaction:
         components = nx.weakly_connected_components(original.graph)
         subgraphs = [original.graph.subgraph(c) for c in components]
 
-        # correspondence between products and reaxtant subgrpahs
-        N = len(subgraphs)
-        if N == 1:
+        # correspondence between products and reactant subgrpahs
+        if len(subgraphs) == 1:
             corr = {0: 0}
         else:
             # product idx as key and reactant subgraph idx as value
@@ -153,10 +164,7 @@ class Reaction:
             corr = OrderedDict()
             products = [p.mol_graph for p in self.products]
 
-            # If A->B+B reactions, both correspondences are valid. Here either one
-            # would suffice
-
-            # implicitly indicates _isomorphic(subgraphs[1], products[1].graph)
+            # implicitly indicating _isomorphic(subgraphs[1], products[1].graph)
             if _isomorphic(subgraphs[0], products[0].graph):
                 corr[0] = 0
                 corr[1] = 1
@@ -174,12 +182,13 @@ class Reaction:
                 mappings.append(mp)
 
         self._atom_mapping = mappings
+
         return self._atom_mapping
 
     def bond_mapping_by_int_index(self):
         r"""
         Find the bond mapping between products and reactant, using a single index (the
-        index of bond in MoleculeWrapper.bonds ) to denote the bond.
+        index of bond in MoleculeWrapper.bonds) to denote the bond.
 
         For example, suppose we have reactant
 
@@ -199,7 +208,7 @@ class Reaction:
               0
             O---H
             0   1
-        The function will give the bond mapping:
+        The function gives the bond mapping:
         [{0:1, 1:0, 2:2}, {0:4}]
 
 
@@ -213,40 +222,29 @@ class Reaction:
         if self._bond_mapping_by_int_index is not None:
             return self._bond_mapping_by_int_index
 
-        # for the same bond, tuple index as key and integer index as value
-        reactants_mapping = [
-            {
-                bond: order
-                for m in self.reactants
-                for order, (bond, _) in enumerate(m.bonds.items())
-            }
-        ]
+        # mapping between tuple index and integer index for the same bond
+        reactant_mapping = {
+            bond: ordering
+            for ordering, (bond, _) in enumerate(self.reactants[0].bonds.items())
+        }
 
-        # do not use list comprehension because we need to create empty dict for products
-        # with not bonds
-        products_mapping = []
-        for m in self.products:
-            mp = {}
-            for order, (bond, _) in enumerate(m.bonds.items()):
-                mp[bond] = order
-            products_mapping.append(mp)
-
-        # we only have one reactant
-        r_mapping = reactants_mapping[0]
-
-        amp = self.atom_mapping()
-
+        atom_mapping = self.atom_mapping()
         bond_mapping = []
-        for p_idx, p_mp in enumerate(products_mapping):
-            bmp = {}
-            for bond, p_order in p_mp.items():
+
+        for p, amp in zip(self.products, atom_mapping):
+            bmp = dict()
+
+            for p_ordering, (bond, _) in enumerate(p.bonds.items()):
+
                 # atom mapping between product and reactant of the bond
-                bond_amp = [amp[p_idx][i] for i in bond]
-                r_order = r_mapping[tuple(sorted(bond_amp))]
-                bmp[p_order] = r_order
+                bond_amp = [amp[i] for i in bond]
+
+                r_ordering = reactant_mapping[tuple(sorted(bond_amp))]
+                bmp[p_ordering] = r_ordering
             bond_mapping.append(bmp)
 
         self._bond_mapping_by_int_index = bond_mapping
+
         return self._bond_mapping_by_int_index
 
     def bond_mapping_by_tuple_index(self):
@@ -286,27 +284,33 @@ class Reaction:
         if self._bond_mapping_by_tuple_index is not None:
             return self._bond_mapping_by_tuple_index
 
-        atom_mp = self.atom_mapping()
-
+        atom_mapping = self.atom_mapping()
         bond_mapping = []
-        for p, amp in zip(self.products, atom_mp):
 
-            # do not use list comprehension because we need to create empty dict for
-            # products with not bonds
+        for p, amp in zip(self.products, atom_mapping):
             bmp = dict()
+
             for b_product, _ in p.bonds.items():
+
                 # atom mapping between product and reactant of the bond
                 i, j = b_product
+
                 b_reactant = tuple(sorted([amp[i], amp[j]]))
                 bmp[b_product] = b_reactant
             bond_mapping.append(bmp)
 
         self._bond_mapping_by_tuple_index = bond_mapping
+
         return self._bond_mapping_by_tuple_index
 
     def bond_mapping_by_sdf_int_index(self):
         """
-        Bond mapping between products SDF bonds and reactant SDF bonds.
+        Bond mapping between products SDF bonds (integer index) and reactant SDF bonds
+        (integer index).
+
+        Unlike the atom mapping (where atom index in graph and sdf are the same),
+        the ordering of bond may change when sdf file are written. So we need this
+        mapping to ensure the correct ordering between products bonds and reactant bonds.
 
         We do the below to get a mapping between product sdf int index and reactant
         sdf int index:
@@ -317,10 +321,6 @@ class Reaction:
         --> reactant graph tuple index
         --> reactant sdf tuple index
         --> reactant sdf int index
-
-        Unlike the atom mapping (where atom index in graph and sdf are the same),
-        when sdf file are written, the ordering of bond may change. So we need to do
-        this mapping to ensure the correcting between products bonds and reactant bonds.
 
 
         Returns:
@@ -333,9 +333,9 @@ class Reaction:
 
         reactant = self.reactants[0]
 
-        # reactant sdf bond index (tuple) to sdf bond index (interger)
+        # reactant sdf bond index (tuple) to sdf bond index (integer)
         reactant_index_tuple2int = {
-            b: i for i, b in enumerate(reactant.get_sdf_bond_indices())
+            b: i for i, b in enumerate(reactant.get_sdf_bond_indices(zero_based=True))
         }
 
         # bond mapping between product sdf and reactant sdf
@@ -345,19 +345,14 @@ class Reaction:
 
             mp = {}
             # product sdf bond index (list of tuple)
-            psb = p.get_sdf_bond_indices()
+            psb = p.get_sdf_bond_indices(zero_based=True)
 
             # ib: product sdf bond index (int)
-            # b: product sdf bond index (tuple)
+            # b: product graph bond index (tuple)
             for ib, b in enumerate(psb):
-                # product graph bond index (tuple)
-                pgb = tuple(sorted(p.ob_to_graph_bond_idx_map(b)))
 
                 # reactant graph bond index (tuple)
-                rgb = p2r[pgb]
-
-                # reactant sdf bond index (tuple)
-                rsbt = reactant.graph_to_ob_bond_idx_map(rgb)
+                rsbt = p2r[b]
 
                 # reactant sdf bond index (int)
                 rsbi = reactant_index_tuple2int[rsbt]
@@ -387,29 +382,6 @@ class Reaction:
         }
         return d
 
-    def get_id(self):
-
-        if self._id is None:
-
-            # ids = [m.id for m in self.reactants + self.products]
-            # str_ids = "-".join(ids)
-            # return str_ids
-
-            ##########
-            # set id to reactant id and broken bond of reactant
-            ##########
-            mol = self.reactants[0]
-
-            # broken bond in sdf idx
-            broken_bond = mol.graph_to_ob_bond_idx_map(self.get_broken_bond())
-            broken_bond = "-".join([str(i) for i in broken_bond])
-            species = "-".join(sorted(self.get_broken_bond_attr()["species"]))
-            str_id = str(mol.id) + "_broken_bond-" + broken_bond + "_species-" + species
-
-            self._id = str_id
-
-        return self._id
-
     def __expr__(self):
         if len(self.products) == 1:
             s = "\nA -> B style reaction\n"
@@ -428,10 +400,10 @@ class Reaction:
         return self.__expr__()
 
     def __eq__(self, other):
-        # this assumes all reactions are valid ones, i.e.
-        # A -> B and A -> B + B should not be both valid
+        # this assumes molecule id is unique
         self_ids = {m.id for m in self.reactants + self.products}
         other_ids = {m.id for m in other.reactants + other.products}
+
         return self_ids == other_ids
 
     @staticmethod
@@ -710,18 +682,22 @@ class ReactionsOfSameBond(ReactionsGroup):
             products = []
             for i, c in enumerate(charge):
                 mid = f"{self.reactant.id}-{bb[0]}-{bb[1]}-{i}-{c}"
-                mol = MoleculeWrapperFromAtomsAndBonds(
-                    species[i], coords[i], c, bonds[i], mol_id=mid
+                mol = create_wrapper_mol_from_atoms_and_bonds(
+                    species[i], coords[i], bonds[i], charge=c, identifier=mid
                 )
 
                 if mol_reservoir is None:
                     comp_mols.add(mol)
                 else:
                     existing_mol = search_mol_reservoir(mol, mol_reservoir)
-                    if existing_mol is None:  # not in reservoir
+
+                    # not in reservoir
+                    if existing_mol is None:
                         comp_mols.add(mol)
                         mol_reservoir.add(mol)
-                    else:  # in reservoir
+
+                    # in reservoir
+                    else:
                         mol = existing_mol
 
                 products.append(mol)
@@ -990,26 +966,20 @@ class ReactionCollection:
 
         self.reactions = reactions
 
-    def filter_reactions_by_bond_type_and_order(self, bond_type, bond_order=None):
+    def filter_reactions_by_bond_type(self, bond_type):
         """
         Filter the reactions by the type of the breaking bond, and only reactions with the
         specified bond_type will be retained.
 
         Args:
             bond_type (tuple of string): species of the two atoms the bond connecting to
-            bond_order (int): bond order to filter on
         """
         reactions = []
         for rxn in self.reactions:
             attr = rxn.get_broken_bond_attr()
             species = attr["species"]
-            order = attr["order"]
             if set(species) == set(bond_type):
-                if bond_order is None:
-                    reactions.append(rxn)
-                else:
-                    if order == bond_order:
-                        reactions.append(rxn)
+                reactions.append(rxn)
 
         self.reactions = reactions
 
@@ -1769,12 +1739,9 @@ class ReactionCollection:
                 rxn.get_broken_bond(): (i, rxn) for i, rxn in enumerate(ordered_rxns)
             }
 
-            # bond energies in the same order as in sdf file
-            sdf_bonds = reactant.get_sdf_bond_indices()
+            # bond energies in the same ordering as in sdf file
+            sdf_bonds = reactant.get_sdf_bond_indices(zero_based=True)
             for ib, bond in enumerate(sdf_bonds):
-
-                # change index from ob to graph
-                bond = tuple(sorted(reactant.ob_to_graph_bond_idx_map(bond)))
 
                 # when one_per_iso_bond_group is `True`, some bonds are deleted
                 if bond not in rxns_dict:
@@ -1812,7 +1779,7 @@ class ReactionCollection:
         if feature_file is not None:
             self.write_feature(all_reactants, broken_bond_pairs, filename=feature_file)
 
-    def create_struct_label_dataset_bond_based_regressssion(
+    def create_struct_label_dataset_bond_based_regression(
         self,
         struct_file="sturct.sdf",
         label_file="label.txt",
@@ -1892,7 +1859,7 @@ class ReactionCollection:
                         "    # {} {} {} {}\n".format(
                             attr["reactants"],
                             attr["products"],
-                            reactant.graph_to_ob_bond_idx_map(attr["broken_bond"]),
+                            attr["broken_bond"],
                             attr["bond_energy"],
                         )
                     )
@@ -1923,10 +1890,8 @@ class ReactionCollection:
             }
 
             # bond energies in the same order as in sdf file
-            sdf_bonds = reactant.get_sdf_bond_indices()
+            sdf_bonds = reactant.get_sdf_bond_indices(zero_based=True)
             for ib, bond in enumerate(sdf_bonds):
-                # change index from ob to graph
-                bond = tuple(sorted(reactant.ob_to_graph_bond_idx_map(bond)))
 
                 # when one_per_iso_bond_group is `True`, some bonds are deleted
                 if bond not in rxns_dict:
@@ -1996,14 +1961,12 @@ class ReactionCollection:
                 rxns_by_ob_bond = dict()
                 for rxn in rsr.reactions:
                     bond = rxn.get_broken_bond()
-                    bond = tuple(sorted(reactant.graph_to_ob_bond_idx_map(bond)))
-                    # we need this because the order of bond changes in sdf file
                     rxns_by_ob_bond[bond] = rxn
 
                 # write bond energies in the same order as sdf file
                 energy = []
                 indicator = []
-                sdf_bonds = reactant.get_sdf_bond_indices()
+                sdf_bonds = reactant.get_sdf_bond_indices(zero_based=True)
                 for ib, bond in enumerate(sdf_bonds):
 
                     if bond in rxns_by_ob_bond:  # have reaction with breaking this bond
@@ -2046,14 +2009,10 @@ class ReactionCollection:
         create_directory(filename)
         with open(filename, "w") as f:
             for i, m in enumerate(molecules):
-                msg = "{}_{}_{}_{} index: {}".format(
+                name = "{}_{}_{}_{}_index-{}".format(
                     m.formula, m.charge, m.id, m.free_energy, i
                 )
-                # The same pybel mol will write different sdf file when it is called
-                # the first time and other times. We create a new one by setting
-                # `_ob_adaptor` to None here so that it will write the correct one.
-                m._ob_adaptor = None
-                sdf = m.write(file_format="sdf", message=msg)
+                sdf = m.write(name=name)
                 f.write(sdf)
 
         logger.info("Finish writing sdf file: {}".format(filename))
@@ -2077,7 +2036,7 @@ class ReactionCollection:
                 idx = None
             else:
                 idx = bond_indices[i]
-            feat = m.pack_features(use_obabel_idx=True, broken_bond=idx)
+            feat = m.pack_features(broken_bond=idx)
             if "index" not in feat:
                 feat["index"] = i
             all_feats.append(feat)
@@ -2290,8 +2249,6 @@ class ReactionExtractorFromMolSet:
     def to_file(self, filename="rxns.pkl"):
         logger.info("Start writing reactions to file: {}".format(filename))
 
-        for m in get_molecules_from_reactions(self.reactions):
-            m.delete_ob_mol()
         d = {
             "@module": self.__class__.__module__,
             "@class": self.__class__.__name__,
@@ -2302,7 +2259,7 @@ class ReactionExtractorFromMolSet:
 
 class ReactionExtractorFromReactant:
     """
-    Create reactions from reactant.
+    Create reactions from reactant only.
 
     This needs metadata indicating the bond to break in a reactant. Products molecules
     will be created.
@@ -2396,8 +2353,8 @@ class ReactionExtractorFromReactant:
                 fg_bonds = [(i, j) for i, j, v in edges]
 
                 mid = f"{mol.id}-{b[0]}-{b[1]}-{i}"
-                m = MoleculeWrapperFromAtomsAndBonds(
-                    fg_species, fg_coords, 0, fg_bonds, mol_id=mid
+                m = create_wrapper_mol_from_atoms_and_bonds(
+                    fg_species, fg_coords, fg_bonds, charge=0, identifier=mid
                 )
 
                 if mol_reservoir is not None:

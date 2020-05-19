@@ -80,7 +80,7 @@ class MoleculeWrapperTaskCollection(MoleculeWrapper):
             e -= charge0_atom_energy[spec] * num
         return e
 
-    def pack_features(self, use_obabel_idx=True, broken_bond=None):
+    def pack_features(self, broken_bond=None):
         feats = dict()
 
         # molecule level
