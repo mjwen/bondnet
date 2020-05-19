@@ -372,7 +372,7 @@ def create_wrapper_mol_from_atoms_and_bonds(
     bonds = {tuple(sorted(b)): None for b in bonds}
     mol_graph = MoleculeGraph.with_edges(pymatgen_mol, bonds)
 
-    MoleculeWrapper(mol_graph, free_energy, identifier)
+    return MoleculeWrapper(mol_graph, free_energy, identifier)
 
 
 def rdkit_mol_to_wrapper_mol(m, charge=0, free_energy=None, identifier=None):

@@ -1,6 +1,6 @@
 from pymatgen import Molecule
 from pymatgen.analysis.graphs import MoleculeGraph
-from gnn.database.molwrapper import MoleculeWrapperFromAtomsAndBonds
+from gnn.database.molwrapper import create_wrapper_mol_from_atoms_and_bonds
 from gnn.database.reaction import Reaction
 
 
@@ -70,13 +70,13 @@ def create_C2H4O1():
     ]
     charge = 0
     bonds = [(0, 2), (0, 3), (1, 2), (2, 3), (3, 4), (2, 5), (3, 6)]
-    m = MoleculeWrapperFromAtomsAndBonds(
+    m = create_wrapper_mol_from_atoms_and_bonds(
         species=species,
         coords=coords,
-        charge=charge,
         bonds=bonds,
-        mol_id="mol",
+        charge=charge,
         free_energy=0.0,
+        identifier="mol",
     )
 
     return m
@@ -149,26 +149,26 @@ def create_symmetric_molecules():
     charge = 0
     bonds = [(0, 1), (1, 2), (1, 3), (1, 4), (3, 4)]
     mols.append(
-        MoleculeWrapperFromAtomsAndBonds(
+        create_wrapper_mol_from_atoms_and_bonds(
             species=species,
             coords=coords,
-            charge=charge,
             bonds=bonds,
-            mol_id="m0",
+            charge=charge,
             free_energy=0.0,
+            identifier="m0",
         )
     )
 
     # m1, charge 0
     bonds = [(0, 1), (1, 2), (1, 3), (1, 4)]
     mols.append(
-        MoleculeWrapperFromAtomsAndBonds(
+        create_wrapper_mol_from_atoms_and_bonds(
             species=species,
             coords=coords,
-            charge=charge,
             bonds=bonds,
-            mol_id="m1",
+            charge=charge,
             free_energy=1.0,
+            identifier="m1",
         )
     )
 
@@ -183,26 +183,26 @@ def create_symmetric_molecules():
     charge = 0
     bonds = [(0, 1), (1, 2), (1, 3), (2, 3)]
     mols.append(
-        MoleculeWrapperFromAtomsAndBonds(
+        create_wrapper_mol_from_atoms_and_bonds(
             species=species,
             coords=coords,
-            charge=charge,
             bonds=bonds,
-            mol_id="m2",
+            charge=charge,
             free_energy=2.0,
+            identifier="m2",
         )
     )
 
     # m3, charge -1
     charge = -1
     mols.append(
-        MoleculeWrapperFromAtomsAndBonds(
+        create_wrapper_mol_from_atoms_and_bonds(
             species=species,
             coords=coords,
-            charge=charge,
             bonds=bonds,
-            mol_id="m3",
+            charge=charge,
             free_energy=3.0,
+            identifier="m3",
         )
     )
 
@@ -212,39 +212,39 @@ def create_symmetric_molecules():
     charge = 0
     bonds = []
     mols.append(
-        MoleculeWrapperFromAtomsAndBonds(
+        create_wrapper_mol_from_atoms_and_bonds(
             species=species,
             coords=coords,
-            charge=charge,
             bonds=bonds,
-            mol_id="m4",
+            charge=charge,
             free_energy=4.0,
+            identifier="m4",
         )
     )
 
     # m5, H, charge 1
     charge = 1
     mols.append(
-        MoleculeWrapperFromAtomsAndBonds(
+        create_wrapper_mol_from_atoms_and_bonds(
             species=species,
             coords=coords,
-            charge=charge,
             bonds=bonds,
-            mol_id="m5",
+            charge=charge,
             free_energy=5.0,
+            identifier="m5",
         )
     )
 
     # m6, H, charge -1
     charge = -1
     mols.append(
-        MoleculeWrapperFromAtomsAndBonds(
+        create_wrapper_mol_from_atoms_and_bonds(
             species=species,
             coords=coords,
-            charge=charge,
             bonds=bonds,
-            mol_id="m6",
+            charge=charge,
             free_energy=6.0,
+            identifier="m6",
         )
     )
 
@@ -257,13 +257,13 @@ def create_symmetric_molecules():
     charge = 0
     bonds = [(0, 1)]
     mols.append(
-        MoleculeWrapperFromAtomsAndBonds(
+        create_wrapper_mol_from_atoms_and_bonds(
             species=species,
             coords=coords,
-            charge=charge,
             bonds=bonds,
-            mol_id="m7",
+            charge=charge,
             free_energy=7.0,
+            identifier="m7",
         )
     )
 
@@ -315,13 +315,13 @@ def create_nonsymmetric_molecules():
     ]
     bonds = [(0, 1), (0, 2), (1, 2), (2, 3)]
     mols.append(
-        MoleculeWrapperFromAtomsAndBonds(
+        create_wrapper_mol_from_atoms_and_bonds(
             species=species,
             coords=coords,
-            charge=0,
             bonds=bonds,
-            mol_id="m0",
+            charge=0,
             free_energy=0.0,
+            identifier="m0",
         )
     )
 
@@ -335,13 +335,13 @@ def create_nonsymmetric_molecules():
     ]
     bonds = [(0, 1), (1, 2), (1, 3)]
     mols.append(
-        MoleculeWrapperFromAtomsAndBonds(
+        create_wrapper_mol_from_atoms_and_bonds(
             species=species,
             coords=coords,
-            charge=0,
             bonds=bonds,
-            mol_id="m1",
+            charge=0,
             free_energy=1.0,
+            identifier="m1",
         )
     )
 
@@ -354,13 +354,13 @@ def create_nonsymmetric_molecules():
     ]
     bonds = [(0, 1), (0, 2), (1, 2)]
     mols.append(
-        MoleculeWrapperFromAtomsAndBonds(
+        create_wrapper_mol_from_atoms_and_bonds(
             species=species,
             coords=coords,
-            charge=0,
             bonds=bonds,
-            mol_id="m2",
+            charge=0,
             free_energy=2.0,
+            identifier="m2",
         )
     )
 
@@ -369,13 +369,13 @@ def create_nonsymmetric_molecules():
     coords = [[1.0, 0.0, 1.0]]
     bonds = []
     mols.append(
-        MoleculeWrapperFromAtomsAndBonds(
+        create_wrapper_mol_from_atoms_and_bonds(
             species=species,
             coords=coords,
-            charge=0,
             bonds=bonds,
-            mol_id="m3",
+            charge=0,
             free_energy=3.0,
+            identifier="m3",
         )
     )
 

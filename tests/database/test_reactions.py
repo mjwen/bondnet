@@ -53,55 +53,91 @@ class TestReaction:
 
     def test_bond_mapping_sdf_int_index(self):
         """
-         m0
-         OpenBabel03012020193D
+        m0
+        RDKit          3D
 
-          4  4  0  0  0  0  0  0  0  0999 V2000
-            0.0000    1.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-           -1.0000    0.0000    0.0000 O   0  3  0  0  0  0  0  0  0  0  0  0
-            1.0000    0.0000    0.0000 N   0  5  0  0  0  0  0  0  0  0  0  0
-            1.0000    0.0000    1.0000 H   0  0  0  0  0  0  0  0  0  0  0  0
-          1  2  1  0  0  0  0
-          1  3  1  0  0  0  0
-          2  3  1  0  0  0  0
-          3  4  1  0  0  0  0
+          0  0  0  0  0  0  0  0  0  0999 V3000
+        M  V30 BEGIN CTAB
+        M  V30 COUNTS 4 4 0 0 0
+        M  V30 BEGIN ATOM
+        M  V30 1 C 0 1 0 0 RAD=3 VAL=2
+        M  V30 2 O -1 0 0 0 RAD=2 VAL=1
+        M  V30 3 N 1 0 0 0 RAD=2 VAL=2
+        M  V30 4 H 1 0 1 0
+        M  V30 END ATOM
+        M  V30 BEGIN BOND
+        M  V30 1 1 1 2
+        M  V30 2 1 1 3
+        M  V30 3 0 2 3
+        M  V30 4 1 3 4
+        M  V30 END BOND
+        M  V30 END CTAB
+        M  END
+        $$$$
 
-          m1
-        OpenBabel03022016503D
+        m1
+             RDKit          3D
 
-          4  3  0  0  0  0  0  0  0  0999 V2000
-            0.0000    1.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-            1.0000    0.0000    0.0000 N   0  3  0  0  0  0  0  0  0  0  0  0
-           -1.0000    0.0000    0.0000 O   0  5  0  0  0  0  0  0  0  0  0  0
-            1.0000    0.0000    1.0000 H   0  0  0  0  0  0  0  0  0  0  0  0
-          1  2  1  0  0  0  0
-          2  4  1  0  0  0  0
-          2  3  1  0  0  0  0
+          0  0  0  0  0  0  0  0  0  0999 V3000
+        M  V30 BEGIN CTAB
+        M  V30 COUNTS 4 3 0 0 0
+        M  V30 BEGIN ATOM
+        M  V30 1 C 0 1 0 0 RAD=2 VAL=1
+        M  V30 2 N 1 0 0 0 RAD=2 VAL=2
+        M  V30 3 O -1 0 0 0 RAD=3
+        M  V30 4 H 1 0 1 0
+        M  V30 END ATOM
+        M  V30 BEGIN BOND
+        M  V30 1 1 1 2
+        M  V30 2 0 2 3
+        M  V30 3 1 2 4
+        M  V30 END BOND
+        M  V30 END CTAB
+        M  END
+        $$$$
 
-         m2
-         OpenBabel03012020223D
+        m2
+             RDKit          3D
 
-          3  3  0  0  0  0  0  0  0  0999 V2000
-            0.0000    1.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-           -1.0000    0.0000    0.0000 N   0  5  0  0  0  2  0  0  0  0  0  0
-            1.0000    0.0000    0.0000 O   0  3  0  0  0  0  0  0  0  0  0  0
-          1  2  1  0  0  0  0
-          1  3  1  0  0  0  0
-          2  3  1  0  0  0  0
+          0  0  0  0  0  0  0  0  0  0999 V3000
+        M  V30 BEGIN CTAB
+        M  V30 COUNTS 3 3 0 0 0
+        M  V30 BEGIN ATOM
+        M  V30 1 C 0 1 0 0 RAD=3 VAL=2
+        M  V30 2 N -1 0 0 0 RAD=3 VAL=1
+        M  V30 3 O 1 0 0 0 RAD=2 VAL=1
+        M  V30 END ATOM
+        M  V30 BEGIN BOND
+        M  V30 1 1 1 2
+        M  V30 2 1 1 3
+        M  V30 3 0 2 3
+        M  V30 END BOND
+        M  V30 END CTAB
+        M  END
+        $$$$
 
-         m4
-         OpenBabel03012020203D
+        m3
+             RDKit          3D
 
-          1  0  0  0  0  0  0  0  0  0999 V2000
-            1.0000    0.0000    1.0000 H   0  0  0  0  0  0  0  0  0  0  0  0
+          0  0  0  0  0  0  0  0  0  0999 V3000
+        M  V30 BEGIN CTAB
+        M  V30 COUNTS 1 0 0 0 0
+        M  V30 BEGIN ATOM
+        M  V30 1 H 1 0 1 0 VAL=-1
+        M  V30 END ATOM
+        M  V30 END CTAB
+        M  END
+        $$$$
+
+
         """
         A2B, A2BC = create_reactions_nonsymmetric_reactant()
 
         # m0 to m1
-        ref_mapping = [{0: 1, 1: 3, 2: 2}]
+        ref_mapping = [{0: 1, 1: 2, 2: 3}]
         assert A2B[0].bond_mapping_by_sdf_int_index() == ref_mapping
 
-        # m0 to m2 m4
+        # m0 to m2 m3
         # {} first because products are ordered
         ref_mapping = [{}, {0: 1, 1: 0, 2: 2}]
         assert A2BC[0].bond_mapping_by_sdf_int_index() == ref_mapping
