@@ -301,14 +301,14 @@ class MoleculeWrapper:
             return mapping
 
     def write(self, filename=None, name=None, format="sdf", v3000=True):
-        """Write a molecule out.
+        """Write a molecule to file or as string using rdkit.
 
         Args:
             filename (str): name of the file to write the output. If None, return the
                 output as string.
             name (str): name of a molecule. If `file_format` is sdf, this is the first
                 line the molecule block in the sdf.
-            format (str): format of the molecule (e.g. sdf and smi).
+            format (str): format of the molecule, supporting: sdf, pdb, and smi.
             v3000 (bool): whether to force v3000 form if format is `sdf`
         """
         if filename is not None:
@@ -324,7 +324,12 @@ class MoleculeWrapper:
                 return sdf + "$$$$\n"
             else:
                 return Chem.MolToMolFile(self.rdkit_mol, filename, forceV3000=v3000)
-
+        elif format == "pdb":
+            if filename is None:
+                sdf = Chem.MolToPDBBlock(self.rdkit_mol)
+                return sdf + "$$$$\n"
+            else:
+                return Chem.MolToPDBFile(self.rdkit_mol, filename)
         elif format == "smi":
             return Chem.MolToSmiles(self.rdkit_mol)
         else:

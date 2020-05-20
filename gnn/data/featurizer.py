@@ -100,6 +100,18 @@ class BondAsNodeFeaturizer(BondFeaturizer):
         BondAsEdgeBidirectedFeaturizer
     """
 
+    def __init__(
+        self,
+        length_featurizer=None,
+        length_featurizer_args=None,
+        dative=False,
+        dtype="float32",
+    ):
+        super(BondAsNodeFeaturizer, self).__init__(
+            length_featurizer, length_featurizer_args, dtype
+        )
+        self.dative = dative
+
     def __call__(self, mol, **kwargs):
         """
         Parameters
@@ -125,21 +137,20 @@ class BondAsNodeFeaturizer(BondFeaturizer):
                 bond = mol.GetBondWithIdx(u)
 
                 ft = [
-                    int(bond.GetIsAromatic()),
                     int(bond.IsInRing()),
                     int(bond.GetIsConjugated()),
                 ]
 
-                ft += one_hot_encoding(
-                    bond.GetBondType(),
-                    [
-                        Chem.rdchem.BondType.SINGLE,
-                        Chem.rdchem.BondType.DOUBLE,
-                        Chem.rdchem.BondType.TRIPLE,
-                        # Chem.rdchem.BondType.AROMATIC,
-                        # Chem.rdchem.BondType.IONIC,
-                    ],
-                )
+                allowed_bond_type = [
+                    Chem.rdchem.BondType.SINGLE,
+                    Chem.rdchem.BondType.DOUBLE,
+                    Chem.rdchem.BondType.TRIPLE,
+                    Chem.rdchem.BondType.AROMATIC,
+                    # Chem.rdchem.BondType.IONIC,
+                ]
+                if self.dative:
+                    allowed_bond_type.append(Chem.rdchem.BondType.DATIVE)
+                ft += one_hot_encoding(bond.GetBondType(), allowed_bond_type)
 
                 if self.length_featurizer:
                     at1 = bond.GetBeginAtomIdx()
@@ -152,7 +163,10 @@ class BondAsNodeFeaturizer(BondFeaturizer):
 
         feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
         self._feature_size = feats.shape[1]
-        self._feature_name = ["is aromatic", "is in ring", "is conjugated"] + ["type"] * 3
+        self._feature_name = ["in_ring", "conjugated"]
+        self._feature_name += ["single", "double", "triple", "aromatic"]
+        if self.dative:
+            self._feature_name += ["dative"]
         if self.length_featurizer:
             self._feature_name += self.length_featurizer.feature_name
 
@@ -710,6 +724,45 @@ class AtomFeaturizerMinimum(BaseFeaturizer):
             + ["chemical symbol"] * len(species)
             # + ["resp", "mulliken", "spin"]
         )
+
+        return {"feat": feats}
+
+
+class GlobalFeaturizer(BaseFeaturizer):
+    """
+    Featurize the global state of a molecules using charge only.
+    """
+
+    def __init__(self, allowed_charges=None, dtype="float32"):
+        super(GlobalFeaturizer, self).__init__(dtype)
+        self.allowed_charges = allowed_charges
+
+    def __call__(self, mol, **kwargs):
+
+        pt = GetPeriodicTable()
+        g = [
+            mol.GetNumAtoms(),
+            mol.GetNumBonds(),
+            sum([pt.GetAtomicWeight(a.GetAtomicNum()) for a in mol.GetAtoms()]),
+        ]
+
+        if self.allowed_charges is not None:
+            try:
+                feats_info = kwargs["extra_feats_info"]
+            except KeyError as e:
+                raise KeyError(
+                    "{} `extra_feats_info` needed for {}.".format(
+                        e, self.__class__.__name__
+                    )
+                )
+            g += one_hot_encoding(feats_info["charge"], self.allowed_charges)
+
+        feats = torch.tensor([g], dtype=getattr(torch, self.dtype))
+
+        self._feature_size = feats.shape[1]
+        self._feature_name = ["num atoms", "num bonds", "molecule weight"]
+        if self.allowed_charges is not None:
+            self._feature_name += ["charge one hot"] * len(self.allowed_charges)
 
         return {"feat": feats}
 

@@ -17,7 +17,7 @@ from gnn.data.dataset import train_validation_test_split
 from gnn.data.electrolyte import ElectrolyteReactionNetworkDataset
 from gnn.data.dataloader import DataLoaderReactionNetwork
 from gnn.data.grapher import HeteroMoleculeGraph
-from gnn.data.featurizer import AtomFeaturizer, BondAsNodeFeaturizer, MolWeightFeaturizer
+from gnn.data.featurizer import AtomFeaturizer, BondAsNodeFeaturizer, GlobalFeaturizer
 from gnn.utils import (
     load_checkpoints,
     save_checkpoints,
@@ -225,8 +225,8 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
 
 def get_grapher():
     atom_featurizer = AtomFeaturizer()
-    bond_featurizer = BondAsNodeFeaturizer(length_featurizer=None)
-    global_featurizer = MolWeightFeaturizer()
+    bond_featurizer = BondAsNodeFeaturizer(length_featurizer=None, dative=False)
+    global_featurizer = GlobalFeaturizer(allowed_charges=None)
     grapher = HeteroMoleculeGraph(
         atom_featurizer=atom_featurizer,
         bond_featurizer=bond_featurizer,

@@ -143,12 +143,11 @@ def tsne_analysis(
     analyzer = TSNEAnalyzer(features, metadata)
     analyzer.compute()
 
-    filename = "~/Applications/db_access/mol_builder/post_analysis/tsne_prediction.pdf"
-    analyzer.plot_via_umap_points(filename, "prediction", False)
-    filename = "~/Applications/db_access/mol_builder/post_analysis/tnse_target.pdf"
-    analyzer.plot_via_umap_points(filename, "target", False)
-    filename = "~/Applications/db_access/mol_builder/post_analysis/tsne_error.pdf"
-    analyzer.plot_via_umap_points(filename, "error", False)
+    key = "prediction"
+    # key = 'target'
+    # key = 'error'
+    filename = f"~/Applications/db_access/mol_builder/post_analysis/tsne_{key}.pdf"
+    analyzer.plot_via_umap_points(filename, key, False)
 
     filename = "~/Applications/db_access/mol_builder/post_analysis/tnse_species.pdf"
     analyzer.plot_via_umap_points(filename, "species", True)
@@ -164,24 +163,18 @@ def umap_analysis(
 
     features, metadata = select_data_by_species(feature_file, metadata_file)
     analyzer = UMAPAnalyzer(features, metadata)
-    analyzer.compute()
+    analyzer.compute(n_neighbors=200, min_dist=0.9)
 
-    filename = "~/Applications/db_access/mol_builder/post_analysis/umap_prediction.pdf"
+    key = "prediction"
+    # key = 'target'
+    # key = 'error'
+    filename = f"~/Applications/db_access/mol_builder/post_analysis/umap_{key}.pdf"
     analyzer.plot_via_umap_points(filename, "prediction", False)
-    filename = "~/Applications/db_access/mol_builder/post_analysis/umap_target.pdf"
-    analyzer.plot_via_umap_points(filename, "target", False)
-    filename = "~/Applications/db_access/mol_builder/post_analysis/umap_error.pdf"
-    analyzer.plot_via_umap_points(filename, "error", False)
 
     filename = "~/Applications/db_access/mol_builder/post_analysis/umap_species.pdf"
     analyzer.plot_via_umap_points(filename, "species", True)
-
-    # filename = (
-    #     "~/Applications/db_access/mol_builder/post_analysis/umap_embedding_eng.html"
-    # )
-    # analyzer.plot_via_umap_interactive(metadata_key_as_color="energy", filename=filename)
-    # filename = "~/applications/db_access/mol_builder/post_analysis/umap_embedding.html"
-    # analyzer.plot_via_umap_interactive(metadata_key_as_color="species", filename=filename)
+    # filename = "~/Applications/db_access/mol_builder/post_analysis/umap_species.html"
+    # analyzer.plot_via_umap_interactive(filename, "species", True)
 
     analyzer.write_embedding_to_csv(
         filename="~/applications/db_access/mol_builder/post_analysis/umap_embedding.tsv",
