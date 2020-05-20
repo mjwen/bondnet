@@ -406,7 +406,13 @@ def rdkit_mol_to_wrapper_mol(m, charge=0, free_energy=None, identifier=None):
     """
 
     species = [a.GetSymbol() for a in m.GetAtoms()]
-    coords = m.GetConformer().GetPositions()
+
+    # coords = m.GetConformer().GetPositions()
+    # NOTE, the above way to get coords results in segfault on linux, so we use the
+    # below workaround
+    conformer = m.GetConformer()
+    coords = [[x for x in conformer.GetAtomPosition(i)] for i in range(m.GetNumAtoms())]
+
     bonds = [[b.GetBeginAtomIdx(), b.GetEndAtomIdx()] for b in m.GetBonds()]
     bonds = {tuple(sorted(b)): None for b in bonds}
 
