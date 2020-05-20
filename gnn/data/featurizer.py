@@ -124,10 +124,16 @@ class BondAsNodeFeaturizer(BondFeaturizer):
             Dictionary for bond features
         """
 
+        # Note, this needs to be set such that single atom molecule works
+        if self.dative:
+            num_feats = 7
+        else:
+            num_feats = 6
+
         num_bonds = mol.GetNumBonds()
 
         if num_bonds == 0:
-            ft = [0.0 for _ in range(6)]
+            ft = [0.0 for _ in range(num_feats)]
             if self.length_featurizer:
                 ft += [0.0 for _ in range(len(self.length_featurizer.feature_name))]
             feats = [ft]
