@@ -124,27 +124,33 @@ class BaseAnalyzer(abc.ABC):
         plot_scatter([self.embedding], [self.metadata[metadata_key_as_color]], filename)
 
     def plot_via_umap_points(
-        self, metadata_key_as_color="energy", filename="embedding.pdf"
+        self,
+        filename="embedding.pdf",
+        metadata_key_as_color="energy",
+        categorical_color=False,
     ):
-        if metadata_key_as_color == "energy":
+        if not categorical_color:
             umap_plot.points(
                 expand_path(filename),
                 self.embedding,
                 values=self.metadata[metadata_key_as_color],
                 theme="viridis",
             )
-        elif metadata_key_as_color == "species":
+        else:
             umap_plot.points(
                 expand_path(filename),
                 self.embedding,
                 labels=self.metadata[metadata_key_as_color],
-                color_key_cmap="Paired",
+                color_key_cmap="tab20",
             )
 
     def plot_via_umap_interactive(
-        self, metadata_key_as_color="energy", filename="embedding.html"
+        self,
+        filename="embedding.html",
+        metadata_key_as_color="energy",
+        categorical_color=False,
     ):
-        if metadata_key_as_color == "energy":
+        if categorical_color:
             umap_plot.interactive(
                 expand_path(filename),
                 self.model,
@@ -153,7 +159,7 @@ class BaseAnalyzer(abc.ABC):
                 theme="viridis",
                 point_size=5,
             )
-        elif metadata_key_as_color == "species":
+        else:
             umap_plot.interactive(
                 expand_path(filename),
                 self.model,

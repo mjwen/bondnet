@@ -96,7 +96,10 @@ def select_data_by_species(feature_file, metadata_file):
 
     new_metadata = defaultdict(list)
     keys = metadata.keys()
-    major_species = {"C-H", "C-C", "C-O", "C-F", "H-O"}
+
+    # major_species = {"C-H", "C-C", "C-O", "C-F", "H-O"}
+    major_species = {"C-H", "C-C", "C-O", "C-F", "H-O", "C-Li", "F-Li", "Li-O"}
+
     for i, species in enumerate(metadata["species"]):
         if species in major_species:
             for k in keys:
@@ -140,10 +143,15 @@ def tsne_analysis(
     analyzer = TSNEAnalyzer(features, metadata)
     analyzer.compute()
 
-    filename = "~/Applications/db_access/mol_builder/post_analysis/tsne_embedding_eng.pdf"
-    analyzer.plot_via_umap_points(metadata_key_as_color="energy", filename=filename)
-    filename = "~/Applications/db_access/mol_builder/post_analysis/tsne_embedding.pdf"
-    analyzer.plot_via_umap_points(metadata_key_as_color="species", filename=filename)
+    filename = "~/Applications/db_access/mol_builder/post_analysis/tsne_prediction.pdf"
+    analyzer.plot_via_umap_points(filename, "prediction", False)
+    filename = "~/Applications/db_access/mol_builder/post_analysis/tnse_target.pdf"
+    analyzer.plot_via_umap_points(filename, "target", False)
+    filename = "~/Applications/db_access/mol_builder/post_analysis/tsne_error.pdf"
+    analyzer.plot_via_umap_points(filename, "error", False)
+
+    filename = "~/Applications/db_access/mol_builder/post_analysis/tnse_species.pdf"
+    analyzer.plot_via_umap_points(filename, "species", True)
 
 
 def umap_analysis(
@@ -158,10 +166,15 @@ def umap_analysis(
     analyzer = UMAPAnalyzer(features, metadata)
     analyzer.compute()
 
-    filename = "~/Applications/db_access/mol_builder/post_analysis/umap_embedding_eng.pdf"
-    analyzer.plot_via_umap_points(metadata_key_as_color="energy", filename=filename)
-    filename = "~/Applications/db_access/mol_builder/post_analysis/umap_embedding.pdf"
-    analyzer.plot_via_umap_points(metadata_key_as_color="species", filename=filename)
+    filename = "~/Applications/db_access/mol_builder/post_analysis/umap_prediction.pdf"
+    analyzer.plot_via_umap_points(filename, "prediction", False)
+    filename = "~/Applications/db_access/mol_builder/post_analysis/umap_target.pdf"
+    analyzer.plot_via_umap_points(filename, "target", False)
+    filename = "~/Applications/db_access/mol_builder/post_analysis/umap_error.pdf"
+    analyzer.plot_via_umap_points(filename, "error", False)
+
+    filename = "~/Applications/db_access/mol_builder/post_analysis/umap_species.pdf"
+    analyzer.plot_via_umap_points(filename, "species", True)
 
     # filename = (
     #     "~/Applications/db_access/mol_builder/post_analysis/umap_embedding_eng.html"
