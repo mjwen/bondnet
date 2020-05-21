@@ -22,8 +22,7 @@ class TestReaction:
         assert mapping == ref_mapping
 
         # m0 to m2 m4
-        # {0:3} first because products are ordered
-        ref_mapping = [{0: 3}, {0: 0, 1: 2, 2: 1}]
+        ref_mapping = [{0: 0, 1: 2, 2: 1}, {0: 3}]
         reaction = A2BC[0]
         mapping = reaction.atom_mapping()
         assert mapping == ref_mapping
@@ -36,8 +35,7 @@ class TestReaction:
         assert A2B[0].bond_mapping_by_int_index() == ref_mapping
 
         # m0 to m2 and m3
-        # {} first because products are ordered
-        ref_mapping = [{}, {0: 1, 1: 0, 2: 2}]
+        ref_mapping = [{0: 1, 1: 0, 2: 2}, {}]
         assert A2BC[0].bond_mapping_by_int_index() == ref_mapping
 
     def test_bond_mapping_tuple_index(self):
@@ -48,8 +46,7 @@ class TestReaction:
         assert A2B[0].bond_mapping_by_tuple_index() == ref_mapping
 
         # m0 to m2 and m3
-        # {} first because products are ordered
-        ref_mapping = [{}, {(0, 1): (0, 2), (0, 2): (0, 1), (1, 2): (1, 2)}]
+        ref_mapping = [{(0, 1): (0, 2), (0, 2): (0, 1), (1, 2): (1, 2)}, {}]
         assert A2BC[0].bond_mapping_by_tuple_index() == ref_mapping
 
     def test_bond_mapping_sdf_int_index(self):
@@ -139,8 +136,7 @@ class TestReaction:
         assert A2B[0].bond_mapping_by_sdf_int_index() == ref_mapping
 
         # m0 to m2 m3
-        # {} first because products are ordered
-        ref_mapping = [{}, {0: 1, 1: 0, 2: 2}]
+        ref_mapping = [{0: 1, 1: 0, 2: 2}, {}]
         assert A2BC[0].bond_mapping_by_sdf_int_index() == ref_mapping
 
 
@@ -266,8 +262,8 @@ class TestReactionsOfSameBond:
         assert len(comp_mols) == 2
         rxn = comp_rxns[0]
         self.assert_mol(rxn.reactants[0], "C1H2O2", 0)
-        self.assert_mol(rxn.products[0], "H1", -1)
-        self.assert_mol(rxn.products[1], "C1H1O2", 1)
+        self.assert_mol(rxn.products[0], "C1H1O2", 1)
+        self.assert_mol(rxn.products[1], "H1", -1)
 
         ### test order reactions
         ordered_rxns = rsb.order_reactions(complement_reactions=False)
