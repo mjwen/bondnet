@@ -807,3 +807,90 @@ def write_edge_label_based_on_bond(
 
     yaml_dump(labels, expand_path(label_filename))
     yaml_dump(charges, expand_path(feature_filename))
+
+
+def order_two_molecules(m1, m2):
+    """
+    Order the molecules according to the below rules (in order):
+
+    1. molecular mass
+    2. number of atoms
+    3. number of bonds
+    4. alphabetical formula
+    5. diameter of molecule graph, i.e. largest distance for node to node
+    6. charge
+
+    Args:
+        m1, m2 : MoleculeWrapper
+
+    Returns:
+        A list of ordered molecules.
+    """
+
+    def compare(pa, pb, a, b):
+        if pa < pb:
+            return [a, b]
+        elif pa > pb:
+            return [b, a]
+        else:
+            return None
+
+    def order_by_weight(a, b):
+        pa = a.weight
+        pb = b.weight
+        return compare(pa, pb, a, b)
+
+    def order_by_natoms(a, b):
+        pa = a.num_atoms
+        pb = b.num_atoms
+        return compare(pa, pb, a, b)
+
+    def order_by_nbonds(a, b):
+        pa = len(a.bonds)
+        pb = len(b.bonds)
+        return compare(pa, pb, a, b)
+
+    def order_by_formula(a, b):
+        pa = a.formula
+        pb = b.formula
+        return compare(pa, pb, a, b)
+
+    def order_by_diameter(a, b):
+        try:
+            pa = nx.diameter(a.graph)
+        except nx.NetworkXError:
+            pa = 100000000
+        try:
+            pb = nx.diameter(b.graph)
+        except nx.NetworkXError:
+            pb = 100000
+        return compare(pa, pb, a, b)
+
+    def order_by_charge(a, b):
+        pa = a.charge
+        pb = b.charge
+        return compare(pa, pb, a, b)
+
+    out = order_by_weight(m1, m2)
+    if out is not None:
+        return out
+    out = order_by_natoms(m1, m2)
+    if out is not None:
+        return out
+    out = order_by_nbonds(m1, m2)
+    if out is not None:
+        return out
+    out = order_by_formula(m1, m2)
+    if out is not None:
+        return out
+    out = order_by_diameter(m1, m2)
+    if out is not None:
+        return out
+
+    if m1.mol_graph.isomorphic_to(m2.mol_graph):
+        out = order_by_charge(m1, m2)  # e.g. H+ and H-
+        if out is not None:
+            return out
+        else:
+            return [m1, m2]  # two exactly the same molecules
+    raise RuntimeError("Cannot order molecules")

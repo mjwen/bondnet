@@ -38,12 +38,7 @@ class Reaction:
         assert 1 <= len(products) <= 2, "incorrect number of products, should be 1 or 2"
 
         self.reactants = reactants
-        # TODO the order shold not be done here. If some function really needs it,
-        #  do it there. Also, move the order_molecules() fn to molwrapper.py
-        # ordered products needed by `group_by_reactant_bond_and_charge()`
-        # where we use charge as a dict key
-        self.products = self._order_molecules(products)
-
+        self.products = products
         self._broken_bond = broken_bond
         self._free_energy = free_energy
         self._id = identifier
@@ -413,95 +408,6 @@ class Reaction:
         other_ids = {m.id for m in other.reactants + other.products}
 
         return self_ids == other_ids
-
-    @staticmethod
-    def _order_molecules(mols):
-        """
-        Order the molecules according to the below rules (in order):
-        1. molecular mass
-        2. number of atoms
-        3. number of bonds
-        4. alphabetical formula
-        5. diameter of molecule graph, i.e. largest distance for node to node
-        6. charge
-
-        Args:
-            mols: a list of molecules.
-
-        Returns:
-            A list of ordered molecules.
-        """
-
-        def compare(pa, pb, a, b):
-            if pa < pb:
-                return [a, b]
-            elif pa > pb:
-                return [b, a]
-            else:
-                return None
-
-        def order_by_weight(a, b):
-            pa = a.weight
-            pb = b.weight
-            return compare(pa, pb, a, b)
-
-        def order_by_natoms(a, b):
-            pa = a.num_atoms
-            pb = b.num_atoms
-            return compare(pa, pb, a, b)
-
-        def order_by_nbonds(a, b):
-            pa = len(a.bonds)
-            pb = len(b.bonds)
-            return compare(pa, pb, a, b)
-
-        def order_by_formula(a, b):
-            pa = a.formula
-            pb = b.formula
-            return compare(pa, pb, a, b)
-
-        def order_by_diameter(a, b):
-            try:
-                pa = nx.diameter(a.graph)
-            except nx.NetworkXError:
-                pa = 100000000
-            try:
-                pb = nx.diameter(b.graph)
-            except nx.NetworkXError:
-                pb = 100000
-            return compare(pa, pb, a, b)
-
-        def order_by_charge(a, b):
-            pa = a.charge
-            pb = b.charge
-            return compare(pa, pb, a, b)
-
-        if len(mols) == 1:
-            return mols
-
-        out = order_by_weight(*mols)
-        if out is not None:
-            return out
-        out = order_by_natoms(*mols)
-        if out is not None:
-            return out
-        out = order_by_nbonds(*mols)
-        if out is not None:
-            return out
-        out = order_by_formula(*mols)
-        if out is not None:
-            return out
-        out = order_by_diameter(*mols)
-        if out is not None:
-            return out
-        a, b = mols
-        if a.mol_graph.isomorphic_to(b.mol_graph):
-            out = order_by_charge(*mols)  # e.g. H+ and H-
-            if out is not None:
-                return out
-            else:
-                return mols  # two exactly the same molecules
-        raise RuntimeError("Cannot order molecules")
 
 
 class ReactionsGroup:
