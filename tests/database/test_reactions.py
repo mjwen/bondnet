@@ -1,7 +1,8 @@
 from gnn.database.reaction import (
-    ReactionExtractorFromMolSet,
     ReactionsOfSameBond,
     ReactionsMultiplePerBond,
+    ReactionExtractorFromMolSet,
+    create_reactions_from_reactant,
 )
 from .utils import (
     create_reactions_nonsymmetric_reactant,
@@ -141,6 +142,85 @@ class TestReaction:
         # {} first because products are ordered
         ref_mapping = [{}, {0: 1, 1: 0, 2: 2}]
         assert A2BC[0].bond_mapping_by_sdf_int_index() == ref_mapping
+
+
+def test_create_reactions_from_reactant():
+    def assert_A2B(rxn, products_charge, bond_energy, mol_reservoir):
+
+        A = rxn.reactants[0]
+        B = rxn.products[0]
+        reactions, molecules = create_reactions_from_reactant(
+            A,
+            broken_bond=rxn.get_broken_bond(),
+            product_charges=products_charge,
+            bond_energy=bond_energy,
+            mol_reservoir=mol_reservoir,
+        )
+
+        assert len(reactions) == 1
+        r = reactions[0]
+        assert r.get_broken_bond() == rxn.get_broken_bond()
+        assert r.reactants[0] == A
+
+        if bond_energy is None and mol_reservoir is not None:
+            # reuse the product mol, which has energy
+            assert r.get_free_energy() == rxn.get_free_energy()
+        else:
+            assert r.get_free_energy() == bond_energy
+
+        if mol_reservoir is not None:
+            assert len(molecules) == 0
+            assert r.products[0] == B
+        else:
+            assert len(molecules) == 1
+            assert r.products[0].charge == B.charge
+            assert r.products[0].mol_graph.isomorphic_to(B.mol_graph)
+
+    def assert_A2BC(rxn, products_charge, bond_energy, mol_reservoir):
+
+        A = rxn.reactants[0]
+        reactions, molecules = create_reactions_from_reactant(
+            A,
+            broken_bond=rxn.get_broken_bond(),
+            product_charges=products_charge,
+            bond_energy=bond_energy,
+            mol_reservoir=mol_reservoir,
+        )
+
+        assert len(reactions) == len(products_charge)
+        for i, r in enumerate(reactions):
+            assert r.get_broken_bond() == rxn.get_broken_bond()
+            assert r.reactants[0] == A
+
+            p_gen = r.products
+            p_ori = rxn.products
+            assert p_gen[0].charge == products_charge[i][0]
+            assert p_gen[1].charge == products_charge[i][1]
+            assert (
+                p_gen[0].mol_graph.isomorphic_to(p_ori[0].mol_graph)
+                and p_gen[1].mol_graph.isomorphic_to(p_ori[1].mol_graph)
+            ) or (
+                p_gen[0].mol_graph.isomorphic_to(p_ori[1].mol_graph)
+                and p_gen[1].mol_graph.isomorphic_to(p_ori[0].mol_graph)
+            )
+
+        if mol_reservoir is None:
+            assert len(molecules) == 2 * len(products_charge)
+
+    A2B, A2BC = create_reactions_symmetric_reactant()
+
+    rxn = A2B[0]
+    charge = rxn.products[0].charge
+    assert_A2B(rxn, [[charge]], rxn.get_free_energy(), [rxn.products[0]])
+    assert_A2B(rxn, [[charge]], rxn.get_free_energy(), None)
+    assert_A2B(rxn, [[charge]], None, [rxn.products[0]])
+    assert_A2B(rxn, [[charge]], None, None)
+
+    rxn = A2BC[0]
+    assert_A2BC(rxn, [[0, 0]], rxn.get_free_energy(), rxn.products)
+    assert_A2BC(rxn, [[0, 0]], rxn.get_free_energy(), None)
+    assert_A2BC(rxn, [[0, 0], [-1, 0]], None, rxn.products)
+    assert_A2BC(rxn, [[0, 0], [-1, 0]], None, None)
 
 
 class TestReactionsOfSameBond:
@@ -300,7 +380,7 @@ class TestReactionsMultiplePerBond:
         assert ordered_rxns[2] == A2BC[2] or ordered_rxns[2] == A2BC[3]
 
 
-def test_extract_reactions():
+def test_extract_reactions_from_mol_set():
     def assert_rxns(rxns, ref, size):
         assert (len(rxns)) == size
         for r in rxns:
@@ -324,5 +404,5 @@ def test_extract_reactions():
         assert_rxns(A2B, ref_A2B, 1)
         assert_rxns(A2BC, ref_A2BC, ref_size)
 
-    # assert_one(True)
+    assert_one(True)
     assert_one(False)

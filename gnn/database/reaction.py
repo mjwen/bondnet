@@ -38,7 +38,9 @@ class Reaction:
         assert 1 <= len(products) <= 2, "incorrect number of products, should be 1 or 2"
 
         self.reactants = reactants
-        # ordered products needed by `group_by_reactant_bond_and_charge(self)`
+        # TODO the order shold not be done here. If some function really needs it,
+        #  do it there. Also, move the order_molecules() fn to molwrapper.py
+        # ordered products needed by `group_by_reactant_bond_and_charge()`
         # where we use charge as a dict key
         self.products = self._order_molecules(products)
 
@@ -588,39 +590,11 @@ class ReactionsOfSameBond(ReactionsGroup):
                 isomorphism), the mol from the reservoir is used as the product; if
                 not, new mol is created. Note, if a mol is not in `mol_reservoir`,
                 it is added to comp_mols.
+
         Returns:
             comp_rxns (list): A sequence of `Reaction`s that complement the existing ones.
             comp_mols (set): new molecules created to setup the `comp_rxns`.
         """
-
-        def factor_integer(x, allowed, num=2):
-            """
-            Factor an integer to the sum of multiple integers.
-
-            Args:
-                x (int): the integer to be factored
-                allowed (list of int): allowed values for factoring.
-                num (int): number of integers to sum
-
-            Returns:
-                set: factor values
-
-            Example:
-                >>> factor_integer(0, 1, -1, 2)
-                >>> [(-1, 1), (0, 0), (1, -1)]
-            """
-            if num == 1:
-                return {(x)}
-
-            elif num == 2:
-                res = []
-                for i, j in itertools.product(allowed, repeat=2):
-                    if i + j == x:
-                        res.append((i, j))
-
-                return set(res)
-            else:
-                raise Exception(f"not implemented for num={num} case.")
 
         # find products charges
         fragments = self.reactant.fragments[self.broken_bond]
@@ -664,52 +638,12 @@ class ReactionsOfSameBond(ReactionsGroup):
                         else:
                             products_charge.append((charge[1], charge[0]))
 
-                missing_charge = target_products_charge - set(products_charge)
+                missing_charge = list(set(target_products_charge) - set(products_charge))
 
-        # fragments species, coords, and bonds (these are the same for products of
-        # different charges)
-        species = []
-        coords = []
-        bonds = []
-        for fg in fragments:
-            nodes = fg.graph.nodes.data()
-            nodes = sorted(nodes, key=lambda pair: pair[0])
-            species.append([v["specie"] for k, v in nodes])
-            coords.append([v["coords"] for k, v in nodes])
-            edges = fg.graph.edges.data()
-            bonds.append([(i, j) for i, j, v in edges])
-
-        # create complementary reactions and mols
-        mol_reservoir = copy.copy(mol_reservoir)
-        bb = self.broken_bond
-        comp_rxns = []
-        comp_mols = set()
-        for charge in missing_charge:
-            products = []
-            for i, c in enumerate(charge):
-                mid = f"{self.reactant.id}-{bb[0]}-{bb[1]}-{i}-{c}"
-                mol = create_wrapper_mol_from_atoms_and_bonds(
-                    species[i], coords[i], bonds[i], charge=c, identifier=mid
-                )
-
-                if mol_reservoir is None:
-                    comp_mols.add(mol)
-                else:
-                    existing_mol = search_mol_reservoir(mol, mol_reservoir)
-
-                    # not in reservoir
-                    if existing_mol is None:
-                        comp_mols.add(mol)
-                        mol_reservoir.add(mol)
-
-                    # in reservoir
-                    else:
-                        mol = existing_mol
-
-                products.append(mol)
-
-            rxn = Reaction([self.reactant], products, broken_bond=bb)
-            comp_rxns.append(rxn)
+        # create reactions and mols
+        comp_rxns, comp_mols = create_reactions_from_reactant(
+            self.reactant, self.broken_bond, missing_charge, mol_reservoir=mol_reservoir,
+        )
 
         return comp_rxns, comp_mols
 
@@ -938,7 +872,7 @@ class ReactionsOnePerBond(ReactionsMultiplePerBond):
 
 class ReactionCollection:
     """
-    A set of reactions.
+    A set of Reactions, and operations on them.
     """
 
     def __init__(self, reactions):
@@ -2264,11 +2198,10 @@ class ReactionExtractorFromMolSet:
 
 class ReactionExtractorFromReactant:
     """
-    Create reactions from reactant only.
-
-    This needs metadata indicating the bond to break in a reactant. Products molecules
-    will be created.
-
+    Create reactions from reactant only, and products molecules will be created.
+    
+    This needs metadata indicating the bond to break in a reactant, otherwise all bonds
+    in a molecule are to break.
 
     Args:
         molecules (list): a sequence of :class:`MoleculeWrapper`.
@@ -2276,9 +2209,17 @@ class ReactionExtractorFromReactant:
             molecule, with bond index (a tuple) as key and bond energy as value.
     """
 
-    def __init__(self, molecules, bond_energies=None):
+    def __init__(self, molecules, bond_energies=None, allowed_charge=None):
+        if bond_energies is not None and allowed_charge is not None:
+            if len(allowed_charge) != 1:
+                raise ValueError(
+                    f"expect the size of allowed_charge to be 1 when bond_energies "
+                    f"is not None, but got {len(allowed_charge)} "
+                )
+
         self.molecules = molecules
         self.bond_energies = bond_energies
+        self.allowed_charge = [0] if allowed_charge is None else allowed_charge
         self.reactions = None
 
     def extract_with_energies(self):
@@ -2294,16 +2235,7 @@ class ReactionExtractorFromReactant:
                 "`bond_energies` not provided at instantiation. Either provide it or "
                 "call `extract_ignoring_energies` instead if you are doing inference."
             )
-
-        mol_reservoir = set(self.molecules)
-
-        reactions = []
-        for mol, bonds in zip(self.molecules, self.bond_energies):
-            reactions += self.extract_one(mol, bonds, mol_reservoir)
-
-        self.reactions = reactions
-
-        return reactions
+        return self._extract(self.bond_energies)
 
     def extract_ignoring_energies(self):
         """
@@ -2312,13 +2244,26 @@ class ReactionExtractorFromReactant:
         Return:
             list: a sequence of :class:`Reaction`.
         """
+        bond_energies = [{b: None for b, _ in m.bonds.items()} for m in self.molecules]
+        return self._extract(bond_energies)
+
+    def _extract(self, bond_energies):
 
         mol_reservoir = set(self.molecules)
 
         reactions = []
-        for mol in self.molecules:
-            bonds = {b: None for b, _ in mol.bonds.items()}
-            reactions += self.extract_one(mol, bonds, mol_reservoir)
+        for reactant, b_e in zip(self.molecules, bond_energies):
+            for b, e in b_e.items():
+                b = tuple(sorted(b))
+                num_products = len(reactant.fragments[b])
+                product_charges = factor_integer(
+                    reactant.charge, self.allowed_charge, num_products
+                )
+                rxns, mols = create_reactions_from_reactant(
+                    reactant, b, product_charges, e, mol_reservoir,
+                )
+                reactions.extend(rxns)
+                mol_reservoir.update(mols)
 
         self.reactions = reactions
 
@@ -2382,6 +2327,106 @@ class ReactionExtractorFromReactant:
         return reactions
 
 
+def create_reactions_from_reactant(
+    reactant, broken_bond, product_charges, bond_energy=None, mol_reservoir=None
+):
+    """
+    Create reactions from reactant by breaking a specific bond.
+
+    Args:
+        reactant (MoleculeWrapper): reactant molecule
+        broken_bond (tuple): a 2-tuple indicating the bond to break to generate products
+        product_charges (list of list): each inner list gives the charge(s) of the
+            product(s). Inner list could be of size 1 (one product, e.g. ring opening
+            reaction) or 2 (two products).
+        bond_energy (float): energy of the bond. This is allowed only when the size of
+            product_charges is 1 and the products are of the same charge (e.g. [[0]] or
+            [[1]]: one product and  [[0,0]] or [[1,1]] two products of the same charge.
+        mol_reservoir (set): For newly created reactions, a product is first searched
+            in the mol_reservoir. If existing (w.r.t. charge and isomorphism),
+            the mol from the reservoir is used as the product. If not, a new mol is
+            created.
+
+    Returns:
+        reactions (list): a sequence of Reaction, the number of reactions is equal to
+            the size of product_charges.
+        molecules (list): a sequence of MoleculeWrapper, created as the products
+    """
+
+    if bond_energy is not None:
+        if len(product_charges) != 1:
+            raise ValueError(
+                f"expect the size of product_charges to be 1 when bond_energy is "
+                f"provided, but got {len(product_charges)}"
+            )
+        else:
+            if len(set(product_charges[0])) != 1:
+                raise ValueError(
+                    f"expect values of product_charges to be the same, "
+                    f"but got{product_charges}"
+                )
+
+    fragments = reactant.fragments[broken_bond]
+
+    nf = len(fragments)
+    nc = np.asarray(product_charges).shape[1]
+    assert nf == nc, f"number of fragments ({nf}) not equal to number of charges ({nc})"
+
+    # fragments species, coords, and bonds (the same for products of different charges)
+    species = []
+    coords = []
+    bonds = []
+    for fg in fragments:
+        nodes = fg.graph.nodes.data()
+        nodes = sorted(nodes, key=lambda pair: pair[0])
+        species.append([v["specie"] for k, v in nodes])
+        coords.append([v["coords"] for k, v in nodes])
+        edges = fg.graph.edges.data()
+        bonds.append([(i, j) for i, j, v in edges])
+
+    # create reactions
+    mol_reservoir = set(mol_reservoir) if mol_reservoir is not None else None
+    reactions = []
+    molecules = []
+    for charges in product_charges:
+
+        # create product molecules
+        products = []
+        for i, c in enumerate(charges):
+            mid = f"{reactant.id}_{broken_bond[0]}-{broken_bond[1]}_{c}_{i}"
+            mol = create_wrapper_mol_from_atoms_and_bonds(
+                species[i], coords[i], bonds[i], charge=c, identifier=mid
+            )
+
+            if mol_reservoir is None:
+                molecules.append(mol)
+            else:
+                existing_mol = search_mol_reservoir(mol, mol_reservoir)
+
+                # not in reservoir
+                if existing_mol is None:
+                    molecules.append(mol)
+                    mol_reservoir.add(mol)
+                # in reservoir
+                else:
+                    mol = existing_mol
+
+            products.append(mol)
+
+        str_charges = "-".join([str(c) for c in charges])
+        rid = f"{reactant.id}_{broken_bond[0]}-{broken_bond[1]}_{str_charges}"
+        rxn = Reaction(
+            [reactant],
+            products,
+            broken_bond=broken_bond,
+            free_energy=bond_energy,
+            identifier=rid,
+        )
+        reactions.append(rxn)
+
+    return reactions, molecules
+
+
 def get_molecules_from_reactions(reactions):
     """Return a list of unique molecules participating in all reactions."""
     mols = set()
@@ -2407,6 +2452,36 @@ def search_mol_reservoir(mol, reservoir):
         if m.charge == mol.charge and m.mol_graph.isomorphic_to(mol.mol_graph):
             return m
     return None
+
+
+def factor_integer(x, allowed, num=2):
+    """
+    Factor an integer to the sum of multiple integers.
+
+    Args:
+        x (int): the integer to be factored
+        allowed (list of int): allowed values for factoring.
+        num (int): number of integers to sum
+
+    Returns:
+        list: factor values
+
+    Example:
+        >>> factor_integer(0, [1,0, -1], 2)
+        >>> [(-1, 1), (0, 0), (1, -1)]
+    """
+    if num == 1:
+        return [(x,)]
+
+    elif num == 2:
+        res = []
+        for i, j in itertools.product(allowed, repeat=2):
+            if i + j == x:
+                res.append((i, j))
+
+        return res
+    else:
+        raise Exception(f"not implemented for num={num} case.")
 
 
 def is_valid_A_to_B_reaction(reactant, product, first_only=True):
@@ -2486,6 +2561,12 @@ def nx_graph_atom_mapping(g1, g2):
         return None
 
 
+def get_atom_bond_mapping(rxn):
+    atom_mp = rxn.atom_mapping()
+    bond_mp = rxn.bond_mapping_by_sdf_int_index()
+    return atom_mp, bond_mp
+
+
 def get_same_bond_breaking_reactions_between_two_reaction_groups(
     reactant1, group1, reactant2, group2
 ):
@@ -2522,9 +2603,3 @@ def get_same_bond_breaking_reactions_between_two_reaction_groups(
                 ) or (mgs1[0].isomorphic_to(mgs2[1]) and mgs1[1].isomorphic_to(mgs2[0])):
                     res.append((group1[b1], group2[b2]))
     return res
-
-
-def get_atom_bond_mapping(rxn):
-    atom_mp = rxn.atom_mapping()
-    bond_mp = rxn.bond_mapping_by_sdf_int_index()
-    return atom_mp, bond_mp
