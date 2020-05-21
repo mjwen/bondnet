@@ -1088,58 +1088,59 @@ class ReactionCollection:
         reactions = np.concatenate([grp.reactions for grp in grouped_rxns])
         mol_reservoir = set(get_molecules_from_reactions(reactions))
 
-        ordered_reactions = []
+        # remove iso bond reactions based on one_per_iso_bond_group
+        reactions = []
         for grp in grouped_rxns:
             rxns = grp.order_reactions(
                 one_per_iso_bond_group, complement_reactions, mol_reservoir
             )
-            ordered_reactions.append(rxns)
+            reactions.extend(rxns)
 
         # all molecules in existing (and complementary) reactions
         # note, mol_reservoir is updated in calling grp.order_reactions
         mol_reservoir = sorted(mol_reservoir, key=lambda m: m.formula)
         mol_id_to_index_mapping = {m.id: i for i, m in enumerate(mol_reservoir)}
 
+        # use multiprocessing to get atom mappings since they are relatively expensive
+        # mappings = [get_atom_bond_mapping(r) for r in reactions]
+        with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
+            mappings = p.map(get_atom_bond_mapping, reactions)
+
         all_labels = []  # one per reaction
 
-        # reactions: all reactions associated with a bond
-        index = 0
-        for reactions in ordered_reactions:
+        for i, (rxn, mps) in enumerate(zip(reactions, mappings)):
 
-            # rxn: a reaction for one bond and a specific combination of charges
-            for i, rxn in enumerate(reactions):
-                energy = rxn.get_free_energy()
+            energy = rxn.get_free_energy()
 
-                # determine class of each reaction
-                if top_n is not None:
-                    if energy is None:
-                        cls = 2
-                    elif i < top_n:
-                        cls = 1
-                    else:
-                        cls = 0
+            # determine class of each reaction
+            if top_n is not None:
+                if energy is None:
+                    cls = 2
+                elif i < top_n:
+                    cls = 1
                 else:
-                    if energy is None:
-                        cls = 0
-                    else:
-                        cls = 1
+                    cls = 0
+            else:
+                if energy is None:
+                    cls = 0
+                else:
+                    cls = 1
 
-                # change to index (in mol_reservoir) representation
-                reactant_ids = [mol_id_to_index_mapping[m.id] for m in rxn.reactants]
-                product_ids = [mol_id_to_index_mapping[m.id] for m in rxn.products]
+            # change to index (in mol_reservoir) representation
+            reactant_ids = [mol_id_to_index_mapping[m.id] for m in rxn.reactants]
+            product_ids = [mol_id_to_index_mapping[m.id] for m in rxn.products]
 
-                # bond mapping between product sdf and reactant sdf
-                data = {
-                    "value": cls,
-                    "reactants": reactant_ids,
-                    "products": product_ids,
-                    "atom_mapping": rxn.atom_mapping(),
-                    "bond_mapping": rxn.bond_mapping_by_sdf_int_index(),
-                    "id": rxn.get_id(),
-                    "index": index,
-                }
-                all_labels.append(data)
-                index += 1
+            # bond mapping between product sdf and reactant sdf
+            data = {
+                "value": cls,
+                "reactants": reactant_ids,
+                "products": product_ids,
+                "atom_mapping": mps[0],
+                "bond_mapping": mps[1],
+                "id": rxn.get_id(),
+                "index": i,
+            }
+            all_labels.append(data)
 
         # write sdf
         self.write_sdf(mol_reservoir, struct_file)
@@ -1199,46 +1200,44 @@ class ReactionCollection:
         reactions = np.concatenate([grp.reactions for grp in grouped_rxns])
         mol_reservoir = set(get_molecules_from_reactions(reactions))
 
-        ordered_reactions = []
+        # remove iso bond reactions based on one_per_iso_bond_group
+        reactions = []
         for grp in grouped_rxns:
             rxns = grp.order_reactions(
                 one_per_iso_bond_group,
                 complement_reactions=False,
                 mol_reservoir=mol_reservoir,
             )
-            ordered_reactions.append(rxns)
+            reactions.extend(rxns)
 
         # all molecules in existing (and complementary) reactions
         # note, mol_reservoir is updated in calling grp.order_reactions
         mol_reservoir = sorted(mol_reservoir, key=lambda m: m.formula)
         mol_id_to_index_mapping = {m.id: i for i, m in enumerate(mol_reservoir)}
 
+        # use multiprocessing to get atom mappings since they are relatively expensive
+        # mappings = [get_atom_bond_mapping(r) for r in reactions]
+        with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
+            mappings = p.map(get_atom_bond_mapping, reactions)
+
         all_labels = []  # one per reaction
+        for i, (rxn, mps) in enumerate(zip(reactions, mappings)):
 
-        # reactions: all reactions associated with a bond
-        index = 0
-        for reactions in ordered_reactions:
+            # change to index (in mol_reservoir) representation
+            reactant_ids = [mol_id_to_index_mapping[m.id] for m in rxn.reactants]
+            product_ids = [mol_id_to_index_mapping[m.id] for m in rxn.products]
 
-            # rxn: a reaction for one bond and a specific combination of charges
-            for i, rxn in enumerate(reactions):
-                energy = rxn.get_free_energy()
-
-                # change to index (in mol_reservoir) representation
-                reactant_ids = [mol_id_to_index_mapping[m.id] for m in rxn.reactants]
-                product_ids = [mol_id_to_index_mapping[m.id] for m in rxn.products]
-
-                # bond mapping between product sdf and reactant sdf
-                data = {
-                    "value": energy,
-                    "reactants": reactant_ids,
-                    "products": product_ids,
-                    "atom_mapping": rxn.atom_mapping(),
-                    "bond_mapping": rxn.bond_mapping_by_sdf_int_index(),
-                    "id": rxn.get_id(),
-                    "index": index,
-                }
-                all_labels.append(data)
-                index += 1
+            # bond mapping between product sdf and reactant sdf
+            data = {
+                "value": rxn.get_free_energy(),
+                "reactants": reactant_ids,
+                "products": product_ids,
+                "atom_mapping": mps[0],
+                "bond_mapping": mps[1],
+                "id": rxn.get_id(),
+                "index": i,
+            }
+            all_labels.append(data)
 
         # write sdf
         self.write_sdf(mol_reservoir, struct_file)
@@ -1254,14 +1253,14 @@ class ReactionCollection:
         self, struct_file="sturct.sdf", label_file="label.txt", feature_file=None,
     ):
         """
-        Write the reaction
+        Write the reaction to file.
 
-        This is a much simplified version of
+        This is a simplified version of
         `create_struct_label_dataset_reaction_network_based_regression_simple`.
 
-        Here, will not group and order reactions and remove duplicate. We simply
-        convert a list of reactions into the data format.
-
+        Here, will not group and order reactions and remove duplicate (reactions by
+        breaking isomorphic bond in a molecule). We simply convert a list of reactions
+        into the data.
 
         Args:
             struct_file (str): filename of the sdf structure file
@@ -1855,7 +1854,7 @@ class ReactionCollection:
         with open(filename, "w") as f:
             for i, m in enumerate(molecules):
                 name = "{}_{}_{}_{}_index-{}".format(
-                    m.formula, m.charge, m.id, m.free_energy, i
+                    m.id, m.formula, m.charge, m.free_energy, i
                 )
                 sdf = m.write(name=name)
                 f.write(sdf)
@@ -2175,63 +2174,6 @@ class ReactionExtractorFromReactant:
 
         return reactions
 
-    @staticmethod
-    def extract_one(mol, bonds, mol_reservoir=None):
-        """
-        Extract reactions for one molecules.
-
-        Args:
-            mol (MoleculeWrapper): molecule
-            bonds (dict): the bonds to break. The key is the some value (e.g. energy)
-                associated with the broken bond.
-            mol_reservoir (set): molecules. For newly created reactions, a product
-                is first searched in the mol_reservoir. If existing (w.r.t. charge and
-                isomorphism), the mol from the reservoir is used as the product; if
-                not, new mol is created. Note, if a mol is not in mol_reservoir,
-                it is added to mol_reservoir.
-
-        Returns:
-            list: a sequence of :class:`Reaction`
-        """
-
-        reactions = []
-
-        for b, val in bonds.items():
-
-            products = []
-            for i, fg in enumerate(mol.fragments[b]):
-
-                nodes = fg.graph.nodes.data()
-                nodes = sorted(nodes, key=lambda pair: pair[0])
-                fg_species = [v["specie"] for k, v in nodes]
-                fg_coords = [v["coords"] for k, v in nodes]
-                edges = fg.graph.edges.data()
-                fg_bonds = [(i, j) for i, j, v in edges]
-
-                mid = f"{mol.id}-{b[0]}-{b[1]}-{i}"
-                m = create_wrapper_mol_from_atoms_and_bonds(
-                    fg_species, fg_coords, fg_bonds, charge=0, identifier=mid
-                )
-
-                if mol_reservoir is not None:
-                    existing_mol = search_mol_reservoir(m, mol_reservoir)
-
-                    # not in reservoir
-                    if existing_mol is None:
-                        mol_reservoir.add(m)
-
-                    # in reservoir
-                    else:
-                        m = existing_mol
-
-                products.append(m)
-
-            # create reactions
-            rxn = Reaction([mol], products, broken_bond=b, free_energy=val)
-            reactions.append(rxn)
-
-        return reactions
-
 
 def create_reactions_from_reactant(
     reactant, broken_bond, product_charges, bond_energy=None, mol_reservoir=None
@@ -2299,6 +2241,7 @@ def create_reactions_from_reactant(
         # create product molecules
         products = []
         for i, c in enumerate(charges):
+            # mid needs to be unique
             mid = f"{reactant.id}_{broken_bond[0]}-{broken_bond[1]}_{c}_{i}"
             mol = create_wrapper_mol_from_atoms_and_bonds(
                 species[i], coords[i], bonds[i], charge=c, identifier=mid
