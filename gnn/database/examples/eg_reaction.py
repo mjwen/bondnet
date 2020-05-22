@@ -10,9 +10,11 @@ from matplotlib import pyplot as plt
 from gnn.database.utils import TexWriter
 from gnn.database.reaction import (
     ReactionsMultiplePerBond,
-    ReactionCollection,
     ReactionExtractorFromMolSet,
     ReactionExtractorFromReactant,
+)
+from gnn.database.reaction_collection import (
+    ReactionCollection,
     get_molecules_from_reactions,
 )
 from gnn.database.zinc_bde import read_zinc_bde_dataset
@@ -863,7 +865,7 @@ if __name__ == "__main__":
     # eg_buckets()
     # eg_extract_A_to_B()
     # eg_extract_A_to_B_C()
-    eg_extract_one_bond_break()
+    # eg_extract_one_bond_break()
     # subselect_reactions()
 
     # plot_reaction_energy_difference_arcoss_reactant_charge()
@@ -888,7 +890,7 @@ if __name__ == "__main__":
     # create_struct_label_dataset_reaction_based_regression()
     # create_struct_label_dataset_reaction_based_classification()
 
-    create_struct_label_dataset_reaction_network_based_regression()
+    # create_struct_label_dataset_reaction_network_based_regression()
     # create_struct_label_dataset_reaction_network_based_classification()
 
     ######################################################################################
@@ -896,7 +898,7 @@ if __name__ == "__main__":
     ######################################################################################
 
     # zinc_create_struct_label_dataset_bond_based_regression()
-    # zinc_create_struct_label_dataset_reaction_network_based_regression()
+    zinc_create_struct_label_dataset_reaction_network_based_regression()
 
     ######################################################################################
     # for the nrel dataset
