@@ -254,28 +254,23 @@ def fragment_rdkit_mol(m, bond):
 
     Args:
         m (Chem.Mol): rdkit molecule to fragment
-        bonds (tuple): bond indice (2-tuple)
+        bond (tuple): bond indice (2-tuple)
 
     Returns:
-        sub_mols (tuple or None): fragments (rdkit molecules) by breaking the bond.
+        frags (tuple or None): fragments (rdkit molecules) by breaking the bond.
             Could be of size 1 or 2, depending on the number of fragments. None if the
             molecule cannot be fragmented.
         failed(str or None): str indicating the failing reason, and None means no failing.
-
-
-        with bond index (2-tuple) as key, and
-            (rdkit molecules) as values.
     """
-    b = tuple(bond)
 
-    edm = Chem.EditableMol(m)
-    edm.RemoveBond(*b)
-    m1 = edm.GetMol()
     try:
+        edm = Chem.EditableMol(m)
+        edm.RemoveBond(*bond)
+        m1 = edm.GetMol()
         frags = Chem.GetMolFrags(m1, asMols=True, sanitizeFrags=True)
         failed = None
     except Exception as e:
         frags = None
-        failed = e
+        failed = str(e)
 
     return frags, failed

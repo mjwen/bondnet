@@ -8,6 +8,8 @@ import networkx.algorithms.isomorphism as iso
 from pymatgen.analysis.graphs import _isomorphic
 from collections import defaultdict, OrderedDict
 from gnn.database.molwrapper import create_wrapper_mol_from_atoms_and_bonds
+from gnn.database.molwrapper import rdkit_mol_to_wrapper_mol
+from gnn.database.rdmol import fragment_rdkit_mol
 from gnn.utils import pickle_dump
 
 logger = logging.getLogger(__name__)
@@ -998,6 +1000,12 @@ class ReactionExtractorFromReactant:
         molecules (list): a sequence of :class:`MoleculeWrapper`.
         bond_energies (list of dict, optional): bond energies. Each dict for one
             molecule, with bond index (a tuple) as key and bond energy as value.
+        allowed_charge (list): allowed charges for the fragments. The charges of the
+            products can only take values from this list and also the sum of the
+            product charges has to equal the charge of the reactant. For example,
+            if the reactant has charge 0 and allowed_charge is [-1, 0, 1], then the
+            two products can take charges (-1, 1), (0,0) and (1, -1).
+            Set to [0] if None.
     """
 
     def __init__(self, molecules, bond_energies=None, allowed_charge=None):
@@ -1065,7 +1073,7 @@ def create_reactions_from_reactant(
     reactant, broken_bond, product_charges, bond_energy=None, mol_reservoir=None
 ):
     """
-    Create reactions from reactant by breaking a specific bond.
+    Create reactions from reactant by breaking a bond.
 
     Args:
         reactant (MoleculeWrapper): reactant molecule
@@ -1082,8 +1090,9 @@ def create_reactions_from_reactant(
             created.
 
     Returns:
-        reactions (list): a sequence of Reaction, the number of reactions is equal to
-            the size of product_charges.
+        reactions (list): a sequence of Reaction, the number of reactions is
+            equal to the size of product_charges. If the reactant cannot be fragmented,
+            returns empty list.
         molecules (list): a sequence of MoleculeWrapper, created as the products
     """
 
@@ -1100,23 +1109,23 @@ def create_reactions_from_reactant(
                     f"but got{product_charges}"
                 )
 
-    fragments = reactant.fragments[broken_bond]
+    #
+    # create fragments using rdkit and then convert the rdkit fragment to wrapper mol
+    #
+
+    fragments, failed = fragment_rdkit_mol(reactant.rdkit_mol, broken_bond)
+
+    # cannot fragment the reactant, return empty list
+    if fragments is None:
+        logger.error(
+            f"Cannot fragment molecule `{reactant.id}` at bond {broken_bond} "
+            f"because {failed}"
+        )
+        return [], []
 
     nf = len(fragments)
     nc = np.asarray(product_charges).shape[1]
     assert nf == nc, f"number of fragments ({nf}) not equal to number of charges ({nc})"
-
-    # fragments species, coords, and bonds (the same for products of different charges)
-    species = []
-    coords = []
-    bonds = []
-    for fg in fragments:
-        nodes = fg.graph.nodes.data()
-        nodes = sorted(nodes, key=lambda pair: pair[0])
-        species.append([v["specie"] for k, v in nodes])
-        coords.append([v["coords"] for k, v in nodes])
-        edges = fg.graph.edges.data()
-        bonds.append([(i, j) for i, j, v in edges])
 
     # create reactions
     mol_reservoir = set(mol_reservoir) if mol_reservoir is not None else None
@@ -1129,9 +1138,7 @@ def create_reactions_from_reactant(
         for i, c in enumerate(charges):
             # mid needs to be unique
             mid = f"{reactant.id}_{broken_bond[0]}-{broken_bond[1]}_{c}_{i}"
-            mol = create_wrapper_mol_from_atoms_and_bonds(
-                species[i], coords[i], bonds[i], charge=c, identifier=mid
-            )
+            mol = rdkit_mol_to_wrapper_mol(fragments[i], charge=c, identifier=mid)
 
             if mol_reservoir is None:
                 molecules.append(mol)
@@ -1160,6 +1167,72 @@ def create_reactions_from_reactant(
         reactions.append(rxn)
 
     return reactions, molecules
+
+    #
+    # create fragments by creating the wrapper mol directly from atoms and bonds
+    # as a result, the rdkit_mol attribute of wrapper mol will be created internally
+    #
+
+    # fragments = reactant.fragments[broken_bond]
+    #
+    # nf = len(fragments)
+    # nc = np.asarray(product_charges).shape[1]
+    # assert nf == nc, f"number of fragments ({nf}) not equal to number of charges ({nc})"
+    #
+    # # fragments species, coords, and bonds (the same for products of different charges)
+    # species = []
+    # coords = []
+    # bonds = []
+    # for fg in fragments:
+    #     nodes = fg.graph.nodes.data()
+    #     nodes = sorted(nodes, key=lambda pair: pair[0])
+    #     species.append([v["specie"] for k, v in nodes])
+    #     coords.append([v["coords"] for k, v in nodes])
+    #     edges = fg.graph.edges.data()
+    #     bonds.append([(i, j) for i, j, v in edges])
+    #
+    # # create reactions
+    # mol_reservoir = set(mol_reservoir) if mol_reservoir is not None else None
+    # reactions = []
+    # molecules = []
+    # for charges in product_charges:
+    #
+    #     # create product molecules
+    #     products = []
+    #     for i, c in enumerate(charges):
+    #         # mid needs to be unique
+    #         mid = f"{reactant.id}_{broken_bond[0]}-{broken_bond[1]}_{c}_{i}"
+    #         mol = create_wrapper_mol_from_atoms_and_bonds(
+    #             species[i], coords[i], bonds[i], charge=c, identifier=mid
+    #         )
+    #
+    #         if mol_reservoir is None:
+    #             molecules.append(mol)
+    #         else:
+    #             existing_mol = search_mol_reservoir(mol, mol_reservoir)
+    #
+    #             # not in reservoir
+    #             if existing_mol is None:
+    #                 molecules.append(mol)
+    #                 mol_reservoir.add(mol)
+    #             # in reservoir
+    #             else:
+    #                 mol = existing_mol
+    #
+    #         products.append(mol)
+    #
+    #     str_charges = "-".join([str(c) for c in charges])
+    #     rid = f"{reactant.id}_{broken_bond[0]}-{broken_bond[1]}_{str_charges}"
+    #     rxn = Reaction(
+    #         [reactant],
+    #         products,
+    #         broken_bond=broken_bond,
+    #         free_energy=bond_energy,
+    #         identifier=rid,
+    #     )
+    #     reactions.append(rxn)
+    #
+    # return reactions, molecules
 
 
 def search_mol_reservoir(mol, reservoir):
