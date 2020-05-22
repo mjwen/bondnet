@@ -338,7 +338,7 @@ def main_worker(gpu, world_size, args):
 
     # save args
     if not args.distributed or (args.distributed and args.gpu == 0):
-        yaml_dump(args, "train_args.yaml")
+        yaml_dump(args, "../train_args.yaml")
 
     model = GatedGCNReactionNetwork(
         in_feats=args.feature_size,
@@ -393,12 +393,14 @@ def main_worker(gpu, world_size, args):
         try:
 
             if args.gpu is None:
-                checkpoint = load_checkpoints(state_dict_objs, filename="checkpoint.pkl")
+                checkpoint = load_checkpoints(
+                    state_dict_objs, filename="../checkpoint.pkl"
+                )
             else:
                 # Map model to be loaded to specified single gpu.
                 loc = "cuda:{}".format(args.gpu)
                 checkpoint = load_checkpoints(
-                    state_dict_objs, map_location=loc, filename="checkpoint.pkl"
+                    state_dict_objs, map_location=loc, filename="../checkpoint.pkl"
                 )
 
             args.start_epoch = checkpoint["epoch"]
@@ -470,12 +472,12 @@ def main_worker(gpu, world_size, args):
 
     # load best to calculate test accuracy
     if args.gpu is None:
-        checkpoint = load_checkpoints(state_dict_objs, filename="best_checkpoint.pkl")
+        checkpoint = load_checkpoints(state_dict_objs, filename="../best_checkpoint.pkl")
     else:
         # Map model to be loaded to specified single  gpu.
         loc = "cuda:{}".format(args.gpu)
         checkpoint = load_checkpoints(
-            state_dict_objs, map_location=loc, filename="best_checkpoint.pkl"
+            state_dict_objs, map_location=loc, filename="../best_checkpoint.pkl"
         )
 
     if not args.distributed or (args.distributed and args.gpu == 0):
