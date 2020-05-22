@@ -3,7 +3,7 @@ import logging
 import multiprocessing
 import numpy as np
 from collections import defaultdict, OrderedDict
-from gnn.database.reaction import Reaction, ReactionsMultiplePerBond, ReactionsOnePerBond
+from gnn.core.reaction import Reaction, ReactionsMultiplePerBond, ReactionsOnePerBond
 from gnn.utils import create_directory, pickle_load, yaml_dump, expand_path
 
 logger = logging.getLogger(__name__)

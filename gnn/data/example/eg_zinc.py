@@ -1,7 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from gnn.utils import expand_path, create_directory
-from gnn.database.zinc_bde import read_zinc_bde_dataset
+from gnn.dataset.zinc_bde import read_zinc_bde_dataset
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import AtomFeaturizer, BondAsNodeFeaturizer, MolWeightFeaturizer
 from gnn.data.electrolyte import ElectrolyteBondDataset

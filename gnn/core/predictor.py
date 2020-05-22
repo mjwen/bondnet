@@ -8,12 +8,12 @@ import pandas as pd
 import json
 import multiprocessing
 from pymatgen.analysis.graphs import MoleculeGraph
-from gnn.database.molwrapper import (
+from gnn.core.molwrapper import (
     MoleculeWrapper,
     smiles_to_wrapper_mol,
     rdkit_mol_to_wrapper_mol,
 )
-from gnn.database.reaction import Reaction, ReactionCollection
+from gnn.core.reaction import Reaction, ReactionCollection
 from gnn.utils import expand_path
 from gnn.utils import yaml_load, yaml_dump
 from rdkit import Chem

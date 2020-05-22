@@ -7,9 +7,8 @@ import networkx as nx
 import networkx.algorithms.isomorphism as iso
 from pymatgen.analysis.graphs import _isomorphic
 from collections import defaultdict, OrderedDict
-from gnn.database.molwrapper import create_wrapper_mol_from_atoms_and_bonds
-from gnn.database.molwrapper import rdkit_mol_to_wrapper_mol
-from gnn.database.rdmol import fragment_rdkit_mol
+from gnn.core.molwrapper import rdkit_mol_to_wrapper_mol
+from gnn.core.rdmol import fragment_rdkit_mol
 from gnn.utils import pickle_dump
 
 logger = logging.getLogger(__name__)

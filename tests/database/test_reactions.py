@@ -1,4 +1,4 @@
-from gnn.database.reaction import (
+from gnn.core.reaction import (
     ReactionsOfSameBond,
     ReactionsMultiplePerBond,
     ReactionExtractorFromMolSet,

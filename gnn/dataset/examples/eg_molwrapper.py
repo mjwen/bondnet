@@ -1,6 +1,6 @@
 import numpy as np
 from rdkit import Chem
-from gnn.database.molwrapper import write_edge_label_based_on_bond, write_sdf_csv_dataset
+from gnn.core.molwrapper import write_edge_label_based_on_bond, write_sdf_csv_dataset
 from gnn.utils import pickle_load, expand_path
 
 

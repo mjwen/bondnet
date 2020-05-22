@@ -12,7 +12,7 @@ from pymatgen.analysis.graphs import MoleculeGraph
 from pymatgen.analysis.local_env import OpenBabelNN
 from pymatgen.analysis.fragmenter import metal_edge_extender
 from atomate.qchem.database import QChemCalcDb
-from gnn.database.molwrapper import MoleculeWrapper
+from gnn.core.molwrapper import MoleculeWrapper
 from gnn.utils import create_directory, expand_path
 
 logger = logging.getLogger(__name__)

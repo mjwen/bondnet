@@ -14,7 +14,7 @@ from gnn.data.featurizer import (
     BondAsNodeFeaturizer,
     GlobalFeaturizerCharge,
 )
-from gnn.database.predictor import (
+from gnn.core.predictor import (
     PredictionBySmilesReaction,
     PredictionBySDFChargeReactionFiles,
     PredictionByMolGraphReactionFiles,

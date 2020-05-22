@@ -3,8 +3,8 @@ import copy
 import numpy as np
 import subprocess
 import itertools
-from gnn.database.molwrapper import create_rdkit_mol_from_mol_graph
-from gnn.database.utils import TexWriter
+from gnn.core.molwrapper import create_rdkit_mol_from_mol_graph
+from gnn.core.utils import TexWriter
 from gnn.utils import pickle_dump, pickle_load, expand_path
 
 

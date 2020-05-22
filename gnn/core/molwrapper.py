@@ -8,7 +8,7 @@ import pymatgen
 from pymatgen.analysis.graphs import MoleculeGraph, MolGraphSplitError
 from rdkit import Chem
 from rdkit.Chem import Draw, AllChem
-from gnn.database.rdmol import create_rdkit_mol_from_mol_graph
+from gnn.core.rdmol import create_rdkit_mol_from_mol_graph
 from gnn.utils import create_directory, expand_path, yaml_dump
 
 logger = logging.getLogger(__name__)

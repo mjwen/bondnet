@@ -2,23 +2,13 @@ import itertools
 import os
 import glob
 import numpy as np
-import subprocess
 from collections import defaultdict
 from pprint import pprint
 import matplotlib as mpl
 from matplotlib import pyplot as plt
-from gnn.database.utils import TexWriter
-from gnn.database.reaction import (
-    ReactionsMultiplePerBond,
-    ReactionExtractorFromMolSet,
-    ReactionExtractorFromReactant,
-)
-from gnn.database.reaction_collection import (
-    ReactionCollection,
-    get_molecules_from_reactions,
-)
-from gnn.database.zinc_bde import read_zinc_bde_dataset
-from gnn.database.nrel_bde import read_nrel_bde_dataset
+from gnn.core.utils import TexWriter
+from gnn.core.reaction import ReactionsMultiplePerBond, ReactionExtractorFromMolSet
+from gnn.core.reaction_collection import ReactionCollection
 from gnn.utils import pickle_load, expand_path, create_directory
 from gnn.analysis.feature_analyzer import read_sdf, read_label
 
@@ -768,104 +758,11 @@ def create_struct_label_dataset_reaction_network_based_classification(
     )
 
 
-######################################################################################
-# for the zinc dataset
-######################################################################################
-
-
-def zinc_create_struct_label_dataset_bond_based_regression(
-    # dirname="~/Documents/Dataset/ZINC_BDE_100",
-    dirname="~/Documents/Dataset/ZINC_BDE",
-):
-    mols, bond_energies = read_zinc_bde_dataset(dirname)
-    extractor = ReactionExtractorFromReactant(mols, bond_energies)
-    reactions = extractor.extract_with_energies()
-    extractor = ReactionCollection(reactions)
-
-    extractor.create_struct_label_dataset_bond_based_regression(
-        struct_file="~/Applications/db_access/zinc_bde/zinc_struct_bond_rgrn.sdf",
-        label_file="~/Applications/db_access/zinc_bde/zinc_label_bond_rgrn.txt",
-        feature_file="~/Applications/db_access/zinc_bde/zinc_feature_bond_rgrn.yaml",
-        # struct_file="~/Applications/db_access/zinc_bde/zinc_struct_bond_rgrn_n200.sdf",
-        # label_file="~/Applications/db_access/zinc_bde/zinc_label_bond_rgrn_n200.txt",
-        # feature_file="~/Applications/db_access/zinc_bde/zinc_feature_bond_rgrn_n200.yaml",
-        group_mode="charge_0",
-        one_per_iso_bond_group=True,
-    )
-
-
-def zinc_create_struct_label_dataset_reaction_network_based_regression(
-    dirname="~/Documents/Dataset/ZINC_BDE_100",
-    # dirname="~/Documents/Dataset/ZINC_BDE",
-):
-    mols, bond_energies = read_zinc_bde_dataset(dirname)
-    extractor = ReactionExtractorFromReactant(mols, bond_energies)
-    reactions = extractor.extract_with_energies()
-    extractor = ReactionCollection(reactions)
-
-    extractor.create_struct_label_dataset_reaction_network_based_regression(
-        # struct_file="~/Applications/db_access/zinc_bde/zinc_struct_rxn_ntwk_rgrn.sdf",
-        # label_file="~/Applications/db_access/zinc_bde/zinc_label_rxn_ntwk_rgrn.yaml",
-        # feature_file="~/Applications/db_access/zinc_bde/zinc_feature_rxn_ntwk_rgrn.yaml",
-        struct_file="~/Applications/db_access/zinc_bde/zinc_struct_rxn_ntwk_rgrn_n200.sdf",
-        label_file="~/Applications/db_access/zinc_bde/zinc_label_rxn_ntwk_rgrn_n200.yaml",
-        feature_file="~/Applications/db_access/zinc_bde/zinc_feature_rxn_ntwk_rgrn_n200.yaml",
-        group_mode="all",
-        one_per_iso_bond_group=True,
-    )
-
-
-######################################################################################
-# for the nrel dataset
-######################################################################################
-def nrel_plot_molecules(
-    filename="~/Documents/Dataset/NREL_BDE/rdf_data_190531_n200.csv",
-    plot_prefix="~/Applications/db_access/nrel_bde",
-):
-    reactions = read_nrel_bde_dataset(filename)
-    molecules = get_molecules_from_reactions(reactions)
-
-    for m in molecules:
-
-        fname = os.path.join(
-            plot_prefix,
-            "mol_png/{}_{}_{}_{}.png".format(
-                m.formula, m.charge, m.id, str(m.free_energy).replace(".", "dot")
-            ),
-        )
-        # m.draw(fname, show_atom_idx=True)
-        m.draw3(filename=fname, show_atom_idx=True)
-
-        fname = expand_path(fname)
-        subprocess.run(["convert", fname, "-trim", "-resize", "100%", fname])
-
-        fname = os.path.join(
-            plot_prefix,
-            "mol_pdb/{}_{}_{}_{}.pdb".format(
-                m.formula, m.charge, m.id, str(m.free_energy).replace(".", "dot")
-            ),
-        )
-        m.write(fname, file_format="pdb")
-
-
-def nrel_create_struct_label_dataset_reaction_network_based_regression(
-    filename="~/Documents/Dataset/NREL_BDE/rdf_data_190531_n200.csv",
-):
-    reactions = read_nrel_bde_dataset(filename)
-    extractor = ReactionCollection(reactions)
-
-    extractor.create_struct_label_dataset_reaction_network_based_regression_simple(
-        struct_file="~/Applications/db_access/nrel_bde/nrel_struct_rxn_ntwk_rgrn_n200.sdf",
-        label_file="~/Applications/db_access/nrel_bde/nrel_label_rxn_ntwk_rgrn_n200.yaml",
-        feature_file="~/Applications/db_access/nrel_bde/nrel_feature_rxn_ntwk_rgrn_n200.yaml",
-    )
-
-
 if __name__ == "__main__":
     # eg_buckets()
     # eg_extract_A_to_B()
     # eg_extract_A_to_B_C()
-    # eg_extract_one_bond_break()
+    eg_extract_one_bond_break()
     # subselect_reactions()
 
     # plot_reaction_energy_difference_arcoss_reactant_charge()
@@ -890,18 +787,5 @@ if __name__ == "__main__":
     # create_struct_label_dataset_reaction_based_regression()
     # create_struct_label_dataset_reaction_based_classification()
 
-    # create_struct_label_dataset_reaction_network_based_regression()
+    create_struct_label_dataset_reaction_network_based_regression()
     # create_struct_label_dataset_reaction_network_based_classification()
-
-    ######################################################################################
-    # for the zinc dataset
-    ######################################################################################
-
-    # zinc_create_struct_label_dataset_bond_based_regression()
-    zinc_create_struct_label_dataset_reaction_network_based_regression()
-
-    ######################################################################################
-    # for the nrel dataset
-    ######################################################################################
-    # nrel_plot_molecules()
-    # nrel_create_struct_label_dataset_reaction_network_based_regression()
