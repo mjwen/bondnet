@@ -5,11 +5,10 @@ import numpy as np
 import itertools
 import networkx as nx
 import pymatgen
-from pymatgen.analysis.graphs import MoleculeGraph
+from pymatgen.analysis.graphs import MoleculeGraph, MolGraphSplitError
 from rdkit import Chem
 from rdkit.Chem import Draw, AllChem
 from gnn.database.rdmol import create_rdkit_mol_from_mol_graph
-from gnn.database.fragment import fragment_mol_graph
 from gnn.utils import create_directory, expand_path, yaml_dump
 
 logger = logging.getLogger(__name__)
@@ -542,6 +541,36 @@ def write_edge_label_based_on_bond(
 
     yaml_dump(labels, expand_path(label_filename))
     yaml_dump(charges, expand_path(feature_filename))
+
+
+def fragment_mol_graph(mol_graph, bonds):
+    """
+    Break a bond in molecule graph and obtain the fragment(s).
+
+    Args:
+        mol_graph (MoleculeGraph): molecule graph to fragment
+        bonds (list): bond indices (2-tuple)
+
+    Returns:
+        dict: with bond index (2-tuple) as key, and a list of fragments (mol_graphs)
+            as values. Each list could be of size 1 or 2 and could be empty if the
+            mol has no bonds.
+    """
+    sub_mols = {}
+
+    for edge in bonds:
+        edge = tuple(edge)
+        try:
+            new_mgs = mol_graph.split_molecule_subgraphs(
+                [edge], allow_reverse=True, alterations=None
+            )
+            sub_mols[edge] = new_mgs
+        except MolGraphSplitError:  # cannot split, (breaking a bond in a ring)
+            new_mg = copy.deepcopy(mol_graph)
+            idx1, idx2 = edge
+            new_mg.break_edge(idx1, idx2, allow_reverse=True)
+            sub_mols[edge] = [new_mg]
+    return sub_mols
 
 
 def order_two_molecules(m1, m2):

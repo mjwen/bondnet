@@ -1,10 +1,23 @@
 from pymatgen import Molecule
 from pymatgen.analysis.graphs import MoleculeGraph
 from gnn.database.molwrapper import create_wrapper_mol_from_atoms_and_bonds
+from gnn.database.molwrapper import create_rdkit_mol_from_mol_graph
 from gnn.database.reaction import Reaction
 
 
 def create_LiEC_pymatgen_mol():
+    """
+            O(3) -- Li(6)
+            ||
+             C(1)
+           /   \
+          O(0)  O(4)
+          |     |
+        C(2) --- C(5)
+
+
+
+    """
     atoms = ["O", "C", "C", "O", "O", "C", "Li", "H", "H", "H", "H"]
     coords = [
         [0.3103, -1.1776, -0.3722],
@@ -37,7 +50,6 @@ def create_LiEC_mol_graph():
         (5, 10),
         (7, 2),
         (9, 5),
-        (4, 6),
         (3, 6),
         (3, 1),
     ]
@@ -47,6 +59,12 @@ def create_LiEC_mol_graph():
     mol_graph = MoleculeGraph.with_edges(mol, bonds)
 
     return mol_graph
+
+
+def create_LiEC_rdkit_mol():
+    mol_graph = create_LiEC_mol_graph()
+    mol, bond_type = create_rdkit_mol_from_mol_graph(mol_graph, force_sanitize=True)
+    return mol
 
 
 def create_C2H4O1():
