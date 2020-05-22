@@ -20,7 +20,7 @@ from gnn.data.featurizer import (
     BondAsNodeFeaturizer,
     GlobalFeaturizerCharge,
 )
-from gnn.post_analysis import write_error
+from gnn.analysis.post_analysis import write_error
 from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
 

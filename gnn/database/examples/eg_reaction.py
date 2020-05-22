@@ -20,7 +20,7 @@ from gnn.database.reaction_collection import (
 from gnn.database.zinc_bde import read_zinc_bde_dataset
 from gnn.database.nrel_bde import read_nrel_bde_dataset
 from gnn.utils import pickle_load, expand_path, create_directory
-from gnn.data.feature_analyzer import read_sdf, read_label
+from gnn.analysis.feature_analyzer import read_sdf, read_label
 
 
 def eg_buckets():

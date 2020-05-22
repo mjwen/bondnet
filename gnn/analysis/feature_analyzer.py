@@ -10,7 +10,7 @@ from umap import UMAP
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from gnn.layer.readout import ConcatenateMeanMax
-from gnn.data import umap_plot
+from gnn.analysis import umap_plot
 from gnn.utils import expand_path
 
 

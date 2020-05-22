@@ -5,7 +5,7 @@ from collections import defaultdict
 from gnn.data.electrolyte import ElectrolyteBondDataset
 from gnn.data.qm9 import QM9Dataset
 import pandas as pd
-from gnn.data.feature_analyzer import (
+from gnn.analysis.feature_analyzer import (
     PCAAnalyzer,
     TSNEAnalyzer,
     UMAPAnalyzer,

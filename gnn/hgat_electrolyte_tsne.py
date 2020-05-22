@@ -6,7 +6,7 @@ from gnn.data.dataset import train_validation_test_split
 from gnn.data.electrolyte import ElectrolyteBondDataset
 from gnn.data.dataloader import DataLoaderBond
 from gnn.utils import seed_torch, load_checkpoints
-from gnn.data.feature_analyzer import TSNEAnalyzer
+from gnn.analysis.feature_analyzer import TSNEAnalyzer
 
 
 def parse_args():
