@@ -1,5 +1,5 @@
 """
-Functions to convert data files to standard files the model accepts.
+Converting data files to standard files the model accepts and make predictions.
 """
 
 import os
@@ -7,18 +7,243 @@ import logging
 import pandas as pd
 import json
 import multiprocessing
+from _collections import OrderedDict
+from rdkit import Chem
 from pymatgen.analysis.graphs import MoleculeGraph
 from gnn.core.molwrapper import (
     MoleculeWrapper,
-    smiles_to_wrapper_mol,
     rdkit_mol_to_wrapper_mol,
+    smiles_to_wrapper_mol,
+    inchi_to_wrapper_mol,
 )
-from gnn.core.reaction import Reaction, ReactionCollection
+from gnn.core.reaction import Reaction, create_reactions_from_reactant, factor_integer
+from gnn.core.reaction_collection import ReactionCollection
 from gnn.utils import expand_path
 from gnn.utils import yaml_load, yaml_dump
-from rdkit import Chem
 
 logger = logging.getLogger(__name__)
+
+
+class PredictionBase:
+    """
+    Base class for making predictions.
+    """
+
+    def __init__(self):
+        pass
+
+    def prepare_data(
+        self,
+        struct_file="struct.sdf",
+        label_file="label.yaml",
+        feature_file="feature.yaml",
+    ):
+        """
+        Convert to standard format that the fitting code uses.
+        """
+        mol = self.read_molecules()
+        reactions = self.read_reactions(mol)
+        extractor = ReactionCollection(reactions)
+
+        extractor.create_struct_label_dataset_reaction_network_based_regression_simple(
+            struct_file, label_file, feature_file
+        )
+
+    def write_results(self, predictions, filename=None):
+        """
+        Write the results given the predictions.
+
+        Args:
+            predictions (list): predictions for each reaction return by prepare data.
+            filename (str): name for the output file. If None, should output to stdout.
+        """
+        raise NotImplementedError
+
+
+class PredictionByOneReactant:
+    """
+    Make prediction for all bonds in a molecule.
+
+    Args:
+        molecule (str): a string representing a molecule.
+        format (str): format of the molecule string, supported are `smiles`, `inchi`,
+        `sdf`, and `pdb`.
+        charge (int): charge of the molecule. If None, inferred from the molecule;
+            If provided, it will override the inferred charge.
+    """
+
+    def __init__(
+        self, molecule, format="smiles", charge=None, allowed_product_charges=None
+    ):
+
+        supported_format = {
+            "smiles": None,
+            "inchi": None,
+            "sdf": Chem.MolFromMolBlock,
+            "pdb": Chem.MolFromPDBBlock,
+        }
+
+        if format not in supported_format:
+            supported = ", ".join([k for k in supported_format])
+            raise ValueError(
+                f"Not supported molecule format `{format}`; choose one of "
+                f"{supported} instead."
+            )
+
+        self.molecule = molecule
+        self.format = format
+        self.charge = charge
+        self.allowed_product_charges = allowed_product_charges
+        self.supported_format = supported_format
+        self.failed = None
+
+    def read_molecules(self):
+        if format == "smiles":
+            wrapper_mol = smiles_to_wrapper_mol(self.molecule, self.charge)
+        elif format == "inchi":
+            wrapper_mol = inchi_to_wrapper_mol(self.molecule, self.charge)
+        else:
+            func = self.supported_format[format]
+            rdkit_mol = func(self.molecule, sanitize=True, removeHs=False)
+            wrapper_mol = rdkit_mol_to_wrapper_mol(rdkit_mol, self.charge)
+
+        self.wrapper_mol = wrapper_mol
+
+        return wrapper_mol
+
+    def read_reactions(self, molecule):
+        bonds = [b for b in molecule.bonds]
+
+        reactions = []
+        failed = OrderedDict()
+        for b in bonds:
+            num_products = len(molecule.fragments[b])
+            product_charges = factor_integer(
+                molecule.charge, self.allowed_product_charges, num_products
+            )
+            try:
+                rxns, mols = create_reactions_from_reactant(molecule, b, product_charges)
+                reactions.extend(rxns)
+                failed[b] = (False, None)
+            # TODO update the error type
+            except RuntimeError:
+                failing_reason = mols
+                failed[b] = (True, failing_reason)
+
+        self.failed = failed
+
+        return reactions
+
+    def prepare_data(
+        self,
+        struct_file="struct.sdf",
+        label_file="label.yaml",
+        feature_file="feature.yaml",
+    ):
+        """
+        Convert to standard files that the fitting code uses.
+        """
+        mol = self.read_molecules()
+        reactions = self.read_reactions(mol)
+        extractor = ReactionCollection(reactions)
+
+        extractor.create_struct_label_dataset_reaction_network_based_regression_simple(
+            struct_file, label_file, feature_file
+        )
+
+    def write_results(self, predictions, filename="bde_result.csv", write_result=True):
+
+        all_predictions = dict()
+        all_failed = dict()
+        p_idx = 0
+        for bond, (fail, reason) in enumerate(self.failed):
+
+            # failed at conversion to wrapper mol stage
+            if fail:
+                all_failed[bond] = reason
+                all_predictions[bond] = None
+
+            else:
+                pred = predictions[p_idx]
+
+                # failed at prediction stage
+                if pred is None:
+                    all_failed[bond] = "cannot convert to dgl graph"
+
+                all_predictions[bond] = pred
+                p_idx += 1
+
+        if write_result:
+
+            # if any failed
+            if all_failed:
+                msg = "\n".join(all_failed)
+                print(
+                    f"\n\nFailed breaking bond and creating products, "
+                    f"and thus predictions are not made for these bonds:\n{msg}\n."
+                    f"See the log file for failing reason."
+                )
+                for b, reason in all_failed.items():
+                    logger.error(f"Cannot make prediction for bond {b} because {reason}.")
+
+            sdf = add_bond_energy_to_sdf(self.wrapper_mol, all_predictions)
+            if filename is None:
+                print(sdf)
+            else:
+                with open(expand_path(filename), "w") as f:
+                    f.write(sdf)
+        else:
+            return all_predictions
+
+
+# class PredictionByReactant:
+#     """
+#     Base class for making predictions using the reactant only, i.e. the products are
+#     not given.
+#
+#     Args:
+#         reactants (list): a sequence of MoleculeWrapper molecules
+#     """
+#
+#     def __init__(self, reactants):
+#         self.reactants = reactants
+#
+#     @classmethod
+#     def from_smiles(cls, smiles, charges=None):
+#         """
+#         Args:
+#             smiles (list): molecules represented by a list of smiles.
+#             charges (list): charges of the molecules. Note smiles have the total charge
+#                 built into its notation, i.e. the total charge equals the sum of the
+#                 formal charges of atoms or atom groups. If `charges` are provided,
+#                 it will override the charges inferred from the smiles.
+#         """
+#         if charges is not None:
+#             assert len(smiles) == len(charges)
+#         else:
+#             charges = [None] * len(smiles)
+#
+#         molecules = [smiles_to_wrapper_mol(s, c) for s, c in zip(smiles, charges)]
+#
+#         return cls(molecules)
+#
+#     @classmethod
+#     def from_sdf(cls, sdf, charges=None):
+#         """
+#         Args:
+#             sdf (list): molecules represented by a list of sdf strings.
+#             charges (list): charges of the molecules. If None, inferred from the sdf
+#                 strings; If `charges` are provided, it will override the inferred charges.
+#         """
+#         if charges is not None:
+#             assert len(sdf) == len(charges)
+#         else:
+#             charges = [None] * len(sdf)
+#
+#         rd_mols = [Chem.MolFromMolBlock(s, sanitize=True, removeHs=False) for s in sdf]
+#         molecules = [rdkit_mol_to_wrapper_mol(m, c) for m, c in zip(rd_mols, charges)]
+#
+#         return cls(molecules)
 
 
 class PredictionBySmilesReaction:
@@ -155,7 +380,7 @@ class PredictionBySmilesReaction:
         return reactions
 
     # TODO should directly pass python data struct, instead of files.
-    def convert_format(
+    def prepare_data(
         self,
         struct_file="struct.sdf",
         label_file="label.yaml",
@@ -322,7 +547,7 @@ class PredictionBySDFChargeReactionFiles:
         return reactions
 
     # TODO should directly pass python data struct, instead of files.
-    def convert_format(
+    def prepare_data(
         self,
         struct_file="struct.sdf",
         label_file="label.yaml",
@@ -444,7 +669,7 @@ class PredictionByStructLabelFeatFiles:
         self.feature_file = lines[2]
 
     # TODO should directly pass python data struct, instead of files.
-    def convert_format(self):
+    def prepare_data(self):
         return self.struct_file, self.label_file, self.feature_file
 
     def write_results(self, predictions, filename="bed_result.yaml"):
@@ -485,3 +710,38 @@ def wrapper_rdkit_mol_to_wrapper_mol(m, *args, **kwargs):
         return None
     else:
         return rdkit_mol_to_wrapper_mol(m * args, **kwargs)
+
+
+def add_bond_energy_to_sdf(m, energy):
+    """
+    Add the bond energies of a molecule to sdf v3000 file.
+
+    Args:
+        m (MoleculeWrapper): the molecule
+        energy (dict): bond energies for molecule, with bond index (a 2-tuple) as key
+            and bond energy as value.
+
+    Returns:
+        str: an sdf v3000 file with bond energies
+    """
+    sdf = m.write(v3000=True)
+    bonds = m.get_sdf_bond_indices(zero_based=True, sdf=sdf)
+
+    lines = sdf.split("\n")
+    start = end = 0
+    for i, ln in enumerate(lines):
+        if "BEGIN BOND" in ln:
+            start = i + 1
+        if "END BOND" in ln:
+            end = i
+            break
+
+    for ib, i in enumerate(range(start, end)):
+        e = energy[bonds[ib]]
+        if e is None:
+            e = ""
+        lines[i] += f"  {e}"
+
+    sdf = "\n".join(lines)
+
+    return sdf

@@ -14,7 +14,7 @@ from gnn.data.featurizer import (
     BondAsNodeFeaturizer,
     GlobalFeaturizerCharge,
 )
-from gnn.core.predictor import (
+from gnn.core.prediction import (
     PredictionBySmilesReaction,
     PredictionBySDFChargeReactionFiles,
     PredictionByMolGraphReactionFiles,
@@ -100,7 +100,7 @@ def get_predictor(args):
             sdf_file = "/tmp/struct.sdf"
             label_file = "/tmp/label.yaml"
             feature_file = "/tmp/feature.yaml"
-            predictor.convert_format(sdf_file, label_file, feature_file)
+            predictor.prepare_data(sdf_file, label_file, feature_file)
             supported = True
 
     # sdf 3 files: mol (in sdf), charge (in plain text), reaction (csv)
@@ -111,7 +111,7 @@ def get_predictor(args):
             sdf_file = "/tmp/struct.sdf"
             label_file = "/tmp/label.yaml"
             feature_file = "/tmp/feature.yaml"
-            predictor.convert_format(sdf_file, label_file, feature_file)
+            predictor.prepare_data(sdf_file, label_file, feature_file)
             supported = True
 
     # mol graph 2 files, mol (json or yaml), reaction (csv)
@@ -122,14 +122,14 @@ def get_predictor(args):
             sdf_file = "/tmp/struct.sdf"
             label_file = "/tmp/label.yaml"
             feature_file = "/tmp/feature.yaml"
-            predictor.convert_format(sdf_file, label_file, feature_file)
+            predictor.prepare_data(sdf_file, label_file, feature_file)
             supported = True
 
     # internal 3 files: sdf file, label file, feature file
     elif args.format == "interal":
         if args.infile is not None and len(args.infile) == 3:
             predictor = PredictionByStructLabelFeatFiles(args.infile)
-            sdf_file, label_file, feature_file = predictor.convert_format()
+            sdf_file, label_file, feature_file = predictor.prepare_data()
             supported = True
 
     if not supported:

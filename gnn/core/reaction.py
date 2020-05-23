@@ -281,7 +281,7 @@ class Reaction:
         and products.
 
         Returns:
-            list: each element is a dict mapping the bonds from product to reactant
+            list: each element is a dict mapping the bonds from a product to reactant
         """
 
         if self._bond_mapping_by_tuple_index is not None:
@@ -293,7 +293,7 @@ class Reaction:
         for p, amp in zip(self.products, atom_mapping):
             bmp = dict()
 
-            for b_product, _ in p.bonds.items():
+            for b_product in p.bonds():
 
                 # atom mapping between product and reactant of the bond
                 i, j = b_product
@@ -1025,7 +1025,9 @@ class ReactionExtractorFromReactant:
         Extract reactions for bonds having energy.
 
         Return:
-            list: a sequence of :class:`Reaction`.
+            list of dict: reactions for the molecules. Each dict for one molecule,
+                with bond index (a 2-tuple) as key and a list of reactions associated
+                with the bond as value.
         """
 
         if self.bond_energies is None:
@@ -1040,7 +1042,9 @@ class ReactionExtractorFromReactant:
         Create reactions by breaking all bonds in molecules and set the energies to None.
 
         Return:
-            list: a sequence of :class:`Reaction`.
+            list of dict: reactions for the molecules. Each dict for one molecule,
+                with bond index (a 2-tuple) as key and a list of reactions associated
+                with the bond as value.
         """
         bond_energies = [{b: None for b in m.bonds} for m in self.molecules]
         return self._extract(bond_energies)
@@ -1051,17 +1055,23 @@ class ReactionExtractorFromReactant:
 
         reactions = []
         for reactant, b_e in zip(self.molecules, bond_energies):
+            rxns_of_same_reactant = {}
             for b, e in b_e.items():
                 b = tuple(sorted(b))
                 num_products = len(reactant.fragments[b])
                 product_charges = factor_integer(
                     reactant.charge, self.allowed_charge, num_products
                 )
-                rxns, mols = create_reactions_from_reactant(
-                    reactant, b, product_charges, e, mol_reservoir,
-                )
-                reactions.extend(rxns)
-                mol_reservoir.update(mols)
+                try:
+                    rxns, mols = create_reactions_from_reactant(
+                        reactant, b, product_charges, e, mol_reservoir,
+                    )
+                    rxns_of_same_reactant[b] = rxns
+                    mol_reservoir.update(mols)
+                # TODO RuntimeError should be replaced
+                except RuntimeError:
+                    rxns_of_same_reactant[b] = None
+            reactions.append(rxns_of_same_reactant)
 
         self.reactions = reactions
 
