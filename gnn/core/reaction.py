@@ -1042,7 +1042,7 @@ class ReactionExtractorFromReactant:
         Return:
             list: a sequence of :class:`Reaction`.
         """
-        bond_energies = [{b: None for b, _ in m.bonds.items()} for m in self.molecules]
+        bond_energies = [{b: None for b in m.bonds} for m in self.molecules]
         return self._extract(bond_energies)
 
     def _extract(self, bond_energies):
@@ -1069,12 +1069,7 @@ class ReactionExtractorFromReactant:
 
 
 def create_reactions_from_reactant(
-    reactant,
-    broken_bond,
-    product_charges,
-    bond_energy=None,
-    mol_reservoir=None,
-    return_error=False,
+    reactant, broken_bond, product_charges, bond_energy=None, mol_reservoir=None
 ):
     """
     Create reactions from reactant by breaking a bond.
@@ -1092,14 +1087,11 @@ def create_reactions_from_reactant(
             in the mol_reservoir. If existing (w.r.t. charge and isomorphism),
             the mol from the reservoir is used as the product. If not, a new mol is
             created.
-        return_error (bool): If True and the creation fails, return error message
-            instead of empty list.
 
     Returns:
         reactions (list): a sequence of Reaction, the number of reactions is
-            equal to the size of product_charges. If the reactant cannot be fragmented,
-            returns empty list.
-        molecules (list): a sequence of MoleculeWrapper, created as the products
+            equal to the size of product_charges.
+        molecules (list): a sequence of MoleculeWrapper, created as the products.
     """
 
     if bond_energy is not None:
@@ -1119,18 +1111,7 @@ def create_reactions_from_reactant(
     # create fragments using rdkit and then convert the rdkit fragment to wrapper mol
     #
 
-    fragments, failed = fragment_rdkit_mol(reactant.rdkit_mol, broken_bond)
-
-    # cannot fragment the reactant, return empty list
-    if fragments is None:
-        logger.error(
-            f"Cannot fragment molecule `{reactant.id}` at bond {broken_bond} "
-            f"because {failed}"
-        )
-        if return_error:
-            return None, failed
-        else:
-            return [], []
+    fragments = fragment_rdkit_mol(reactant.rdkit_mol, broken_bond)
 
     nf = len(fragments)
     nc = np.asarray(product_charges).shape[1]

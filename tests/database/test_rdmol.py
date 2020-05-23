@@ -97,7 +97,7 @@ def test_fragment_rdkit_mol():
 
     # break C C bond in the ring
     bond = (2, 5)
-    mols, _ = fragment_rdkit_mol(rdm, bond)
+    mols = fragment_rdkit_mol(rdm, bond)
     assert len(mols) == 1
     assert len(mols[0].GetBonds()) == 10
 
@@ -105,7 +105,7 @@ def test_fragment_rdkit_mol():
 
     # break the Li O bonds
     bond = (3, 6)
-    mols, _ = fragment_rdkit_mol(rdm, bond)
+    mols = fragment_rdkit_mol(rdm, bond)
     assert len(mols) == 2
     assert len(mols[0].GetBonds()) == 10 and len(mols[1].GetBonds()) == 0
 
@@ -114,7 +114,7 @@ def test_fragment_rdkit_mol():
 
     # # break C=O bond, generating two fragments
     bond = (3, 1)
-    mols, _ = fragment_rdkit_mol(rdm, bond)
+    mols = fragment_rdkit_mol(rdm, bond)
     assert len(mols) == 2
     assert len(mols[0].GetBonds()) == 9 and len(mols[1].GetBonds()) == 1
 
