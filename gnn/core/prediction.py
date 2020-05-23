@@ -98,12 +98,12 @@ class PredictionByOneReactant:
         self.failed = None
 
     def read_molecules(self):
-        if format == "smiles":
+        if self.format == "smiles":
             wrapper_mol = smiles_to_wrapper_mol(self.molecule, self.charge)
-        elif format == "inchi":
+        elif self.format == "inchi":
             wrapper_mol = inchi_to_wrapper_mol(self.molecule, self.charge)
         else:
-            func = self.supported_format[format]
+            func = self.supported_format[self.format]
             rdkit_mol = func(self.molecule, sanitize=True, removeHs=False)
             wrapper_mol = rdkit_mol_to_wrapper_mol(rdkit_mol, self.charge)
 
@@ -121,14 +121,21 @@ class PredictionByOneReactant:
             product_charges = factor_integer(
                 molecule.charge, self.allowed_product_charges, num_products
             )
+
+            # TODO we choose the first product charges.
+            #  this is not a good decision, need to change
+            product_charges = [product_charges[0]]
+
             try:
-                rxns, mols = create_reactions_from_reactant(molecule, b, product_charges)
+                # bond energy is not used, we provide 0 taking the place
+                rxns, mols = create_reactions_from_reactant(
+                    molecule, b, product_charges, bond_energy=0.0
+                )
                 reactions.extend(rxns)
                 failed[b] = (False, None)
-            # TODO update the error type
-            except RuntimeError:
-                failing_reason = mols
-                failed[b] = (True, failing_reason)
+            except Chem.AtomKekulizeException:
+                reason = "breaking an aromatic bond in ring"
+                failed[b] = (True, reason)
 
         self.failed = failed
 
@@ -151,12 +158,12 @@ class PredictionByOneReactant:
             struct_file, label_file, feature_file
         )
 
-    def write_results(self, predictions, filename="bde_result.csv", write_result=True):
+    def write_results(self, predictions, filename=None, to_stdout=True):
 
         all_predictions = dict()
         all_failed = dict()
         p_idx = 0
-        for bond, (fail, reason) in enumerate(self.failed):
+        for bond, (fail, reason) in self.failed.items():
 
             # failed at conversion to wrapper mol stage
             if fail:
@@ -173,21 +180,27 @@ class PredictionByOneReactant:
                 all_predictions[bond] = pred
                 p_idx += 1
 
-        if write_result:
+        if to_stdout:
 
             # if any failed
             if all_failed:
-                msg = "\n".join(all_failed)
-                print(
-                    f"\n\nFailed breaking bond and creating products, "
-                    f"and thus predictions are not made for these bonds:\n{msg}\n."
-                    f"See the log file for failing reason."
-                )
+
                 for b, reason in all_failed.items():
                     logger.error(f"Cannot make prediction for bond {b} because {reason}.")
 
+                msg = "\n".join([str(b) for b in all_failed])
+                print(
+                    f"\n\nFailed breaking bond and creating products, "
+                    f"and thus predictions are not made for these bonds:\n{msg}\n"
+                    f"See the log file for failing reason.\n\n"
+                )
+
             sdf = add_bond_energy_to_sdf(self.wrapper_mol, all_predictions)
             if filename is None:
+                print(
+                    f"The bond energies are (last value in lines between `BEGIN BOND` "
+                    f"and `End BOND`):\n"
+                )
                 print(sdf)
             else:
                 with open(expand_path(filename), "w") as f:

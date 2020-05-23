@@ -4,6 +4,7 @@ import logging
 from collections.abc import Iterable
 import numpy as np
 import networkx as nx
+from rdkit import Chem
 import networkx.algorithms.isomorphism as iso
 from pymatgen.analysis.graphs import _isomorphic
 from collections import defaultdict, OrderedDict
@@ -293,7 +294,7 @@ class Reaction:
         for p, amp in zip(self.products, atom_mapping):
             bmp = dict()
 
-            for b_product in p.bonds():
+            for b_product in p.bonds:
 
                 # atom mapping between product and reactant of the bond
                 i, j = b_product
@@ -1068,8 +1069,8 @@ class ReactionExtractorFromReactant:
                     )
                     rxns_of_same_reactant[b] = rxns
                     mol_reservoir.update(mols)
-                # TODO RuntimeError should be replaced
-                except RuntimeError:
+                # breaking a bond in an aromatic ring
+                except Chem.AtomKekulizeException:
                     rxns_of_same_reactant[b] = None
             reactions.append(rxns_of_same_reactant)
 
@@ -1110,12 +1111,12 @@ def create_reactions_from_reactant(
                 f"expect the size of product_charges to be 1 when bond_energy is "
                 f"provided, but got {len(product_charges)}"
             )
-        else:
-            if len(set(product_charges[0])) != 1:
-                raise ValueError(
-                    f"expect values of product_charges to be the same, "
-                    f"but got{product_charges}"
-                )
+        # else:
+        #     if len(set(product_charges[0])) != 1:
+        #         raise ValueError(
+        #             f"expect values of product_charges to be the same, "
+        #             f"but got{product_charges}"
+        #         )
 
     #
     # create fragments using rdkit and then convert the rdkit fragment to wrapper mol
