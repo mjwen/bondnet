@@ -1,13 +1,15 @@
 import warnings
 import numpy as np
+import logging
 from collections import defaultdict
-import pymatgen
 from pymatgen.core.structure import Molecule
 from pymatgen.io.babel import BabelMolAdaptor
 from rdkit import Chem
-from rdkit.Chem import BondType
+from rdkit.Chem import BondType, AllChem
 from rdkit.Geometry import Point3D
 import openbabel as ob
+
+logger = logging.getLogger(__name__)
 
 
 def create_rdkit_mol(
@@ -179,6 +181,42 @@ def create_rdkit_mol_from_mol_graph(
     return m, bond_types
 
 
+def generate_3D_coords(m):
+    """
+    Generate 3D coords for an rdkit molecule.
+
+    This is done by embedding and then optimizing using MMFF force filed (or UFF force
+    field).
+
+    Args:
+        m (Chem.Mol): rdkit mol.
+
+    Return:
+        Chem.Mol: rdkit mol with updated coords
+    """
+
+    def optimize_till_converge(method, m):
+        maxiters = 200
+        while True:
+            error = method(m, maxIters=maxiters)
+            if error == 1:
+                maxiters *= 2
+            else:
+                return error
+
+    # embedding
+    error = AllChem.EmbedMolecule(m, randomSeed=35)
+    if error == -1:  # https://sourceforge.net/p/rdkit/mailman/message/33386856/
+        AllChem.EmbedMolecule(m, randomSeed=35, useRandomCoords=True)
+
+    # optimize, try MMFF first, if fails then UFF
+    error = optimize_till_converge(AllChem.MMFFOptimizeMolecule, m)
+    if error == -1:  # MMFF cannot be set up
+        optimize_till_converge(AllChem.UFFOptimizeMolecule, m)
+
+    return m
+
+
 def pymatgen_2_babel_atom_idx_map(pmg_mol, ob_mol):
     """
     Create an atom index mapping between pymatgen mol and openbabel mol.
@@ -257,20 +295,13 @@ def fragment_rdkit_mol(m, bond):
         bond (tuple): bond indice (2-tuple)
 
     Returns:
-        frags (tuple or None): fragments (rdkit molecules) by breaking the bond.
-            Could be of size 1 or 2, depending on the number of fragments. None if the
-            molecule cannot be fragmented.
-        failed(str or None): str indicating the failing reason, and None means no failing.
+        frags (tuple): fragments (rdkit molecules) by breaking the bond.
+            Could be of size 1 or 2, depending on the number of fragments.
     """
 
-    try:
-        edm = Chem.EditableMol(m)
-        edm.RemoveBond(*bond)
-        m1 = edm.GetMol()
-        frags = Chem.GetMolFrags(m1, asMols=True, sanitizeFrags=True)
-        failed = None
-    except Exception as e:
-        frags = None
-        failed = str(e)
+    edm = Chem.EditableMol(m)
+    edm.RemoveBond(*bond)
+    m1 = edm.GetMol()
+    frags = Chem.GetMolFrags(m1, asMols=True, sanitizeFrags=True)
 
-    return frags, failed
+    return frags

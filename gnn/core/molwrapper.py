@@ -8,7 +8,7 @@ import pymatgen
 from pymatgen.analysis.graphs import MoleculeGraph, MolGraphSplitError
 from rdkit import Chem
 from rdkit.Chem import Draw, AllChem
-from gnn.core.rdmol import create_rdkit_mol_from_mol_graph
+from gnn.core.rdmol import create_rdkit_mol_from_mol_graph, generate_3D_coords
 from gnn.utils import create_directory, expand_path, yaml_dump
 
 logger = logging.getLogger(__name__)
@@ -360,7 +360,7 @@ def create_wrapper_mol_from_atoms_and_bonds(
     return MoleculeWrapper(mol_graph, free_energy, identifier)
 
 
-def rdkit_mol_to_wrapper_mol(m, charge=0, free_energy=None, identifier=None):
+def rdkit_mol_to_wrapper_mol(m, charge=None, free_energy=None, identifier=None):
     """
     Convert an rdkit molecule to a :class:`MoleculeWrapper` molecule.
 
@@ -369,7 +369,8 @@ def rdkit_mol_to_wrapper_mol(m, charge=0, free_energy=None, identifier=None):
 
     Args:
         m (Chem.Mol): rdkit molecule
-        charge (int): charge of the molecule
+        charge (int): charge of the molecule. If None, inferred from the rdkit mol;
+            otherwise, the provided charge will override the inferred.
         free_energy (float): free energy of the molecule
         identifier (str): (unique) identifier of the molecule
 
@@ -388,6 +389,8 @@ def rdkit_mol_to_wrapper_mol(m, charge=0, free_energy=None, identifier=None):
     bonds = [[b.GetBeginAtomIdx(), b.GetEndAtomIdx()] for b in m.GetBonds()]
     bonds = {tuple(sorted(b)): None for b in bonds}
 
+    charge = Chem.GetFormalCharge(m) if charge is None else charge
+
     pymatgen_mol = pymatgen.Molecule(species, coords, charge)
     mol_graph = MoleculeGraph.with_edges(pymatgen_mol, bonds)
 
@@ -397,44 +400,46 @@ def rdkit_mol_to_wrapper_mol(m, charge=0, free_energy=None, identifier=None):
     return mw
 
 
-def smiles_to_wrapper_mol(s, charge=0, free_energy=None):
+def smiles_to_wrapper_mol(s, charge=None, free_energy=None):
     """
     Convert a smiles molecule to a :class:`MoleculeWrapper` molecule.
 
     3D coords are created using RDkit: embedding then MMFF force filed (or UFF force
      field).
+
+    Args:
+        s (str): smiles of the molecule
+        charge (int): charge of the molecule. If None, inferred from the rdkit mol;
+            otherwise, the provided charge will override the inferred.
     """
 
-    def optimize_till_converge(method, m):
-        maxiters = 200
-        while True:
-            error = method(m, maxIters=maxiters)
-            if error == 1:
-                maxiters *= 2
-            else:
-                return error
+    # create molecules
+    m = Chem.MolFromSmiles(s)
+    m = Chem.AddHs(m)
+    m = generate_3D_coords(m)
+    m = rdkit_mol_to_wrapper_mol(m, charge, free_energy, s)
 
-    try:
-        # create molecules
-        m = Chem.MolFromSmiles(s)
-        m = Chem.AddHs(m)
+    return m
 
-        # embedding
-        error = AllChem.EmbedMolecule(m, randomSeed=35)
-        if error == -1:  # https://sourceforge.net/p/rdkit/mailman/message/33386856/
-            AllChem.EmbedMolecule(m, randomSeed=35, useRandomCoords=True)
 
-        # optimize, try MMFF first, if fails then UFF
-        error = optimize_till_converge(AllChem.MMFFOptimizeMolecule, m)
-        if error == -1:  # MMFF cannot be set up
-            optimize_till_converge(AllChem.UFFOptimizeMolecule, m)
+def inchi_to_wrapper_mol(s, charge=None, free_energy=None):
+    """
+    Convert a inchi molecule to a :class:`MoleculeWrapper` molecule.
 
-        m = rdkit_mol_to_wrapper_mol(m, charge, free_energy, s)
+    3D coords are created using RDkit: embedding then MMFF force filed (or UFF force
+     field).
 
-    # cannot convert smiles string to mol
-    except ValueError as e:
-        logger.warning(f"Cannot convert smiles to mol: {e}")
-        m = None
+    Args:
+        s (str): inchi of the molecule
+        charge (int): charge of the molecule. If None, inferred from the rdkit mol;
+            otherwise, the provided charge will override the inferred.
+    """
+
+    # create molecules
+    m = Chem.MolFromInchi(s, sanitize=True, removeHs=False)
+    m = Chem.AddHs(m)
+    m = generate_3D_coords(m)
+    m = rdkit_mol_to_wrapper_mol(m, charge, free_energy, s)
 
     return m
 

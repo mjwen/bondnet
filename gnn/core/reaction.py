@@ -1069,7 +1069,12 @@ class ReactionExtractorFromReactant:
 
 
 def create_reactions_from_reactant(
-    reactant, broken_bond, product_charges, bond_energy=None, mol_reservoir=None
+    reactant,
+    broken_bond,
+    product_charges,
+    bond_energy=None,
+    mol_reservoir=None,
+    return_error=False,
 ):
     """
     Create reactions from reactant by breaking a bond.
@@ -1087,6 +1092,8 @@ def create_reactions_from_reactant(
             in the mol_reservoir. If existing (w.r.t. charge and isomorphism),
             the mol from the reservoir is used as the product. If not, a new mol is
             created.
+        return_error (bool): If True and the creation fails, return error message
+            instead of empty list.
 
     Returns:
         reactions (list): a sequence of Reaction, the number of reactions is
@@ -1120,7 +1127,10 @@ def create_reactions_from_reactant(
             f"Cannot fragment molecule `{reactant.id}` at bond {broken_bond} "
             f"because {failed}"
         )
-        return [], []
+        if return_error:
+            return None, failed
+        else:
+            return [], []
 
     nf = len(fragments)
     nc = np.asarray(product_charges).shape[1]
