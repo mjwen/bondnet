@@ -215,7 +215,7 @@ class BondAsNodeFeaturizerMinimum(BondFeaturizer):
         else:
 
             ring = mol.GetRingInfo()
-            allowed_ring_size = [3, 4, 5, 6, 7, 8]
+            allowed_ring_size = [3, 4, 5, 6, 7]
 
             feats = []
             for u in range(num_bonds):
@@ -708,7 +708,7 @@ class AtomFeaturizerMinimum(BaseFeaturizer):
         feats = []
 
         ring = mol.GetRingInfo()
-        allowed_ring_size = [3, 4, 5, 6, 7, 8]
+        allowed_ring_size = [3, 4, 5, 6, 7]
         num_atoms = mol.GetNumAtoms()
         for i in range(num_atoms):
             ft = []
