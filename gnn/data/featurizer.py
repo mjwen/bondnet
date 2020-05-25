@@ -183,8 +183,7 @@ class BondAsNodeFeaturizerMinimum(BondFeaturizer):
     """
     Featurize all bonds in a molecule.
 
-    We do not expand bond length on any basis, but use the raw bond length as a feature.
-
+    Do not use bond type info.
 
     See Also:
         BondAsEdgeBidirectedFeaturizer
@@ -202,43 +201,51 @@ class BondAsNodeFeaturizerMinimum(BondFeaturizer):
             Dictionary for bond features
         """
 
+        # Note, this needs to be set such that single atom molecule works
+        num_feats = 8
+
         num_bonds = mol.GetNumBonds()
 
         if num_bonds == 0:
-            feats = [[0.0 for _ in range(2)]]
+            ft = [0.0 for _ in range(num_feats)]
+            if self.length_featurizer:
+                ft += [0.0 for _ in range(len(self.length_featurizer.feature_name))]
+            feats = [ft]
+
         else:
+
+            ring = mol.GetRingInfo()
+            allowed_ring_size = [3, 4, 5, 6, 7, 8]
+
             feats = []
             for u in range(num_bonds):
                 bond = mol.GetBondWithIdx(u)
 
                 ft = [
-                    # int(bond.GetIsAromatic()),
                     int(bond.IsInRing()),
-                    # int(bond.GetIsConjugated()),
                 ]
 
-                # ft += one_hot_encoding(
-                #     bond.GetBondType(),
-                #     [
-                #         Chem.rdchem.BondType.SINGLE,
-                #         Chem.rdchem.BondType.DOUBLE,
-                #         Chem.rdchem.BondType.TRIPLE,
-                #         # Chem.rdchem.BondType.AROMATIC,
-                #         # Chem.rdchem.BondType.IONIC,
-                #     ],
-                # )
+                for s in allowed_ring_size:
+                    ft.append(ring.IsBondInRingOfSize(u, s))
 
-                at1 = bond.GetBeginAtomIdx()
-                at2 = bond.GetEndAtomIdx()
-                atoms_pos = mol.GetConformer().GetPositions()
-                bond_length = np.linalg.norm(atoms_pos[at1] - atoms_pos[at2])
-                ft.append(bond_length)
+                ft.append(int(bond.GetBondType() == Chem.rdchem.BondType.DATIVE))
+
+                if self.length_featurizer:
+                    at1 = bond.GetBeginAtomIdx()
+                    at2 = bond.GetEndAtomIdx()
+                    atoms_pos = mol.GetConformer().GetPositions()
+                    bond_length = np.linalg.norm(atoms_pos[at1] - atoms_pos[at2])
+                    ft += self.length_featurizer(bond_length)
 
                 feats.append(ft)
 
         feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
         self._feature_size = feats.shape[1]
-        self._feature_name = ["is in ring", "length"]
+        self._feature_name = ["in_ring"]
+        self._feature_name += ["ring size"] * 6
+        self._feature_name += ["dative"]
+        if self.length_featurizer:
+            self._feature_name += self.length_featurizer.feature_name
 
         return {"feat": feats}
 
@@ -672,10 +679,7 @@ class AtomFeaturizerMinimum(BaseFeaturizer):
     """
     Featurize atoms in a molecule.
 
-    The extra feature info should be provided as a dict to kwargs of __call__,
-    with `extra_feats_info` as the key.
-
-    The atom indices will be preserved, i.e. feature i corresponds to atom i.
+    Mimimum set of info without hybridization info.
     """
 
     def __call__(self, mol, **kwargs):
@@ -703,33 +707,29 @@ class AtomFeaturizerMinimum(BaseFeaturizer):
 
         feats = []
 
+        ring = mol.GetRingInfo()
+        allowed_ring_size = [3, 4, 5, 6, 7, 8]
         num_atoms = mol.GetNumAtoms()
         for i in range(num_atoms):
             ft = []
             atom = mol.GetAtomWithIdx(i)
 
-            # from rdkit
             ft.append(atom.GetTotalDegree())
-            # ft.append(int(atom.GetIsAromatic()))
             ft.append(int(atom.IsInRing()))
-            # atomic number of symbols are redundant
-            # ft.append(atom.GetAtomicNum())
+            ft.append(atom.GetTotalNumHs())
+
             ft += one_hot_encoding(atom.GetSymbol(), species)
 
-            # # from extra info
-            # ft.append(feats_info["resp"][i])
-            # ft.append(feats_info["mulliken"][i])
-            # ft.append(feats_info["atom_spin"][i])
+            for s in allowed_ring_size:
+                ft.append(ring.IsAtomInRingOfSize(i, s))
 
             feats.append(ft)
 
         feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
         self._feature_size = feats.shape[1]
-        self._feature_name = (
-            ["total degree", "is in ring"]
-            + ["chemical symbol"] * len(species)
-            # + ["resp", "mulliken", "spin"]
-        )
+        self._feature_name = ["total degree", "is in ring", "total H"]
+        self._feature_name += ["chemical symbol"] * len(species)
+        self._feature_name += ["ring size"] * 6
 
         return {"feat": feats}
 
@@ -895,6 +895,20 @@ def one_hot_encoding(x, allowable_set):
         If the i-th value is 1, then we must have x == allowable_set[i].
     """
     return list(map(int, list(map(lambda s: x == s, allowable_set))))
+
+
+def multi_hot_encoding(x, allowable_set):
+    """Multi-hot encoding.
+
+    Args:
+        x (list): any type that can be compared with elements in allowable_set
+        allowable_set (list): allowed values for x to take
+
+    Returns:
+        list: List of int (0 or 1) where zero or more values can be 1.
+            If the i-th value is 1, then we must have allowable_set[i] in x.
+    """
+    return list(map(int, list(map(lambda s: s in x, allowable_set))))
 
 
 class DistanceBins(BaseFeaturizer):

@@ -18,6 +18,12 @@ from gnn.data.electrolyte import ElectrolyteReactionNetworkDataset
 from gnn.data.dataloader import DataLoaderReactionNetwork
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import AtomFeaturizer, BondAsNodeFeaturizer, GlobalFeaturizer
+
+# from gnn.data.featurizer import (
+#     AtomFeaturizerMinimum,
+#     BondAsNodeFeaturizerMinimum,
+#     GlobalFeaturizer,
+# )
 from gnn.utils import (
     load_checkpoints,
     save_checkpoints,
@@ -226,6 +232,9 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
 def get_grapher():
     atom_featurizer = AtomFeaturizer()
     bond_featurizer = BondAsNodeFeaturizer(length_featurizer=None, dative=False)
+    # atom_featurizer = AtomFeaturizerMinimum()
+    # bond_featurizer = BondAsNodeFeaturizerMinimum(length_featurizer=None)
+
     global_featurizer = GlobalFeaturizer(allowed_charges=None)
     grapher = HeteroMoleculeGraph(
         atom_featurizer=atom_featurizer,
@@ -338,7 +347,7 @@ def main_worker(gpu, world_size, args):
 
     # save args
     if not args.distributed or (args.distributed and args.gpu == 0):
-        yaml_dump(args, "../train_args.yaml")
+        yaml_dump(args, "train_args.yaml")
 
     model = GatedGCNReactionNetwork(
         in_feats=args.feature_size,
@@ -393,14 +402,12 @@ def main_worker(gpu, world_size, args):
         try:
 
             if args.gpu is None:
-                checkpoint = load_checkpoints(
-                    state_dict_objs, filename="../checkpoint.pkl"
-                )
+                checkpoint = load_checkpoints(state_dict_objs, filename="checkpoint.pkl")
             else:
                 # Map model to be loaded to specified single gpu.
                 loc = "cuda:{}".format(args.gpu)
                 checkpoint = load_checkpoints(
-                    state_dict_objs, map_location=loc, filename="../checkpoint.pkl"
+                    state_dict_objs, map_location=loc, filename="checkpoint.pkl"
                 )
 
             args.start_epoch = checkpoint["epoch"]
@@ -472,12 +479,12 @@ def main_worker(gpu, world_size, args):
 
     # load best to calculate test accuracy
     if args.gpu is None:
-        checkpoint = load_checkpoints(state_dict_objs, filename="../best_checkpoint.pkl")
+        checkpoint = load_checkpoints(state_dict_objs, filename="best_checkpoint.pkl")
     else:
         # Map model to be loaded to specified single  gpu.
         loc = "cuda:{}".format(args.gpu)
         checkpoint = load_checkpoints(
-            state_dict_objs, map_location=loc, filename="../best_checkpoint.pkl"
+            state_dict_objs, map_location=loc, filename="best_checkpoint.pkl"
         )
 
     if not args.distributed or (args.distributed and args.gpu == 0):
