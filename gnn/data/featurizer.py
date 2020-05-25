@@ -202,7 +202,7 @@ class BondAsNodeFeaturizerMinimum(BondFeaturizer):
         """
 
         # Note, this needs to be set such that single atom molecule works
-        num_feats = 8
+        num_feats = 7
 
         num_bonds = mol.GetNumBonds()
 
@@ -242,7 +242,7 @@ class BondAsNodeFeaturizerMinimum(BondFeaturizer):
         feats = torch.tensor(feats, dtype=getattr(torch, self.dtype))
         self._feature_size = feats.shape[1]
         self._feature_name = ["in_ring"]
-        self._feature_name += ["ring size"] * 6
+        self._feature_name += ["ring size"] * 5
         self._feature_name += ["dative"]
         if self.length_featurizer:
             self._feature_name += self.length_featurizer.feature_name
@@ -729,7 +729,7 @@ class AtomFeaturizerMinimum(BaseFeaturizer):
         self._feature_size = feats.shape[1]
         self._feature_name = ["total degree", "is in ring", "total H"]
         self._feature_name += ["chemical symbol"] * len(species)
-        self._feature_name += ["ring size"] * 6
+        self._feature_name += ["ring size"] * 5
 
         return {"feat": feats}
 

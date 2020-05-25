@@ -18,12 +18,11 @@ from gnn.data.electrolyte import ElectrolyteReactionNetworkDataset
 from gnn.data.dataloader import DataLoaderReactionNetwork
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import AtomFeaturizer, BondAsNodeFeaturizer, GlobalFeaturizer
-
-# from gnn.data.featurizer import (
-#     AtomFeaturizerMinimum,
-#     BondAsNodeFeaturizerMinimum,
-#     GlobalFeaturizer,
-# )
+from gnn.data.featurizer import (
+    AtomFeaturizerMinimum,
+    BondAsNodeFeaturizerMinimum,
+    GlobalFeaturizer,
+)
 from gnn.utils import (
     load_checkpoints,
     save_checkpoints,
