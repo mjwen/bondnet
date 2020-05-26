@@ -12,6 +12,50 @@ import openbabel as ob
 logger = logging.getLogger(__name__)
 
 
+def smiles_to_rdkit_mol(s):
+    """
+    Convert a smiles string to rdkit molecule.
+
+    3D coords are created using RDkit: embedding then MMFF force filed (or UFF force
+     field).
+
+    Args:
+        s (str): smiles of the molecule
+
+    Returns:
+        rdkit mol
+    """
+    m = Chem.MolFromSmiles(s)
+    if m is None:
+        raise RdkitMolCreationError(f"smiles: {s}")
+    m = Chem.AddHs(m)
+    m = generate_3D_coords(m)
+
+    return m
+
+
+def inchi_to_rdkit_mol(s):
+    """
+    Convert a inchi string to rdkit molecule.
+
+    3D coords are created using RDkit: embedding then MMFF force filed (or UFF force
+     field).
+
+    Args:
+        s (str): inchi of the molecule
+
+    Returns:
+        rdkit mol
+    """
+    m = Chem.MolFromInchi(s, sanitize=True, removeHs=False)
+    if m is None:
+        raise RdkitMolCreationError(f"inchi: {s}")
+    m = Chem.AddHs(m)
+    m = generate_3D_coords(m)
+
+    return m
+
+
 def create_rdkit_mol(
     species, coords, bond_types, formal_charge=None, name=None, force_sanitize=True
 ):
@@ -305,3 +349,12 @@ def fragment_rdkit_mol(m, bond):
     frags = Chem.GetMolFrags(m1, asMols=True, sanitizeFrags=True)
 
     return frags
+
+
+class RdkitMolCreationError(Exception):
+    def __init__(self, msg=None):
+        self.msg = msg
+        super(RdkitMolCreationError, self).__init__(msg)
+
+    def __repr__(self):
+        return f"cannot create rdkit mol, {self.msg}"

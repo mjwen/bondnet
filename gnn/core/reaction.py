@@ -1136,12 +1136,13 @@ def create_reactions_from_reactant(
     reactions = []
     molecules = []
     for charges in product_charges:
+        str_charge = "-".join([str(c) for c in charges])
 
         # create product molecules
         products = []
         for i, c in enumerate(charges):
             # mid needs to be unique
-            mid = f"{reactant.id}_{broken_bond[0]}-{broken_bond[1]}_{c}_{i}"
+            mid = f"{reactant.id}_{broken_bond[0]}-{broken_bond[1]}_{str_charge}_{i}"
             mol = rdkit_mol_to_wrapper_mol(fragments[i], charge=c, identifier=mid)
 
             if mol_reservoir is None:

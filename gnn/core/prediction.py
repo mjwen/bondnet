@@ -10,12 +10,8 @@ import pandas as pd
 from collections import namedtuple, defaultdict
 from rdkit import Chem
 from pymatgen.analysis.graphs import MoleculeGraph
-from gnn.core.molwrapper import (
-    MoleculeWrapper,
-    rdkit_mol_to_wrapper_mol,
-    smiles_to_wrapper_mol,
-    inchi_to_wrapper_mol,
-)
+from gnn.core.molwrapper import MoleculeWrapper, rdkit_mol_to_wrapper_mol
+from gnn.core.rdmol import smiles_to_rdkit_mol, inchi_to_rdkit_mol, RdkitMolCreationError
 from gnn.core.reaction import Reaction, ReactionsOfSameBond
 from gnn.core.reaction_collection import ReactionCollection
 from gnn.utils import expand_path
@@ -73,6 +69,13 @@ class PredictionByOneReactant:
         ring_bond (bool): whether to make predictions for ring bond
     """
 
+    read_func = {
+        "smiles": None,
+        "inchi": None,
+        "sdf": Chem.MolFromMolBlock,
+        "pdb": Chem.MolFromPDBBlock,
+    }
+
     def __init__(
         self,
         molecule,
@@ -82,15 +85,8 @@ class PredictionByOneReactant:
         ring_bond=False,
     ):
 
-        supported_format = {
-            "smiles": None,
-            "inchi": None,
-            "sdf": Chem.MolFromMolBlock,
-            "pdb": Chem.MolFromPDBBlock,
-        }
-
-        if format not in supported_format:
-            supported = ", ".join([k for k in supported_format])
+        if format not in self.read_func:
+            supported = ", ".join([k for k in self.read_func])
             raise ValueError(
                 f"Not supported molecule format `{format}`; choose one of "
                 f"{supported} instead."
@@ -102,24 +98,28 @@ class PredictionByOneReactant:
         self.allowed_product_charges = allowed_product_charges
         self.ring_bond = ring_bond
 
-        self.supported_format = supported_format
-
+        self.wrapper_mol = None
         self.failed = None
         self.rxn_idx_to_bond_map = None
 
     def read_molecules(self):
         if self.format == "smiles":
-            wrapper_mol = smiles_to_wrapper_mol(self.molecule, self.charge)
+            rdkit_mol = smiles_to_rdkit_mol(self.molecule)
+            identifier = self.molecule
         elif self.format == "inchi":
-            wrapper_mol = inchi_to_wrapper_mol(self.molecule, self.charge)
+            rdkit_mol = inchi_to_rdkit_mol(self.molecule)
+            identifier = self.molecule
         else:
-            func = self.supported_format[self.format]
+            func = self.read_func[self.format]
             rdkit_mol = func(self.molecule, sanitize=True, removeHs=False)
-            wrapper_mol = rdkit_mol_to_wrapper_mol(rdkit_mol, self.charge)
+            if rdkit_mol is None:
+                raise RdkitMolCreationError(f"{self.format}")
+            identifier = rdkit_mol.GetProp("_Name")
+        self.wrapper_mol = rdkit_mol_to_wrapper_mol(
+            rdkit_mol, self.charge, identifier=identifier
+        )
 
-        self.wrapper_mol = wrapper_mol
-
-        return wrapper_mol
+        return self.wrapper_mol
 
     def read_reactions(self, molecule):
         bonds = [b for b in molecule.bonds]
@@ -405,11 +405,18 @@ class PredictionBySmilesReaction:
 
         # convert smiles to wrapper molecules
         smi_and_cg = sorted(unique_smi_and_cg, key=lambda k: unique_smi_and_cg[k])
+        rdkit_mols = []
+        for s, c in smi_and_cg:
+            try:
+                m = smiles_to_rdkit_mol(s)
+            except RdkitMolCreationError:
+                m = None
+            rdkit_mols.append((m, c, None, s))
         if self.nprocs is None:
-            molecules = [smiles_to_wrapper_mol(s, c) for s, c in smi_and_cg]
+            molecules = [wrapper_rdkit_mol_to_wrapper_mol(*x) for x in rdkit_mols]
         else:
             with multiprocessing.Pool(self.nprocs) as p:
-                molecules = p.starmap(smiles_to_wrapper_mol, smi_and_cg)
+                molecules = p.starmap(wrapper_rdkit_mol_to_wrapper_mol, rdkit_mols)
 
         # convert to reactions
         reactions = []
@@ -555,15 +562,14 @@ class PredictionBySDFChargeReactionFiles:
 
         if self.nprocs is None:
             molecules = [
-                rdkit_mol_to_wrapper_mol(m, charge=c, identifier=str(i))
-                if m is not None
-                else None
+                wrapper_rdkit_mol_to_wrapper_mol(m, charge=c, identifier=str(i))
                 for i, (m, c) in enumerate(zip(rdkit_mols, charges))
             ]
         else:
             with multiprocessing.Pool(self.nprocs) as p:
                 mol_ids = list(range(len(rdkit_mols)))
-                args = zip(rdkit_mols, charges, mol_ids)
+                energies = [None] * len(rdkit_mols)
+                args = zip(rdkit_mols, charges, energies, mol_ids)
                 molecules = p.starmap(wrapper_rdkit_mol_to_wrapper_mol, args)
 
         return molecules
@@ -772,7 +778,7 @@ def wrapper_rdkit_mol_to_wrapper_mol(m, *args, **kwargs):
     if m is None:
         return None
     else:
-        return rdkit_mol_to_wrapper_mol(m * args, **kwargs)
+        return rdkit_mol_to_wrapper_mol(m, *args, **kwargs)
 
 
 def add_bond_energy_to_sdf(m, energy):

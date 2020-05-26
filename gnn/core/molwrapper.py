@@ -8,7 +8,7 @@ import pymatgen
 from pymatgen.analysis.graphs import MoleculeGraph, MolGraphSplitError
 from rdkit import Chem
 from rdkit.Chem import Draw, AllChem
-from gnn.core.rdmol import create_rdkit_mol_from_mol_graph, generate_3D_coords
+from gnn.core.rdmol import create_rdkit_mol_from_mol_graph
 from gnn.utils import create_directory, expand_path, yaml_dump
 
 logger = logging.getLogger(__name__)
@@ -429,50 +429,6 @@ def rdkit_mol_to_wrapper_mol(m, charge=None, free_energy=None, identifier=None):
     mw.rdkit_mol = m
 
     return mw
-
-
-def smiles_to_wrapper_mol(s, charge=None, free_energy=None):
-    """
-    Convert a smiles molecule to a :class:`MoleculeWrapper` molecule.
-
-    3D coords are created using RDkit: embedding then MMFF force filed (or UFF force
-     field).
-
-    Args:
-        s (str): smiles of the molecule
-        charge (int): charge of the molecule. If None, inferred from the rdkit mol;
-            otherwise, the provided charge will override the inferred.
-    """
-
-    # create molecules
-    m = Chem.MolFromSmiles(s)
-    m = Chem.AddHs(m)
-    m = generate_3D_coords(m)
-    m = rdkit_mol_to_wrapper_mol(m, charge, free_energy, s)
-
-    return m
-
-
-def inchi_to_wrapper_mol(s, charge=None, free_energy=None):
-    """
-    Convert a inchi molecule to a :class:`MoleculeWrapper` molecule.
-
-    3D coords are created using RDkit: embedding then MMFF force filed (or UFF force
-     field).
-
-    Args:
-        s (str): inchi of the molecule
-        charge (int): charge of the molecule. If None, inferred from the rdkit mol;
-            otherwise, the provided charge will override the inferred.
-    """
-
-    # create molecules
-    m = Chem.MolFromInchi(s, sanitize=True, removeHs=False)
-    m = Chem.AddHs(m)
-    m = generate_3D_coords(m)
-    m = rdkit_mol_to_wrapper_mol(m, charge, free_energy, s)
-
-    return m
 
 
 def write_sdf_csv_dataset(

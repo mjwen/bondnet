@@ -158,13 +158,11 @@ def main(molecule, format, charge, model="20200422"):
 
 
 if __name__ == "__main__":
-    molecule = "C1=CC=CC=C1"
-    main(molecule, format="smiles", charge=0, model="20200422")
+    smiles = "C1=CC=CC=C1"
 
-    molecule = "InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H"
-    main(molecule, format="inchi", charge=0, model="20200422")
+    inchi = "InChI=1S/C6H6/c1-2-4-6-5-3-1/h1-6H"
 
-    molecule = """
+    sdf = """
      RDKit          3D
 
   0  0  0  0  0  0  0  0  0  0999 V3000
@@ -201,4 +199,29 @@ M  V30 END BOND
 M  V30 END CTAB
 M  END
 """
-    main(molecule, format="sdf", charge=0, model="20200422")
+
+    pdb = """COMPND    C1=CC=CC=C1
+HETATM    1  C1  UNL     1       1.364   0.289   0.001  1.00  0.00           C  
+HETATM    2  C2  UNL     1       0.432   1.326  -0.012  1.00  0.00           C  
+HETATM    3  C3  UNL     1      -0.933   1.037  -0.013  1.00  0.00           C  
+HETATM    4  C4  UNL     1      -1.364  -0.289  -0.001  1.00  0.00           C  
+HETATM    5  C5  UNL     1      -0.432  -1.326   0.012  1.00  0.00           C  
+HETATM    6  C6  UNL     1       0.933  -1.037   0.013  1.00  0.00           C  
+HETATM    7  H1  UNL     1       2.428   0.515   0.002  1.00  0.00           H  
+HETATM    8  H2  UNL     1       0.768   2.360  -0.021  1.00  0.00           H  
+HETATM    9  H3  UNL     1      -1.660   1.845  -0.023  1.00  0.00           H  
+HETATM   10  H4  UNL     1      -2.428  -0.515  -0.002  1.00  0.00           H  
+HETATM   11  H5  UNL     1      -0.768  -2.360   0.020  1.00  0.00           H  
+HETATM   12  H6  UNL     1       1.660  -1.845   0.023  1.00  0.00           H  
+CONECT    1    2    2    6    7
+CONECT    2    3    8
+CONECT    3    4    4    9
+CONECT    4    5   10
+CONECT    5    6    6   11
+CONECT    6   12
+END
+"""
+    main(smiles, format="smiles", charge=0, model="20200422")
+    main(inchi, format="inchi", charge=0, model="20200422")
+    main(sdf, format="sdf", charge=0, model="20200422")
+    main(pdb, format="pdb", charge=0, model="20200422")
