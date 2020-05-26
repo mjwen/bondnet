@@ -17,7 +17,7 @@ from gnn.core.prediction import PredictionByOneReactant
 from gnn.utils import load_checkpoints
 from rdkit import RDLogger
 
-# RDLogger.logger().setLevel(RDLogger.ERROR)
+# RDLogger.logger().setLevel(RDLogger.CRITICAL)
 
 
 def get_predictor(molecule, format, charge, model="20200422"):
@@ -30,7 +30,9 @@ def get_predictor(molecule, format, charge, model="20200422"):
         charge = 0
         allowed_charge = [0]
 
-    predictor = PredictionByOneReactant(molecule, format, charge, allowed_charge)
+    predictor = PredictionByOneReactant(
+        molecule, format, charge, allowed_charge, ring_bond=False
+    )
     sdf_file = "/tmp/struct.sdf"
     label_file = "/tmp/label.yaml"
     feature_file = "/tmp/feature.yaml"

@@ -7,7 +7,7 @@ import logging
 import pandas as pd
 import json
 import multiprocessing
-from _collections import OrderedDict
+from collections import OrderedDict, namedtuple
 from rdkit import Chem
 from pymatgen.analysis.graphs import MoleculeGraph
 from gnn.core.molwrapper import (
@@ -70,10 +70,16 @@ class PredictionByOneReactant:
         `sdf`, and `pdb`.
         charge (int): charge of the molecule. If None, inferred from the molecule;
             If provided, it will override the inferred charge.
+        ring_bond (bool): whether to make predictions for ring bond
     """
 
     def __init__(
-        self, molecule, format="smiles", charge=None, allowed_product_charges=None
+        self,
+        molecule,
+        format="smiles",
+        charge=None,
+        allowed_product_charges=None,
+        ring_bond=False,
     ):
 
         supported_format = {
@@ -94,6 +100,7 @@ class PredictionByOneReactant:
         self.format = format
         self.charge = charge
         self.allowed_product_charges = allowed_product_charges
+        self.ring_bond = ring_bond
         self.supported_format = supported_format
         self.failed = None
 
@@ -114,28 +121,43 @@ class PredictionByOneReactant:
     def read_reactions(self, molecule):
         bonds = [b for b in molecule.bonds]
 
+        # get one bond in each isomorphic bond group
+        unique_bonds = [group[0] for group in molecule.isomorphic_bonds]
+
+        NoResultReason = namedtuple("NoResultReason", ["compute", "fail", "reason"])
         reactions = []
         failed = OrderedDict()
         for b in bonds:
-            num_products = len(molecule.fragments[b])
-            product_charges = factor_integer(
-                molecule.charge, self.allowed_product_charges, num_products
-            )
 
-            # TODO we choose the first product charges.
-            #  this is not a good decision, need to change
-            product_charges = [product_charges[0]]
+            # we only compute one for each isomorphic bond group
+            if b not in unique_bonds:
+                reason = "isomorphic bond, no need to compute"
+                failed[b] = NoResultReason(False, None, reason)
 
-            try:
-                # bond energy is not used, we provide 0 taking the place
-                rxns, mols = create_reactions_from_reactant(
-                    molecule, b, product_charges, bond_energy=0.0
+            elif not self.ring_bond and molecule.is_bond_in_ring(b):
+                reason = "ring bond, not set to compute"
+                failed[b] = NoResultReason(False, None, reason)
+
+            else:
+                num_products = len(molecule.fragments[b])
+                product_charges = factor_integer(
+                    molecule.charge, self.allowed_product_charges, num_products
                 )
-                reactions.extend(rxns)
-                failed[b] = (False, None)
-            except Chem.AtomKekulizeException:
-                reason = "breaking an aromatic bond in ring"
-                failed[b] = (True, reason)
+
+                # TODO we choose the first product charges.
+                #  this is not a good decision, need to change
+                product_charges = [product_charges[0]]
+
+                try:
+                    # bond energy is not used, we provide 0 taking the place
+                    rxns, mols = create_reactions_from_reactant(
+                        molecule, b, product_charges, bond_energy=0.0
+                    )
+                    reactions.extend(rxns)
+                    failed[b] = NoResultReason(True, False, None)
+                except Chem.AtomKekulizeException as e:
+                    reason = "breaking aromatic bond; " + str(e)
+                    failed[b] = NoResultReason(True, True, reason)
 
         self.failed = failed
 
@@ -163,10 +185,13 @@ class PredictionByOneReactant:
         all_predictions = dict()
         all_failed = dict()
         p_idx = 0
-        for bond, (fail, reason) in self.failed.items():
+        for bond, (compute, fail, reason) in self.failed.items():
+
+            if not compute:
+                all_predictions[bond] = None
 
             # failed at conversion to wrapper mol stage
-            if fail:
+            elif fail:
                 all_failed[bond] = reason
                 all_predictions[bond] = None
 

@@ -607,8 +607,8 @@ class ReactionsMultiplePerBond(ReactionsGroup):
             find_one (bool): If `True`, keep one reaction for each isomorphic bond
                 group. If `False`, keep all.
                 Note, if set to `True`, this expects that `find_one=False` in
-                :method:`ReactionExtractorFromMolSet..extract_one_bond_break` so that all bonds
-                in an isomorphic group have exactly the same reactions.
+                :method:`ReactionExtractorFromMolSet.extract_one_bond_break` so that all
+                bonds in an isomorphic group have exactly the same reactions.
                 In such, we just need to retain a random bond and its associated
                 reactions in each group.
 
@@ -620,7 +620,7 @@ class ReactionsMultiplePerBond(ReactionsGroup):
         # init an empty [] for each bond
         # doing this instead of looping over self.reactions ensures bonds without
         # reactions are correctly represented
-        bond_rxns_dict = {b: [] for b, _ in self.reactant.bonds.items()}
+        bond_rxns_dict = {b: [] for b in self.reactant.bonds}
 
         # assign rxn to bond group
         for rxn in self.reactions:
