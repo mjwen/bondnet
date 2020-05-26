@@ -4,10 +4,10 @@ Converting data files to standard files the model accepts and make predictions.
 
 import os
 import logging
-import pandas as pd
 import json
 import multiprocessing
-from collections import OrderedDict, namedtuple
+import pandas as pd
+from collections import namedtuple, defaultdict
 from rdkit import Chem
 from pymatgen.analysis.graphs import MoleculeGraph
 from gnn.core.molwrapper import (
@@ -16,7 +16,7 @@ from gnn.core.molwrapper import (
     smiles_to_wrapper_mol,
     inchi_to_wrapper_mol,
 )
-from gnn.core.reaction import Reaction, create_reactions_from_reactant, factor_integer
+from gnn.core.reaction import Reaction, ReactionsOfSameBond
 from gnn.core.reaction_collection import ReactionCollection
 from gnn.utils import expand_path
 from gnn.utils import yaml_load, yaml_dump
@@ -101,8 +101,11 @@ class PredictionByOneReactant:
         self.charge = charge
         self.allowed_product_charges = allowed_product_charges
         self.ring_bond = ring_bond
+
         self.supported_format = supported_format
+
         self.failed = None
+        self.rxn_idx_to_bond_map = None
 
     def read_molecules(self):
         if self.format == "smiles":
@@ -125,8 +128,11 @@ class PredictionByOneReactant:
         unique_bonds = [group[0] for group in molecule.isomorphic_bonds]
 
         NoResultReason = namedtuple("NoResultReason", ["compute", "fail", "reason"])
-        reactions = []
-        failed = OrderedDict()
+
+        failed = {}  # failing reason. bond index as key, NoResultReason as value
+        reactions = []  # reactions to compute energy
+        rxn_idx_to_bond_map = {}  # map idx of reaction in `reactions` to broken bond
+        rxn_idx = 0
         for b in bonds:
 
             # we only compute one for each isomorphic bond group
@@ -139,27 +145,25 @@ class PredictionByOneReactant:
                 failed[b] = NoResultReason(False, None, reason)
 
             else:
-                num_products = len(molecule.fragments[b])
-                product_charges = factor_integer(
-                    molecule.charge, self.allowed_product_charges, num_products
-                )
-
-                # TODO we choose the first product charges.
-                #  this is not a good decision, need to change
-                product_charges = [product_charges[0]]
-
                 try:
-                    # bond energy is not used, we provide 0 taking the place
-                    rxns, mols = create_reactions_from_reactant(
-                        molecule, b, product_charges, bond_energy=0.0
+                    rsb = ReactionsOfSameBond(molecule, broken_bond=b)
+                    rxns, _ = rsb.create_complement_reactions(
+                        self.allowed_product_charges
                     )
-                    reactions.extend(rxns)
+                    for r in rxns:
+                        # set reaction energy to zero
+                        r.set_free_energy(0.0)
+                        reactions.append(r)
+                        rxn_idx_to_bond_map[rxn_idx] = b
+                        rxn_idx += 1
+
                     failed[b] = NoResultReason(True, False, None)
                 except Chem.AtomKekulizeException as e:
                     reason = "breaking aromatic bond; " + str(e)
                     failed[b] = NoResultReason(True, True, reason)
 
         self.failed = failed
+        self.rxn_idx_to_bond_map = rxn_idx_to_bond_map
 
         return reactions
 
@@ -181,10 +185,31 @@ class PredictionByOneReactant:
         )
 
     def write_results(self, predictions, filename=None, to_stdout=True):
+        """
+        Returns:
+            dict: {bond index: bond energy}; Bond energies of all bonds in the molecule.
+                bond energy is None for isomorphic bond, failed bond.
 
+        """
+
+        # obtain smallest energy for each bond that is provided to compute
+        predictions_by_bond = defaultdict(list)
+        for i, p in enumerate(predictions):
+            bond = self.rxn_idx_to_bond_map[i]
+            predictions_by_bond[bond].append(p)
+        # find the smallest energy of the same bond across charges
+        for bond, pred in predictions_by_bond.items():
+            pred = [p for p in pred if p is not None]
+            # all prediction of the same bond across charges are None
+            if not pred:
+                predictions_by_bond[bond] = None
+            # at least one value is not None
+            else:
+                predictions_by_bond[bond] = min(pred)
+
+        # create prediction and failing info for all bonds
         all_predictions = dict()
         all_failed = dict()
-        p_idx = 0
         for bond, (compute, fail, reason) in self.failed.items():
 
             if not compute:
@@ -196,15 +221,15 @@ class PredictionByOneReactant:
                 all_predictions[bond] = None
 
             else:
-                pred = predictions[p_idx]
+                pred = predictions_by_bond[bond]
 
                 # failed at prediction stage
                 if pred is None:
                     all_failed[bond] = "cannot convert to dgl graph"
 
                 all_predictions[bond] = pred
-                p_idx += 1
 
+        # write to stdout
         if to_stdout:
 
             # if any failed
@@ -230,8 +255,8 @@ class PredictionByOneReactant:
             else:
                 with open(expand_path(filename), "w") as f:
                     f.write(sdf)
-        else:
-            return all_predictions
+
+        return all_predictions
 
 
 # class PredictionByReactant:

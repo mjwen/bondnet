@@ -77,6 +77,9 @@ class Reaction:
                     energy += mol.free_energy
             return energy
 
+    def set_free_energy(self, value):
+        self._free_energy = value
+
     def get_broken_bond(self):
         """
         Returns:
@@ -500,7 +503,7 @@ class ReactionsOfSameBond(ReactionsGroup):
 
         Returns:
             comp_rxns (list): A sequence of `Reaction`s that complement the existing ones.
-            comp_mols (set): new molecules created to setup the `comp_rxns`.
+            comp_mols (list): new molecules created to set up the `comp_rxns`.
         """
 
         # find products charges
@@ -513,7 +516,7 @@ class ReactionsOfSameBond(ReactionsGroup):
             # the reactant and product are the same. If we already have one reaction,
             # no need to find the complementary one.
             if len(self.reactions) == 1:
-                return [], set()
+                return [], []
             else:
                 missing_charge = [[self.reactant.charge]]
 
@@ -525,7 +528,7 @@ class ReactionsOfSameBond(ReactionsGroup):
 
             # all possible reactions are present
             if len(target_products_charge) == len(self.reactions):
-                return [], set()
+                return [], []
             else:
                 products_charge = []
                 for rxn in self.reactions:
@@ -549,7 +552,7 @@ class ReactionsOfSameBond(ReactionsGroup):
 
         # create reactions and mols
         comp_rxns, comp_mols = create_reactions_from_reactant(
-            self.reactant, self.broken_bond, missing_charge, mol_reservoir=mol_reservoir,
+            self.reactant, self.broken_bond, missing_charge, mol_reservoir=mol_reservoir
         )
 
         return comp_rxns, comp_mols
@@ -1111,12 +1114,12 @@ def create_reactions_from_reactant(
                 f"expect the size of product_charges to be 1 when bond_energy is "
                 f"provided, but got {len(product_charges)}"
             )
-        # else:
-        #     if len(set(product_charges[0])) != 1:
-        #         raise ValueError(
-        #             f"expect values of product_charges to be the same, "
-        #             f"but got{product_charges}"
-        #         )
+        else:
+            if len(set(product_charges[0])) != 1:
+                raise ValueError(
+                    f"expect values of product_charges to be the same, "
+                    f"but got{product_charges}"
+                )
 
     #
     # create fragments using rdkit and then convert the rdkit fragment to wrapper mol
