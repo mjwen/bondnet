@@ -20,10 +20,12 @@ from gnn.core.prediction import (
     PredictionByMolGraphReactionFiles,
     PredictionByStructLabelFeatFiles,
 )
+from gnn.data.utils import get_dataset_species
 from gnn.utils import load_checkpoints
+from rdkit import Chem
 from rdkit import RDLogger
 
-RDLogger.logger().setLevel(RDLogger.ERROR)
+# RDLogger.logger().setLevel(RDLogger.CRITICAL)
 
 
 def parse_args():
@@ -97,10 +99,6 @@ def get_predictor(args):
         elif args.infile is not None and len(args.infile) == 1:
             fname = args.infile[0]
             predictor = PredictionBySmilesReaction(fname)
-            sdf_file = "/tmp/struct.sdf"
-            label_file = "/tmp/label.yaml"
-            feature_file = "/tmp/feature.yaml"
-            predictor.prepare_data(sdf_file, label_file, feature_file)
             supported = True
 
     # sdf 3 files: mol (in sdf), charge (in plain text), reaction (csv)
@@ -108,10 +106,6 @@ def get_predictor(args):
         if args.infile is not None and len(args.infile) == 3:
             mol_file, cg_file, rxn_file = args.infile
             predictor = PredictionBySDFChargeReactionFiles(mol_file, cg_file, rxn_file)
-            sdf_file = "/tmp/struct.sdf"
-            label_file = "/tmp/label.yaml"
-            feature_file = "/tmp/feature.yaml"
-            predictor.prepare_data(sdf_file, label_file, feature_file)
             supported = True
 
     # mol graph 2 files, mol (json or yaml), reaction (csv)
@@ -119,17 +113,13 @@ def get_predictor(args):
         if args.infile is not None and len(args.infile) == 2:
             mol_file, rxn_file = args.infile
             predictor = PredictionByMolGraphReactionFiles(mol_file, rxn_file)
-            sdf_file = "/tmp/struct.sdf"
-            label_file = "/tmp/label.yaml"
-            feature_file = "/tmp/feature.yaml"
-            predictor.prepare_data(sdf_file, label_file, feature_file)
             supported = True
 
     # internal 3 files: sdf file, label file, feature file
-    elif args.format == "interal":
+    elif args.format == "internal":
         if args.infile is not None and len(args.infile) == 3:
-            predictor = PredictionByStructLabelFeatFiles(args.infile)
-            sdf_file, label_file, feature_file = predictor.prepare_data()
+            mol_file, label_file, feat_file = args.infile
+            predictor = PredictionByStructLabelFeatFiles(mol_file, label_file, feat_file)
             supported = True
 
     if not supported:
@@ -163,7 +153,7 @@ def get_predictor(args):
         print(msg)
         sys.exit(0)
 
-    return predictor, sdf_file, label_file, feature_file
+    return predictor
 
 
 def evaluate(model, nodes, data_loader, device=None):
@@ -210,19 +200,41 @@ def get_grapher():
 
 def main(args):
 
-    # convert input to model files
-    predictor, sdf_file, label_file, feature_file = get_predictor(args)
+    model_dir = os.path.join(os.path.dirname(gnn.__file__), "pre_trained", args.model)
+    state_dict_filename = os.path.join(model_dir, "dataset_state_dict.pkl")
+
+    # convert input data that the fitting code uses
+    predictor = get_predictor(args)
+    molecules, labels, extra_features = predictor.prepare_data()
+    if isinstance(molecules, str):
+        mols = [m for m in Chem.SDMolSupplier(molecules, sanitize=True, removeHs=False)]
+    else:
+        mols = molecules
+    species = get_dataset_species(mols)
+
+    # check species are supported by dataset
+    supported_species = torch.load(state_dict_filename)["species"]
+    not_supported = []
+    for s in species:
+        if s not in supported_species:
+            not_supported.append(s)
+    if not_supported:
+        not_supported = ",".join(not_supported)
+        supported = ",".join(supported_species)
+        raise ValueError(
+            f"Model trained with a dataset having species: {supported}; Cannot make "
+            f"predictions for molecule containing species: {not_supported}"
+        )
 
     # load dataset
-    model_dir = os.path.join(os.path.dirname(gnn.__file__), "pre_trained", args.model)
     dataset = ElectrolyteReactionNetworkDataset(
         grapher=get_grapher(),
-        sdf_file=sdf_file,
-        label_file=label_file,
-        feature_file=feature_file,
+        molecules=molecules,
+        labels=labels,
+        extra_features=extra_features,
         feature_transformer=True,
         label_transformer=True,
-        state_dict_filename=os.path.join(model_dir, "dataset_state_dict.pkl"),
+        state_dict_filename=state_dict_filename,
     )
     data_loader = DataLoaderReactionNetwork(
         dataset, batch_size=args.batch_size, shuffle=False
