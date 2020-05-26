@@ -1,4 +1,3 @@
-from rdkit import Chem
 from collections import defaultdict
 
 
@@ -78,23 +77,21 @@ def get_atom_to_bond_map(g):
     return atom_to_bond_map
 
 
-def get_dataset_species(filename):
+def get_dataset_species(molecules):
     """
     Get all the species of atoms appearing in the dataset.
 
     Args:
-        filename (str): sdf file name
+        molecules (list): rdkit molecules
 
     Returns:
         list: a sequence of species string
     """
-    suppl = Chem.SDMolSupplier(filename, sanitize=True, removeHs=False)
     system_species = set()
-    for i, mol in enumerate(suppl):
+    for mol in molecules:
         if mol is None:
             continue
-        atoms = mol.GetAtoms()
-        species = [a.GetSymbol() for a in atoms]
+        species = [a.GetSymbol() for a in mol.GetAtoms()]
         system_species.update(species)
 
     return sorted(system_species)

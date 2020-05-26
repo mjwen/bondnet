@@ -522,10 +522,19 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
     def _load(self):
 
         logger.info(
-            f"Start loading dataset from files: {self.sdf_file}, {self.label_file}, "
-            f"and {self.feature_file} ..."
+            f"Start loading dataset from: {self.molecules}, {self.raw_labels}, "
+            f"and {self.extra_features} ..."
         )
 
+        # get molecules, labels, and extra features
+        molecules = self.get_molecules(self.molecules)
+        raw_labels = self.get_labels(self.raw_labels)
+        if self.extra_features is not None:
+            extra_features = self.get_features(self.extra_features)
+        else:
+            extra_features = [None] * len(molecules)
+
+        # get state info
         if self.state_dict_filename is not None:
             logger.info(f"Load dataset state dict from: {self.state_dict_filename}")
             state_dict = torch.load(self.state_dict_filename)
@@ -533,22 +542,13 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
 
         # get species
         if self.state_dict_filename is None:
-            species = get_dataset_species(self.sdf_file)
-            self._species = species
+            species = get_dataset_species(molecules)
         else:
-            assert (
-                self._species is not None
-            ), "Corrupted state_dict file, `species` not found"
+            species = self.state_dict()["species"]
+            assert species is not None, "Corrupted state_dict file, `species` not found"
 
-        # read label, feature, and sdf files
-        raw_labels = yaml_load(self.label_file)
-        if self.feature_file is not None:
-            features = yaml_load(self.feature_file)
-        else:
-            features = [None] * len(raw_labels)
-        graphs = build_graphs_from_sdf(
-            self.sdf_file, self.grapher, features, len(raw_labels), self._species
-        )
+        # create dgl graphs
+        graphs = self.build_graphs(self.grapher, molecules, extra_features, species)
         graphs = np.asarray(graphs)
         graphs_not_none_indices = [i for i, g in enumerate(graphs) if g is not None]
 
@@ -659,32 +659,58 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
 
         logger.info(f"Finish loading {len(self.labels)} reactions...")
 
+    @staticmethod
+    def get_labels(labels):
+        if isinstance(labels, str):
+            labels = yaml_load(labels)
+        return labels
+
+    @staticmethod
+    def get_features(features):
+        if isinstance(features, str):
+            features = yaml_load(features)
+        return features
+
+    @staticmethod
+    def get_molecules(molecules):
+        if isinstance(molecules, str):
+            supp = Chem.SDMolSupplier(molecules, sanitize=True, removeHs=False)
+            molecules = [m for m in supp]
+        return molecules
+
+    @staticmethod
+    def build_graphs(grapher, molecules, features, species):
+        """
+        Build DGL graphs using grapher for the molecules.
+
+        Args:
+            grapher (Grapher): grapher object to create DGL graphs
+            molecules (list): rdkit molecules
+            features (list): each element is a dict of extra features for a molecule
+            species (list): chemical species (str) in all molecules
+
+        Returns:
+            list: DGL graphs
+        """
+
+        graphs = []
+        for i, (m, feats) in enumerate(zip(molecules, features)):
+            if m is not None:
+                g = grapher.build_graph_and_featurize(
+                    m, extra_feats_info=feats, dataset_species=species
+                )
+                # add this for check purpose; some entries in the sdf file may fail
+                g.graph_id = i
+            else:
+                g = None
+
+            graphs.append(g)
+
+        return graphs
+
     def __getitem__(self, item):
         rn, rxn, lb = self.reaction_network, self.reaction_ids[item], self.labels[item]
         return rn, rxn, lb
 
     def __len__(self):
         return len(self.reaction_ids)
-
-
-def build_graphs_from_sdf(filename, grapher, features, N, species):
-
-    supp = Chem.SDMolSupplier(filename, sanitize=True, removeHs=False)
-
-    graphs = []
-    for i, (mol, feats) in enumerate(zip(supp, features)):
-        if i % 100 == 0:
-            logger.info(f"Processing molecule {i}/{N}")
-
-        if mol is not None:
-            g = grapher.build_graph_and_featurize(
-                mol, extra_feats_info=feats, dataset_species=species
-            )
-            # add this for check purpose; some entries in the sdf file may fail
-            g.graph_id = i
-        else:
-            g = None
-
-        graphs.append(g)
-
-    return graphs

@@ -13,14 +13,13 @@ class BaseDataset:
         For hetero graph, atom, bond, and global state are all represented as
         graph nodes. For homo graph, atoms are represented as node and bond are
         represented as graph edges.
-    sdf_file (str): path to the sdf file of the molecules. Preprocessed dataset
-        can be stored in a pickle file (e.g. with file extension of `pkl`) and
-        provided for fast recovery.
-    label_file (str): path to the label file. Similar to the sdf_file, pickled file
-        can be provided for fast recovery.
-    feature_file (str): path to the feature file. If `None` features will be
-        calculated only using rdkit. Otherwise, features can be provided through this
-        file.
+    molecules (list or str): rdkit molecules. If a string, it should be the path
+        to the sdf file of the molecules.
+    labels (list or str): each element is a dict representing the label for a bond,
+        molecule or reaction. If a string, it should be the path to the label file.
+    extra_features (list or str or None): each element is a dict representing extra
+        features provided to the molecules. If a string, it should be the path to the
+        feature file. If `None`, features will be calculated only using rdkit.
     feature_transformer (bool): If `True`, standardize the features by subtracting the
         means and then dividing the standard deviations.
     label_transformer (bool): If `True`, standardize the label by subtracting the
@@ -40,9 +39,9 @@ class BaseDataset:
     def __init__(
         self,
         grapher,
-        sdf_file,
-        label_file,
-        feature_file=None,
+        molecules,
+        labels,
+        extra_features=None,
         feature_transformer=True,
         label_transformer=True,
         dtype="float32",
@@ -53,9 +52,15 @@ class BaseDataset:
             raise ValueError(f"`dtype {dtype}` should be `float32` or `float64`.")
 
         self.grapher = grapher
-        self.sdf_file = expand_path(sdf_file)
-        self.label_file = expand_path(label_file)
-        self.feature_file = None if feature_file is None else expand_path(feature_file)
+        self.molecules = (
+            expand_path(molecules) if isinstance(molecules, str) else molecules
+        )
+        self.raw_labels = expand_path(labels) if isinstance(labels, str) else labels
+        self.extra_features = (
+            expand_path(extra_features)
+            if isinstance(extra_features, str)
+            else extra_features
+        )
         self.feature_transformer = feature_transformer
         self.label_transformer = label_transformer
         self.dtype = dtype
