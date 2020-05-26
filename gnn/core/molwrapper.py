@@ -159,7 +159,7 @@ class MoleculeWrapper:
         bond 0 is isomorphic to bond 1 and bond 2 is isomorphic to bond 3.
 
         Returns:
-            list of list: each inner list contains the indices (tuple) of bonds that
+            list of list: each inner list contains the indices (a 2-tuple) of bonds that
                 are isomorphic. For the above example, this function
                 returns [[(0,1), (0,2)], [(0,3), (0,4)]]
         """
@@ -185,13 +185,11 @@ class MoleculeWrapper:
 
             res = []
             for b1, b2 in iso_bonds:
-                find_b1_or_b2 = False
                 for group in res:
                     if b1 in group or b2 in group:
                         group.extend([b1, b2])
-                        find_b1_or_b2 = True
                         break
-                if not find_b1_or_b2:
+                else:
                     group = [b1, b2]
                     res.append(group)
 
@@ -200,6 +198,34 @@ class MoleculeWrapper:
             self._isomorphic_bonds = res
 
         return self._isomorphic_bonds
+
+    def is_atom_in_ring(self, atom):
+        """
+        Whether an atom in ring.
+
+        Args:
+            atom (int): atom index
+
+        Returns:
+            bool: atom in ring or not
+        """
+        ring_info = self.mol_graph.find_rings()
+        ring_atoms = set([atom for ring in ring_info for bond in ring for atom in bond])
+        return atom in ring_atoms
+
+    def is_bond_in_ring(self, bond):
+        """
+       Whether a bond in ring.
+
+       Args:
+           bond (tuple): bond index
+
+       Returns:
+           bool: bond in ring or not
+        """
+        ring_info = self.mol_graph.find_rings()
+        ring_bonds = set([tuple(sorted(bond)) for ring in ring_info for bond in ring])
+        return tuple(sorted(bond)) in ring_bonds
 
     def get_sdf_bond_indices(self, zero_based=False, sdf=None):
         """
@@ -272,7 +298,7 @@ class MoleculeWrapper:
                 raise Exception("Mol not split into two parts")
             return mapping
 
-    def write(self, filename=None, name=None, format="sdf", v3000=True):
+    def write(self, filename=None, name=None, format="sdf", kekulize=True, v3000=True):
         """Write a molecule to file or as string using rdkit.
 
         Args:
@@ -281,6 +307,7 @@ class MoleculeWrapper:
             name (str): name of a molecule. If `file_format` is sdf, this is the first
                 line the molecule block in the sdf.
             format (str): format of the molecule, supporting: sdf, pdb, and smi.
+            kekulize (bool): whether to kekulize the mol if format is `sdf`
             v3000 (bool): whether to force v3000 form if format is `sdf`
         """
         if filename is not None:
@@ -292,10 +319,14 @@ class MoleculeWrapper:
 
         if format == "sdf":
             if filename is None:
-                sdf = Chem.MolToMolBlock(self.rdkit_mol, forceV3000=v3000)
+                sdf = Chem.MolToMolBlock(
+                    self.rdkit_mol, kekulize=kekulize, forceV3000=v3000
+                )
                 return sdf + "$$$$\n"
             else:
-                return Chem.MolToMolFile(self.rdkit_mol, filename, forceV3000=v3000)
+                return Chem.MolToMolFile(
+                    self.rdkit_mol, filename, kekulize=kekulize, forceV3000=v3000
+                )
         elif format == "pdb":
             if filename is None:
                 sdf = Chem.MolToPDBBlock(self.rdkit_mol)
