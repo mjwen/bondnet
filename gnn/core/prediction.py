@@ -41,7 +41,7 @@ class PredictionBase:
         reactions = self.read_reactions(mol)
         extractor = ReactionCollection(reactions)
 
-        extractor.create_struct_label_dataset_reaction_network_based_regression_simple(
+        extractor.create_regression_dataset_reaction_network_simple(
             struct_file, label_file, feature_file
         )
 
@@ -167,12 +167,7 @@ class PredictionByOneReactant:
 
         return reactions
 
-    def prepare_data(
-        self,
-        struct_file="struct.sdf",
-        label_file="label.yaml",
-        feature_file="feature.yaml",
-    ):
+    def prepare_data(self):
         """
         Convert to standard files that the fitting code uses.
         """
@@ -180,9 +175,11 @@ class PredictionByOneReactant:
         reactions = self.read_reactions(mol)
         extractor = ReactionCollection(reactions)
 
-        extractor.create_struct_label_dataset_reaction_network_based_regression_simple(
-            struct_file, label_file, feature_file
+        out = extractor.create_regression_dataset_reaction_network_simple(
+            write_to_file=False
         )
+
+        return out
 
     def write_results(self, predictions, filename=None, to_stdout=True):
         """
@@ -449,22 +446,18 @@ class PredictionBySmilesReaction:
 
         return reactions
 
-    # TODO should directly pass python data struct, instead of files.
-    def prepare_data(
-        self,
-        struct_file="struct.sdf",
-        label_file="label.yaml",
-        feature_file="feature.yaml",
-    ):
+    def prepare_data(self):
         """
         Convert to standard files that the fitting code uses.
         """
         reactions = self.read_input()
         extractor = ReactionCollection(reactions)
 
-        extractor.create_struct_label_dataset_reaction_network_based_regression_simple(
-            struct_file, label_file, feature_file
+        out = extractor.create_regression_dataset_reaction_network_simple(
+            write_to_file=False
         )
+
+        return out
 
     def write_results(self, predictions, filename="bde_result.csv"):
         """
@@ -615,13 +608,7 @@ class PredictionBySDFChargeReactionFiles:
 
         return reactions
 
-    # TODO should directly pass python data struct, instead of files.
-    def prepare_data(
-        self,
-        struct_file="struct.sdf",
-        label_file="label.yaml",
-        feature_file="feature.yaml",
-    ):
+    def prepare_data(self):
         """
         Convert to standard files that the fitting code uses.
         """
@@ -629,9 +616,11 @@ class PredictionBySDFChargeReactionFiles:
         reactions = self.read_reactions(molecules)
         extractor = ReactionCollection(reactions)
 
-        extractor.create_struct_label_dataset_reaction_network_based_regression_simple(
-            struct_file, label_file, feature_file
+        out = extractor.create_regression_dataset_reaction_network_simple(
+            write_to_file=False
         )
+
+        return out
 
     def write_results(self, predictions, filename="bde_result.csv"):
         """
@@ -722,22 +711,18 @@ class PredictionByStructLabelFeatFiles:
     """
     Make predictions based on the files used by the training script:
     struct.sdf, label.yaml, and feature.yaml.
+
     Args:
-        filename (str): a file containing the path to the three files:
-            struct file
-            label file
-            feature file
+        struct_file (str):
+        label_file (str):
+        feature_file (str):
     """
 
-    def __init__(self, filename):
-        with open(expand_path(filename)) as f:
-            lines = f.readlines()
-        lines = [expand_path(ln.strip()) for ln in lines]
-        self.struct_file = lines[0]
-        self.label_file = lines[1]
-        self.feature_file = lines[2]
+    def __init__(self, struct_file, label_file, feature_file):
+        self.struct_file = expand_path(struct_file)
+        self.label_file = expand_path(label_file)
+        self.feature_file = expand_path(feature_file)
 
-    # TODO should directly pass python data struct, instead of files.
     def prepare_data(self):
         return self.struct_file, self.label_file, self.feature_file
 

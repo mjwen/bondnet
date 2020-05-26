@@ -79,7 +79,7 @@ def get_atom_to_bond_map(g):
 
 def get_dataset_species(molecules):
     """
-    Get all the species of atoms appearing in the dataset.
+    Get all the species of atoms appearing in the the molecules.
 
     Args:
         molecules (list): rdkit molecules

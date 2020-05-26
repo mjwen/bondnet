@@ -30,6 +30,7 @@ def smiles_to_rdkit_mol(s):
         raise RdkitMolCreationError(f"smiles: {s}")
     m = Chem.AddHs(m)
     m = generate_3D_coords(m)
+    m.SetProp("_Name", s)
 
     return m
 
@@ -52,6 +53,7 @@ def inchi_to_rdkit_mol(s):
         raise RdkitMolCreationError(f"inchi: {s}")
     m = Chem.AddHs(m)
     m = generate_3D_coords(m)
+    m.SetProp("_Name", s)
 
     return m
 
@@ -107,8 +109,7 @@ def create_rdkit_mol(
             warnings.warn(f"Cannot sanitize molecule {name}, because {str(e)}")
     m.AddConformer(conformer, assignId=False)
 
-    if name is not None:
-        m.SetProp("_Name", str(name))
+    m.SetProp("_Name", str(name))
 
     return m
 
@@ -347,6 +348,10 @@ def fragment_rdkit_mol(m, bond):
     edm.RemoveBond(*bond)
     m1 = edm.GetMol()
     frags = Chem.GetMolFrags(m1, asMols=True, sanitizeFrags=True)
+
+    name = m.GetProp("_Name")
+    for i, m in enumerate(frags):
+        m.SetProp("_Name", f"{name}_frag{i}")
 
     return frags
 

@@ -147,7 +147,7 @@ def nrel_create_struct_label_dataset_reaction_network_based_regression(
     reactions = read_nrel_bde_dataset(filename)
     extractor = ReactionCollection(reactions)
 
-    extractor.create_struct_label_dataset_reaction_network_based_regression_simple(
+    extractor.create_regression_dataset_reaction_network_simple(
         struct_file="~/Applications/db_access/nrel_bde/nrel_struct_rxn_ntwk_rgrn_n200.sdf",
         label_file="~/Applications/db_access/nrel_bde/nrel_label_rxn_ntwk_rgrn_n200.yaml",
         feature_file="~/Applications/db_access/nrel_bde/nrel_feature_rxn_ntwk_rgrn_n200.yaml",

@@ -13,6 +13,7 @@ from gnn.data.featurizer import (
     BondAsNodeFeaturizer,
     GlobalFeaturizerCharge,
 )
+from gnn.data.utils import get_dataset_species
 from gnn.core.prediction import PredictionByOneReactant
 from gnn.utils import load_checkpoints
 from rdkit import RDLogger
@@ -33,12 +34,8 @@ def get_predictor(molecule, format, charge, model="20200422"):
     predictor = PredictionByOneReactant(
         molecule, format, charge, allowed_charge, ring_bond=False
     )
-    sdf_file = "/tmp/struct.sdf"
-    label_file = "/tmp/label.yaml"
-    feature_file = "/tmp/feature.yaml"
-    predictor.prepare_data(sdf_file, label_file, feature_file)
 
-    return predictor, sdf_file, label_file, feature_file
+    return predictor
 
 
 def evaluate(model, nodes, data_loader, device=None):
@@ -85,23 +82,37 @@ def get_grapher():
 
 def main(molecule, format, charge, model="20200422"):
 
-    # convert input to model files
-    predictor, sdf_file, label_file, feature_file = get_predictor(
-        molecule, format, charge, model
-    )
+    model_dir = os.path.join(os.path.dirname(gnn.__file__), "pre_trained", model)
+    state_dict_filename = os.path.join(model_dir, "dataset_state_dict.pkl")
 
-    # TODO add check for species here (whether species supported by dataset)
+    # convert input data that the fitting code uses
+    predictor = get_predictor(molecule, format, charge, model)
+    molecules, labels, extra_features = predictor.prepare_data()
+    species = get_dataset_species(molecules)
+
+    # check species are supported by dataset
+    supported_species = torch.load(state_dict_filename)["species"]
+    not_supported = []
+    for s in species:
+        if s not in supported_species:
+            not_supported.append(s)
+    if not_supported:
+        not_supported = ",".join(not_supported)
+        supported = ",".join(supported_species)
+        raise ValueError(
+            f"Model trained with a dataset having species: {supported}; Cannot make "
+            f"predictions for molecule containing species: {not_supported}"
+        )
 
     # load dataset
-    model_dir = os.path.join(os.path.dirname(gnn.__file__), "pre_trained", model)
     dataset = ElectrolyteReactionNetworkDataset(
         grapher=get_grapher(),
-        molecules=sdf_file,
-        labels=label_file,
-        extra_features=feature_file,
+        molecules=molecules,
+        labels=labels,
+        extra_features=extra_features,
         feature_transformer=True,
         label_transformer=True,
-        state_dict_filename=os.path.join(model_dir, "dataset_state_dict.pkl"),
+        state_dict_filename=state_dict_filename,
     )
     data_loader = DataLoaderReactionNetwork(dataset, batch_size=100, shuffle=False)
 

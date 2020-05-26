@@ -501,7 +501,7 @@ class ReactionCollection:
 
         return rdkit_mols, labels, features
 
-    def create_struct_label_dataset_reaction_network_based_regression_simple(
+    def create_regression_dataset_reaction_network_simple(
         self,
         struct_file="sturct.sdf",
         label_file="label.txt",
@@ -512,7 +512,7 @@ class ReactionCollection:
         Convert the reaction to standard data format that the fitting code expects.
 
         This is a simplified version of
-        `create_struct_label_dataset_reaction_network_based_regression_simple`.
+        `create_struct_label_dataset_reaction_network_based_regression`.
 
         Here, will not group and order reactions and remove duplicate (reactions by
         breaking isomorphic bond in a molecule). We simply convert a list of reactions
@@ -524,7 +524,8 @@ class ReactionCollection:
             feature_file (str or None): filename for the feature file, if `None`,
                 do not write it
             write_to_file (bool): if True, the results are written to files. If False,
-                not write.
+                not write to files and `struct_file`, `label_file` and `feature_file`
+                are ignored.
 
         Returns:
             rdkit_mols (list): rdkit molecules participating the reactions
