@@ -383,7 +383,7 @@ class ReactionCollection:
 
         # write feature
         if feature_file is not None:
-            self.write_feature(mol_reservoir, bond_indices=None, filename=feature_file)
+            self.get_feature(mol_reservoir, bond_indices=None, filename=feature_file)
 
     def create_struct_label_dataset_reaction_network_based_regression(
         self,
@@ -392,6 +392,7 @@ class ReactionCollection:
         feature_file=None,
         group_mode="all",
         one_per_iso_bond_group=True,
+        write_to_file=True,
     ):
         """
         Write the reaction
@@ -414,8 +415,17 @@ class ReactionCollection:
                 reactions.
             one_per_iso_bond_group (bool): whether to keep just one reaction from each
                 iso bond group.
+            write_to_file (bool): if True, the results are written to files. If False,
+                not write.
 
+        Returns:
+            rdkit_mols (list): rdkit molecules participating the reactions
+            labels (list): each element is a dict representing a reaction
+            features (list): each element is a dict representing features of a
+                molecule. The size should be the same of rdkit_mols.
         """
+
+        logger.info("Start creating struct label feature files for rxn ntwk regression")
 
         if group_mode == "all":
             grouped_rxns = self.group_by_reactant_all()
@@ -446,6 +456,7 @@ class ReactionCollection:
         # all molecules in existing (and complementary) reactions
         # note, mol_reservoir is updated in calling grp.order_reactions
         mol_reservoir = sorted(mol_reservoir, key=lambda m: m.formula)
+        rdkit_mols = [m.rdkit_mol for m in mol_reservoir]
         mol_id_to_index_mapping = {m.id: i for i, m in enumerate(mol_reservoir)}
 
         # use multiprocessing to get atom mappings since they are relatively expensive
@@ -453,7 +464,7 @@ class ReactionCollection:
         with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
             mappings = p.map(get_atom_bond_mapping, reactions)
 
-        all_labels = []  # one per reaction
+        labels = []  # one per reaction
         for i, (rxn, mps) in enumerate(zip(reactions, mappings)):
 
             # change to index (in mol_reservoir) representation
@@ -470,23 +481,35 @@ class ReactionCollection:
                 "id": rxn.get_id(),
                 "index": i,
             }
-            all_labels.append(data)
+            labels.append(data)
 
-        # write sdf
-        self.write_sdf(mol_reservoir, struct_file)
+        # molecule features
+        features = self.get_feature(mol_reservoir, bond_indices=None)
 
-        # label file
-        yaml_dump(all_labels, label_file)
+        if write_to_file:
+            # write sdf
+            self.write_sdf(mol_reservoir, struct_file)
 
-        # write feature
-        if feature_file is not None:
-            self.write_feature(mol_reservoir, bond_indices=None, filename=feature_file)
+            # label file
+            yaml_dump(labels, label_file)
+
+            # write feature
+            if feature_file is not None:
+                yaml_dump(features, feature_file)
+
+        logger.info("Finish creating struct label feature files for rxn ntwk regression")
+
+        return rdkit_mols, labels, features
 
     def create_struct_label_dataset_reaction_network_based_regression_simple(
-        self, struct_file="sturct.sdf", label_file="label.txt", feature_file=None,
+        self,
+        struct_file="sturct.sdf",
+        label_file="label.txt",
+        feature_file=None,
+        write_to_file=True,
     ):
         """
-        Write the reaction to file.
+        Convert the reaction to standard data format that the fitting code expects.
 
         This is a simplified version of
         `create_struct_label_dataset_reaction_network_based_regression_simple`.
@@ -498,7 +521,16 @@ class ReactionCollection:
         Args:
             struct_file (str): filename of the sdf structure file
             label_file (str): filename of the label
-            feature_file (str): filename for the feature file, if `None`, do not write it
+            feature_file (str or None): filename for the feature file, if `None`,
+                do not write it
+            write_to_file (bool): if True, the results are written to files. If False,
+                not write.
+
+        Returns:
+            rdkit_mols (list): rdkit molecules participating the reactions
+            labels (list): each element is a dict representing a reaction
+            features (list): each element is a dict representing features of a
+                molecule. The size should be the same of rdkit_mols.
         """
         logger.info("Start creating struct label feature files for rxn ntwk regression")
 
@@ -507,13 +539,14 @@ class ReactionCollection:
         mol_reservoir = get_molecules_from_reactions(reactions)
         mol_reservoir = sorted(mol_reservoir, key=lambda m: m.formula)
         mol_id_to_index_mapping = {m.id: i for i, m in enumerate(mol_reservoir)}
+        rdkit_mols = [m.rdkit_mol for m in mol_reservoir]
 
         # use multiprocessing to get atom mappings since they are relatively expensive
         # mappings = [get_atom_bond_mapping(r) for r in reactions]
         with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
             mappings = p.map(get_atom_bond_mapping, reactions)
 
-        all_labels = []  # one per reaction
+        labels = []  # one per reaction
         for i, (rxn, mps) in enumerate(zip(reactions, mappings)):
 
             # change to index (in mol_reservoir) representation
@@ -530,19 +563,25 @@ class ReactionCollection:
                 "id": rxn.get_id(),
                 "index": i,
             }
-            all_labels.append(data)
+            labels.append(data)
 
-        # write sdf
-        self.write_sdf(mol_reservoir, struct_file)
+        # features
+        features = self.get_feature(mol_reservoir, bond_indices=None)
 
-        # label file
-        yaml_dump(all_labels, label_file)
+        if write_to_file:
+            # write sdf
+            self.write_sdf(mol_reservoir, struct_file)
 
-        # write feature
-        if feature_file is not None:
-            self.write_feature(mol_reservoir, bond_indices=None, filename=feature_file)
+            # label file
+            yaml_dump(labels, label_file)
+
+            # write feature
+            if feature_file is not None:
+                yaml_dump(features, feature_file)
 
         logger.info("Finish creating struct label feature files for rxn ntwk regression")
+
+        return rdkit_mols, labels, features
 
     def create_struct_label_dataset_reaction_based_classification(
         self,
@@ -645,7 +684,7 @@ class ReactionCollection:
 
         # write feature
         if feature_file is not None:
-            self.write_feature(all_mols, bond_indices=None, filename=feature_file)
+            self.get_feature(all_mols, bond_indices=None, filename=feature_file)
 
     def create_struct_label_dataset_reaction_based_regression(
         self,
@@ -718,7 +757,7 @@ class ReactionCollection:
 
         # write feature
         if feature_file is not None:
-            self.write_feature(all_mols, bond_indices=None, filename=feature_file)
+            self.get_feature(all_mols, bond_indices=None, filename=feature_file)
 
     def create_struct_label_dataset_bond_based_classification(
         self,
@@ -854,7 +893,7 @@ class ReactionCollection:
 
         # write feature
         if feature_file is not None:
-            self.write_feature(all_reactants, broken_bond_pairs, filename=feature_file)
+            self.get_feature(all_reactants, broken_bond_pairs, filename=feature_file)
 
     def create_struct_label_dataset_bond_based_regression(
         self,
@@ -990,7 +1029,7 @@ class ReactionCollection:
 
         # write feature
         if feature_file is not None:
-            self.write_feature(all_reactants, broken_bond_pairs, filename=feature_file)
+            self.get_feature(all_reactants, broken_bond_pairs, filename=feature_file)
 
     def create_struct_label_dataset_mol_based(
         self,
@@ -1069,21 +1108,22 @@ class ReactionCollection:
         # we just need one reaction for each group with the same reactant
         rxns = [rsr.reactions[0] for rsr in grouped_reactions]
         if feature_file is not None:
-            self.write_feature(rxns, bond_indices=None, filename=feature_file)
+            self.get_feature(rxns, bond_indices=None, filename=feature_file)
 
     @staticmethod
-    def write_sdf(molecules, filename="molecules.sdf"):
+    def write_sdf(molecules, filename="struct.sdf"):
         """
-        Write molecules sdf to file.
+        Write molecules to sdf.
 
         Args:
-            filename (str): output filename
             molecules (list): a sequence of :class:`MoleculeWrapper`
+            filename (str): output filename
         """
         logger.info("Start writing sdf file: {}".format(filename))
 
         filename = expand_path(filename)
         create_directory(filename)
+
         with open(filename, "w") as f:
             for i, m in enumerate(molecules):
                 name = "{}_{}_{}_{}_index-{}".format(
@@ -1095,17 +1135,18 @@ class ReactionCollection:
         logger.info("Finish writing sdf file: {}".format(filename))
 
     @staticmethod
-    def write_feature(molecules, bond_indices=None, filename="feature.yaml"):
+    def get_feature(molecules, bond_indices=None):
         """
-        Write molecules features to file.
+        Get features from molecule.
 
         Args:
             molecules (list): a sequence of :class:`MoleculeWrapper`
             bond_indices (list of tuple or None): broken bond in the corresponding
                 molecule
-            filename (str): output filename
+
+        Returns:
+            list: features extracted from wrapper molecule, a dict for each molecule.
         """
-        logger.info("Start writing feature file: {}".format(filename))
 
         all_feats = []
         for i, m in enumerate(molecules):
@@ -1117,9 +1158,8 @@ class ReactionCollection:
             if "index" not in feat:
                 feat["index"] = i
             all_feats.append(feat)
-        yaml_dump(all_feats, filename)
 
-        logger.info("Finish writing feature file: {}".format(filename))
+        return all_feats
 
 
 def get_molecules_from_reactions(reactions):
