@@ -8,9 +8,6 @@ from gnn.core.reaction_collection import ReactionCollection
 from gnn.utils import expand_path
 
 
-logger = logging.getLogger(__name__)
-
-
 def read_zinc_bde_dataset(dirname):
     """
     Read the zinc bde dataset.
@@ -64,24 +61,58 @@ def read_zinc_bde_dataset(dirname):
         m = Chem.MolFromMolFile(fname, sanitize=True, removeHs=False)
         if m is None:
             n_bad += 1
-            logger.warning(f"bad mol: {fname}")
         else:
             title, energies = parse_title_and_energies(fname)
             mw = rdkit_mol_to_wrapper_mol(m, charge=0, identifier=f"{title}_{i}")
             mols.append(mw)
             bond_energies.append(energies)
-    logger.warning(f"{n_bad} bad mols ignored.")
+    print(f"{n_bad} bad molecules ignored.")
 
-    return mols, bond_energies
+    mol_reservoir = set(mols)
+
+    n_bad = 0
+    reactions = []
+    for m, e in zip(mols, bond_energies):
+        extractor = ReactionExtractorFromReactant(m, e, allowed_charge=[0])
+        extractor.extract(
+            ring_bond=True, one_per_iso_bond_group=False, mol_reservoir=mol_reservoir
+        )
+        reactions.extend(extractor.reactions)
+        for bond, reason in extractor.no_reaction_reason.items():
+            if reason.compute and reason.fail:
+                # print(
+                #     f"Creating reaction by breaking bond {bond} of molecule {m.id} "
+                #     f"fails because {reason.reason}"
+                # )
+                n_bad += 1
+
+    print(f"{n_bad} bond cannot be broken to get products.")
+
+    return reactions
+
+
+def plot_zinc_mols(dirname="~/Documents/Dataset/ZINC_BDE"):
+
+    dirname = expand_path(dirname)
+
+    filenames = glob.glob(os.path.join(dirname, "*.sdf"))
+    for i, fname in enumerate(filenames):
+        m = Chem.MolFromMolFile(fname, sanitize=True, removeHs=False)
+        if m is not None:
+            m = rdkit_mol_to_wrapper_mol(m)
+            identifier = os.path.splitext(os.path.basename(fname))[0]
+            prefix = "~/Applications/db_access/zinc_bde/mol_png"
+            m.draw(os.path.join(prefix, identifier + ".png"), show_atom_idx=True)
+
+            prefix = "~/Applications/db_access/zinc_bde/mol_pdb"
+            m.write(os.path.join(prefix, identifier + ".pdb"), format="pdb")
 
 
 def zinc_create_struct_label_dataset_bond_based_regression(
-    # dirname="~/Documents/Dataset/ZINC_BDE_100",
-    dirname="~/Documents/Dataset/ZINC_BDE",
+    dirname="~/Documents/Dataset/ZINC_BDE_100",
+    # dirname="~/Documents/Dataset/ZINC_BDE",
 ):
-    mols, bond_energies = read_zinc_bde_dataset(dirname)
-    extractor = ReactionExtractorFromReactant(mols, bond_energies)
-    reactions = extractor.extract_with_energies()
+    reactions = read_zinc_bde_dataset(dirname)
     extractor = ReactionCollection(reactions)
 
     extractor.create_struct_label_dataset_bond_based_regression(
@@ -97,27 +128,25 @@ def zinc_create_struct_label_dataset_bond_based_regression(
 
 
 def zinc_create_struct_label_dataset_reaction_network_based_regression(
-    dirname="~/Documents/Dataset/ZINC_BDE_100",
-    # dirname="~/Documents/Dataset/ZINC_BDE",
+    # dirname="~/Documents/Dataset/ZINC_BDE_100",
+    dirname="~/Documents/Dataset/ZINC_BDE",
 ):
-    mols, bond_energies = read_zinc_bde_dataset(dirname)
-    extractor = ReactionExtractorFromReactant(mols, bond_energies)
-    reactions = extractor.extract_with_energies()
+
+    reactions = read_zinc_bde_dataset(dirname)
     extractor = ReactionCollection(reactions)
 
-    extractor.create_struct_label_dataset_reaction_network_based_regression(
-        # struct_file="~/Applications/db_access/zinc_bde/zinc_struct_rxn_ntwk_rgrn.sdf",
-        # label_file="~/Applications/db_access/zinc_bde/zinc_label_rxn_ntwk_rgrn.yaml",
-        # feature_file="~/Applications/db_access/zinc_bde/zinc_feature_rxn_ntwk_rgrn.yaml",
-        struct_file="~/Applications/db_access/zinc_bde/zinc_struct_rxn_ntwk_rgrn_n200.sdf",
-        label_file="~/Applications/db_access/zinc_bde/zinc_label_rxn_ntwk_rgrn_n200.yaml",
-        feature_file="~/Applications/db_access/zinc_bde/zinc_feature_rxn_ntwk_rgrn_n200.yaml",
-        group_mode="all",
-        one_per_iso_bond_group=True,
+    extractor.create_regression_dataset_reaction_network_simple(
+        struct_file="~/Applications/db_access/zinc_bde/zinc_struct_rxn_ntwk_rgrn.sdf",
+        label_file="~/Applications/db_access/zinc_bde/zinc_label_rxn_ntwk_rgrn.yaml",
+        feature_file="~/Applications/db_access/zinc_bde/zinc_feature_rxn_ntwk_rgrn.yaml",
+        # struct_file="~/Applications/db_access/zinc_bde/zinc_struct_rxn_ntwk_rgrn_n200.sdf",
+        # label_file="~/Applications/db_access/zinc_bde/zinc_label_rxn_ntwk_rgrn_n200.yaml",
+        # feature_file="~/Applications/db_access/zinc_bde/zinc_feature_rxn_ntwk_rgrn_n200.yaml",
     )
 
 
 if __name__ == "__main__":
 
+    # plot_zinc_mols()
     # zinc_create_struct_label_dataset_bond_based_regression()
     zinc_create_struct_label_dataset_reaction_network_based_regression()

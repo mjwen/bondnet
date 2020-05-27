@@ -1024,7 +1024,7 @@ class ReactionExtractorFromReactant:
                 )
 
         self.molecule = molecule
-        self.bond_energy = None
+        self.bond_energy = bond_energy
         self.allowed_charge = [0] if allowed_charge is None else allowed_charge
 
         self._reactions = None
@@ -1059,10 +1059,13 @@ class ReactionExtractorFromReactant:
     def no_reaction_reason(self):
         """
         Returns:
-            dict: {bond_index, 3-tuple}. The reason why some of the requested bonds
+            dict: {bond_index, reason}. The reason why some of the requested bonds
                 to break do not have reactions, which could be (1) fails to break the
                 bond or (2) another bond in the same isomorphic bond group has been
                 computed. The size of this dict is the same as the requested bonds.
+                The reason is a 3-namedtuple of type namedtuple("NoResultReason",
+                ["compute", "fail", "reason"]).
+
         """
         if self._no_rxn_reason is None:
             self.extract()
@@ -1086,8 +1089,8 @@ class ReactionExtractorFromReactant:
                 inplace.
         """
         if self.bond_energy is not None:
-            bond_energy = self.bond_energy
-            target_bonds = [b for b in bond_energy]
+            bond_energy = {tuple(sorted(b)): e for b, e in self.bond_energy.items()}
+            target_bonds = [tuple(sorted(b)) for b in bond_energy]
 
             if one_per_iso_bond_group:
                 logger.info(
@@ -1110,7 +1113,6 @@ class ReactionExtractorFromReactant:
         no_rxn_reason = {}
         rxn_idx = 0
         for b, e in bond_energy.items():
-            b = tuple(sorted(b))
 
             if b not in target_bonds:
                 reason = "isomorphic bond, no need to compute"
@@ -1149,109 +1151,6 @@ class ReactionExtractorFromReactant:
         self._reactions = reactions
         self._rxn_idx_to_bond_map = rxn_idx_to_bond_map
         self._no_rxn_reason = no_rxn_reason
-
-
-#
-# class ReactionExtractorFromReactant:
-#     """
-#     Create reactions from reactant only, and products molecules will be created.
-#
-#     This needs metadata indicating the bond to break in a reactant, otherwise all bonds
-#     in a molecule are to break.
-#
-#     Args:
-#         molecules (list): a sequence of :class:`MoleculeWrapper`.
-#         bond_energies (list of dict, optional): bond energies. Each dict for one
-#             molecule, with bond index (a tuple) as key and bond energy as value.
-#         allowed_charge (list): allowed charges for the fragments. The charges of the
-#             products can only take values from this list and also the sum of the
-#             product charges has to equal the charge of the reactant. For example,
-#             if the reactant has charge 0 and allowed_charge is [-1, 0, 1], then the
-#             two products can take charges (-1, 1), (0,0) and (1, -1).
-#             Set to [0] if None.
-#     """
-#
-#     def __init__(self, molecules, bond_energies=None, allowed_charge=None):
-#         if bond_energies is not None and allowed_charge is not None:
-#             if len(allowed_charge) != 1:
-#                 raise ValueError(
-#                     f"expect the size of allowed_charge to be 1 when bond_energies "
-#                     f"is not None, but got {len(allowed_charge)} "
-#                 )
-#
-#         self.molecules = molecules
-#         self.bond_energies = bond_energies
-#         self.allowed_charge = [0] if allowed_charge is None else allowed_charge
-#         self.reactions = None
-#
-#     def extract_with_energies(self):
-#         """
-#         Extract reactions for bonds having energy.
-#
-#         Return:
-#             list of dict: reactions for the molecules. Each dict for one molecule,
-#                 with bond index (a 2-tuple) as key and a list of reactions associated
-#                 with the bond as value.
-#         """
-#
-#         if self.bond_energies is None:
-#             raise RuntimeError(
-#                 "`bond_energies` not provided at instantiation. Either provide it or "
-#                 "call `extract_ignoring_energies` instead if you are doing inference."
-#             )
-#         self.reactions = self._extract(self.bond_energies)
-#         return self.reactions
-#
-#     def extract_ignoring_energies(self):
-#         """
-#         Create reactions by breaking all bonds in molecules and set the energies to None.
-#
-#         Return:
-#             list of dict: reactions for the molecules. Each dict for one molecule,
-#                 with bond index (a 2-tuple) as key and a list of reactions associated
-#                 with the bond as value.
-#         """
-#         bond_energies = [{b: None for b in m.bonds} for m in self.molecules]
-#         self.reactions = self._extract(bond_energies)
-#         return self.reactions
-#
-#     def get_reactions(self, remove_None=True):
-#         """
-#         Return
-#
-#         Args:
-#             remove_None:
-#
-#         Returns:
-#
-#         """
-#
-#
-#     def _extract(self, bond_energies):
-#
-#         mol_reservoir = set(self.molecules)
-#
-#         reactions = []
-#         for reactant, b_e in zip(self.molecules, bond_energies):
-#             rxns_of_same_reactant = {}
-#             for b, e in b_e.items():
-#                 b = tuple(sorted(b))
-#                 num_products = len(reactant.fragments[b])
-#                 product_charges = factor_integer(
-#                     reactant.charge, self.allowed_charge, num_products
-#                 )
-#                 try:
-#                     rxns, mols = create_reactions_from_reactant(
-#                         reactant, b, product_charges, e, mol_reservoir,
-#                     )
-#                     rxns_of_same_reactant[b] = rxns
-#                     mol_reservoir.update(mols)
-#                 except (Chem.AtomKekulizeException, Chem.KekulizeException):
-#                     rxns_of_same_reactant[b] = None
-#
-#             reactions.append(rxns_of_same_reactant)
-#
-#         return reactions
 
 
 def create_reactions_from_reactant(
