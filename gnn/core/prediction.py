@@ -7,12 +7,12 @@ import logging
 import json
 import multiprocessing
 import pandas as pd
-from collections import namedtuple, defaultdict
+from collections import defaultdict
 from rdkit import Chem
 from pymatgen.analysis.graphs import MoleculeGraph
 from gnn.core.molwrapper import MoleculeWrapper, rdkit_mol_to_wrapper_mol
 from gnn.core.rdmol import smiles_to_rdkit_mol, inchi_to_rdkit_mol, RdkitMolCreationError
-from gnn.core.reaction import Reaction, ReactionsOfSameBond
+from gnn.core.reaction import Reaction, ReactionExtractorFromReactant
 from gnn.core.reaction_collection import ReactionCollection
 from gnn.utils import expand_path
 from gnn.utils import yaml_load, yaml_dump
@@ -122,48 +122,17 @@ class PredictionByOneReactant:
         return self.wrapper_mol
 
     def read_reactions(self, molecule):
-        bonds = [b for b in molecule.bonds]
 
-        # get one bond in each isomorphic bond group
-        unique_bonds = [group[0] for group in molecule.isomorphic_bonds]
+        extractor = ReactionExtractorFromReactant(
+            molecule, allowed_charge=self.allowed_product_charges
+        )
+        extractor.extract(ring_bond=False, one_per_iso_bond_group=True)
 
-        NoResultReason = namedtuple("NoResultReason", ["compute", "fail", "reason"])
-
-        failed = {}  # failing reason. bond index as key, NoResultReason as value
-        reactions = []  # reactions to compute energy
-        rxn_idx_to_bond_map = {}  # map idx of reaction in `reactions` to broken bond
-        rxn_idx = 0
-        for b in bonds:
-
-            # we only compute one for each isomorphic bond group
-            if b not in unique_bonds:
-                reason = "isomorphic bond, no need to compute"
-                failed[b] = NoResultReason(False, None, reason)
-
-            elif not self.ring_bond and molecule.is_bond_in_ring(b):
-                reason = "ring bond, not set to compute"
-                failed[b] = NoResultReason(False, None, reason)
-
-            else:
-                try:
-                    rsb = ReactionsOfSameBond(molecule, broken_bond=b)
-                    rxns, _ = rsb.create_complement_reactions(
-                        self.allowed_product_charges
-                    )
-                    for r in rxns:
-                        # set reaction energy to zero
-                        r.set_free_energy(0.0)
-                        reactions.append(r)
-                        rxn_idx_to_bond_map[rxn_idx] = b
-                        rxn_idx += 1
-
-                    failed[b] = NoResultReason(True, False, None)
-                except Chem.AtomKekulizeException as e:
-                    reason = "breaking aromatic bond; " + str(e)
-                    failed[b] = NoResultReason(True, True, reason)
-
-        self.failed = failed
-        self.rxn_idx_to_bond_map = rxn_idx_to_bond_map
+        self.failed = extractor.no_reaction_reason
+        self.rxn_idx_to_bond_map = extractor.rxn_idx_to_bond_map
+        reactions = extractor.reactions
+        for r in reactions:
+            r.set_free_energy(0.0)
 
         return reactions
 
