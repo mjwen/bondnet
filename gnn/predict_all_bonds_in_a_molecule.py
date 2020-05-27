@@ -164,7 +164,7 @@ def main(molecule, format, charge, model="20200422"):
         predictions = pred
 
     # write the results
-    predictor.write_results(predictions, to_stdout=True)
+    predictor.write_results(predictions)
 
 
 if __name__ == "__main__":

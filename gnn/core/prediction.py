@@ -20,30 +20,74 @@ from gnn.utils import yaml_load, yaml_dump
 logger = logging.getLogger(__name__)
 
 
-class PredictionBase:
+class BasePrediction:
     """
     Base class for making predictions.
     """
 
     def __init__(self):
-        pass
+        self._molecules = None
+        self._reactions = None
+        self._no_result_reason = None
 
-    def prepare_data(
-        self,
-        struct_file="struct.sdf",
-        label_file="label.yaml",
-        feature_file="feature.yaml",
-    ):
+    @property
+    def molecules(self):
+        """
+        Returns:
+            list: MoleculeWrapper molecules.
+        """
+        return self._molecules
+
+    @property
+    def reactions(self):
+        """
+        Returns:
+            list: a sequence of Reaction
+        """
+        return self._reactions
+
+    @property
+    def no_result_reason(self):
+        """
+        Returns:
+            dict: {reaction_index:reason} the reason why some request reactions do not
+                have result
+        """
+        return self._no_result_reason
+
+    def read_molecules(self):
+        """
+        Read molecules from the input, a file or string.
+
+        Returns:
+            list: MoleculeWrapper molecules.
+        """
+
+        raise NotImplementedError
+
+    def read_reactions(self):
+        """
+         Read reactions from the input, a file, string, or creating it by breaking
+         bonds in reactant.
+
+        Returns:
+            list: a sequence of Reaction
+        """
+        raise NotImplementedError
+
+    def prepare_data(self):
         """
         Convert to standard format that the fitting code uses.
         """
-        mol = self.read_molecules()
-        reactions = self.read_reactions(mol)
-        extractor = ReactionCollection(reactions)
+        self.read_molecules()
+        self.read_reactions()
+        extractor = ReactionCollection(self.reactions)
 
-        extractor.create_regression_dataset_reaction_network_simple(
-            struct_file, label_file, feature_file
+        out = extractor.create_regression_dataset_reaction_network_simple(
+            write_to_file=False
         )
+
+        return out
 
     def write_results(self, predictions, filename=None):
         """
@@ -51,12 +95,12 @@ class PredictionBase:
 
         Args:
             predictions (list): predictions for each reaction return by prepare data.
-            filename (str): name for the output file. If None, should output to stdout.
+            filename (str): name for the output file. If None, write to stdout.
         """
         raise NotImplementedError
 
 
-class PredictionByOneReactant:
+class PredictionByOneReactant(BasePrediction):
     """
     Make prediction for all bonds in a molecule.
 
@@ -84,6 +128,7 @@ class PredictionByOneReactant:
         allowed_product_charges=None,
         ring_bond=False,
     ):
+        super(PredictionByOneReactant, self).__init__()
 
         if format not in self.read_func:
             supported = ", ".join([k for k in self.read_func])
@@ -92,36 +137,38 @@ class PredictionByOneReactant:
                 f"{supported} instead."
             )
 
-        self.molecule = molecule
+        self.molecule_str = molecule
         self.format = format
         self.charge = charge
         self.allowed_product_charges = allowed_product_charges
         self.ring_bond = ring_bond
 
-        self.wrapper_mol = None
         self.failed = None
         self.rxn_idx_to_bond_map = None
 
     def read_molecules(self):
         if self.format == "smiles":
-            rdkit_mol = smiles_to_rdkit_mol(self.molecule)
-            identifier = self.molecule
+            rdkit_mol = smiles_to_rdkit_mol(self.molecule_str)
+            identifier = self.molecule_str
         elif self.format == "inchi":
-            rdkit_mol = inchi_to_rdkit_mol(self.molecule)
-            identifier = self.molecule
+            rdkit_mol = inchi_to_rdkit_mol(self.molecule_str)
+            identifier = self.molecule_str
         else:
             func = self.read_func[self.format]
-            rdkit_mol = func(self.molecule, sanitize=True, removeHs=False)
+            rdkit_mol = func(self.molecule_str, sanitize=True, removeHs=False)
             if rdkit_mol is None:
                 raise RdkitMolCreationError(f"{self.format}")
             identifier = rdkit_mol.GetProp("_Name")
-        self.wrapper_mol = rdkit_mol_to_wrapper_mol(
+        wrapper_mol = rdkit_mol_to_wrapper_mol(
             rdkit_mol, self.charge, identifier=identifier
         )
 
-        return self.wrapper_mol
+        self._molecules = [wrapper_mol]
 
-    def read_reactions(self, molecule):
+        return self._molecules
+
+    def read_reactions(self):
+        molecule = self.molecules[0]
 
         extractor = ReactionExtractorFromReactant(
             molecule, allowed_charge=self.allowed_product_charges
@@ -134,29 +181,11 @@ class PredictionByOneReactant:
         for r in reactions:
             r.set_free_energy(0.0)
 
+        self._reactions = reactions
+
         return reactions
 
-    def prepare_data(self):
-        """
-        Convert to standard files that the fitting code uses.
-        """
-        mol = self.read_molecules()
-        reactions = self.read_reactions(mol)
-        extractor = ReactionCollection(reactions)
-
-        out = extractor.create_regression_dataset_reaction_network_simple(
-            write_to_file=False
-        )
-
-        return out
-
-    def write_results(self, predictions, filename=None, to_stdout=True):
-        """
-        Returns:
-            dict: {bond index: bond energy}; Bond energies of all bonds in the molecule.
-                bond energy is None for isomorphic bond, failed bond.
-
-        """
+    def write_results(self, predictions, filename=None):
 
         # obtain smallest energy for each bond that is provided to compute
         predictions_by_bond = defaultdict(list)
@@ -195,32 +224,29 @@ class PredictionByOneReactant:
 
                 all_predictions[bond] = pred
 
-        # write to stdout
-        if to_stdout:
+        # if any failed
+        if all_failed:
 
-            # if any failed
-            if all_failed:
+            for b, reason in all_failed.items():
+                logger.error(f"Cannot make prediction for bond {b} because {reason}.")
 
-                for b, reason in all_failed.items():
-                    logger.error(f"Cannot make prediction for bond {b} because {reason}.")
+            msg = "\n".join([str(b) for b in all_failed])
+            print(
+                f"\n\nFailed breaking bond and creating products, "
+                f"and thus predictions are not made for these bonds:\n{msg}\n"
+                f"See the log file for failing reason.\n\n"
+            )
 
-                msg = "\n".join([str(b) for b in all_failed])
-                print(
-                    f"\n\nFailed breaking bond and creating products, "
-                    f"and thus predictions are not made for these bonds:\n{msg}\n"
-                    f"See the log file for failing reason.\n\n"
-                )
-
-            sdf = add_bond_energy_to_sdf(self.wrapper_mol, all_predictions)
-            if filename is None:
-                print(
-                    f"The bond energies are (last value in lines between `BEGIN BOND` "
-                    f"and `End BOND`):\n"
-                )
-                print(sdf)
-            else:
-                with open(expand_path(filename), "w") as f:
-                    f.write(sdf)
+        sdf = add_bond_energy_to_sdf(self.molecules[0], all_predictions)
+        if filename is None:
+            print(
+                f"The bond energies are (last value in lines between `BEGIN BOND` "
+                f"and `End BOND`):\n"
+            )
+            print(sdf)
+        else:
+            with open(expand_path(filename), "w") as f:
+                f.write(sdf)
 
         return all_predictions
 
