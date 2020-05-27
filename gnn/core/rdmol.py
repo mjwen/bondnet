@@ -8,6 +8,7 @@ from rdkit import Chem
 from rdkit.Chem import BondType, AllChem
 from rdkit.Geometry import Point3D
 import openbabel as ob
+from gnn.utils import expand_path
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,81 @@ def inchi_to_rdkit_mol(s):
     m.SetProp("_Name", s)
 
     return m
+
+
+def read_rdkit_mols_from_file(filename, format="sdf"):
+    """
+    Read molecules given in a file, supported format include `smiles`, `inchi`, `sdf`,
+    and `pdb`.
+
+    Args:
+        filename (str): name of the file
+        format (str): format of the molecules in the file
+
+    Returns:
+        (list): rdkit molecules
+    """
+
+    def from_smiles(filename):
+        smiles = []
+        with open(expand_path(filename), "r") as f:
+            for line in f:
+                smiles.append(line.strip())
+
+        molecules = []
+        for s in smiles:
+            try:
+                m = smiles_to_rdkit_mol(s)
+            except RdkitMolCreationError:
+                m = None
+            molecules.append(m)
+
+        return molecules
+
+    def from_inchi(filename):
+        inchi = []
+        with open(expand_path(filename), "r") as f:
+            for line in f:
+                inchi.append(line.strip())
+
+        molecules = []
+        for s in inchi:
+            try:
+                m = inchi_to_rdkit_mol(s)
+            except RdkitMolCreationError:
+                m = None
+            molecules.append(m)
+
+        return molecules
+
+    def from_sdf(filename):
+        supp = Chem.SDMolSupplier(filename, sanitize=True, removeHs=False)
+        molecules = [m for m in supp]
+
+        return molecules
+
+    def from_pdb(filename):
+        with open(expand_path(filename), "r") as f:
+            pdbs = f.read()
+        pdbs = [s.strip() for s in pdbs.split("$$$$\n")]
+        pdbs = [s for s in pdbs if s != ""]
+        molecules = [Chem.MolFromPDBBlock(p, sanitize=True, removeHs=False) for p in pdbs]
+
+        return molecules
+
+    if format == "smiles":
+        return from_smiles(filename)
+    elif format == "inchi":
+        return from_inchi(filename)
+    elif format == "sdf":
+        return from_sdf(filename)
+    elif format == "pdb":
+        return from_pdb(filename)
+    else:
+        raise ValueError(
+            f"Not supported molecule format `{format}`; choose one of "
+            f"`smiles`, `inchi`, `sdf` or `pdb` instead."
+        )
 
 
 def create_rdkit_mol(
