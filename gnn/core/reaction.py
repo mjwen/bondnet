@@ -1047,7 +1047,7 @@ class ReactionExtractorFromReactant:
         """
         Returns:
             dict: {reaction_index:bond_index}, where reaction_index is an int index of
-                a reaction in self.reations, and bond_index is a 2-tuple of the index
+                a reaction in self.reactions, and bond_index is a 2-tuple of the index
                 of a bond, by breaking which the reaction is obtained. The size of
                 this dict is the same as self.reactions.
         """
@@ -1058,11 +1058,13 @@ class ReactionExtractorFromReactant:
     @property
     def no_reaction_reason(self):
         """
+        The reason why some of the requested bonds to break do not have reactions.
+
+        It could be (1) fails to break the bond or (2) another bond in the same
+        isomorphic bond group has been computed.
+
         Returns:
-            dict: {bond_index, reason}. The reason why some of the requested bonds
-                to break do not have reactions, which could be (1) fails to break the
-                bond or (2) another bond in the same isomorphic bond group has been
-                computed. The size of this dict is the same as the requested bonds.
+            dict: {bond_index, reason}. The size is the same as the requested bonds.
                 The reason is a 3-namedtuple of type namedtuple("NoResultReason",
                 ["compute", "fail", "reason"]).
 
@@ -1134,8 +1136,9 @@ class ReactionExtractorFromReactant:
                         self.molecule, b, product_charges, e, mol_reservoir
                     )
 
-                    for r in rxns:
-                        reactions.append(r)
+                    reactions.extend(rxns)
+
+                    for _ in rxns:
                         rxn_idx_to_bond_map[rxn_idx] = b
                         rxn_idx += 1
 

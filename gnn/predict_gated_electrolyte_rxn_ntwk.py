@@ -15,10 +15,10 @@ from gnn.data.featurizer import (
     GlobalFeaturizerCharge,
 )
 from gnn.core.prediction import (
-    PredictionBySmilesReaction,
-    PredictionBySDFChargeReactionFiles,
-    PredictionByMolGraphReactionFiles,
-    PredictionByStructLabelFeatFiles,
+    PredictionSmilesReaction,
+    PredictionSDFChargeReactionFiles,
+    PredictionMolGraphReactionFiles,
+    PredictionStructLabelFeatFiles,
 )
 from gnn.data.utils import get_dataset_species
 from gnn.utils import load_checkpoints
@@ -98,28 +98,28 @@ def get_predictor(args):
         # smiles csv file
         elif args.infile is not None and len(args.infile) == 1:
             fname = args.infile[0]
-            predictor = PredictionBySmilesReaction(fname)
+            predictor = PredictionSmilesReaction(fname)
             supported = True
 
     # sdf 3 files: mol (in sdf), charge (in plain text), reaction (csv)
     elif args.format == "sdf":
         if args.infile is not None and len(args.infile) == 3:
             mol_file, cg_file, rxn_file = args.infile
-            predictor = PredictionBySDFChargeReactionFiles(mol_file, cg_file, rxn_file)
+            predictor = PredictionSDFChargeReactionFiles(mol_file, cg_file, rxn_file)
             supported = True
 
     # mol graph 2 files, mol (json or yaml), reaction (csv)
     elif args.format == "graph":
         if args.infile is not None and len(args.infile) == 2:
             mol_file, rxn_file = args.infile
-            predictor = PredictionByMolGraphReactionFiles(mol_file, rxn_file)
+            predictor = PredictionMolGraphReactionFiles(mol_file, rxn_file)
             supported = True
 
     # internal 3 files: sdf file, label file, feature file
     elif args.format == "internal":
         if args.infile is not None and len(args.infile) == 3:
             mol_file, label_file, feat_file = args.infile
-            predictor = PredictionByStructLabelFeatFiles(mol_file, label_file, feat_file)
+            predictor = PredictionStructLabelFeatFiles(mol_file, label_file, feat_file)
             supported = True
 
     if not supported:

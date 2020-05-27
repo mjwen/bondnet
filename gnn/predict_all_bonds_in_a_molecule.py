@@ -13,7 +13,7 @@ from gnn.data.featurizer import (
     GlobalFeaturizerCharge,
 )
 from gnn.data.utils import get_dataset_species
-from gnn.core.prediction import PredictionByOneReactant
+from gnn.core.prediction import PredictionOneReactant
 from gnn.utils import load_checkpoints
 from rdkit import RDLogger
 
@@ -30,8 +30,8 @@ def get_predictor(molecule, format, charge, model="20200422"):
         charge = 0
         allowed_charge = [0]
 
-    predictor = PredictionByOneReactant(
-        molecule, format, charge, allowed_charge, ring_bond=False
+    predictor = PredictionOneReactant(
+        molecule, charge, format, allowed_charge, ring_bond=False
     )
 
     return predictor
