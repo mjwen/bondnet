@@ -1,0 +1,14 @@
+import os
+from click.testing import CliRunner
+import gnn
+from gnn.predictor import cli
+
+
+def test_cli():
+    runner = CliRunner()
+    result = runner.invoke(cli, ["single", "CC", "0"])
+
+    molecule_file = os.path.join(
+        os.path.dirname(gnn.__file__), "pre_trained", "examples", "molecules.sdf"
+    )
+    result = runner.invoke(cli, ["multiple", molecule_file])

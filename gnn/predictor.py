@@ -16,10 +16,12 @@ from gnn.data.featurizer import (
     GlobalFeaturizerCharge,
 )
 from gnn.core.prediction import (
-    PredictionSmilesReaction,
+    PredictionOneReactant,
+    PredictionMultiReactant,
     PredictionSDFChargeReactionFiles,
     PredictionMolGraphReactionFiles,
     PredictionStructLabelFeatFiles,
+    PredictionSmilesReaction,
 )
 from gnn.data.utils import get_dataset_species
 from gnn.utils import load_checkpoints
@@ -44,23 +46,42 @@ CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
 @click.version_option(version=gnn.__version__)
 @click.pass_context
 def cli(ctx, model):
-    # TODO for now, we hard set model
     model = "20200422"
-    ctx.obj = model
+    allowed_charge = [-1, 0, 1]
+
+    # # TODO change the above two lines to the below
+    # model = model.lower()
+    # if "nrel" in model:
+    #     allowed_charge = [0]
+    # else:
+    #     allowed_charge = [-1, 0, 1]
+
+    model_info = {"model": model, "allowed_charge": allowed_charge}
+
+    ctx.obj = model_info
 
 
 @cli.command(context_settings=CONTEXT_SETTINGS)
 @click.argument("molecule", type=str)
 @click.option("--charge", type=int, default=0, help="charge of the molecule")
 @click.pass_obj
-def single(model, molecule, charge):
+def single(model_info, molecule, charge):
     """
     Make predictions for a molecule.
 
     MOLECULE is a SMILES string or InChI string.
     """
 
-    print(model, molecule, charge)
+    if molecule.lower().startswith("inchi="):
+        format = "inchi"
+    else:
+        format = "smiles"
+    predictor = PredictionOneReactant(
+        molecule, charge, format, model_info["allowed_charge"], ring_bond=False
+    )
+    molecules, labels, extra_features = predictor.prepare_data()
+    predictions = get_prediction(model_info["model"], molecules, labels, extra_features)
+    predictor.write_results(predictions)
 
 
 @cli.command(context_settings=CONTEXT_SETTINGS)
@@ -86,11 +107,17 @@ def single(model, molecule, charge):
     help="format of molecules",
 )
 @click.pass_obj
-def multiple(model, molecule_file, charge_file, out_file, format):
+def multiple(model_info, molecule_file, charge_file, out_file, format):
     """
     Make predictions for multiple molecules.
     """
-    print(model, molecule_file, charge_file, out_file, format)
+
+    predictor = PredictionMultiReactant(
+        molecule_file, charge_file, format, model_info["allowed_charge"], ring_bond=False
+    )
+    molecules, labels, extra_features = predictor.prepare_data()
+    predictions = get_prediction(model_info["model"], molecules, labels, extra_features)
+    predictor.write_results(predictions, out_file)
 
 
 @cli.command(context_settings=CONTEXT_SETTINGS)
@@ -117,7 +144,7 @@ def multiple(model, molecule_file, charge_file, out_file, format):
     help="format of molecules",
 )
 @click.pass_obj
-def reaction(model, molecule_file, reaction_file, charge_file, out_file, format):
+def reaction(model_info, molecule_file, reaction_file, charge_file, out_file, format):
     """
     Make predictions for bonds given as reactions.
 
@@ -145,7 +172,7 @@ def reaction(model, molecule_file, reaction_file, charge_file, out_file, format)
         raise ValueError(f"not supported molecule format: {format}")
 
     molecules, labels, extra_features = predictor.prepare_data()
-    predictions = get_prediction(model, molecules, labels, extra_features)
+    predictions = get_prediction(model_info["model"], molecules, labels, extra_features)
     predictor.write_results(predictions, out_file)
 
 

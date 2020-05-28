@@ -241,14 +241,15 @@ class PredictionOneReactant(BasePrediction):
 
         sdf = add_bond_energy_to_sdf(self.molecules[0], all_predictions)
         if filename is None:
-            print(
-                f"The bond energies are (last value in lines between `BEGIN BOND` "
-                f"and `End BOND`):\n"
-            )
             print(sdf)
         else:
             with open(expand_path(filename), "w") as f:
                 f.write(sdf)
+            print(f"The predictions have been written to file {filename}.\n")
+        print(
+            "The predicted bond energies are the 7th value in lines between "
+            "`BEGIN BOND` and `End BOND`."
+        )
 
         return all_predictions
 
@@ -418,10 +419,9 @@ class PredictionMultiReactant(BasePrediction):
         all_sdf = []
         for i, predictions in enumerate(all_predictions):
             if predictions is not None:
-                sdf = add_bond_energy_to_sdf(self.molecules[i], all_predictions)
+                sdf = add_bond_energy_to_sdf(self.molecules[i], predictions)
                 all_sdf.append(sdf)
-
-        all_sdf = "$$$$\n".join(all_sdf)
+        all_sdf = "".join(all_sdf)
 
         if filename is None:
             print(all_sdf)
@@ -940,9 +940,7 @@ def rdkit_mols_to_wrapper_mols(
     if nprocs is None:
         molecules = [
             wrapper_rdkit_mol_to_wrapper_mol(m, c, e, iden)
-            for m, c, e, iden in enumerate(
-                zip(rdkit_mols, charges, energies, identifiers)
-            )
+            for m, c, e, iden in zip(rdkit_mols, charges, energies, identifiers)
         ]
     else:
         with multiprocessing.Pool(nprocs) as p:
