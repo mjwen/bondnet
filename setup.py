@@ -20,7 +20,11 @@ setup(
     name="gnn",
     version=get_version(),
     packages=find_packages(),
-    install_requires=["numpy", "pyyaml", "beautifultable", "sklearn"],
+    entry_points="""
+        [console_scripts]
+        bdenet=gnn.predictor:cli
+    """,
+    install_requires=["numpy", "pyyaml", "beautifultable", "sklearn", "click"],
     author="Mingjian Wen",
     author_email="wenxx151@gmail.com",
     url="https://github.com/mjwen/gnn",
