@@ -3,7 +3,7 @@ from .utils import create_C2H4O1
 
 class TestMoleucleWrapper:
     def test_isomorphic_bonds(self):
-        ref_identical = [{(0, 2), (0, 3)}, {(1, 2), (3, 4), (2, 5), (3, 6)}]
+        ref_identical = [{(0, 2), (0, 3)}, {(1, 2), (3, 4), (2, 5), (3, 6)}, {(2, 3)}]
 
         mol = create_C2H4O1()
         iso_identical = [set(g) for g in mol.isomorphic_bonds]

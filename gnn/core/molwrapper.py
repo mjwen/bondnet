@@ -155,47 +155,51 @@ class MoleculeWrapper:
             H1---C0---H2
               2 /  \ 3
               O3---O4
+                 4
 
-        bond 0 is isomorphic to bond 1 and bond 2 is isomorphic to bond 3.
+        bond 0 is isomorphic to bond 1, bond 2 is isomorphic to bond 3 , bond 4 is not
+        isomorphic to any other bond.
+
+        Note:
+            Bond not isomorphic to any other bond is included as a group by itself.
 
         Returns:
             list of list: each inner list contains the indices (a 2-tuple) of bonds that
                 are isomorphic. For the above example, this function
-                returns [[(0,1), (0,2)], [(0,3), (0,4)]]
+                returns [[(0,1), (0,2)], [(0,3), (0,4)], [(3,4)]]
         """
 
         if self._isomorphic_bonds is None:
+
             iso_bonds = []
-            for b1, b2 in itertools.combinations(self.fragments, 2):
-                frags1 = self.fragments[b1]
-                frags2 = self.fragments[b2]
 
-                if len(frags1) == len(frags2) == 1:
-                    if frags1[0].isomorphic_to(frags2[0]):
-                        iso_bonds.append([b1, b2])
-                elif len(frags1) == len(frags2) == 2:
-                    if (
-                        frags1[0].isomorphic_to(frags2[0])
-                        and frags1[1].isomorphic_to(frags2[1])
-                    ) or (
-                        frags1[0].isomorphic_to(frags2[1])
-                        and frags1[1].isomorphic_to(frags2[0])
-                    ):
-                        iso_bonds.append([b1, b2])
+            for bond1, frags1 in self.fragments.items():
+                for group in iso_bonds:
 
-            res = []
-            for b1, b2 in iso_bonds:
-                for group in res:
-                    if b1 in group or b2 in group:
-                        group.extend([b1, b2])
-                        break
+                    # compare to the first in a group to see whether it is isomorphic
+                    bond2 = group[0]
+                    frags2 = self.fragments[bond2]
+
+                    if len(frags1) == len(frags2) == 1:
+                        if frags1[0].isomorphic_to(frags2[0]):
+                            group.append(bond1)
+                            break
+                    elif len(frags1) == len(frags2) == 2:
+                        if (
+                            frags1[0].isomorphic_to(frags2[0])
+                            and frags1[1].isomorphic_to(frags2[1])
+                        ) or (
+                            frags1[0].isomorphic_to(frags2[1])
+                            and frags1[1].isomorphic_to(frags2[0])
+                        ):
+                            group.append(bond1)
+                            break
+
+                # bond1 not in any group
                 else:
-                    group = [b1, b2]
-                    res.append(group)
+                    iso_bonds.append([bond1])
 
-            # remove duplicate in each group
-            res = [list(set(g)) for g in res]
-            self._isomorphic_bonds = res
+            self._isomorphic_bonds = iso_bonds
 
         return self._isomorphic_bonds
 
