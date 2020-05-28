@@ -17,10 +17,11 @@ from gnn.data.dataset import train_validation_test_split
 from gnn.data.electrolyte import ElectrolyteReactionNetworkDataset
 from gnn.data.dataloader import DataLoaderReactionNetwork
 from gnn.data.grapher import HeteroMoleculeGraph
-from gnn.data.featurizer import AtomFeaturizer, BondAsNodeFeaturizer, GlobalFeaturizer
 from gnn.data.featurizer import (
     AtomFeaturizerMinimum,
+    AtomFeaturizerFull,
     BondAsNodeFeaturizerMinimum,
+    BondAsNodeFeaturizerFull,
     GlobalFeaturizer,
 )
 from gnn.utils import (
@@ -229,12 +230,14 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
 
 
 def get_grapher():
-    atom_featurizer = AtomFeaturizer()
-    bond_featurizer = BondAsNodeFeaturizer(length_featurizer=None, dative=False)
+    atom_featurizer = AtomFeaturizerFull()
+    bond_featurizer = BondAsNodeFeaturizerFull(length_featurizer=None, dative=False)
+    global_featurizer = GlobalFeaturizer(allowed_charges=None)
+
     # atom_featurizer = AtomFeaturizerMinimum()
     # bond_featurizer = BondAsNodeFeaturizerMinimum(length_featurizer=None)
+    # global_featurizer = GlobalFeaturizer(allowed_charges=[-1, 0, 1])
 
-    global_featurizer = GlobalFeaturizer(allowed_charges=None)
     grapher = HeteroMoleculeGraph(
         atom_featurizer=atom_featurizer,
         bond_featurizer=bond_featurizer,
@@ -293,9 +296,9 @@ def main_worker(gpu, world_size, args):
 
     dataset = ElectrolyteReactionNetworkDataset(
         grapher=get_grapher(),
-        sdf_file=sdf_file,
-        label_file=label_file,
-        feature_file=feature_file,
+        molecules=sdf_file,
+        labels=label_file,
+        extra_features=feature_file,
         feature_transformer=True,
         label_transformer=True,
         state_dict_filename=dataset_state_dict_filename,
