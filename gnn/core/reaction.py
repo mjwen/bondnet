@@ -633,9 +633,16 @@ class ReactionsMultiplePerBond(ReactionsGroup):
         # remove duplicate isomorphic bonds
         if find_one:
             for group in self.reactant.isomorphic_bonds:
+
                 # keep the first bond in each group and remove others
-                for i in range(1, len(group)):
-                    bond_rxns_dict.pop(group[i])
+                # for i in range(1, len(group)):
+                #     bond_rxns_dict.pop(group[i])
+
+                # keep the bond having the most reactions and remove others in the group
+                num_reactions = {bond: len(bond_rxns_dict[bond]) for bond in group}
+                sorted_bonds = sorted(num_reactions, key=lambda k: num_reactions[k])
+                for bond in sorted_bonds[:-1]:
+                    bond_rxns_dict.pop(bond)
 
         # create ReactionsOfSameBond instance
         reactions = []

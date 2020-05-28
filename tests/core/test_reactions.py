@@ -308,8 +308,8 @@ class TestReactionsMultiplePerBond:
             if rsb.broken_bond == (3, 4):
                 assert len(rsb.reactions) == 1
                 assert rsb.reactions[0] == A2B[0]
-            # A2BC; reactions with broken bond (1,2) are isomorphic to those (0,1)
-            elif rsb.broken_bond == (0, 1):
+            # A2BC; reactions with broken bond (0,1) are isomorphic to those (1,2)
+            elif rsb.broken_bond == (1, 2):
                 assert len(rsb.reactions) == 2
                 assert rsb.reactions[0] == A2BC[0]
                 assert rsb.reactions[1] == A2BC[1]
