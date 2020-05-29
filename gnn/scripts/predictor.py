@@ -10,9 +10,11 @@ from gnn.data.electrolyte import ElectrolyteReactionNetworkDataset
 from gnn.data.dataloader import DataLoaderReactionNetwork
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import (
-    AtomFeaturizer,
-    BondAsNodeFeaturizer,
-    GlobalFeaturizerCharge,
+    AtomFeaturizerMinimum,
+    AtomFeaturizerFull,
+    BondAsNodeFeaturizerMinimum,
+    BondAsNodeFeaturizerFull,
+    GlobalFeaturizer,
 )
 from gnn.prediction.prediction import (
     PredictionOneReactant,
@@ -27,7 +29,7 @@ from rdkit import Chem
 # RDLogger.logger().setLevel(RDLogger.CRITICAL)
 
 LATEST_NREL_MODEL = "20200422"
-LATEST_ELECTROLYTE_MODEL = "20200422"
+LATEST_ELECTROLYTE_MODEL = "20200528"
 
 CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
 
@@ -49,7 +51,7 @@ def cli(ctx, model):
         model = os.path.join(model, LATEST_NREL_MODEL)
         allowed_charge = [0]
     else:
-        model = os.path.join(model, LATEST_NREL_MODEL)
+        model = os.path.join(model, LATEST_ELECTROLYTE_MODEL)
         allowed_charge = [-1, 0, 1]
 
     model_info = {"model": model, "allowed_charge": allowed_charge}
@@ -201,16 +203,25 @@ def evaluate(model, nodes, data_loader, device=None):
     return predictions
 
 
-def get_grapher():
-    atom_featurizer = AtomFeaturizer()
-    bond_featurizer = BondAsNodeFeaturizer(length_featurizer=None)
-    global_featurizer = GlobalFeaturizerCharge()
+def get_grapher(model):
+    if "nrel" in model:
+        atom_featurizer = AtomFeaturizerFull()
+        bond_featurizer = BondAsNodeFeaturizerFull(length_featurizer=None, dative=False)
+        global_featurizer = GlobalFeaturizer(allowed_charges=[0])
+    elif "electrolyte" in model:
+        atom_featurizer = AtomFeaturizerMinimum()
+        bond_featurizer = BondAsNodeFeaturizerMinimum(length_featurizer=None)
+        global_featurizer = GlobalFeaturizer(allowed_charges=[-1, 0, 1])
+    else:
+        raise Exception
+
     grapher = HeteroMoleculeGraph(
         atom_featurizer=atom_featurizer,
         bond_featurizer=bond_featurizer,
         global_featurizer=global_featurizer,
         self_loop=True,
     )
+
     return grapher
 
 
@@ -243,7 +254,7 @@ def get_prediction(model, molecules, labels, extra_features):
 
     # load dataset
     dataset = ElectrolyteReactionNetworkDataset(
-        grapher=get_grapher(),
+        grapher=get_grapher(model),
         molecules=molecules,
         labels=labels,
         extra_features=extra_features,
@@ -284,7 +295,11 @@ def get_prediction(model, molecules, labels, extra_features):
         outdim=1,
         conv="GatedGCNConv",
     )
-    load_checkpoints({"model": model}, filename=os.path.join(model_dir, "checkpoint.pkl"))
+    load_checkpoints(
+        {"model": model},
+        map_location=torch.device("cpu"),
+        filename=os.path.join(model_dir, "checkpoint.pkl"),
+    )
 
     # evaluate
     predictions = evaluate(model, feature_names, data_loader)
