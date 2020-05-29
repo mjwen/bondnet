@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# to avoid errors being silently ignored
+set -e
+
+# install this package
+pip install -e .
