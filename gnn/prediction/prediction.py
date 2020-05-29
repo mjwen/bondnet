@@ -188,7 +188,7 @@ class PredictionOneReactant(BasePrediction):
 
     def write_results(self, predictions, filename=None):
 
-        # group preduction by bond
+        # group prediction by bond
         predictions_by_bond = defaultdict(list)
         for i, p in enumerate(predictions):
             bond = self.rxn_idx_to_bond_map[i]
@@ -246,10 +246,15 @@ class PredictionOneReactant(BasePrediction):
             with open(expand_path(filename), "w") as f:
                 f.write(sdf)
             print(f"The predictions have been written to file {filename}.\n")
+
+        bond_note = {k: v for k, v in all_predictions.items() if v is not None}
+        self.molecules[0].draw_with_bond_note(bond_note)
+
         print(
-            "The predicted bond energies are the 7th value in lines between "
-            "`BEGIN BOND` and `End BOND`."
+            "The predicted bond energies in the SDF file are the 7th value in lines "
+            "between `BEGIN BOND` and `End BOND`."
         )
+        print("Also, it is shown in the generated file `./mol.png`.")
 
         return all_predictions
 
@@ -578,9 +583,6 @@ class PredictionSmilesReaction:
         return reactions
 
     def prepare_data(self):
-        """
-        Convert to standard files that the fitting code uses.
-        """
         reactions = self.read_input()
         extractor = ReactionCollection(reactions)
 
@@ -740,9 +742,6 @@ class PredictionSDFChargeReactionFiles:
         return reactions
 
     def prepare_data(self):
-        """
-        Convert to standard files that the fitting code uses.
-        """
         molecules = self.read_molecules()
         reactions = self.read_reactions(molecules)
         extractor = ReactionCollection(reactions)

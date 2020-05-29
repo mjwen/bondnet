@@ -8,6 +8,7 @@ import pymatgen
 from pymatgen.analysis.graphs import MoleculeGraph, MolGraphSplitError
 from rdkit import Chem
 from rdkit.Chem import Draw, AllChem
+from rdkit.Chem.Draw import rdMolDraw2D
 from gnn.core.rdmol import create_rdkit_mol_from_mol_graph
 from gnn.utils import create_directory, expand_path, yaml_dump
 
@@ -342,7 +343,7 @@ class MoleculeWrapper:
         else:
             raise ValueError(f"format {format} currently not supported")
 
-    def draw(self, filename=None, draw_2D=True, show_atom_idx=False):
+    def draw(self, filename="mol.png", draw_2D=True, show_atom_idx=False):
         """
         Draw using rdkit.
         """
@@ -353,10 +354,53 @@ class MoleculeWrapper:
             atoms = [m.GetAtomWithIdx(i) for i in range(m.GetNumAtoms())]
             _ = [a.SetAtomMapNum(a.GetIdx() + 1) for a in atoms]
 
-        filename = filename or "mol.png"
         filename = create_directory(filename)
         filename = expand_path(filename)
         Draw.MolToFile(m, filename)
+
+    def draw_with_bond_note(self, bond_note, filename="mol.png", show_atom_idx=True):
+        """
+        Draw molecule using rdkit and show bond annotation, e.g. bond energy.
+
+        Args:
+            bond_note (dict): {bond_index: note}. The note to show for the
+            corresponding bond.
+        """
+        m = self.rdkit_mol
+        AllChem.Compute2DCoords(m)
+
+        d = rdMolDraw2D.MolDraw2DCairo(800, 600)
+
+        # set bond annotation
+        highlight_bonds = []
+        for bond, note in bond_note.items():
+            if isinstance(note, (float, np.floating)):
+                note = "{:.3g}".format(note)
+            idx = m.GetBondBetweenAtoms(*bond).GetIdx()
+            m.GetBondWithIdx(idx).SetProp("bondNote", note)
+            highlight_bonds.append(idx)
+
+        # set highlight color
+        bond_colors = {b: (192 / 255, 192 / 255, 192 / 255) for b in highlight_bonds}
+
+        # show atom index
+        if show_atom_idx:
+            atoms = [m.GetAtomWithIdx(i) for i in range(m.GetNumAtoms())]
+            _ = [a.SetAtomMapNum(a.GetIdx() + 1) for a in atoms]
+        # d.drawOptions().addAtomIndices = True
+
+        # use smaller font size
+        d.SetFontSize(0.8 * d.FontSize())
+
+        rdMolDraw2D.PrepareAndDrawMolecule(
+            d, m, highlightBonds=highlight_bonds, highlightBondColors=bond_colors
+        )
+        d.FinishDrawing()
+
+        filename = create_directory(filename)
+        filename = expand_path(filename)
+        with open(filename, "wb") as f:
+            f.write(d.GetDrawingText())
 
     def pack_features(self, broken_bond=None):
         feats = dict()
