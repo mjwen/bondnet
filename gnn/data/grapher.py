@@ -6,6 +6,11 @@ import dgl
 
 
 class BaseGraph:
+    """
+    Base grapher to build DGL graph and featurizer. Typically should not use this
+    directly.
+    """
+
     def __init__(self, atom_featurizer=None, bond_featurizer=None, self_loop=False):
         self.atom_featurizer = atom_featurizer
         self.bond_featurizer = bond_featurizer

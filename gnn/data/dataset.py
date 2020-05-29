@@ -1,5 +1,6 @@
 import numpy as np
 from collections import defaultdict
+from rdkit import Chem
 from gnn.utils import expand_path
 
 
@@ -8,7 +9,7 @@ class BaseDataset:
     Base dataset class.
 
    Args:
-    grapher (object): grapher object that build different types of graphs:
+    grapher (BaseGraph): grapher object that build different types of graphs:
         `hetero`, `homo_bidirected` and `homo_complete`.
         For hetero graph, atom, bond, and global state are all represented as
         graph nodes. For homo graph, atoms are represented as node and bond are
@@ -152,6 +153,43 @@ class BaseDataset:
     def _load(self):
         """Read data from files and then featurize."""
         raise NotImplementedError
+
+    @staticmethod
+    def get_molecules(molecules):
+        if isinstance(molecules, str):
+            supp = Chem.SDMolSupplier(molecules, sanitize=True, removeHs=False)
+            molecules = [m for m in supp]
+        return molecules
+
+    @staticmethod
+    def build_graphs(grapher, molecules, features, species):
+        """
+        Build DGL graphs using grapher for the molecules.
+
+        Args:
+            grapher (Grapher): grapher object to create DGL graphs
+            molecules (list): rdkit molecules
+            features (list): each element is a dict of extra features for a molecule
+            species (list): chemical species (str) in all molecules
+
+        Returns:
+            list: DGL graphs
+        """
+
+        graphs = []
+        for i, (m, feats) in enumerate(zip(molecules, features)):
+            if m is not None:
+                g = grapher.build_graph_and_featurize(
+                    m, extra_feats_info=feats, dataset_species=species
+                )
+                # add this for check purpose; some entries in the sdf file may fail
+                g.graph_id = i
+            else:
+                g = None
+
+            graphs.append(g)
+
+        return graphs
 
     def __getitem__(self, item):
         """Get datapoint with index

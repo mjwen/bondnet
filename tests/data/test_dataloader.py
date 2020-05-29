@@ -59,8 +59,8 @@ def test_dataloader():
 
         dataset = QM9Dataset(
             grapher=get_grapher_homo(),
-            sdf_file=os.path.join(test_files, "gdb9_n2.sdf"),
-            label_file=os.path.join(test_files, "gdb9_n2.sdf.csv"),
+            molecules=os.path.join(test_files, "gdb9_n2.sdf"),
+            labels=os.path.join(test_files, "gdb9_n2.sdf.csv"),
             properties=["homo", "u0"],  # homo is intensive and u0 is extensive
             unit_conversion=False,
             feature_transformer=True,
@@ -101,9 +101,9 @@ def test_dataloader_bond():
 
         dataset = ElectrolyteBondDataset(
             grapher=get_grapher_hetero(),
-            sdf_file=os.path.join(test_files, "electrolyte_struct_bond.sdf"),
-            label_file=os.path.join(test_files, "electrolyte_label_bond.txt"),
-            feature_file=os.path.join(test_files, "electrolyte_feature_bond.yaml"),
+            molecules=os.path.join(test_files, "electrolyte_struct_bond.sdf"),
+            labels=os.path.join(test_files, "electrolyte_label_bond.txt"),
+            extra_features=os.path.join(test_files, "electrolyte_feature_bond.yaml"),
             feature_transformer=False,
             label_transformer=lt,
         )
@@ -134,9 +134,9 @@ def test_dataloader_reaction():
 
     dataset = ElectrolyteReactionDataset(
         grapher=get_grapher_hetero(),
-        sdf_file=os.path.join(test_files, "electrolyte_struct_rxn_clfn.sdf"),
-        label_file=os.path.join(test_files, "electrolyte_label_rxn_clfn.yaml"),
-        feature_file=os.path.join(test_files, "electrolyte_feature_rxn_clfn.yaml"),
+        molecules=os.path.join(test_files, "electrolyte_struct_rxn_clfn.sdf"),
+        labels=os.path.join(test_files, "electrolyte_label_rxn_clfn.yaml"),
+        extra_features=os.path.join(test_files, "electrolyte_feature_rxn_clfn.yaml"),
         feature_transformer=False,
         label_transformer=False,
     )
@@ -159,9 +159,9 @@ def test_dataloader_reaction_network():
 
     dataset = ElectrolyteReactionNetworkDataset(
         grapher=get_grapher_hetero(),
-        sdf_file=os.path.join(test_files, "electrolyte_struct_rxn_ntwk_clfn.sdf"),
-        label_file=os.path.join(test_files, "electrolyte_label_rxn_ntwk_clfn.yaml"),
-        feature_file=os.path.join(test_files, "electrolyte_feature_rxn_ntwk_clfn.yaml"),
+        molecules=os.path.join(test_files, "electrolyte_struct_rxn_ntwk_clfn.sdf"),
+        labels=os.path.join(test_files, "electrolyte_label_rxn_ntwk_clfn.yaml"),
+        extra_features=os.path.join(test_files, "electrolyte_feature_rxn_ntwk_clfn.yaml"),
         feature_transformer=False,
         label_transformer=False,
     )

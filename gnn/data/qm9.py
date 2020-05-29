@@ -30,7 +30,7 @@ class QM9Dataset(ElectrolyteMoleculeDataset):
                 rst is extensive property or not.
         """
 
-        rst = pd.read_csv(self.label_file, index_col=0)
+        rst = pd.read_csv(self.raw_labels, index_col=0)
         rst = rst.to_numpy()
 
         h2e = 27.211396132  # Hartree to eV

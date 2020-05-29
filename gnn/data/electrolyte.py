@@ -8,7 +8,6 @@ import logging
 import numpy as np
 from collections import OrderedDict
 import pandas as pd
-from rdkit import Chem
 from gnn.data.dataset import BaseDataset
 from gnn.data.transformers import StandardScaler, GraphFeatureStandardScaler
 from gnn.data.reaction_network import Reaction, ReactionNetwork
@@ -22,30 +21,23 @@ logger = logging.getLogger(__name__)
 class ElectrolyteBondDataset(BaseDataset):
     def _load(self):
 
-        logger.info(
-            f"Start loading dataset from files: {self.sdf_file}, {self.label_file}, "
-            f"and {self.feature_file} ..."
-        )
+        logger.info("Start loading dataset")
 
         # read label and feature file
         # TODO, change the label file to a yaml file
         raw_value, raw_indicator, raw_mol_source = self._read_label_file()
-        if self.feature_file is not None:
-            features = yaml_load(self.feature_file)
+        if self.extra_features is not None:
+            features = yaml_load(self.extra_features)
         else:
             features = [None] * len(raw_value)
 
         # build graph for mols from sdf file
-        supp = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
-        species = get_dataset_species(self.sdf_file)
+        molecules = self.get_molecules(self.molecules)
+        species = get_dataset_species(molecules)
 
         self.graphs = []
         self.labels = []
-        for i, mol in enumerate(supp):
-            if i % 100 == 0:
-                logger.info("Processing molecule {}/{}".format(i, len(raw_value)))
-
-            # bad mol
+        for i, mol in enumerate(molecules):
             if mol is None:
                 continue
 
@@ -110,13 +102,13 @@ class ElectrolyteBondDataset(BaseDataset):
             logger.info("Label scaler mean: {}".format(mean))
             logger.info("Label scaler std: {}".format(std))
 
-        logger.info("Finish loading {} graphs...".format(len(self.labels)))
+        logger.info("Finish loading {} labels...".format(len(self.labels)))
 
     def _read_label_file(self):
         value = []
         indicator = []
         mol_source = []
-        with open(self.label_file, "r") as f:
+        with open(self.raw_labels, "r") as f:
             for line in f:
                 line = line.strip()
                 if line.startswith("#"):
@@ -141,17 +133,17 @@ class ElectrolyteBondDatasetClassification(BaseDataset):
     def __init__(
         self,
         grapher,
-        sdf_file,
-        label_file,
-        feature_file=None,
+        molecules,
+        labels,
+        extra_features=None,
         feature_transformer=True,
         dtype="float32",
     ):
         super(ElectrolyteBondDatasetClassification, self).__init__(
             grapher=grapher,
-            sdf_file=sdf_file,
-            label_file=label_file,
-            feature_file=feature_file,
+            molecules=molecules,
+            labels=labels,
+            extra_features=extra_features,
             feature_transformer=feature_transformer,
             label_transformer=False,
             dtype=dtype,
@@ -159,25 +151,22 @@ class ElectrolyteBondDatasetClassification(BaseDataset):
 
     def _load(self):
 
-        logger.info(
-            f"Start loading dataset from files: {self.sdf_file}, {self.label_file}, "
-            f"and {self.feature_file} ..."
-        )
+        logger.info("Start loading dataset")
 
         # read label and feature file
         raw_value, raw_indicator, raw_mol_source = self._read_label_file()
-        if self.feature_file is not None:
-            features = yaml_load(self.feature_file)
+        if self.extra_features is not None:
+            features = yaml_load(self.extra_features)
         else:
             features = [None] * len(raw_value)
 
         # build graph for mols from sdf file
-        supp = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
-        species = get_dataset_species(self.sdf_file)
+        molecules = self.get_molecules(self.molecules)
+        species = get_dataset_species(molecules)
 
         self.graphs = []
         self.labels = []
-        for i, mol in enumerate(supp):
+        for i, mol in enumerate(molecules):
             if i % 100 == 0:
                 logger.info("Processing molecule {}/{}".format(i, len(raw_value)))
 
@@ -225,7 +214,7 @@ class ElectrolyteBondDatasetClassification(BaseDataset):
         value = []
         bond_idx = []
         mol_source = []
-        with open(self.label_file, "r") as f:
+        with open(self.raw_labels, "r") as f:
             for line in f:
                 line = line.strip()
                 if line.startswith("#"):
@@ -239,7 +228,7 @@ class ElectrolyteBondDatasetClassification(BaseDataset):
                 if len(line) > 3:
                     raise ValueError(
                         "Incorrect label file: {}. Expect 3 items per "
-                        "line, {} provided.".format(self.label_file, len(line))
+                        "line, {} provided.".format(self.raw_labels, len(line))
                     )
 
                 value.append(int(line[0]))
@@ -253,9 +242,9 @@ class ElectrolyteMoleculeDataset(BaseDataset):
     def __init__(
         self,
         grapher,
-        sdf_file,
-        label_file,
-        feature_file=None,
+        molecules,
+        labels,
+        extra_features=None,
         feature_transformer=True,
         label_transformer=True,
         properties=["atomization_energy"],
@@ -266,9 +255,9 @@ class ElectrolyteMoleculeDataset(BaseDataset):
         self.unit_conversion = unit_conversion
         super(ElectrolyteMoleculeDataset, self).__init__(
             grapher=grapher,
-            sdf_file=sdf_file,
-            label_file=label_file,
-            feature_file=feature_file,
+            molecules=molecules,
+            labels=labels,
+            extra_features=extra_features,
             feature_transformer=feature_transformer,
             label_transformer=label_transformer,
             dtype=dtype,
@@ -276,26 +265,23 @@ class ElectrolyteMoleculeDataset(BaseDataset):
 
     def _load(self):
 
-        logger.info(
-            f"Start loading dataset from files: {self.sdf_file}, {self.label_file}, "
-            f"and {self.feature_file} ..."
-        )
+        logger.info("Start loading dataset")
 
         # read label and feature file
         raw_labels, extensive = self._read_label_file()
-        if self.feature_file is not None:
-            features = yaml_load(self.feature_file)
+        if self.extra_features is not None:
+            features = yaml_load(self.extra_features)
         else:
             features = [None] * len(raw_labels)
 
         # build graph for mols from sdf file
-        supp = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
-        species = get_dataset_species(self.sdf_file)
+        molecules = self.get_molecules(self.molecules)
+        species = get_dataset_species(molecules)
 
         self.graphs = []
         self.labels = []
         natoms = []
-        for i, (mol, feats, lb) in enumerate(zip(supp, features, raw_labels)):
+        for i, (mol, feats, lb) in enumerate(zip(molecules, features, raw_labels)):
 
             if i % 100 == 0:
                 logger.info("Processing molecule {}/{}".format(i, len(raw_labels)))
@@ -383,7 +369,7 @@ class ElectrolyteMoleculeDataset(BaseDataset):
             logger.info("Label scaler mean: {}".format(label_scaler_mean))
             logger.info("Label scaler std: {}".format(label_scaler_std))
 
-        logger.info("Finish loading {} graphs...".format(len(self.labels)))
+        logger.info("Finish loading {} labels...".format(len(self.labels)))
 
     def _read_label_file(self):
         """
@@ -395,7 +381,7 @@ class ElectrolyteMoleculeDataset(BaseDataset):
                 rst is extensive property or not.
         """
 
-        rst = pd.read_csv(self.label_file, index_col=0)
+        rst = pd.read_csv(self.raw_labels, index_col=0)
         rst = rst.to_numpy()
 
         # supported property
@@ -429,24 +415,21 @@ class ElectrolyteMoleculeDataset(BaseDataset):
 class ElectrolyteReactionDataset(BaseDataset):
     def _load(self):
 
-        logger.info(
-            f"Start loading dataset from files: {self.sdf_file}, {self.label_file}, "
-            f"and {self.feature_file} ..."
-        )
+        logger.info("Start loading dataset")
 
         # read label and feature file
-        raw_labels = yaml_load(self.label_file)
-        if self.feature_file is not None:
-            features = yaml_load(self.feature_file)
+        raw_labels = yaml_load(self.raw_labels)
+        if self.extra_features is not None:
+            features = yaml_load(self.extra_features)
         else:
             features = [None] * len(raw_labels)
 
         # build graph for mols from sdf file
-        supp = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
-        species = get_dataset_species(self.sdf_file)
+        molecules = self.get_molecules(self.molecules)
+        species = get_dataset_species(molecules)
 
         graphs = []
-        for i, (mol, feats) in enumerate(zip(supp, features)):
+        for i, (mol, feats) in enumerate(zip(molecules, features)):
             if i % 100 == 0:
                 logger.info(f"Processing molecule {i}/{len(raw_labels)}")
 
@@ -521,10 +504,7 @@ class ElectrolyteReactionDataset(BaseDataset):
 class ElectrolyteReactionNetworkDataset(BaseDataset):
     def _load(self):
 
-        logger.info(
-            f"Start loading dataset from: {self.molecules}, {self.raw_labels}, "
-            f"and {self.extra_features} ..."
-        )
+        logger.info("Start loading dataset")
 
         # get molecules, labels, and extra features
         molecules = self.get_molecules(self.molecules)
@@ -670,43 +650,6 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
         if isinstance(features, str):
             features = yaml_load(features)
         return features
-
-    @staticmethod
-    def get_molecules(molecules):
-        if isinstance(molecules, str):
-            supp = Chem.SDMolSupplier(molecules, sanitize=True, removeHs=False)
-            molecules = [m for m in supp]
-        return molecules
-
-    @staticmethod
-    def build_graphs(grapher, molecules, features, species):
-        """
-        Build DGL graphs using grapher for the molecules.
-
-        Args:
-            grapher (Grapher): grapher object to create DGL graphs
-            molecules (list): rdkit molecules
-            features (list): each element is a dict of extra features for a molecule
-            species (list): chemical species (str) in all molecules
-
-        Returns:
-            list: DGL graphs
-        """
-
-        graphs = []
-        for i, (m, feats) in enumerate(zip(molecules, features)):
-            if m is not None:
-                g = grapher.build_graph_and_featurize(
-                    m, extra_feats_info=feats, dataset_species=species
-                )
-                # add this for check purpose; some entries in the sdf file may fail
-                g.graph_id = i
-            else:
-                g = None
-
-            graphs.append(g)
-
-        return graphs
 
     def __getitem__(self, item):
         rn, rxn, lb = self.reaction_network, self.reaction_ids[item], self.labels[item]
