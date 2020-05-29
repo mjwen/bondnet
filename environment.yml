@@ -1,0 +1,13 @@
+
+name: bdenet
+channels:
+  - conda-forge
+  - pytorch
+  - dglteam
+dependencies:
+  - pymatgen==2019.10.4
+  - rdkit==2020.03.1
+  - openbabel==2.4.1
+  - pytorch
+  - torchvision
+  - dgl
