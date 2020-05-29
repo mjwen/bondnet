@@ -118,7 +118,7 @@ def save_checkpoints(
     Args:
         state_dict_objects (dict): A dictionary of objects to save. The object should
             have state_dict() (e.g. model, optimizer, ...)
-        misc_objects (dict): plain python obeject to save
+        misc_objects (dict): plain python object to save
         filename (str): filename for the checkpoint
 
     """
