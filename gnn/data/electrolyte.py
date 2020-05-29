@@ -523,6 +523,7 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
         # get species
         if self.state_dict_filename is None:
             species = get_dataset_species(molecules)
+            self._species = species
         else:
             species = self.state_dict()["species"]
             assert species is not None, "Corrupted state_dict file, `species` not found"
