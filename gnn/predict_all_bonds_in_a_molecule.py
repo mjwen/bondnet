@@ -13,9 +13,9 @@ from gnn.data.featurizer import (
     GlobalFeaturizerCharge,
 )
 from gnn.data.utils import get_dataset_species
-from gnn.core.prediction import PredictionOneReactant
+from gnn.prediction.prediction import PredictionOneReactant
 from gnn.utils import load_checkpoints
-from rdkit import RDLogger
+
 
 # RDLogger.logger().setLevel(RDLogger.CRITICAL)
 
@@ -81,7 +81,7 @@ def get_grapher():
 
 def main(molecule, format, charge, model="20200422"):
 
-    model_dir = os.path.join(os.path.dirname(gnn.__file__), "pre_trained", model)
+    model_dir = os.path.join(os.path.dirname(gnn.__file__), "prediction", model)
     state_dict_filename = os.path.join(model_dir, "dataset_state_dict.pkl")
 
     # convert input data that the fitting code uses

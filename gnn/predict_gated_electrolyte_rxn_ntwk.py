@@ -14,7 +14,7 @@ from gnn.data.featurizer import (
     BondAsNodeFeaturizer,
     GlobalFeaturizerCharge,
 )
-from gnn.core.prediction import (
+from gnn.prediction.prediction import (
     PredictionSmilesReaction,
     PredictionSDFChargeReactionFiles,
     PredictionMolGraphReactionFiles,
@@ -23,7 +23,7 @@ from gnn.core.prediction import (
 from gnn.data.utils import get_dataset_species
 from gnn.utils import load_checkpoints
 from rdkit import Chem
-from rdkit import RDLogger
+
 
 # RDLogger.logger().setLevel(RDLogger.CRITICAL)
 
@@ -200,7 +200,7 @@ def get_grapher():
 
 def main(args):
 
-    model_dir = os.path.join(os.path.dirname(gnn.__file__), "pre_trained", args.model)
+    model_dir = os.path.join(os.path.dirname(gnn.__file__), "prediction", args.model)
     state_dict_filename = os.path.join(model_dir, "dataset_state_dict.pkl")
 
     # convert input data that the fitting code uses

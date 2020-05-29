@@ -55,7 +55,7 @@ def get_data_loader(sdf_file, label_file, feature_file, batch_size=100, model="2
         self_loop=True,
     )
 
-    model_dir = os.path.join(os.path.dirname(gnn.__file__), "pre_trained", model)
+    model_dir = os.path.join(os.path.dirname(gnn.__file__), "prediction", model)
     dataset = ElectrolyteReactionNetworkDataset(
         grapher=grapher,
         sdf_file=sdf_file,
@@ -76,7 +76,7 @@ def load_model(model="20200422"):
 
     # NOTE cannot use gnn.utils.yaml_load, seems a bug in yaml.
     #  see: https://github.com/yaml/pyyaml/issues/266
-    model_dir = os.path.join(os.path.dirname(gnn.__file__), "pre_trained", model)
+    model_dir = os.path.join(os.path.dirname(gnn.__file__), "prediction", model)
     with open(os.path.join(model_dir, "train_args.yaml"), "r") as f:
         model_args = yaml.load(f, Loader=yaml.Loader)
 

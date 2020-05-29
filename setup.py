@@ -22,7 +22,7 @@ setup(
     packages=find_packages(),
     entry_points="""
         [console_scripts]
-        bdenet=gnn.predictor:cli
+        bdenet=gnn.scripts.predictor:cli
     """,
     install_requires=["numpy", "pyyaml", "beautifultable", "sklearn", "click"],
     author="Mingjian Wen",

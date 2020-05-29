@@ -1,5 +1,4 @@
 import os
-import sys
 import torch
 import yaml
 import click
@@ -15,21 +14,20 @@ from gnn.data.featurizer import (
     BondAsNodeFeaturizer,
     GlobalFeaturizerCharge,
 )
-from gnn.core.prediction import (
+from gnn.prediction.prediction import (
     PredictionOneReactant,
     PredictionMultiReactant,
     PredictionSDFChargeReactionFiles,
     PredictionMolGraphReactionFiles,
-    PredictionStructLabelFeatFiles,
-    PredictionSmilesReaction,
 )
 from gnn.data.utils import get_dataset_species
 from gnn.utils import load_checkpoints
 from rdkit import Chem
-from rdkit import RDLogger
 
 # RDLogger.logger().setLevel(RDLogger.CRITICAL)
 
+LATEST_NREL_MODEL = "20200422"
+LATEST_ELECTROLYTE_MODEL = "20200422"
 
 CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
 
@@ -39,22 +37,20 @@ CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
     "-m",
     "--model",
     type=click.Choice(["nrel", "electrolyte"], case_sensitive=False),
-    default="nrel",
+    default="electrolyte",
     show_default=True,
     help="prediction using model trained to the dataset",
 )
 @click.version_option(version=gnn.__version__)
 @click.pass_context
 def cli(ctx, model):
-    model = "20200422"
-    allowed_charge = [-1, 0, 1]
-
-    # # TODO change the above two lines to the below
-    # model = model.lower()
-    # if "nrel" in model:
-    #     allowed_charge = [0]
-    # else:
-    #     allowed_charge = [-1, 0, 1]
+    model = model.lower()
+    if model == "nrel":
+        model = os.path.join(model, LATEST_NREL_MODEL)
+        allowed_charge = [0]
+    else:
+        model = os.path.join(model, LATEST_NREL_MODEL)
+        allowed_charge = [-1, 0, 1]
 
     model_info = {"model": model, "allowed_charge": allowed_charge}
 
@@ -220,7 +216,9 @@ def get_grapher():
 
 def get_prediction(model, molecules, labels, extra_features):
 
-    model_dir = os.path.join(os.path.dirname(gnn.__file__), "pre_trained", model)
+    model_dir = os.path.join(
+        os.path.dirname(gnn.__file__), "prediction", "pre_trained", model
+    )
     state_dict_filename = os.path.join(model_dir, "dataset_state_dict.pkl")
 
     if isinstance(molecules, str):
