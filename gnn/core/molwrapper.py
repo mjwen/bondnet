@@ -343,20 +343,29 @@ class MoleculeWrapper:
         else:
             raise ValueError(f"format {format} currently not supported")
 
-    def draw(self, filename="mol.png", draw_2D=True, show_atom_idx=False):
+    def draw(self, filename=None, show_atom_idx=False):
         """
-        Draw using rdkit.
+        Draw the molecule.
+
+        Args:
+            filename (str): path to the save the generated image. If `None` the
+                molecule is returned and can be viewed in Jupyter notebook.
         """
-        m = self.rdkit_mol
-        if draw_2D:
-            AllChem.Compute2DCoords(m)
+        m = copy.deepcopy(self.rdkit_mol)
+        AllChem.Compute2DCoords(m)
+
+        # show atom index
         if show_atom_idx:
             atoms = [m.GetAtomWithIdx(i) for i in range(m.GetNumAtoms())]
             _ = [a.SetAtomMapNum(a.GetIdx() + 1) for a in atoms]
+        # d.drawOptions().addAtomIndices = True
 
-        filename = create_directory(filename)
-        filename = expand_path(filename)
-        Draw.MolToFile(m, filename)
+        if filename is None:
+            return m
+        else:
+            filename = create_directory(filename)
+            filename = expand_path(filename)
+            Draw.MolToFile(m, filename)
 
     def draw_with_bond_note(self, bond_note, filename="mol.png", show_atom_idx=True):
         """
@@ -364,12 +373,11 @@ class MoleculeWrapper:
 
         Args:
             bond_note (dict): {bond_index: note}. The note to show for the
-            corresponding bond.
+                corresponding bond.
+            filename (str): path to the save the generated image. If `None` the
+                molecule is returned and can be viewed in Jupyter notebook.
         """
-        m = self.rdkit_mol
-        AllChem.Compute2DCoords(m)
-
-        d = rdMolDraw2D.MolDraw2DCairo(800, 600)
+        m = self.draw(show_atom_idx=show_atom_idx)
 
         # set bond annotation
         highlight_bonds = []
@@ -383,13 +391,9 @@ class MoleculeWrapper:
         # set highlight color
         bond_colors = {b: (192 / 255, 192 / 255, 192 / 255) for b in highlight_bonds}
 
-        # show atom index
-        if show_atom_idx:
-            atoms = [m.GetAtomWithIdx(i) for i in range(m.GetNumAtoms())]
-            _ = [a.SetAtomMapNum(a.GetIdx() + 1) for a in atoms]
-        # d.drawOptions().addAtomIndices = True
+        d = rdMolDraw2D.MolDraw2DCairo(400, 300)
 
-        # use smaller font size
+        # smaller font size
         d.SetFontSize(0.8 * d.FontSize())
 
         rdMolDraw2D.PrepareAndDrawMolecule(
