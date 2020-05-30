@@ -25,6 +25,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -e .
         conda install pytorch torchvision cpuonly -c pytorch
+        conda install dgl -c dglteam
         conda install pymatgen==2019.10.4 -c conda-forge
         conda install rdkit==2020.03.1 -c conda-forge
         conda install openbabel==2.4.1 -c conda-forge
