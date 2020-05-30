@@ -1,7 +1,7 @@
 import os
 from click.testing import CliRunner
 import gnn
-from gnn.scripts.predictor import cli
+from gnn.scripts.prediction_cli import cli
 
 
 def test_cli():

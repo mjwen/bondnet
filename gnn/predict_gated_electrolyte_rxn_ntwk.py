@@ -14,7 +14,7 @@ from gnn.data.featurizer import (
     BondAsNodeFeaturizer,
     GlobalFeaturizerCharge,
 )
-from gnn.prediction.prediction import (
+from gnn.prediction.io import (
     PredictionSmilesReaction,
     PredictionSDFChargeReactionFiles,
     PredictionMolGraphReactionFiles,
@@ -23,7 +23,7 @@ from gnn.prediction.prediction import (
 from gnn.data.utils import get_dataset_species
 from gnn.utils import load_checkpoints
 from rdkit import Chem
-
+from rdkit import RDLogger
 
 # RDLogger.logger().setLevel(RDLogger.CRITICAL)
 

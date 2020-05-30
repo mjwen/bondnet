@@ -13,8 +13,9 @@ from gnn.data.featurizer import (
     GlobalFeaturizerCharge,
 )
 from gnn.data.utils import get_dataset_species
-from gnn.prediction.prediction import PredictionOneReactant
+from gnn.prediction.io import PredictionOneReactant
 from gnn.utils import load_checkpoints
+from rdkit import RDLogger
 
 
 # RDLogger.logger().setLevel(RDLogger.CRITICAL)
