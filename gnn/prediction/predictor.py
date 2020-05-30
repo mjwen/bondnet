@@ -2,7 +2,6 @@ import os
 import torch
 import yaml
 import numpy as np
-
 import gnn
 from gnn.model.gated_reaction_network import GatedGCNReactionNetwork
 from gnn.data.electrolyte import ElectrolyteReactionNetworkDataset
@@ -15,9 +14,123 @@ from gnn.data.featurizer import (
     BondAsNodeFeaturizerFull,
     GlobalFeaturizer,
 )
+from gnn.prediction.io import (
+    PredictionOneReactant,
+    PredictionMultiReactant,
+    PredictionSDFChargeReactionFiles,
+    PredictionMolGraphReactionFiles,
+)
 from gnn.data.utils import get_dataset_species
 from gnn.utils import load_checkpoints
 from rdkit import Chem
+from rdkit import RDLogger
+
+# RDLogger.logger().setLevel(RDLogger.CRITICAL)
+
+MODEL_INFO = {
+    "electrolyte": {"allowed_charge": [-1, 0, 1], "date": ["20200422", "20200528"]},
+    "nrel": {"allowed_charge": [-1, 0, 1], "date": ["20200422"]},
+}
+
+
+def predict_single_molecule(
+    model, molecule, charge=0, figure_name="prediction.png", write_result=False
+):
+    """
+    Make predictions for a single molecule.
+
+    Args:
+        model (str): The pretrained model to use for making predictions. A model should
+            be of the format format `dataset/date`, e.g. `electrolyte/20200528`,
+            `nrel/20200528`. It is possible to provide only the `dataset` part,
+            and in this case, the latest model will be used.
+        molecule (str): SMILES string or InChI string.
+        charge (int): charge of the molecule.
+        figure_name (str): the name of the figure to be created showing the bond energy.
+        write_result (bool): whether to write the returned sdf to stdout.
+
+    Returns:
+        str: sdf string representing the molecules and energies.
+    """
+
+    model, allowed_charge = select_model(model)
+
+    assert (
+        charge in allowed_charge
+    ), f"expect charge to be one of {allowed_charge}, but got {charge}"
+
+    if molecule.lower().startswith("inchi="):
+        format = "inchi"
+    else:
+        format = "smiles"
+
+    predictor = PredictionOneReactant(
+        molecule, charge, format, allowed_charge, ring_bond=False
+    )
+
+    molecules, labels, extra_features = predictor.prepare_data()
+    predictions = get_prediction(model, molecules, labels, extra_features)
+
+    return predictor.write_results(predictions, figure_name, write_result)
+
+
+def predict_multiple_molecules(model, molecule_file, charge_file, out_file, format):
+
+    model, allowed_charge = select_model(model)
+
+    predictor = PredictionMultiReactant(
+        molecule_file, charge_file, format, allowed_charge, ring_bond=False
+    )
+    molecules, labels, extra_features = predictor.prepare_data()
+    predictions = get_prediction(model, molecules, labels, extra_features)
+    return predictor.write_results(predictions, out_file)
+
+
+def predict_by_reactions(
+    model, molecule_file, reaction_file, charge_file, out_file, format
+):
+
+    model, allowed_charge = select_model(model)
+
+    # sdf 3 files: mol (in sdf), charge (in plain text), reaction (csv)
+    if format == "sdf":
+        predictor = PredictionSDFChargeReactionFiles(
+            molecule_file, charge_file, reaction_file
+        )
+
+    # mol graph 2 files, mol (json or yaml), reaction (csv)
+    elif format == "graph":
+        predictor = PredictionMolGraphReactionFiles(molecule_file, reaction_file)
+
+    # # internal 3 files: sdf file, label file, feature file
+    # elif format == "internal":
+    #     predictor = PredictionStructLabelFeatFiles(molecule_file, label_file, feat_file)
+
+    else:
+        raise ValueError(f"not supported molecule format: {format}")
+
+    molecules, labels, extra_features = predictor.prepare_data()
+    predictions = get_prediction(model, molecules, labels, extra_features)
+    return predictor.write_results(predictions, out_file)
+
+
+def select_model(model_str):
+    model_str = model_str.strip().lower()
+    if "/" in model_str:
+        prefix, date = model_str.split("/")
+        if date not in MODEL_INFO[prefix]["date"]:
+            raise ValueError(
+                f"expect model date to be one of { MODEL_INFO[prefix]['date'] }, "
+                f"but got {date}."
+            )
+    else:
+        prefix = model_str
+        date = MODEL_INFO[prefix]["date"][-1]
+
+    model = "/".join([prefix, date])
+    allowed_charge = MODEL_INFO[prefix]["allowed_charge"]
+
+    return model, allowed_charge
 
 
 def evaluate(model, nodes, data_loader, device=None):

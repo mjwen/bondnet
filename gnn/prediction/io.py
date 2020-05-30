@@ -186,7 +186,7 @@ class PredictionOneReactant(BasePrediction):
 
         return reactions
 
-    def write_results(self, predictions, filename=None):
+    def write_results(self, predictions, figure_name, write_results=False):
 
         # group prediction by bond
         predictions_by_bond = defaultdict(list)
@@ -240,23 +240,19 @@ class PredictionOneReactant(BasePrediction):
             )
 
         sdf = add_bond_energy_to_sdf(self.molecules[0], all_predictions)
-        if filename is None:
-            print(sdf)
-        else:
-            with open(expand_path(filename), "w") as f:
-                f.write(sdf)
-            print(f"The predictions have been written to file {filename}.\n")
-
         bond_note = {k: v for k, v in all_predictions.items() if v is not None}
-        self.molecules[0].draw_with_bond_note(bond_note)
+        self.molecules[0].draw_with_bond_note(bond_note, filename=figure_name)
 
-        print(
-            "The predicted bond energies in the SDF file are the 7th value in lines "
-            "between `BEGIN BOND` and `End BOND`."
-        )
-        print("Also, it is shown in the generated file `./mol.png`.")
+        if write_results:
+            print(sdf)
 
-        return all_predictions
+            print(
+                "The predicted bond energies in the SDF file are the 7th value in lines "
+                "between `BEGIN BOND` and `End BOND`."
+            )
+            print(f"Also shown in the generated file `{figure_name}`.")
+
+        return sdf
 
 
 class PredictionMultiReactant(BasePrediction):
