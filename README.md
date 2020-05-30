@@ -1,4 +1,4 @@
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mjwen/gnn/binder?filepath=gnn%2Fprediction%2Fsingle.ipynb)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mjwen/gnn/binder?filepath=gnn%2Fscripts%2Fprediction_binder.ipynb)
 
 # Table of Contents
 - [Introduction](#introduction)

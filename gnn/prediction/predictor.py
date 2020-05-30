@@ -34,7 +34,12 @@ MODEL_INFO = {
 
 
 def predict_single_molecule(
-    model, molecule, charge=0, figure_name="prediction.png", write_result=False
+    model,
+    molecule,
+    charge=0,
+    ring_bond=False,
+    write_result=False,
+    figure_name="prediction.png",
 ):
     """
     Make predictions for a single molecule.
@@ -46,8 +51,9 @@ def predict_single_molecule(
             and in this case, the latest model will be used.
         molecule (str): SMILES string or InChI string.
         charge (int): charge of the molecule.
-        figure_name (str): the name of the figure to be created showing the bond energy.
+        ring_bond (bool): whether to make predictions for ring bond.
         write_result (bool): whether to write the returned sdf to stdout.
+        figure_name (str): the name of the figure to be created showing the bond energy.
 
     Returns:
         str: sdf string representing the molecules and energies.
@@ -64,9 +70,7 @@ def predict_single_molecule(
     else:
         format = "smiles"
 
-    predictor = PredictionOneReactant(
-        molecule, charge, format, allowed_charge, ring_bond=False
-    )
+    predictor = PredictionOneReactant(molecule, charge, format, allowed_charge, ring_bond)
 
     molecules, labels, extra_features = predictor.prepare_data()
     predictions = get_prediction(model, molecules, labels, extra_features)
