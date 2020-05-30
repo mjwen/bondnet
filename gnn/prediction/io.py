@@ -281,9 +281,7 @@ class PredictionMultiReactant(BasePrediction):
         super(PredictionMultiReactant, self).__init__()
 
         self.molecule_file = expand_path(molecule_file)
-        self.charge_file = (
-            expand_path(charge_file) if charge_file is not None else charge_file
-        )
+        self.charge_file = expand_path(charge_file) if charge_file is not None else None
         self.format = format
         self.allowed_product_charges = allowed_product_charges
         self.ring_bond = ring_bond
@@ -657,7 +655,7 @@ class PredictionSDFChargeReactionFiles:
 
     def __init__(self, mol_file, charge_file, rxn_file, nprocs=None):
         self.mol_file = expand_path(mol_file)
-        self.charge_file = expand_path(charge_file)
+        self.charge_file = expand_path(charge_file) if charge_file is not None else None
         self.rxn_file = expand_path(rxn_file)
         self.nprocs = nprocs
 
@@ -669,16 +667,16 @@ class PredictionSDFChargeReactionFiles:
         rdkit_mols = [m for m in supp]
 
         # read charge file
-        charges = []
-        with open(self.charge_file, "r") as f:
-            for line in f:
-                charges.append(int(line.strip()))
+        if self.charge_file is None:
+            charges = [0] * len(rdkit_mols)
+        else:
+            charges = read_charge(self.charge_file)
 
         # convert rdkit mols to wrapper molecules
         msg = (
             f"expect the number of molecules given in {self.mol_file} and the number "
             f"of charges given in {self.charge_file} to be the same, "
-            f"but got {len( rdkit_mols)} and f{len(charges)}. "
+            f"but got {len(rdkit_mols)} and f{len(charges)}. "
         )
         assert len(rdkit_mols) == len(charges), msg
 
@@ -965,6 +963,6 @@ def read_charge(filename):
     charges = []
     with open(filename, "r") as f:
         for line in f:
-            charges.append(int(line.split()))
+            charges.append(int(line.strip()))
 
     return charges

@@ -41,36 +41,36 @@ Currently, we only support installation from source:
 
 ## Use pretrained model for prediction
 
-We support multiple formats in predicting the bond dissociation energies.
-The prediction can be made by running the script
-[predict_gated_electrolyte_rxn_ntwk.py](https://github.com/mjwen/gnn/blob/stable/gnn/predict_gated_electrolyte_rxn_ntwk.py)
-at: `gnn/gnn/predict_gated_electrolyte_rxn_ntwk.py`.
+For a quick prediction of the energies of bonds in a single molecule, try the live demo at: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mjwen/gnn/binder?filepath=gnn%2Fscripts%2Fprediction_binder.ipynb)
 
-1. (to come) all bonds in a molecule given by a smiles string, e.g.:
+A command line interface (CLI) `bdenet` is also provided to make batch predictions. 
+We support multiple modes of predictions using different input data format.
+
+- a single molecule given by a `SMILES` or `InChI` string, e.g.:
     ```bash
-    python predict_gated_electrolyte_rxn_ntwk.py -m C1COC(=O)O1
-    ```
-2. smiles molecules given in a csv file
-(e.g. [smiles_reactions.csv](https://github.com/mjwen/gnn/blob/stable/gnn/pre_trained/examples/smiles_reactions.csv).
- See [README](https://github.com/mjwen/gnn/blob/stable/gnn/pre_trained/examples/README.md)
-   there for its format.)
-    ```bash
-    python predict_gated_electrolyte_rxn_ntwk.py  -i smiles_reactions.csv  -o results.csv
+    $ bdenet single "C1COC(=O)O1"
     ```
 
-3. molecules in an sdf file, charges in a plain text file, and reactions in a csv file
- (see [here](https://github.com/mjwen/gnn/blob/stable/gnn/pre_trained/examples) for
-  examples and the [README](https://github.com/mjwen/gnn/blob/stable/gnn/pre_trained/examples/README.md)
-   there for formats of the files):
+- multiple molecules listed in a file. Supported molecule format incldues `sdf`, `pdb
+`, `smiles` and `inchi`, e.g.:
     ```bash
-    python predict_gated_electrolyte_rxn_ntwk.py  -t sdf  -i molecules.sdf charges.txt reactions.csv  -o results.csv
+    $ bdenet multiple molecules.sdf -o results.sdf
     ```
-4. molecule graphs in a json (or yaml) file, and reactions in a csv file
- (see [here](https://github.com/mjwen/gnn/blob/stable/gnn/pre_trained/examples) for
-  examples and the [README](https://github.com/mjwen/gnn/blob/stable/gnn/pre_trained/examples/README.md)
-   there for formats of the files):
+  
+- explicitly specifying the bonds to predict. In this mode, a `moleclue` file
+  to list all the molecules and a `reaction` file to list all the reactions associated
+  with the bonds are needed (Optionally, a `charge` file lists the charges of all the
+  molecules can be provided). Supported molecule format includes `graph `, `sdf`, `pdb`, 
+  `smiles `, and `inchi`. e.g.
     ```bash
-    python predict_gated_electrolyte_rxn_ntwk.py  -t graph  -i molecule_graphs.json reactions.csv  -o results.csv
-    ```
+    $ bdenet reaction -t sdf molecules.sdf reactions.csv -c charges.txt
+    ```  
+    ```bash
+    $ bdenet reaction -t graph molecule_graphs.json reactions.csv
+    ```  
+
+Detailed description of the format of the input files and examples can be found 
+[here](https://github.com/mjwen/gnn/tree/binder/gnn/prediction/examples).
+
 
 ## (to come) Train the model for your own dataset
