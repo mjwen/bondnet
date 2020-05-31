@@ -29,8 +29,14 @@ def smiles_to_rdkit_mol(s):
     m = Chem.MolFromSmiles(s)
     if m is None:
         raise RdkitMolCreationError(f"smiles: {s}")
+
     m = Chem.AddHs(m)
-    m = generate_3D_coords(m)
+
+    try:
+        m = generate_3D_coords(m)
+    except GenerateCoordsError as e:
+        raise RdkitMolCreationError(f"smiles: {e}")
+
     m.SetProp("_Name", s)
 
     return m
@@ -53,7 +59,12 @@ def inchi_to_rdkit_mol(s):
     if m is None:
         raise RdkitMolCreationError(f"inchi: {s}")
     m = Chem.AddHs(m)
-    m = generate_3D_coords(m)
+
+    try:
+        m = generate_3D_coords(m)
+    except GenerateCoordsError as e:
+        raise RdkitMolCreationError(f"smiles: {e}")
+
     m.SetProp("_Name", s)
 
     return m
@@ -329,6 +340,8 @@ def generate_3D_coords(m):
     error = AllChem.EmbedMolecule(m, randomSeed=35)
     if error == -1:  # https://sourceforge.net/p/rdkit/mailman/message/33386856/
         AllChem.EmbedMolecule(m, randomSeed=35, useRandomCoords=True)
+    if error == -1:
+        raise GenerateCoordsError()
 
     # optimize, try MMFF first, if fails then UFF
     error = optimize_till_converge(AllChem.MMFFOptimizeMolecule, m)
@@ -430,6 +443,15 @@ def fragment_rdkit_mol(m, bond):
         m.SetProp("_Name", f"{name}_frag{i}")
 
     return frags
+
+
+class GenerateCoordsError(Exception):
+    def __init__(self, msg=None):
+        self.msg = msg
+        super(GenerateCoordsError, self).__init__(msg)
+
+    def __repr__(self):
+        return f"cannot generate 3D coords, {self.msg}"
 
 
 class RdkitMolCreationError(Exception):
