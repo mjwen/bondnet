@@ -21,10 +21,6 @@ setup(
     version=get_version(),
     packages=find_packages(),
     entry_points={"console_scripts": ["bdenet = gnn.scripts.prediction_cli:cli"]},
-    # entry_points="""
-    #    [console_scripts]
-    #    bdenet=gnn.scripts.prediction_cli:cli
-    # """,
     install_requires=["numpy", "pyyaml", "beautifultable", "sklearn", "click"],
     author="Mingjian Wen",
     author_email="wenxx151@gmail.com",

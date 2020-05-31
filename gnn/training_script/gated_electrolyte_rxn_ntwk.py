@@ -261,9 +261,10 @@ def main_worker(gpu, world_size, args):
             world_size=world_size,
             rank=args.gpu,
         )
-        # Explicitly setting seed to make sure that models created in two processes
-        # start from same random weights and biases.
-        seed_torch()
+
+    # Explicitly setting seed to ensure the same dataset split and models created in
+    # two processes (when distributed) start from the same random weights and biases
+    seed_torch()
 
     ### dataset
     # sdf_file = "~/Applications/db_access/mol_builder/struct_rxn_ntwk_rgrn_n200.sdf"
