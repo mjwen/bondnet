@@ -3,13 +3,23 @@ import subprocess
 import logging
 import multiprocessing
 import pandas as pd
-from gnn.core.molwrapper import smiles_to_wrapper_mol
+from gnn.core.rdmol import smiles_to_rdkit_mol, RdkitMolCreationError
+from gnn.core.molwrapper import rdkit_mol_to_wrapper_mol
 from gnn.core.reaction import Reaction
 from gnn.core.reaction_collection import ReactionCollection, get_molecules_from_reactions
 from gnn.utils import expand_path
 
 
 logger = logging.getLogger(__name__)
+
+
+def smiles_to_wrapper_mol(s):
+    try:
+        m = smiles_to_rdkit_mol(s)
+        m = rdkit_mol_to_wrapper_mol(m, charge=0, identifier=s)
+    except RdkitMolCreationError:
+        m = None
+    return m
 
 
 def read_nrel_bde_dataset(filename):

@@ -477,6 +477,8 @@ def rdkit_mol_to_wrapper_mol(m, charge=None, free_energy=None, identifier=None):
     pymatgen_mol = pymatgen.Molecule(species, coords, charge)
     mol_graph = MoleculeGraph.with_edges(pymatgen_mol, bonds)
 
+    if identifier is None:
+        identifier = m.GetProp("_Name")
     mw = MoleculeWrapper(mol_graph, free_energy, identifier)
     mw.rdkit_mol = m
 
