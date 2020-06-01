@@ -21,7 +21,7 @@ from gnn.prediction.io import (
     PredictionMolGraphReactionFiles,
 )
 from gnn.data.utils import get_dataset_species
-from gnn.utils import load_checkpoints
+from gnn.utils import load_checkpoints, expand_path
 from rdkit import Chem
 from rdkit import RDLogger
 
@@ -40,6 +40,7 @@ def predict_single_molecule(
     ring_bond=False,
     write_result=False,
     figure_name="prediction.png",
+    format=None,
 ):
     """
     Make predictions for a single molecule.
@@ -54,6 +55,8 @@ def predict_single_molecule(
         ring_bond (bool): whether to make predictions for ring bond.
         write_result (bool): whether to write the returned sdf to stdout.
         figure_name (str): the name of the figure to be created showing the bond energy.
+        format (str): format of the molecule, if not provided, will guess based on the
+            file extension.
 
     Returns:
         str: sdf string representing the molecules and energies.
@@ -65,10 +68,25 @@ def predict_single_molecule(
         charge in allowed_charge
     ), f"expect charge to be one of {allowed_charge}, but got {charge}"
 
-    if molecule.lower().startswith("inchi="):
-        format = "inchi"
+    if os.path.isfile(molecule):
+        if format is None:
+            extension = os.path.splitext(molecule)[1]
+            if extension.lower() == ".sdf":
+                format = "sdf"
+            elif extension.lower() == ".pdb":
+                format = "pdb"
+            else:
+                raise RuntimeError(
+                    f"Expect file format `.sdf` or `.pdb`, but got {extension}"
+                )
+        with open(expand_path(molecule), "r") as f:
+            molecule = f.read().strip()
     else:
-        format = "smiles"
+        if format is None:
+            if molecule.lower().startswith("inchi="):
+                format = "inchi"
+            else:
+                format = "smiles"
 
     predictor = PredictionOneReactant(molecule, charge, format, allowed_charge, ring_bond)
 

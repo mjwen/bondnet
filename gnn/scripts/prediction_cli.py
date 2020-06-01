@@ -35,14 +35,19 @@ def cli(ctx, model):
 @cli.command(context_settings=CONTEXT_SETTINGS)
 @click.argument("molecule", type=str)
 @click.option("--charge", type=int, default=0, help="charge of the molecule")
+@click.option(
+    "--ring-bond/--no-ring-bond",
+    default=False,
+    help="make prediction for bonds in a ring",
+)
 @click.pass_obj
-def single(model, molecule, charge):
+def single(model, molecule, charge, ring_bond):
     """
     Make predictions for a molecule.
 
     MOLECULE is a SMILES string or InChI string.
     """
-    return predict_single_molecule(model, molecule, charge, write_result=True)
+    return predict_single_molecule(model, molecule, charge, ring_bond, write_result=True)
 
 
 @cli.command(context_settings=CONTEXT_SETTINGS)
