@@ -331,7 +331,7 @@ class ReactionCollection:
 
         # all molecules in existing (and complementary) reactions
         # note, mol_reservoir is updated in calling grp.order_reactions
-        mol_reservoir = sorted(mol_reservoir, key=lambda m: m.formula)
+        mol_reservoir = sorted(mol_reservoir, key=lambda m: m.id)
         mol_id_to_index_mapping = {m.id: i for i, m in enumerate(mol_reservoir)}
 
         # use multiprocessing to get atom mappings since they are relatively expensive
@@ -455,7 +455,7 @@ class ReactionCollection:
 
         # all molecules in existing (and complementary) reactions
         # note, mol_reservoir is updated in calling grp.order_reactions
-        mol_reservoir = sorted(mol_reservoir, key=lambda m: m.formula)
+        mol_reservoir = sorted(mol_reservoir, key=lambda m: m.id)
         rdkit_mols = [m.rdkit_mol for m in mol_reservoir]
         mol_id_to_index_mapping = {m.id: i for i, m in enumerate(mol_reservoir)}
 
@@ -538,7 +538,7 @@ class ReactionCollection:
         # all molecules in existing reactions
         reactions = self.reactions
         mol_reservoir = get_molecules_from_reactions(reactions)
-        mol_reservoir = sorted(mol_reservoir, key=lambda m: m.formula)
+        mol_reservoir = sorted(mol_reservoir, key=lambda m: m.id)
         mol_id_to_index_mapping = {m.id: i for i, m in enumerate(mol_reservoir)}
         rdkit_mols = [m.rdkit_mol for m in mol_reservoir]
 

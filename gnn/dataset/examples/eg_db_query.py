@@ -68,7 +68,7 @@ def print_mol_property():
 
 
 def plot_molecules(
-    filename="~/Applications/db_access/mol_builder/molecules.pkl",
+    filename="~/Applications/db_access/mol_builder/molecules_qc.pkl",
     # filename="~/Applications/db_access/mol_builder/molecules_n200.pkl",
     plot_prefix="~/Applications/db_access/mol_builder",
 ):
@@ -83,11 +83,7 @@ def plot_molecules(
                 m.formula, m.charge, m.id, str(m.free_energy).replace(".", "dot")
             ),
         )
-        # m.draw(fname, show_atom_idx=True)
-        m.draw3(filename=fname, show_atom_idx=True)
-
-        fname = expand_path(fname)
-        subprocess.run(["convert", fname, "-trim", "-resize", "100%", fname])
+        m.draw(filename=fname, show_atom_idx=True)
 
         fname = os.path.join(
             plot_prefix,
@@ -95,7 +91,7 @@ def plot_molecules(
                 m.formula, m.charge, m.id, str(m.free_energy).replace(".", "dot")
             ),
         )
-        m.write(fname, file_format="pdb")
+        m.write(fname, format="pdb")
 
 
 def plot_atom_distance_hist(
@@ -180,11 +176,11 @@ def get_single_atom_energy():
 
 if __name__ == "__main__":
     # pickle_db_entries()
-    pickle_molecules()
+    # pickle_molecules()
 
     # print_mol_property()
 
-    # plot_molecules()
+    plot_molecules()
     # plot_atom_distance_hist()
     # number_of_bonds()
     # detect_bad_mols()

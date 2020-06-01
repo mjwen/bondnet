@@ -12,10 +12,13 @@ from gnn.data.dataloader import DataLoaderReactionNetwork
 from gnn.data.dataset import train_validation_test_split
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import (
-    AtomFeaturizer,
-    BondAsNodeFeaturizer,
-    GlobalFeaturizerCharge,
+    AtomFeaturizerMinimum,
+    AtomFeaturizerFull,
+    BondAsNodeFeaturizerMinimum,
+    BondAsNodeFeaturizerFull,
+    GlobalFeaturizer,
 )
+
 from gnn.utils import load_checkpoints, seed_torch, expand_path
 
 
@@ -34,7 +37,7 @@ def parse_args():
         "-m",
         "--model",
         type=str,
-        default="20200422",
+        default="electrolyte/20200528",
         help="directory name of the pre-trained model",
     )
 
@@ -43,11 +46,16 @@ def parse_args():
     return args
 
 
-def get_data_loader(sdf_file, label_file, feature_file, batch_size=100, model="20200422"):
+def get_data_loader(sdf_file, label_file, feature_file, model, batch_size=100):
 
-    atom_featurizer = AtomFeaturizer()
-    bond_featurizer = BondAsNodeFeaturizer(length_featurizer=None)
-    global_featurizer = GlobalFeaturizerCharge()
+    # atom_featurizer = AtomFeaturizerFull()
+    # bond_featurizer = BondAsNodeFeaturizerFull(length_featurizer=None, dative=False)
+    # global_featurizer = GlobalFeaturizer(allowed_charges=[0])
+
+    atom_featurizer = AtomFeaturizerMinimum()
+    bond_featurizer = BondAsNodeFeaturizerMinimum(length_featurizer=None)
+    global_featurizer = GlobalFeaturizer(allowed_charges=[-1, 0, 1])
+
     grapher = HeteroMoleculeGraph(
         atom_featurizer=atom_featurizer,
         bond_featurizer=bond_featurizer,
@@ -55,12 +63,14 @@ def get_data_loader(sdf_file, label_file, feature_file, batch_size=100, model="2
         self_loop=True,
     )
 
-    model_dir = os.path.join(os.path.dirname(gnn.__file__), "prediction", model)
+    model_dir = os.path.join(
+        os.path.dirname(gnn.__file__), "prediction", "pre_trained", model
+    )
     dataset = ElectrolyteReactionNetworkDataset(
         grapher=grapher,
-        sdf_file=sdf_file,
-        label_file=label_file,
-        feature_file=feature_file,
+        molecules=sdf_file,
+        labels=label_file,
+        extra_features=feature_file,
         feature_transformer=True,
         label_transformer=True,
         state_dict_filename=os.path.join(model_dir, "dataset_state_dict.pkl"),
@@ -72,11 +82,13 @@ def get_data_loader(sdf_file, label_file, feature_file, batch_size=100, model="2
     return data_loader
 
 
-def load_model(model="20200422"):
+def load_model(model):
 
     # NOTE cannot use gnn.utils.yaml_load, seems a bug in yaml.
     #  see: https://github.com/yaml/pyyaml/issues/266
-    model_dir = os.path.join(os.path.dirname(gnn.__file__), "prediction", model)
+    model_dir = os.path.join(
+        os.path.dirname(gnn.__file__), "prediction", "pre_trained", model
+    )
     with open(os.path.join(model_dir, "train_args.yaml"), "r") as f:
         model_args = yaml.load(f, Loader=yaml.Loader)
 
@@ -102,7 +114,11 @@ def load_model(model="20200422"):
         outdim=1,
         conv="GatedGCNConv",
     )
-    load_checkpoints({"model": model}, filename=os.path.join(model_dir, "checkpoint.pkl"))
+    load_checkpoints(
+        {"model": model},
+        map_location=torch.device("cpu"),
+        filename=os.path.join(model_dir, "checkpoint.pkl"),
+    )
 
     return model
 
