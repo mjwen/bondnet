@@ -6,11 +6,10 @@ from collections import defaultdict
 from pprint import pprint
 import matplotlib as mpl
 from matplotlib import pyplot as plt
-from gnn.core.utils import TexWriter
+from gnn.analysis.utils import TexWriter
 from gnn.core.reaction import ReactionsMultiplePerBond, ReactionExtractorFromMolSet
 from gnn.core.reaction_collection import ReactionCollection
 from gnn.utils import pickle_load, expand_path, create_directory
-from gnn.analysis.feature_analyzer import read_sdf, read_label
 
 
 def eg_buckets():
@@ -551,71 +550,6 @@ def plot_broken_bond_length_hist(
     filename = "~/Applications/db_access/mol_builder/bond_length_broken.pdf"
     filename = expand_path(filename)
     plot_hist(data, filename)
-
-
-def write_reaction_sdf_mol_png():
-    """
-    Write reactions to file, including its sdf file and png graphs.
-    """
-
-    label_file = "~/Applications/db_access/mol_builder/label_observe.txt"
-    struct_file = "~/Applications/db_access/mol_builder/struct_observe.sdf"
-
-    png_dir = "~/Applications/db_access/mol_builder/mol_png"
-    tex_file = "~/Applications/db_access/mol_builder/reactions_sdf_energy_mol_png.tex"
-
-    labels = read_label(label_file)
-    structs = read_sdf(struct_file)
-    all_pngs = glob.glob(os.path.join(expand_path(png_dir), "*.png"))
-
-    tex_file = expand_path(tex_file)
-    with open(tex_file, "w") as f:
-
-        f.write(TexWriter.head())
-
-        for rxn in labels:
-            reactant = rxn["reactants"]
-            products = rxn["products"]
-            raw = rxn["raw"]
-
-            f.write(TexWriter.newpage())
-
-            # sdf info
-            f.write(TexWriter.verbatim(structs[reactant]))
-
-            # label info
-            f.write(TexWriter.verbatim(TexWriter.resize_string(raw)))
-
-            # figure
-            filename = None
-            for name in all_pngs:
-                if reactant in name:
-                    filename = name
-                    break
-            if filename is None:
-                raise Exception(
-                    "cannot find png file for {} in {}".format(reactant, png_dir)
-                )
-            f.write(TexWriter.single_figure(filename))
-
-            f.write(r"\begin{equation*}\downarrow\end{equation*}")
-
-            for i, p in enumerate(products):
-                if i > 0:
-                    f.write(r"\begin{equation*}+\end{equation*}")
-                filename = None
-                for name in all_pngs:
-                    if p in name:
-                        filename = name
-                        break
-                if filename is None:
-                    raise Exception(
-                        "cannot find png file for {} in {}".format(p, png_dir)
-                    )
-                f.write(TexWriter.single_figure(filename))
-
-        # tail
-        f.write(TexWriter.tail())
 
 
 def create_struct_label_dataset_mol_based():

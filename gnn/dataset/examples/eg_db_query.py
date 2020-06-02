@@ -1,7 +1,7 @@
 import os
 import itertools
 import numpy as np
-import subprocess
+import shutil
 from matplotlib import pyplot as plt
 from rdkit import Chem
 from gnn.dataset.db_query import DatabaseOperation
@@ -73,25 +73,52 @@ def plot_molecules(
     plot_prefix="~/Applications/db_access/mol_builder",
 ):
 
+    plot_prefix = expand_path(plot_prefix)
+
     mols = pickle_load(filename)
 
     for m in mols:
 
-        fname = os.path.join(
+        fname1 = os.path.join(
             plot_prefix,
             "mol_png/{}_{}_{}_{}.png".format(
                 m.formula, m.charge, m.id, str(m.free_energy).replace(".", "dot")
             ),
         )
-        m.draw(filename=fname, show_atom_idx=True)
-
-        fname = os.path.join(
+        m.draw(filename=fname1, show_atom_idx=True)
+        fname2 = os.path.join(
             plot_prefix,
-            "mol_pdb/{}_{}_{}_{}.pdb".format(
-                m.formula, m.charge, m.id, str(m.free_energy).replace(".", "dot")
+            "mol_png_id/{}_{}_{}_{}.png".format(
+                m.id, m.formula, m.charge, str(m.free_energy).replace(".", "dot")
             ),
         )
-        m.write(fname, format="pdb")
+        shutil.copyfile(fname1, fname2)
+
+        for ext in ["sdf", "pdb"]:
+            fname1 = os.path.join(
+                plot_prefix,
+                "mol_{}/{}_{}_{}_{}.{}".format(
+                    ext,
+                    m.formula,
+                    m.charge,
+                    m.id,
+                    str(m.free_energy).replace(".", "dot"),
+                    ext,
+                ),
+            )
+            m.write(fname1, format=ext)
+            fname2 = os.path.join(
+                plot_prefix,
+                "mol_{}_id/{}_{}_{}_{}.{}".format(
+                    ext,
+                    m.id,
+                    m.formula,
+                    m.charge,
+                    str(m.free_energy).replace(".", "dot"),
+                    ext,
+                ),
+            )
+            shutil.copyfile(fname1, fname2)
 
 
 def plot_atom_distance_hist(

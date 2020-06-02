@@ -113,8 +113,7 @@ class PredictionOneReactant(BasePrediction):
         molecule (str): a string representing a molecule.
         format (str): format of the molecule string, supported are `smiles`, `inchi`,
         `sdf`, and `pdb`.
-        charge (int): charge of the molecule. If None, inferred from the molecule;
-            If provided, it will override the inferred charge.
+        charge (int): charge of the molecule. 
         allowed_product_charges (list): allowed charges for created product molecules
         ring_bond (bool): whether to make predictions for ring bond
     """
@@ -122,7 +121,7 @@ class PredictionOneReactant(BasePrediction):
     def __init__(
         self,
         molecule,
-        charge=None,
+        charge=0,
         format="smiles",
         allowed_product_charges=[0],
         ring_bond=False,

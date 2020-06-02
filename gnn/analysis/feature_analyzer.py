@@ -1,6 +1,7 @@
 import os
 import re
 import abc
+import glob
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
@@ -11,7 +12,149 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from gnn.layer.readout import ConcatenateMeanMax
 from gnn.analysis import umap_plot
-from gnn.utils import expand_path
+from gnn.analysis.utils import TexWriter
+from gnn.utils import expand_path, yaml_load
+from rdkit import Chem
+from gnn.data.utils import get_dataset_species
+from gnn.data.featurizer import (
+    AtomFeaturizerMinimum,
+    AtomFeaturizerFull,
+    BondAsNodeFeaturizerMinimum,
+    BondAsNodeFeaturizerFull,
+    GlobalFeaturizer,
+)
+from gnn.data.grapher import HeteroMoleculeGraph
+
+
+def write_dataset_raw_features(sdf_file, label_file, feature_file, png_dir, tex_file):
+    def get_sdfs(fname):
+        structs = []
+        with open(expand_path(fname), "r") as f:
+            for line in f:
+                if "index" in line:
+                    body = line
+                elif "$$$$" in line:
+                    structs.append(body)
+                else:
+                    body += line
+        return structs
+
+    def get_molecules(fname):
+        supp = Chem.SDMolSupplier(expand_path(fname), sanitize=True, removeHs=False)
+        molecules = [m for m in supp]
+        return molecules
+
+    # def get_label(fname):
+    #     return yaml_load(fname)
+    #
+    def get_extra_features(fname):
+        return yaml_load(fname)
+
+    def get_grapher():
+        # atom_featurizer = AtomFeaturizerFull()
+        # bond_featurizer = BondAsNodeFeaturizerFull(length_featurizer=None, dative=False)
+        # global_featurizer = GlobalFeaturizer(allowed_charges=None)
+
+        atom_featurizer = AtomFeaturizerMinimum()
+        bond_featurizer = BondAsNodeFeaturizerMinimum(length_featurizer=None)
+        global_featurizer = GlobalFeaturizer(allowed_charges=[-1, 0, 1])
+
+        grapher = HeteroMoleculeGraph(
+            atom_featurizer=atom_featurizer,
+            bond_featurizer=bond_featurizer,
+            global_featurizer=global_featurizer,
+            self_loop=True,
+        )
+        return grapher
+
+    sdfs = get_sdfs(sdf_file)
+
+    molecules = get_molecules(sdf_file)
+    species = get_dataset_species(molecules)
+
+    # labels = get_label(label_file)
+    extra_features = get_extra_features(feature_file)
+
+    grapher = get_grapher()
+
+    png_dir = expand_path(png_dir)
+    all_pngs = glob.glob(os.path.join(png_dir, "*.png"))
+
+    tex_file = expand_path(tex_file)
+
+    with open(tex_file, "w") as f:
+        f.write(TexWriter.head())
+
+        for i, m in enumerate(molecules):
+            if m is None:
+                continue
+
+            g = grapher.build_graph_and_featurize(
+                m, extra_feats_info=extra_features[i], dataset_species=species
+            )
+
+            mol_id = sdfs[i].strip().split("_")[0]
+
+            f.write(TexWriter.newpage())
+
+            # sdf info
+            f.write(TexWriter.verbatim(sdfs[i]))
+
+            # molecule figure
+            for name in all_pngs:
+                if mol_id in name:
+                    filename = name
+                    break
+            else:
+                raise Exception(
+                    "cannot find png file for {} in {}".format(mol_id, png_dir)
+                )
+            f.write(TexWriter.single_figure(filename))
+
+            # feature info
+            # atom feature
+            f.write("atom feature:\n")
+            ft = g.nodes["atom"].data["feat"]
+            ft = np.asarray(ft, dtype=np.int32)  # they are actually int feature
+            header = grapher.feature_name["atom"]
+            tables = TexWriter.beautifultable(
+                ft,
+                header,
+                first_column=[1 + i for i in range(len(ft))],
+                first_column_header="id",
+                num_tables=1,
+            )
+            f.write(TexWriter.verbatim(tables))
+
+            # bond feature
+            f.write("\n\nbond feature:\n")
+            ft = g.nodes["bond"].data["feat"]
+            ft = np.asarray(ft, dtype=np.int32)  # they are actually int feature
+            header = grapher.feature_name["bond"]
+            tables = TexWriter.beautifultable(
+                ft,
+                header,
+                first_column=[1 + i for i in range(len(ft))],
+                first_column_header="id",
+                num_tables=1,
+            )
+            f.write(TexWriter.verbatim(tables))
+
+            # global feature
+            f.write("\n\nglobal feature:\n")
+            ft = g.nodes["global"].data["feat"]
+            ft = np.asarray(ft, dtype=np.int32)  # they are actually int feature
+            header = grapher.feature_name["global"]
+            tables = TexWriter.beautifultable(
+                ft,
+                header,
+                first_column=[1 + i for i in range(len(ft))],
+                first_column_header="id",
+                num_tables=1,
+            )
+            f.write(TexWriter.verbatim(tables))
+
+        f.write(TexWriter.tail())
 
 
 class FeatureAggregator:
@@ -422,87 +565,3 @@ def plot_heat_map(matrix, labels, filename="heat_map.pdf", cmap=mpl.cm.viridis):
     plt.colorbar(im)
 
     fig.savefig(filename, bbox_inches="tight")
-
-
-def get_id(s):
-    """
-    Get the id from a string `aaa_bbb_id_ccc`.
-
-    Returns:
-        str: id
-    """
-    return s.split("_")[2]
-
-
-def read_sdf(filename):
-    """
-    Read sdf file.
-
-    Returns:
-        dict: with mol id as key and the sdf struct body as val.
-    """
-    structs = dict()
-
-    filename = expand_path(filename)
-    with open(filename, "r") as f:
-        for line in f:
-            if "int_id" in line:
-                key = get_id(line.split()[0])
-                body = line
-            elif "$$$$" in line:
-                structs[key] = body
-            else:
-                body += line
-
-    return structs
-
-
-def read_label(filename, sort_by_formula=True):
-    """
-    Read label file.
-
-    Args:
-        sort_by_formula (bool): sort the returned list by formula or not.
-
-    Returns:
-        list of dict: dict has keys `raw`, `formula`, `reactants`, `products`, and the
-        keys corresponds to they are str, str, str, and list of str.
-
-        for reactants and products, mol id will be the values.
-    """
-    labels = []
-
-    filename = expand_path(filename)
-    with open(filename, "r") as f:
-        for line in f:
-            line = line.strip()
-            if line[0] == "#":
-                continue
-
-            pattern = "\[(.*?)\]"
-            result = re.findall(pattern, line)
-
-            tmp = result[0].strip(" '")
-            reactants = get_id(tmp)
-            formula = tmp.split("_")[0]
-
-            products = result[1]
-            if "," in products:  # two or more products
-                products = products.split(",")
-            else:  # one products
-                products = [products]
-            products = [get_id(p.strip(" '")) for p in products]
-
-            d = {
-                "raw": line,
-                "reactants": reactants,
-                "products": products,
-                "formula": formula,
-            }
-            labels.append(d)
-
-        # sort by formula
-        if sort_by_formula:
-            labels = sorted(labels, key=lambda d: d["formula"])
-
-    return labels
