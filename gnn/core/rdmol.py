@@ -295,7 +295,26 @@ def create_rdkit_mol_from_mol_graph(
 
     # a metal atom can form multiple dative bond (e.g. bidentate LiEC), for such cases
     # we need to adjust the their formal charge so as not to violate valence rule
+    formal_charge = adjust_formal_charge(species, bonds, metals)
 
+    m = create_rdkit_mol(species, coords, bond_types, formal_charge, name, force_sanitize)
+
+    return m, bond_types
+
+
+def adjust_formal_charge(species, bonds, metals):
+    """
+    Adjust formal charge of metal atoms.
+
+    Args:
+        species (list): species string of atoms
+        bonds (list): 2-tuple index of bonds
+        metals (dict): intial formal charge of models
+
+    Returns:
+        dict: {atom_idx: charge} formal charge of atoms. The value of formal charge is
+            None for non metal atoms.
+    """
     # initialize formal charge first so that atom does not form any bond has its formal
     # charge set
     formal_charge = [metals[s] if s in metals else None for s in species]
@@ -308,9 +327,7 @@ def create_rdkit_mol_from_mol_graph(
         if s in metals:
             formal_charge[i] = int(formal_charge[i] - ct)
 
-    m = create_rdkit_mol(species, coords, bond_types, formal_charge, name, force_sanitize)
-
-    return m, bond_types
+    return formal_charge
 
 
 def generate_3D_coords(m):
@@ -426,21 +443,59 @@ def fragment_rdkit_mol(m, bond):
 
     Args:
         m (Chem.Mol): rdkit molecule to fragment
-        bond (tuple): bond indice (2-tuple)
+        bond (tuple): bond index (2-tuple)
 
     Returns:
-        frags (tuple): fragments (rdkit molecules) by breaking the bond.
+        frags (list): fragments (rdkit molecules) by breaking the bond.
             Could be of size 1 or 2, depending on the number of fragments.
     """
+
+    def construct_rdkit_mol_from_frag(m, name, metals={"Li": 1, "Mg": 2}):
+
+        species = [a.GetSymbol() for a in m.GetAtoms()]
+
+        # coords = m.GetConformer().GetPositions()
+        # NOTE, the above way to get coords results in segfault on linux, so we use the
+        # below workaround
+        conformer = m.GetConformer()
+        coords = [
+            [x for x in conformer.GetAtomPosition(i)] for i in range(m.GetNumAtoms())
+        ]
+        # should not sort (b.GetBeginAtomIdx(), b.GetEndAtomIdx()), because dative bond
+        # needs to have the metal as the end atom
+        bond_types = {
+            (b.GetBeginAtomIdx(), b.GetEndAtomIdx()): b.GetBondType()
+            for b in m.GetBonds()
+        }
+
+        # a metal atom can form multiple dative bond (e.g. bidentate LiEC), for such cases
+        # we need to adjust the their formal charge so as not to violate valence rule
+        bonds = list(bond_types.keys())
+        formal_charge = adjust_formal_charge(species, bonds, metals)
+
+        new_m = create_rdkit_mol(
+            species, coords, bond_types, formal_charge, name, force_sanitize=True
+        )
+
+        return new_m
 
     edm = Chem.EditableMol(m)
     edm.RemoveBond(*bond)
     m1 = edm.GetMol()
     frags = Chem.GetMolFrags(m1, asMols=True, sanitizeFrags=True)
 
+    # name = m.GetProp("_Name")
+    # for i, fg in enumerate(frags):
+    #     fg.SetProp("_Name", f"{name}_frag{i}")
+
+    # NOTE, although we passed sanitizeFrags=True to Chem.GetMolFrags, features of the
+    # returned frags are incorrect, (e.g. TotalDegree()  of an atom belongs to the
+    # broken bond still has the value before bond breaking. So here, we create frag mols
+    # from scratch using the info from the frags
     name = m.GetProp("_Name")
-    for i, m in enumerate(frags):
-        m.SetProp("_Name", f"{name}_frag{i}")
+    frags = [
+        construct_rdkit_mol_from_frag(fg, f"{name}_frag{i}") for i, fg in enumerate(frags)
+    ]
 
     return frags
 

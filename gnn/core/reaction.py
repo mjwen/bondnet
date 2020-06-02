@@ -1365,6 +1365,9 @@ def factor_integer(x, allowed, num=2):
             if i + j == x:
                 res.append((i, j))
 
+        if not res:
+            raise RuntimeError(f"cannot factor charge {x} with allowed values {allowed}")
+
         return res
     else:
         raise Exception(f"not implemented for num={num} case.")
