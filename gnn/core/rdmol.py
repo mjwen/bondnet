@@ -312,8 +312,7 @@ def adjust_formal_charge(species, bonds, metals):
         metals (dict): intial formal charge of models
 
     Returns:
-        dict: {atom_idx: charge} formal charge of atoms. The value of formal charge is
-            None for non metal atoms.
+        list: formal charge of atoms. None for non metal atoms.
     """
     # initialize formal charge first so that atom does not form any bond has its formal
     # charge set
@@ -450,8 +449,14 @@ def fragment_rdkit_mol(m, bond):
             Could be of size 1 or 2, depending on the number of fragments.
     """
 
-    def construct_rdkit_mol_from_frag(m, name, metals={"Li": 1, "Mg": 2}):
+    def create_rdkit_mol_from_fragment(m, name, bond_atom):
+        """
+        Convert a rdkit mol fragment to a rdkit mol with cleans.
 
+        The formal charge is set to `None` for the atom in the broken bond (it will
+        then be assigned when sanitize the mol) and untouched for other atoms
+        (having the value as in the parent molecule).
+        """
         species = [a.GetSymbol() for a in m.GetAtoms()]
 
         # coords = m.GetConformer().GetPositions()
@@ -461,6 +466,7 @@ def fragment_rdkit_mol(m, bond):
         coords = [
             [x for x in conformer.GetAtomPosition(i)] for i in range(m.GetNumAtoms())
         ]
+
         # should not sort (b.GetBeginAtomIdx(), b.GetEndAtomIdx()), because dative bond
         # needs to have the metal as the end atom
         bond_types = {
@@ -468,10 +474,9 @@ def fragment_rdkit_mol(m, bond):
             for b in m.GetBonds()
         }
 
-        # a metal atom can form multiple dative bond (e.g. bidentate LiEC), for such cases
-        # we need to adjust the their formal charge so as not to violate valence rule
-        bonds = list(bond_types.keys())
-        formal_charge = adjust_formal_charge(species, bonds, metals)
+        # adjust format charge
+        formal_charge = [a.GetFormalCharge() for a in m.GetAtoms()]
+        formal_charge[bond_atom] = None
 
         new_m = create_rdkit_mol(
             species, coords, bond_types, formal_charge, name, force_sanitize=True
@@ -482,22 +487,36 @@ def fragment_rdkit_mol(m, bond):
     edm = Chem.EditableMol(m)
     edm.RemoveBond(*bond)
     m1 = edm.GetMol()
-    frags = Chem.GetMolFrags(m1, asMols=True, sanitizeFrags=True)
+    atom_mapping = []
+    frags = Chem.GetMolFrags(
+        m1, asMols=True, sanitizeFrags=True, fragsMolAtomMapping=atom_mapping
+    )
 
-    # name = m.GetProp("_Name")
-    # for i, fg in enumerate(frags):
-    #     fg.SetProp("_Name", f"{name}_frag{i}")
+    # Although we passed sanitizeFrags=True to Chem.GetMolFrags. Some properties are
+    # still incorrect:
+    # 1. features of the returned frags. e.g. TotalDegree() of an atom of the broken
+    #    bond still has the value before bond breaking.
+    # 2. rdkit converts N(=O)=O to [N+](=O)O-] when sanitizing the mol, see
+    #    http://www.rdkit.org/docs/RDKit_Book.html#molecular-sanitization
+    #    So we need to copy the formal charge from the parent mol to the fragments,
+    #    otherwise, sanitizing will result in error for the fragments.
+    # To address these, we create frags from scratch using info from the frags.
 
-    # NOTE, although we passed sanitizeFrags=True to Chem.GetMolFrags, features of the
-    # returned frags are incorrect, (e.g. TotalDegree()  of an atom belongs to the
-    # broken bond still has the value before bond breaking. So here, we create frag mols
-    # from scratch using the info from the frags
-    name = m.GetProp("_Name")
-    frags = [
-        construct_rdkit_mol_from_frag(fg, f"{name}_frag{i}") for i, fg in enumerate(frags)
-    ]
+    new_frags = []
+    for i, fg in enumerate(frags):
+        for frag_atom_idx, parent_atom_idx in enumerate(atom_mapping[i]):
+            if parent_atom_idx in bond:
+                bond_atom = frag_atom_idx
+                break
+        else:
+            # this should never happen
+            raise RuntimeError("Cannot find bond atom in fragments")
 
-    return frags
+        name = f"{m.GetProp('_Name')}_frag{i}"
+        fg = create_rdkit_mol_from_fragment(fg, name, bond_atom)
+        new_frags.append(fg)
+
+    return new_frags
 
 
 class GenerateCoordsError(Exception):

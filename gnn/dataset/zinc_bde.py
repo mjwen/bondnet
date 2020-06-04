@@ -74,9 +74,7 @@ def read_zinc_bde_dataset(dirname):
     reactions = []
     for m, e in zip(mols, bond_energies):
         extractor = ReactionExtractorFromReactant(m, e, allowed_charge=[0])
-        extractor.extract(
-            ring_bond=True, one_per_iso_bond_group=False, mol_reservoir=mol_reservoir
-        )
+        extractor.extract(ring_bond=True, mol_reservoir=mol_reservoir)
         reactions.extend(extractor.reactions)
         for bond, reason in extractor.no_reaction_reason.items():
             if reason.compute and reason.fail:
