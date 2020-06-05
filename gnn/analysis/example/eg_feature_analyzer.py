@@ -9,7 +9,7 @@ from gnn.analysis.feature_analyzer import (
     StdevThreshold,
     PearsonCorrelation,
     plot_heat_map,
-    write_dataset_raw_features,
+    write_dataset_raw_features_to_tex,
 )
 
 
@@ -137,7 +137,9 @@ def write_raw_features():
     png_dir = "~/Applications/db_access/mol_builder/mol_png_id"
     tex_file = "~/Applications/db_access/mol_builder/tex_raw_features.tex"
 
-    write_dataset_raw_features(sdf_file, label_file, feature_file, png_dir, tex_file)
+    write_dataset_raw_features_to_tex(
+        sdf_file, label_file, feature_file, png_dir, tex_file
+    )
 
 
 if __name__ == "__main__":
@@ -147,8 +149,8 @@ if __name__ == "__main__":
     # not_satisfied = feature_stdev(dataset)
     # corelation(dataset, not_satisfied)
 
-    write_raw_features()
+    # write_raw_features()
 
     # pca_analysis()
     # tsne_analysis()
-    # umap_analysis()
+    umap_analysis()

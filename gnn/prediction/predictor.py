@@ -8,16 +8,11 @@ from gnn.prediction.io import (
     PredictionSDFChargeReactionFiles,
     PredictionMolGraphReactionFiles,
 )
-from gnn.prediction.load_model import load_model, load_dataset
+from gnn.prediction.load_model import select_model, load_model, load_dataset
 from gnn.utils import expand_path
 from rdkit import RDLogger
 
 # RDLogger.logger().setLevel(RDLogger.CRITICAL)
-
-MODEL_INFO = {
-    "electrolyte": {"allowed_charge": [-1, 0, 1], "date": ["20200422", "20200528"]},
-    "nrel": {"allowed_charge": [-1, 0, 1], "date": ["20200422"]},
-}
 
 
 def predict_single_molecule(
@@ -121,38 +116,6 @@ def predict_by_reactions(
     molecules, labels, extra_features = predictor.prepare_data()
     predictions = get_prediction(model, molecules, labels, extra_features)
     return predictor.write_results(predictions, out_file)
-
-
-def select_model(model_name):
-    """
-    Select the appropriate model.
-
-    A `model_name` can be provided in two format:
-    1. `dataset/data`, in this case the model will be returned directly.
-    2. `dataset`, in this case the latest model corresponds to the dataset is returned.
-
-    Args:
-        model_name (str)
-
-    Returns:
-        str: the model to use
-    """
-    model_name = model_name.strip().lower()
-    if "/" in model_name:
-        prefix, date = model_name.split("/")
-        if date not in MODEL_INFO[prefix]["date"]:
-            raise ValueError(
-                f"expect model date to be one of { MODEL_INFO[prefix]['date'] }, "
-                f"but got {date}."
-            )
-    else:
-        prefix = model_name
-        date = MODEL_INFO[prefix]["date"][-1]
-
-    model = "/".join([prefix, date])
-    allowed_charge = MODEL_INFO[prefix]["allowed_charge"]
-
-    return model, allowed_charge
 
 
 def get_prediction(model_name, molecules, labels, extra_features):

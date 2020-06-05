@@ -16,8 +16,13 @@ from gnn.core.rdmol import read_rdkit_mols_from_file
 from gnn.data.utils import get_dataset_species
 from gnn.utils import load_checkpoints, expand_path, check_exists
 
+MODEL_INFO = {
+    "electrolyte": {"allowed_charge": [-1, 0, 1], "date": ["20200422", "20200528"]},
+    "nrel": {"allowed_charge": [-1, 0, 1], "date": ["20200422"]},
+}
 
-def load_model(model_name):
+
+def load_model(model_name, pretrained=True):
 
     model_dir = get_model_dir(model_name)
 
@@ -48,11 +53,13 @@ def load_model(model_name):
         outdim=1,
         conv="GatedGCNConv",
     )
-    load_checkpoints(
-        {"model": model},
-        map_location=torch.device("cpu"),
-        filename=os.path.join(model_dir, "checkpoint.pkl"),
-    )
+
+    if pretrained:
+        load_checkpoints(
+            {"model": model},
+            map_location=torch.device("cpu"),
+            filename=os.path.join(model_dir, "checkpoint.pkl"),
+        )
 
     return model
 
@@ -125,6 +132,38 @@ def _get_grapher(model_name):
     )
 
     return grapher
+
+
+def select_model(model_name):
+    """
+    Select the appropriate model.
+
+    A `model_name` can be provided in two format:
+    1. `dataset/data`, in this case the model will be returned directly.
+    2. `dataset`, in this case the latest model corresponds to the dataset is returned.
+
+    Args:
+        model_name (str)
+
+    Returns:
+        str: the model to use
+    """
+    model_name = model_name.strip().lower()
+    if "/" in model_name:
+        prefix, date = model_name.split("/")
+        if date not in MODEL_INFO[prefix]["date"]:
+            raise ValueError(
+                f"expect model date to be one of { MODEL_INFO[prefix]['date'] }, "
+                f"but got {date}."
+            )
+    else:
+        prefix = model_name
+        date = MODEL_INFO[prefix]["date"][-1]
+
+    model = "/".join([prefix, date])
+    allowed_charge = MODEL_INFO[prefix]["allowed_charge"]
+
+    return model, allowed_charge
 
 
 def get_model_dir(model_name):

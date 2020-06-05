@@ -26,7 +26,9 @@ from gnn.data.featurizer import (
 from gnn.data.grapher import HeteroMoleculeGraph
 
 
-def write_dataset_raw_features(sdf_file, label_file, feature_file, png_dir, tex_file):
+def write_dataset_raw_features_to_tex(
+    sdf_file, label_file, feature_file, png_dir, tex_file
+):
     def get_sdfs(fname):
         structs = []
         with open(expand_path(fname), "r") as f:

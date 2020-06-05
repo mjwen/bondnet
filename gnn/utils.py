@@ -49,6 +49,17 @@ def expand_path(path):
     return os.path.abspath(os.path.expanduser(os.path.expandvars(path)))
 
 
+def check_exists(path, is_file=True):
+    if is_file:
+        fname = expand_path(path)
+        if not os.path.isfile(fname):
+            raise ValueError(f"File does not exist: {path}")
+    else:
+        fname = expand_path(path)
+        if not os.path.exists(fname):
+            raise ValueError(f"File does not exist: {path}")
+
+
 def create_directory(filename):
     filename = expand_path(filename)
     dirname = os.path.dirname(filename)
