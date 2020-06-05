@@ -5,14 +5,10 @@ from gnn.data.dataloader import DataLoaderReactionNetwork
 from gnn.prediction.io import (
     PredictionOneReactant,
     PredictionMultiReactant,
-    PredictionSDFChargeReactionFiles,
-    PredictionMolGraphReactionFiles,
+    PredictionByReaction,
 )
 from gnn.prediction.load_model import select_model, load_model, load_dataset
 from gnn.utils import expand_path
-from rdkit import RDLogger
-
-# RDLogger.logger().setLevel(RDLogger.CRITICAL)
 
 
 def predict_single_molecule(
@@ -79,6 +75,20 @@ def predict_single_molecule(
 
 
 def predict_multiple_molecules(model, molecule_file, charge_file, out_file, format):
+    """
+    Make predictions of bond energies of multiple molecules.
+
+    Args:
+        model (str): The pretrained model to use for making predictions. A model should
+            be of the format format `dataset/date`, e.g. `electrolyte/20200528`,
+            `nrel/20200528`. It is possible to provide only the `dataset` part,
+            and in this case, the latest model will be used.
+        molecule_file (str): path to molecule file
+        charge_file (str): path to charge file, if `None` charges are set to zero
+        out_file (str): path to file to write output
+        format (str): format of molecules, e.g. `sdf`, `graph`, `pdb`, `smiles`,
+            and `inchi`.
+    """
 
     model, allowed_charge = select_model(model)
 
@@ -93,25 +103,27 @@ def predict_multiple_molecules(model, molecule_file, charge_file, out_file, form
 def predict_by_reactions(
     model, molecule_file, reaction_file, charge_file, out_file, format
 ):
+    """
+    Make predictions for many bonds where each bond is specified as an reaction.
+
+    Args:
+        model (str): The pretrained model to use for making predictions. A model should
+            be of the format format `dataset/date`, e.g. `electrolyte/20200528`,
+            `nrel/20200528`. It is possible to provide only the `dataset` part,
+            and in this case, the latest model will be used.
+        molecule_file (str): path to file storing all molecules
+        reaction_file (str): path to file specifying reactions
+        charge_file (str): path to charge file, if `None` charges are set to zero
+        out_file (str): path to file to write output
+        format (str): format of molecules, e.g. `sdf`, `graph`, `pdb`, `smiles`,
+            and `inchi`.
+    """
 
     model, allowed_charge = select_model(model)
 
-    # sdf 3 files: mol (in sdf), charge (in plain text), reaction (csv)
-    if format == "sdf":
-        predictor = PredictionSDFChargeReactionFiles(
-            molecule_file, charge_file, reaction_file
-        )
-
-    # mol graph 2 files, mol (json or yaml), reaction (csv)
-    elif format == "graph":
-        predictor = PredictionMolGraphReactionFiles(molecule_file, reaction_file)
-
-    # # internal 3 files: sdf file, label file, feature file
-    # elif format == "internal":
-    #     predictor = PredictionStructLabelFeatFiles(molecule_file, label_file, feat_file)
-
-    else:
-        raise ValueError(f"not supported molecule format: {format}")
+    predictor = PredictionByReaction(
+        molecule_file, reaction_file, charge_file, format=format
+    )
 
     molecules, labels, extra_features = predictor.prepare_data()
     predictions = get_prediction(model, molecules, labels, extra_features)

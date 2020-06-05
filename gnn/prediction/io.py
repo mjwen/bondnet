@@ -6,6 +6,7 @@ import os
 import logging
 import json
 import multiprocessing
+import warnings
 import pandas as pd
 from collections import defaultdict
 from rdkit import Chem
@@ -88,13 +89,13 @@ class BasePrediction:
         self.read_reactions()
         extractor = ReactionCollection(self.reactions)
 
-        out = extractor.create_regression_dataset_reaction_network_simple(
+        mols, labls, feats = extractor.create_regression_dataset_reaction_network_simple(
             write_to_file=False
         )
 
-        return out
+        return mols, labls, feats
 
-    def write_results(self, predictions, filename=None):
+    def write_results(self, predictions, filename):
         """
         Write the results given the predictions.
 
@@ -185,7 +186,7 @@ class PredictionOneReactant(BasePrediction):
 
         return reactions
 
-    def write_results(self, predictions, figure_name, write_results=False):
+    def write_results(self, predictions, figure_name, to_stdout=False):
 
         # group prediction by bond
         predictions_by_bond = defaultdict(list)
@@ -242,7 +243,7 @@ class PredictionOneReactant(BasePrediction):
         bond_note = {k: v for k, v in all_predictions.items() if v is not None}
         self.molecules[0].draw_with_bond_note(bond_note, filename=figure_name)
 
-        if write_results:
+        if to_stdout:
             print(sdf)
 
             print(
@@ -288,13 +289,28 @@ class PredictionMultiReactant(BasePrediction):
         self.rxn_idx_to_mol_and_bond_map = None
 
     def read_molecules(self):
-        rdkit_mols = read_rdkit_mols_from_file(self.molecule_file)
+
+        # read rdkit mols
+        rdkit_mols = read_rdkit_mols_from_file(self.molecule_file, self.format)
+
+        # read charge file
+        if self.charge_file is None:
+            charges = [0] * len(rdkit_mols)
+        else:
+            charges = read_charge(self.charge_file)
+
+            msg = (
+                f"expect the number of molecules given in {self.molecule_file} and the "
+                f"number of charges given in {self.charge_file} to be the same, "
+                f"but got {len(rdkit_mols)} and f{len(charges)}. "
+            )
+            assert len(rdkit_mols) == len(charges), msg
+
+        # convert rdkit mols to wrapper molecules
         identifiers = [
             m.GetProp("_Name") + f"_index-{i}" if m is not None else None
             for i, m in enumerate(rdkit_mols)
         ]
-        charges = read_charge(self.charge_file) if self.charge_file is not None else None
-
         self._molecules = rdkit_mols_to_wrapper_mols(rdkit_mols, identifiers, charges)
 
         return self._molecules
@@ -433,6 +449,184 @@ class PredictionMultiReactant(BasePrediction):
         )
 
         return all_predictions
+
+
+class PredictionByReaction(BasePrediction):
+    """
+    Make predictions for bonds given as reactions.
+
+    Three files are needed: molecules.extension, reactions.csv, and charges.txt.
+    The first two are mandatory, giving all the molecules and the reactions they
+    can form, respectively. The third charges.txt file is optional if all molecules
+    have charge 0 or the charge info can be obtained from the molecules (e.g. when
+    pymatgen molecule graph is used).
+
+    Args:
+        mol_file (str): path to molecule file, e.g. mols.sdf, mols.pdb
+        rxn_file (str): path to charge file in csv format, e.g. reactions.csv
+        charge_file (str): charge file, e.g. charges.txt
+        format (str): format of the molecule file (e.g. `sdf`, `graph`, `pdb`,
+            `smiles`, `inchi`.
+        nprocs (int): number of processors to use to convert smiles to wrapper mol.
+            If None, use a serial version.
+    """
+
+    def __init__(
+        self, molecule_file, reaction_file, charge_file=None, format="sdf", nprocs=None
+    ):
+        self.molecule_file = expand_path(molecule_file)
+        self.reaction_file = expand_path(reaction_file)
+        self.charge_file = expand_path(charge_file) if charge_file is not None else None
+        self.format = format
+        self.nprocs = nprocs
+
+    def read_molecules(self):
+
+        if self.format == "graph":
+
+            if self.charge_file is not None:
+                warnings.warn(
+                    f"charge file {self.charge_file} ignored for format `graph`"
+                )
+
+            file_type = os.path.splitext(self.molecule_file)[1]
+            if file_type == ".json":
+                with open(self.molecule_file, "r") as f:
+                    mol_graph_dicts = json.load(f)
+            elif file_type in [".yaml", ".yml"]:
+                mol_graph_dicts = yaml_load(self.molecule_file)
+            else:
+                supported = [".json", ".yaml", ".yml"]
+                raise ValueError(
+                    f"File extension of {self.molecule_file} not supported; "
+                    f"supported are: {supported}."
+                )
+
+            mol_graphs = [MoleculeGraph.from_dict(d) for d in mol_graph_dicts]
+            molecules = [MoleculeWrapper(g, id=str(i)) for i, g in enumerate(mol_graphs)]
+
+        else:
+            # read rdkit mols
+            rdkit_mols = read_rdkit_mols_from_file(self.molecule_file, self.format)
+
+            # read charge file
+            if self.charge_file is None:
+                charges = [0] * len(rdkit_mols)
+            else:
+                charges = read_charge(self.charge_file)
+                msg = (
+                    f"expect the number of molecules given in {self.molecule_file} "
+                    f"and the number of charges given in {self.charge_file} to be "
+                    f"the same, but got {len(rdkit_mols)} and f{len(charges)}. "
+                )
+                assert len(rdkit_mols) == len(charges), msg
+
+            # convert rdkit mols to wrapper molecules
+            identifiers = [
+                m.GetProp("_Name") + f"_index-{i}" if m is not None else None
+                for i, m in enumerate(rdkit_mols)
+            ]
+            molecules = rdkit_mols_to_wrapper_mols(
+                rdkit_mols, identifiers, charges, nprocs=self.nprocs
+            )
+
+        self._molecules = molecules
+
+        return molecules
+
+    def read_reactions(self):
+
+        # read reaction file
+        df_rxns = pd.read_csv(self.reaction_file, header=0, index_col=None)
+        num_columns = len(df_rxns.columns)
+        assert (
+            num_columns == 3
+        ), f"Corrupted input file; expecting 3 columns but got {num_columns}"
+
+        # convert to reactions
+        bad_mol_indices = {i for i, m in enumerate(self.molecules) if m is None}
+
+        reactions = []
+        no_result_reason = []  # each element is a tuple (fail, failing_reason)
+
+        for rxn in df_rxns.itertuples():
+            i, idx_r, idx_p1, idx_p2 = rxn
+            for idx in (idx_r, idx_p1, idx_p2):
+                if idx in bad_mol_indices:
+                    no_result_reason.append((True, idx))
+                    break
+            else:
+                reactants = [self.molecules[idx_r]]
+                products = [self.molecules[idx_p1]]
+
+                # two products
+                if not pd.isna(idx_p2):
+                    products.append(self.molecules[idx_p2])
+
+                reactions.append(
+                    Reaction(
+                        reactants=reactants,
+                        products=products,
+                        broken_bond=None,
+                        free_energy=0.0,  # not used; provide 0 taking the place
+                        identifier=str(i),
+                    )
+                )
+
+                no_result_reason.append((False, None))
+
+        self._reactions = reactions
+        self._no_result_reason = no_result_reason
+
+        return reactions
+
+    def write_results(self, predictions, filename="result.csv"):
+        """
+        Append prediction as the last column of a dataframe and write csv file.
+        """
+
+        df = pd.read_csv(self.reaction_file, header=0, index_col=None)
+
+        all_predictions = []
+        all_failed = []
+        p_idx = 0
+        for i, (fail, reason) in enumerate(self.no_result_reason):
+            row = df.iloc[i]
+            str_row = ",".join([str(i) for i in row])
+
+            # failed at conversion to mol wrapper stage
+            if fail:
+                logger.info(f"Reaction {i} fails because molecule {reason} fails")
+                all_failed.append(str_row)
+                all_predictions.append(None)
+
+            else:
+                pred = predictions[p_idx]
+
+                # failed at prediction stage
+                if pred is None:
+                    logger.info(f"Reaction {i} fails because prediction cannot be made")
+                    all_failed.append(str_row)
+
+                all_predictions.append(pred)
+                p_idx += 1
+
+        # if any failed
+        if all_failed:
+            msg = "\n".join(all_failed)
+            print(
+                f"\n\nThese reactions failed either at converting smiles to internal "
+                f"molecules or converting internal molecules to dgl graph, "
+                f"and therefore predictions for them are not made (represented by "
+                f"None in the output):\n{msg}\n\n."
+                f"See the log file for more info."
+            )
+
+        df["bond_energy"] = all_predictions
+        filename = expand_path(filename) if filename is not None else filename
+        rst = df.to_csv(filename, index=False)
+        if rst is not None:
+            print(rst)
 
 
 class PredictionSmilesReaction:
@@ -628,206 +822,6 @@ class PredictionSmilesReaction:
         rst = df.to_csv(filename, index=False)
         if rst is not None:
             print(rst)
-
-
-class PredictionSDFChargeReactionFiles:
-    """
-    Make predictions based on the 3 files: molecules.sdf, charges.txt, reactions.csv.
-
-    molecules.sdf: a list of sd data chunks, each representing a molecule.
-    charges.txt: charges of the molecules in listed in the molecules file.
-    reactions.csv: each line list a reaction (reactant, fragment1, fragment2) by the
-    molecule indices (starting from 0) in the molecules.sdf file.
-    For example, `0,3,4` means the reactant of the reaction is the first molecule in
-    molecules.sdf and its two fragments are the fourth and fifth molecules.
-    It is possible that there is only one fragment (e.g. in a ring opening reaction).
-    Such reactions can be provided as '0,5,', leaving the 2nd fragment empty.
-
-
-    Args:
-        mol_file (str): molecule file in sdf format, e.g. molecules.sdf
-        charge_file (str): charge file, e.g. charges.txt
-        rxn_file (str): charge file in csv format, e.g. reactions.csv
-        nprocs (int): number of processors to use to convert smiles to wrapper mol.
-            If None, use a serial version.
-    """
-
-    def __init__(self, mol_file, charge_file, rxn_file, nprocs=None):
-        self.mol_file = expand_path(mol_file)
-        self.charge_file = expand_path(charge_file) if charge_file is not None else None
-        self.rxn_file = expand_path(rxn_file)
-        self.nprocs = nprocs
-
-    def read_molecules(self):
-
-        # read sdf mol file
-        supp = Chem.SDMolSupplier(self.mol_file, sanitize=True, removeHs=False)
-        # a molecule could be None if rdkit cannot process it
-        rdkit_mols = [m for m in supp]
-
-        # read charge file
-        if self.charge_file is None:
-            charges = [0] * len(rdkit_mols)
-        else:
-            charges = read_charge(self.charge_file)
-
-        # convert rdkit mols to wrapper molecules
-        msg = (
-            f"expect the number of molecules given in {self.mol_file} and the number "
-            f"of charges given in {self.charge_file} to be the same, "
-            f"but got {len(rdkit_mols)} and f{len(charges)}. "
-        )
-        assert len(rdkit_mols) == len(charges), msg
-
-        if self.nprocs is None:
-            molecules = [
-                wrapper_rdkit_mol_to_wrapper_mol(m, charge=c, identifier=str(i))
-                for i, (m, c) in enumerate(zip(rdkit_mols, charges))
-            ]
-        else:
-            with multiprocessing.Pool(self.nprocs) as p:
-                mol_ids = list(range(len(rdkit_mols)))
-                energies = [None] * len(rdkit_mols)
-                args = zip(rdkit_mols, charges, energies, mol_ids)
-                molecules = p.starmap(wrapper_rdkit_mol_to_wrapper_mol, args)
-
-        return molecules
-
-    def read_reactions(self, molecules):
-
-        # read reaction file
-        df_rxns = pd.read_csv(self.rxn_file, header=0, index_col=None)
-        num_columns = len(df_rxns.columns)
-        assert (
-            num_columns == 3
-        ), f"Corrupted input file; expecting 3 columns but got {num_columns}"
-
-        # convert to reactions
-        reactions = []
-        failed = []  # tuple (bool, failing_reason)
-        bad_mol_indices = {i for i, m in enumerate(molecules) if m is None}
-
-        for rxn in df_rxns.itertuples():
-            i, idx_r, idx_p1, idx_p2 = rxn
-            for idx in (idx_r, idx_p1, idx_p2):
-                if idx in bad_mol_indices:
-                    failed.append((True, idx))
-                    break
-            else:
-                failed.append((False, None))
-
-                reactants = [molecules[idx_r]]
-                products = [molecules[idx_p1]]
-                if not pd.isna(idx_p2):
-                    products.append(molecules[idx_p2])
-                reactions.append(
-                    Reaction(
-                        reactants=reactants,
-                        products=products,
-                        broken_bond=None,
-                        free_energy=0.0,  # not used we provide 0.0 taking the place
-                        identifier=str(i),
-                    )
-                )
-
-        self.failed = failed
-
-        return reactions
-
-    def prepare_data(self):
-        molecules = self.read_molecules()
-        reactions = self.read_reactions(molecules)
-        extractor = ReactionCollection(reactions)
-
-        out = extractor.create_regression_dataset_reaction_network_simple(
-            write_to_file=False
-        )
-
-        return out
-
-    def write_results(self, predictions, filename="bde_result.csv"):
-        """
-        Append prediction as the last column of a dataframe and write csv file.
-        """
-        df = pd.read_csv(self.rxn_file, header=0, index_col=None)
-
-        all_predictions = []
-        all_failed = []
-        p_idx = 0
-        for i, (fail, reason) in enumerate(self.failed):
-            row = df.iloc[i]
-            str_row = ",".join([str(i) for i in row])
-
-            # failed at conversion to mol wrapper stage
-            if fail:
-                logger.info(f"Reaction {i} fails because molecule {reason} fails")
-                all_failed.append(str_row)
-                all_predictions.append(None)
-
-            else:
-                pred = predictions[p_idx]
-
-                # failed at prediction stage
-                if pred is None:
-                    logger.info(f"Reaction {i} fails because prediction cannot be made")
-                    all_failed.append(str_row)
-
-                all_predictions.append(pred)
-                p_idx += 1
-
-        # if any failed
-        if all_failed:
-            msg = "\n".join(all_failed)
-            print(
-                f"\n\nThese reactions failed either at converting smiles to internal "
-                f"molecules or converting internal molecules to dgl graph, "
-                f"and therefore predictions for them are not made (represented by "
-                f"None in the output):\n{msg}\n\n"
-            )
-
-        df["bond_energy"] = all_predictions
-        filename = expand_path(filename) if filename is not None else filename
-        rst = df.to_csv(filename, index=False)
-        if rst is not None:
-            print(rst)
-
-
-class PredictionMolGraphReactionFiles(PredictionSDFChargeReactionFiles):
-    """
-    Make predictions based on the two files: molecules.json (or molecules.yaml) and 
-        reactions.csv.
-
-        molecules.json (or molecules.yaml) stores all the molecules in the reactions
-        and it should be a list of MoleculeGraph.as_dict().
-    """
-
-    def __init__(self, mol_file, rxn_file, nprocs=None):
-        self.mol_file = expand_path(mol_file)
-        self.rxn_file = expand_path(rxn_file)
-        self.nprocs = nprocs
-
-    def read_molecules(self):
-
-        file_type = os.path.splitext(self.mol_file)[1]
-        if file_type == ".json":
-            with open(self.mol_file, "r") as f:
-                mol_graph_dicts = json.load(f)
-        elif file_type in [".yaml", ".yml"]:
-            mol_graph_dicts = yaml_load(self.mol_file)
-        else:
-            supported = [".json", ".yaml", ".yml"]
-            raise ValueError(
-                f"File extension of {self.mol_file} not supported; "
-                f"supported are: {supported}."
-            )
-
-        mol_graphs = [MoleculeGraph.from_dict(d) for d in mol_graph_dicts]
-        molecules = [
-            MoleculeWrapper(g, free_energy=0.0, id=str(i))
-            for i, g in enumerate(mol_graphs)
-        ]
-
-        return molecules
 
 
 class PredictionStructLabelFeatFiles:

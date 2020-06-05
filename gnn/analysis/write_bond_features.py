@@ -1,5 +1,7 @@
 """
 Write the bond features in the molecules for each GNN layer.
+
+This is the code we used to generate data for LBDC bond similarity heatmap.
 """
 import os
 import torch
@@ -52,15 +54,12 @@ def evaluate(model, nodes, data_loader):
 
     species = ["-".join(x.split("-")[-2:]) for x in ids]
 
-    space_removed_ids = [
-        s.replace(", ", "-").replace("(", "").replace(")", "") for s in ids
-    ]
     broken_bonds = []
     for x in ids:
         bonds = x.split("_")[2].split("-")[1:]
         broken_bonds.append(tuple(sorted([int(i) for i in bonds])))
 
-    return space_removed_ids, targets, predictions, broken_bonds, species, features
+    return ids, targets, predictions, broken_bonds, species, features
 
 
 def main(

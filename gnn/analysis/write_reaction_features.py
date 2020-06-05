@@ -1,5 +1,7 @@
 """
 Write the final features representing the reactions before the FC layers.
+
+This is the code we used to write features and metadata for UMAP embedding.
 """
 
 import torch
@@ -49,16 +51,12 @@ def evaluate(model, nodes, data_loader, compute_features=False):
     species = ["-".join(x.split("-")[-2:]) for x in ids]
     errors = predictions - targets
 
-    space_removed_ids = [
-        s.replace(", ", "-").replace("(", "").replace(")", "") for s in ids
-    ]
-
     if compute_features:
         features = np.concatenate(features)
     else:
         features = None
 
-    return space_removed_ids, targets, predictions, errors, species, features
+    return ids, targets, predictions, errors, species, features
 
 
 def main(

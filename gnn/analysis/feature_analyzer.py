@@ -1,5 +1,4 @@
 import os
-import re
 import abc
 import glob
 import numpy as np
@@ -480,17 +479,6 @@ class KMeansAnalyzer(FeatureAggregator):
         centers = kmeans.cluster_centers_
 
         return features, clusters, centers, labels
-
-
-# def write_embeddings(features, labels, filename):
-#     with open(filename, "w") as f:
-#         f.write("# components...   label\n")
-#         for idx, (emb, lb) in enumerate(zip(features, labels)):
-#             f.write("\n\n# {}\n".format(idx))
-#             for i, j in zip(emb, lb):
-#                 for k in i:
-#                     f.write("{:14.6e}".format(k))
-#                 f.write("   {:14.6e}\n".format(j))
 
 
 def plot_scatter(features, labels, filename):
