@@ -1,5 +1,4 @@
 import os
-import subprocess
 import logging
 import multiprocessing
 import pandas as pd
@@ -71,13 +70,13 @@ def read_nrel_bde_dataset(filename):
         reactions_by_smiles_idx.append((idx_r, idx_p1, idx_p2, rid, bde))
         if i % 1000 == 0:
             logger.info(f"Finding unique smiles; processing {i}/{len(selected_rxns)}")
-    unique_smiles_index_to_smiles = {v: k for k, v in unique_smiles.items()}
 
     logger.info(f"Total number of molecules: {3*len(reactions_by_smiles_idx)}")
     logger.info(f"Unique molecules: {len(unique_smiles)}")
 
     # convert smiles to wrapper molecules
     smiles = sorted(unique_smiles, key=lambda k: unique_smiles[k])
+
     # molecules = [smiles_to_wrapper_mol(s) for s in smiles]
     with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
         molecules = p.map(smiles_to_wrapper_mol, smiles)
@@ -87,7 +86,7 @@ def read_nrel_bde_dataset(filename):
     if bad_mol_indices:
         bad_ones = ""
         for idx in bad_mol_indices:
-            bad_ones += f"{unique_smiles_index_to_smiles[idx]}, "
+            bad_ones += f"{smiles[idx]}, "
         logger.warning(f"Bad mol; (rdkit conversion failed): {bad_ones}")
 
     # convert to reactions
@@ -98,10 +97,7 @@ def read_nrel_bde_dataset(filename):
                 logger.warning(
                     "Ignore bad reaction (conversion its mol failed): "
                     "{} -> {} + {}. Bad mol is: {}".format(
-                        unique_smiles_index_to_smiles[idx_r],
-                        unique_smiles_index_to_smiles[idx_p1],
-                        unique_smiles_index_to_smiles[idx_p2],
-                        unique_smiles_index_to_smiles[i],
+                        smiles[idx_r], smiles[idx_p1], smiles[idx_p2], smiles[i],
                     )
                 )
                 break
@@ -136,11 +132,7 @@ def nrel_plot_molecules(
                 m.formula, m.charge, m.id, str(m.free_energy).replace(".", "dot")
             ),
         )
-        # m.draw(fname, show_atom_idx=True)
-        m.draw3(filename=fname, show_atom_idx=True)
-
-        fname = expand_path(fname)
-        subprocess.run(["convert", fname, "-trim", "-resize", "100%", fname])
+        m.draw(fname, show_atom_idx=True)
 
         fname = os.path.join(
             plot_prefix,
@@ -165,5 +157,5 @@ def nrel_create_struct_label_dataset_reaction_network_based_regression(
 
 
 if __name__ == "__main__":
-    # nrel_plot_molecules()
+    # plot_molecules()
     nrel_create_struct_label_dataset_reaction_network_based_regression()

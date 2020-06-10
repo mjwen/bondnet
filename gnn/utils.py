@@ -26,7 +26,7 @@ def np_split_by_size(array, sizes, axis=0):
 
     Args:
         array:
-        sections (list): size of each chunk.
+        sizes (list): size of each chunk.
         axis (int): the axis along which to split the data
 
     Returns:

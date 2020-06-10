@@ -193,6 +193,9 @@ class Reaction:
 
         return self._atom_mapping
 
+    def set_atom_mapping(self, mapping):
+        self._atom_mapping = mapping
+
     def bond_mapping_by_int_index(self):
         r"""
         Find the bond mapping between products and reactant, using a single index (the

@@ -15,7 +15,7 @@ def plot_mol_graph(
     def plot_one(m, prefix):
         fname = os.path.join(prefix, "{}.png".format(m.id))
         fname = expand_path(fname)
-        m.draw3(fname, show_atom_idx=True)
+        m.draw(fname, show_atom_idx=True)
         subprocess.run(["convert", fname, "-trim", "-resize", "100%", fname])
 
     mols = pickle_load(filename)

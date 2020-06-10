@@ -13,7 +13,7 @@ from gnn.utils import expand_path
 logger = logging.getLogger(__name__)
 
 
-def smiles_to_rdkit_mol(s):
+def smiles_to_rdkit_mol(s, add_H=True):
     """
     Convert a smiles string to rdkit molecule.
 
@@ -22,6 +22,7 @@ def smiles_to_rdkit_mol(s):
 
     Args:
         s (str): smiles of the molecule
+        add_H (bool): whether to add H to the molecule
 
     Returns:
         rdkit mol
@@ -30,7 +31,37 @@ def smiles_to_rdkit_mol(s):
     if m is None:
         raise RdkitMolCreationError(f"smiles: {s}")
 
-    m = Chem.AddHs(m)
+    if add_H:
+        m = Chem.AddHs(m)
+
+    try:
+        m = generate_3D_coords(m)
+    except GenerateCoordsError as e:
+        raise RdkitMolCreationError(f"smiles: {e}")
+
+    m.SetProp("_Name", s)
+
+    return m
+
+
+def smarts_to_rdkit_mol(s):
+    """
+    Convert a smarts string to rdkit molecule.
+
+    3D coords are created using RDkit: embedding then MMFF force filed (or UFF force
+     field).
+
+    Args:
+        s (str): smarts of the molecule
+
+    Returns:
+        rdkit mol
+    """
+    m = Chem.MolFromSmarts(s)
+    if m is None:
+        raise RdkitMolCreationError(f"smiles: {s}")
+
+    Chem.SanitizeMol(m)
 
     try:
         m = generate_3D_coords(m)
@@ -517,6 +548,35 @@ def fragment_rdkit_mol(m, bond):
         new_frags.append(fg)
 
     return new_frags
+
+
+def smarts_atom_mapping(s):
+    """
+    Get the atom mapping specified in smarts.
+
+    Args:
+        s (str): smarts of the molecule
+
+    Returns:
+        list: atom mapping specified in smarts
+
+    >>> s = '[C:1]([N:3]=[C:2]=[N:6][N:5]=[O:4])([H:7])([H:8])[H:9]'
+    >>> smarts_atom_mapping(s)
+    >>> [0, 2, 1, 5, 4, 3, 6, 7, 8]
+    """
+    m = Chem.MolFromSmarts(s)
+    if m is None:
+        raise RdkitMolCreationError(f"smarts: {s}")
+
+    ind_map = []
+    for atom in m.GetAtoms():
+        map_num = atom.GetAtomMapNum()
+        if map_num != 0:
+            ind_map.append(map_num - 1)
+        else:
+            ind_map.append(None)
+
+    return ind_map
 
 
 class GenerateCoordsError(Exception):

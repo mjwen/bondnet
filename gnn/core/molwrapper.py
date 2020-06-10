@@ -354,10 +354,9 @@ class MoleculeWrapper:
         m = copy.deepcopy(self.rdkit_mol)
         AllChem.Compute2DCoords(m)
 
-        # show atom index
         if show_atom_idx:
-            atoms = [m.GetAtomWithIdx(i) for i in range(m.GetNumAtoms())]
-            _ = [a.SetAtomMapNum(a.GetIdx() + 1) for a in atoms]
+            for a in m.GetAtoms():
+                a.SetAtomMapNum(a.GetIdx() + 1)
         # d.drawOptions().addAtomIndices = True
 
         if filename is None:
