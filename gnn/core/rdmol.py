@@ -59,18 +59,47 @@ def smarts_to_rdkit_mol(s):
     """
     m = Chem.MolFromSmarts(s)
     if m is None:
-        raise RdkitMolCreationError(f"smiles: {s}")
+        raise RdkitMolCreationError(f"smarts: {s}")
 
     Chem.SanitizeMol(m)
 
     try:
         m = generate_3D_coords(m)
     except GenerateCoordsError as e:
-        raise RdkitMolCreationError(f"smiles: {e}")
+        raise RdkitMolCreationError(f"smarts: {e}")
 
-    m.SetProp("_Name", s)
+    # the above code creates a Query mol; most part is OK, but the bond order is odd,
+    # for example, single bond is represented by 6 in sdf file. So we create one from
+    # scratch.
 
-    return m
+    species = [a.GetSymbol() for a in m.GetAtoms()]
+
+    # coords = m.GetConformer().GetPositions()
+    # NOTE, the above way to get coords results in segfault on linux, so we use the
+    # below workaround
+    conformer = m.GetConformer()
+    coords = [[x for x in conformer.GetAtomPosition(i)] for i in range(m.GetNumAtoms())]
+
+    # should not sort (b.GetBeginAtomIdx(), b.GetEndAtomIdx()), because dative bond
+    # needs to have the metal as the end atom
+    bond_types = {
+        (b.GetBeginAtomIdx(), b.GetEndAtomIdx()): b.GetBondType() for b in m.GetBonds()
+    }
+
+    formal_charge = [a.GetFormalCharge() for a in m.GetAtoms()]
+
+    try:
+        new_m = create_rdkit_mol(
+            species, coords, bond_types, formal_charge, name=s, force_sanitize=True
+        )
+    except Chem.KekulizeException as e:
+        raise RdkitMolCreationError(f"smarts: {e}")
+
+    # set atom map number from smarts mol
+    for a, new_a in zip(m.GetAtoms(), new_m.GetAtoms()):
+        new_a.SetAtomMapNum(a.GetAtomMapNum())
+
+    return new_m
 
 
 def inchi_to_rdkit_mol(s):
