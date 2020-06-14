@@ -19,16 +19,12 @@ Currently, we only support installation from source:
 
 2. install dependencies (see their websites for more installing options)
     ```bash
-    conda install pytorch torchvision -c pytorch       # https://pytorch.org
-    conda install dgl -c dglteam                       # https://www.dgl.ai/pages/start.html
-    conda install pymatgen==2019.10.4 -c conda-forge   # https://pymatgen.org/installation.html
-    conda install rdkit==2020.03.1 -c conda-forge      # https://rdkit.org/docs /Install.html
-    conda install openbabel==2.4.1 -c conda-forge      # http://openbabel.org/wiki/Category:Installation
+    conda install pytorch==1.5.0 torchvision -c pytorch   # https://pytorch.org
+    conda install dgl==0.4.3 -c dglteam                   # https://www.dgl.ai/pages/start.html
+    conda install pymatgen==2020.6.8 -c conda-forge       # https://pymatgen.org/installation.html
+    conda install rdkit==2020.03.3 -c conda-forge         # https://rdkit.org/docs/Install.html
+    conda install openbabel==3.1.1 -c conda-forge         # http://openbabel.org/wiki/Category:Installation
     ```
-
-   NOTE (Latest pymatgen depends on openbabel 3.0.0, which introduces
-    many backward incompatible API changes (bad decision). Remember to update the code
-     and switch to use the latest.)
 
 3. install this repo
     ```bash

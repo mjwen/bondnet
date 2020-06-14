@@ -48,7 +48,7 @@ class MoleculeWrapperTaskCollection(MoleculeWrapper):
 
         # mol graph
         mol_graph = MoleculeGraph.with_local_env_strategy(
-            pymatgen_mol, OpenBabelNN(order=True), reorder=False, extend_structure=False,
+            pymatgen_mol, OpenBabelNN(order=True)
         )
         if use_metal_edge_extender:
             mol_graph = metal_edge_extender(self.mol_graph)
@@ -135,10 +135,7 @@ class MoleculeWrapperMolBuilder(MoleculeWrapper):
         except KeyError as e:
             if db_entry["nsites"] == 1:  # single atom molecule
                 mol_graph = MoleculeGraph.with_local_env_strategy(
-                    pymatgen_mol,
-                    OpenBabelNN(order=True),
-                    reorder=False,
-                    extend_structure=False,
+                    pymatgen_mol, OpenBabelNN(order=True)
                 )
             else:
                 print(
@@ -191,10 +188,7 @@ class MoleculeWrapperMolBuilder(MoleculeWrapper):
 
     def convert_to_babel_mol_graph(self, use_metal_edge_extender=True):
         self.mol_graph = MoleculeGraph.with_local_env_strategy(
-            self.pymatgen_mol,
-            OpenBabelNN(order=True),
-            reorder=False,
-            extend_structure=False,
+            self.pymatgen_mol, OpenBabelNN(order=True)
         )
         if use_metal_edge_extender:
             self.mol_graph = metal_edge_extender(self.mol_graph)

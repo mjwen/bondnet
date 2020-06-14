@@ -7,7 +7,7 @@ from pymatgen.io.babel import BabelMolAdaptor
 from rdkit import Chem
 from rdkit.Chem import BondType, AllChem
 from rdkit.Geometry import Point3D
-import openbabel as ob
+from openbabel import openbabel as ob
 from gnn.utils import expand_path
 
 logger = logging.getLogger(__name__)
