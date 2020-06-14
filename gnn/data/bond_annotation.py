@@ -22,9 +22,9 @@ class BondAnnotationDataset(BaseDataset):
     ):
         super(BondAnnotationDataset, self).__init__(
             grapher=grapher,
-            sdf_file=sdf_file,
-            label_file=label_file,
-            feature_file=feature_file,
+            molecules=sdf_file,
+            labels=label_file,
+            extra_features=feature_file,
             feature_transformer=feature_transformer,
             label_transformer=False,
             dtype=dtype,
@@ -32,21 +32,18 @@ class BondAnnotationDataset(BaseDataset):
 
     def _load(self):
 
-        logger.info(
-            f"Start loading dataset from files: {self.sdf_file}, {self.label_file}, "
-            f"and {self.feature_file}..."
-        )
+        logger.info("Start loading dataset")
 
         # read label and feature file
-        raw_labels = yaml_load(self.label_file)
-        if self.feature_file is not None:
-            features = yaml_load(self.feature_file)
+        raw_labels = yaml_load(self.raw_labels)
+        if self.extra_features is not None:
+            features = yaml_load(self.extra_features)
         else:
             features = [None] * len(raw_labels)
 
         # build graph for mols from sdf file
-        supp = Chem.SDMolSupplier(self.sdf_file, sanitize=True, removeHs=False)
-        species = get_dataset_species(self.sdf_file)
+        supp = Chem.SDMolSupplier(self.molecules, sanitize=True, removeHs=False)
+        species = get_dataset_species(self.molecules)
 
         self.graphs = []
         self.labels = []

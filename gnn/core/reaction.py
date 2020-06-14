@@ -114,7 +114,8 @@ class Reaction:
 
     def get_broken_bond_attr(self):
         """
-        Returns a dict of attributes of the broken bond.
+        Returns:
+             dict: {bond_idx:attr} attributes of the broken bond.
         """
         reactant = self.reactants[0]
         u, v = self.get_broken_bond()

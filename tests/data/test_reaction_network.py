@@ -1,11 +1,11 @@
 import numpy as np
-from gnn.data.reaction_network import Reaction, ReactionNetwork
+from gnn.data.reaction_network import ReactionInNetwork, ReactionNetwork
 
 
 class TestReaction:
     def test_mapping_as_list(self):
         def assert_one(mappings, ref, mode="atom"):
-            mp_list = Reaction._mapping_as_list(mappings, mode)
+            mp_list = ReactionInNetwork._mapping_as_list(mappings, mode)
             assert mp_list == ref
 
         # no missing
@@ -28,8 +28,8 @@ class TestReactionNetwork:
     def test_get_molecules_in_reactions(self):
 
         molecules = ["m0", "m1", "m2", "m3", "m4"]
-        rxn1 = Reaction(reactants=[2], products=[0, 4])
-        rxn2 = Reaction(reactants=[1], products=[4])
+        rxn1 = ReactionInNetwork(reactants=[2], products=[0, 4])
+        rxn2 = ReactionInNetwork(reactants=[1], products=[4])
 
         rn = ReactionNetwork(molecules, [rxn1, rxn2])
 

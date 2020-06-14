@@ -1,6 +1,4 @@
 import itertools
-import os
-import glob
 import numpy as np
 from collections import defaultdict
 from pprint import pprint
@@ -10,6 +8,21 @@ from gnn.analysis.utils import TexWriter
 from gnn.core.reaction import ReactionsMultiplePerBond, ReactionExtractorFromMolSet
 from gnn.core.reaction_collection import ReactionCollection
 from gnn.utils import pickle_load, expand_path, create_directory
+
+
+def get_reactions_with_lowest_energy(extractor):
+    """
+    Get the reactions by removing higher energy ones. Higher energy is compared
+    across product charge.
+
+    Returns:
+        list: a sequence of :class:`Reaction`.
+    """
+    groups = extractor.group_by_reactant_lowest_energy()
+    reactions = []
+    for rsr in groups:
+        reactions.extend(rsr.reactions)
+    return reactions
 
 
 def eg_buckets():
@@ -444,7 +457,7 @@ def plot_bond_energy_hist(
 
     # prepare data
     extractor = ReactionCollection.from_file(filename)
-    all_reactions = extractor.get_reactions_with_lowest_energy()
+    all_reactions = get_reactions_with_lowest_energy(extractor)
     print(
         "@@@ total number of reactions: {}, lowest energy reactions: {}".format(
             len(extractor.reactions), len(all_reactions)
@@ -493,7 +506,7 @@ def plot_all_bond_length_hist(
 
     # prepare data
     extractor = ReactionCollection.from_file(filename)
-    all_reactions = extractor.get_reactions_with_lowest_energy()
+    all_reactions = get_reactions_with_lowest_energy(extractor)
     data = [get_length_of_bond(rxn) for rxn in all_reactions]
     data = np.concatenate(data)
 
@@ -543,7 +556,7 @@ def plot_broken_bond_length_hist(
 
     # prepare data
     extractor = ReactionCollection.from_file(filename)
-    all_reactions = extractor.get_reactions_with_lowest_energy()
+    all_reactions = get_reactions_with_lowest_energy(extractor)
     data = [get_length_of_broken_bond(rxn) for rxn in all_reactions]
 
     print("\n\n@@@ broken bond length min={}, max={}".format(min(data), max(data)))

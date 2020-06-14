@@ -10,7 +10,7 @@ from collections import OrderedDict
 import pandas as pd
 from gnn.data.dataset import BaseDataset
 from gnn.data.transformers import StandardScaler, GraphFeatureStandardScaler
-from gnn.data.reaction_network import Reaction, ReactionNetwork
+from gnn.data.reaction_network import ReactionInNetwork, ReactionNetwork
 from gnn.data.utils import get_dataset_species
 from gnn.utils import yaml_load, np_split_by_size
 
@@ -24,7 +24,6 @@ class ElectrolyteBondDataset(BaseDataset):
         logger.info("Start loading dataset")
 
         # read label and feature file
-        # TODO, change the label file to a yaml file
         raw_value, raw_indicator, raw_mol_source = self._read_label_file()
         if self.extra_features is not None:
             features = yaml_load(self.extra_features)
@@ -55,8 +54,6 @@ class ElectrolyteBondDataset(BaseDataset):
             bonds_indicator = torch.tensor(raw_indicator[i], dtype=dtype)
             bonds_mol_source = raw_mol_source[i]
 
-            # TODO make indicator an integer as in BondClassification, and add num_mols.
-            #  Then we can combine these dataset. Also, see Reaction dataset.
             label = {
                 "value": bonds_energy,  # 1D tensor
                 "indicator": bonds_indicator,  # 1D tensor
@@ -583,7 +580,7 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
                     self._failed.append(True)
                     break
             else:
-                rxn = Reaction(
+                rxn = ReactionInNetwork(
                     reactants=lb["reactants"],
                     products=lb["products"],
                     atom_mapping=lb["atom_mapping"],

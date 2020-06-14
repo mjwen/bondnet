@@ -29,22 +29,6 @@ class ReactionCollection:
         )
         return cls(d["reactions"])
 
-    def filter_reactions_by_reactant_attribute(self, key, values):
-        """
-        Filter the reactions by the `key` of reactant, and only reactions the attribute of
-        the of `key` is in `values` are retained.
-
-        Args:
-            key (str): attribute of readtant
-            values (list): list of allowable values
-        """
-        reactions = []
-        for rxn in self.reactions:
-            if getattr(rxn.reactants[0], key) in values:
-                reactions.append(rxn)
-
-        self.reactions = reactions
-
     def filter_reactions_by_bond_type(self, bond_type):
         """
         Filter the reactions by the type of the breaking bond, and only reactions with the
@@ -61,9 +45,6 @@ class ReactionCollection:
                 reactions.append(rxn)
 
         self.reactions = reactions
-
-    def sort_reactions_by_reactant_formula(self):
-        self.reactions = sorted(self.reactions, key=lambda rxn: rxn.reactants[0].formula)
 
     def group_by_reactant(self):
         """
@@ -213,34 +194,10 @@ class ReactionCollection:
                 result[(rsr1.reactant.charge, rsr2.reactant.charge)].extend(res)
         return result
 
-    def get_reactions_with_0_charge(self):
-        """
-        Get reactions the charges of reactant and products are all 0.
-
-        Returns:
-            list: a sequence of :class:`Reaction`.
-        """
-        groups = self.group_by_reactant_charge_0()
-        reactions = []
-        for rsr in groups:
-            reactions.extend(rsr.reactions)
-        return reactions
-
-    def get_reactions_with_lowest_energy(self):
-        """
-        Get the reactions by removing higher energy ones. Higher energy is compared
-        across product charge.
-
-        Returns:
-            list: a sequence of :class:`Reaction`.
-        """
-        groups = self.group_by_reactant_lowest_energy()
-        reactions = []
-        for rsr in groups:
-            reactions.extend(rsr.reactions)
-        return reactions
-
     def write_bond_energies(self, filename):
+        """
+        Write bond energy to a yaml file.
+        """
 
         groups = self.group_by_reactant_all()
 
@@ -383,7 +340,8 @@ class ReactionCollection:
 
         # write feature
         if feature_file is not None:
-            self.get_feature(mol_reservoir, bond_indices=None, filename=feature_file)
+            features = self.get_feature(mol_reservoir, bond_indices=None)
+            yaml_dump(features, feature_file)
 
     def create_struct_label_dataset_reaction_network_based_regression(
         self,
@@ -685,7 +643,8 @@ class ReactionCollection:
 
         # write feature
         if feature_file is not None:
-            self.get_feature(all_mols, bond_indices=None, filename=feature_file)
+            features = self.get_feature(all_mols, bond_indices=None)
+            yaml_dump(features, feature_file)
 
     def create_struct_label_dataset_reaction_based_regression(
         self,
@@ -758,7 +717,8 @@ class ReactionCollection:
 
         # write feature
         if feature_file is not None:
-            self.get_feature(all_mols, bond_indices=None, filename=feature_file)
+            features = self.get_feature(all_mols, bond_indices=None)
+            yaml_dump(features, feature_file)
 
     def create_struct_label_dataset_bond_based_classification(
         self,
@@ -894,7 +854,8 @@ class ReactionCollection:
 
         # write feature
         if feature_file is not None:
-            self.get_feature(all_reactants, broken_bond_pairs, filename=feature_file)
+            features = self.get_feature(all_reactants, bond_indices=broken_bond_pairs)
+            yaml_dump(features, feature_file)
 
     def create_struct_label_dataset_bond_based_regression(
         self,
@@ -1030,7 +991,8 @@ class ReactionCollection:
 
         # write feature
         if feature_file is not None:
-            self.get_feature(all_reactants, broken_bond_pairs, filename=feature_file)
+            features = self.get_feature(all_reactants, bond_indices=broken_bond_pairs)
+            yaml_dump(features, feature_file)
 
     def create_struct_label_dataset_mol_based(
         self,
@@ -1106,10 +1068,9 @@ class ReactionCollection:
         self.write_sdf(reactants, struct_file)
 
         # write feature
-        # we just need one reaction for each group with the same reactant
-        rxns = [rsr.reactions[0] for rsr in grouped_reactions]
         if feature_file is not None:
-            self.get_feature(rxns, bond_indices=None, filename=feature_file)
+            features = self.get_feature(reactants, bond_indices=None)
+            yaml_dump(features, feature_file)
 
     @staticmethod
     def write_sdf(molecules, filename="struct.sdf"):

@@ -4,12 +4,12 @@ import itertools
 import dgl
 
 
-class Reaction:
+class ReactionInNetwork:
     def __init__(
         self, reactants, products, atom_mapping=None, bond_mapping=None, id=None
     ):
         """
-        A class to represent chemical reaction.
+        A class to represent a chemical reaction in reaction network.
 
         Args:
             reactants (list): integer indices of reactants

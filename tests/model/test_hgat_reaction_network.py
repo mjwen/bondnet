@@ -1,5 +1,5 @@
 import numpy as np
-from gnn.data.reaction_network import Reaction
+from gnn.data.reaction_network import ReactionInNetwork
 from gnn.model.hgat_reaction_network import (
     create_rxn_graph,
     mol_graph_to_rxn_graph,
@@ -46,7 +46,7 @@ def test_create_rxn_graph():
 def test_mol_graph_to_rxn_graph():
     graph, feats = make_batched_hetero_forming_reaction()
 
-    rxn = Reaction(
+    rxn = ReactionInNetwork(
         reactants=[0],
         products=[1, 2],
         atom_mapping=[{0: 0, 1: 1, 2: 2}, {0: 3}],
@@ -82,7 +82,7 @@ def test_hgat_reaction_network():
 
     model = HGATReactionNetwork(attn_mechanism, attn_order, in_feats, outdim=3)
 
-    rxn = Reaction(
+    rxn = ReactionInNetwork(
         reactants=[0],
         products=[1, 2],
         atom_mapping=[{0: 0, 1: 1, 2: 2}, {0: 3}],
