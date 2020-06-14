@@ -7,16 +7,21 @@ import numpy as np
 from datetime import datetime
 from itertools import compress
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from gnn.metric import WeightedMSELoss, WeightedL1Loss, EarlyStopping, OrderAccuracy
+from gnn.training_script.metric import (
+    WeightedMSELoss,
+    WeightedL1Loss,
+    EarlyStopping,
+    OrderAccuracy,
+)
 from gnn.model.gated_bond import GatedGCNBond
 from gnn.data.dataset import train_validation_test_split_test_with_all_bonds_of_mol
 from gnn.data.electrolyte import ElectrolyteBondDataset
 from gnn.data.dataloader import DataLoaderBond
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import (
-    AtomFeaturizer,
-    BondAsNodeFeaturizer,
-    GlobalFeaturizerCharge,
+    AtomFeaturizerMinimum,
+    BondAsNodeFeaturizerMinimum,
+    GlobalFeaturizer,
 )
 from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
@@ -260,15 +265,11 @@ def ordering_accuracy(model, nodes, data_loader, device=None):
 
 
 def get_grapher():
-    atom_featurizer = AtomFeaturizer()
-    bond_featurizer = BondAsNodeFeaturizer(
-        # length_featurizer="bin",
-        # length_featurizer_args={"low": 0.7, "high": 2.5, "num_bins": 10},
-        length_featurizer="rbf",
-        length_featurizer_args={"low": 0.0, "high": 2.5, "num_centers": 20},
-    )
 
-    global_featurizer = GlobalFeaturizerCharge()
+    atom_featurizer = AtomFeaturizerMinimum()
+    bond_featurizer = BondAsNodeFeaturizerMinimum(length_featurizer=None)
+    global_featurizer = GlobalFeaturizer(allowed_charges=[-1, 0, 1])
+
     grapher = HeteroMoleculeGraph(
         atom_featurizer=atom_featurizer,
         bond_featurizer=bond_featurizer,
@@ -290,9 +291,9 @@ def main(args):
     feature_file = "~/Applications/db_access/zinc_bde/zinc_feature_bond_rgrn_n200.yaml"
     dataset = ElectrolyteBondDataset(
         grapher=get_grapher(),
-        sdf_file=sdf_file,
-        label_file=label_file,
-        feature_file=feature_file,
+        molecules=sdf_file,
+        labels=label_file,
+        extra_features=feature_file,
         feature_transformer=True,
         label_transformer=True,
     )

@@ -19,10 +19,10 @@ from gnn.data.dataloader import (
 )
 from gnn.data.grapher import HeteroMoleculeGraph, HomoCompleteGraph
 from gnn.data.featurizer import (
-    AtomFeaturizer,
-    BondAsNodeFeaturizer,
+    AtomFeaturizerFull,
+    BondAsNodeFeaturizerFull,
     BondAsEdgeCompleteFeaturizer,
-    GlobalFeaturizerCharge,
+    GlobalFeaturizer,
 )
 
 test_files = os.path.join(os.path.dirname(__file__), "testdata")
@@ -30,16 +30,17 @@ test_files = os.path.join(os.path.dirname(__file__), "testdata")
 
 def get_grapher_hetero():
     return HeteroMoleculeGraph(
-        atom_featurizer=AtomFeaturizer(),
-        bond_featurizer=BondAsNodeFeaturizer(),
-        global_featurizer=GlobalFeaturizerCharge(),
+        atom_featurizer=AtomFeaturizerFull(),
+        bond_featurizer=BondAsNodeFeaturizerFull(),
+        global_featurizer=GlobalFeaturizer(),
         self_loop=True,
     )
 
 
 def get_grapher_homo():
     return HomoCompleteGraph(
-        atom_featurizer=AtomFeaturizer(), bond_featurizer=BondAsEdgeCompleteFeaturizer()
+        atom_featurizer=AtomFeaturizerFull(),
+        bond_featurizer=BondAsEdgeCompleteFeaturizer(),
     )
 
 

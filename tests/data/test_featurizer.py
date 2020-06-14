@@ -1,12 +1,11 @@
 import numpy as np
 from gnn.data.featurizer import (
-    AtomFeaturizer,
-    BondAsNodeFeaturizer,
+    AtomFeaturizerFull,
+    BondAsNodeFeaturizerFull,
     BondAsNodeCompleteFeaturizer,
     BondAsEdgeBidirectedFeaturizer,
     BondAsEdgeCompleteFeaturizer,
-    GlobalFeaturizerChargeSpin,
-    MolWeightFeaturizer,
+    GlobalFeaturizer,
     DistanceBins,
     RBF,
 )
@@ -16,7 +15,7 @@ from .utils import make_a_mol
 def test_atom_featurizer():
     m = make_a_mol()
     species = list(set([a.GetSymbol() for a in m.GetAtoms()]))
-    featurizer = AtomFeaturizer()
+    featurizer = AtomFeaturizerFull()
     feat = featurizer(m, dataset_species=species)
     size = featurizer.feature_size
     assert np.array_equal(feat["feat"].shape, (m.GetNumAtoms(), size))
@@ -25,7 +24,7 @@ def test_atom_featurizer():
 
 def test_bond_as_node_featurizer():
     m = make_a_mol()
-    featurizer = BondAsNodeFeaturizer(length_featurizer="bin")
+    featurizer = BondAsNodeFeaturizerFull(length_featurizer="bin")
     feat = featurizer(m)
     size = featurizer.feature_size
     assert np.array_equal(feat["feat"].shape, (m.GetNumBonds(), size))
@@ -89,25 +88,9 @@ def test_bond_as_edge_complete_featurizer():
     assert_featurizer(False)
 
 
-def test_mol_charge_featurizer():
-    featurizer = GlobalFeaturizerChargeSpin()
-    feat = featurizer(
-        None,
-        extra_feats_info={
-            "charge": 1,
-            "spin_multiplicity": 0,
-            "atom_spin": [0.1, 0, 3, 0.6],
-        },
-    )
-    size = featurizer.feature_size
-    assert size == 7
-    assert np.array_equal(feat["feat"].shape, (1, size))
-    assert len(featurizer.feature_name) == size
-
-
 def test_mol_weight_featurizer():
     m = make_a_mol()
-    featurizer = MolWeightFeaturizer()
+    featurizer = GlobalFeaturizer()
     feat = featurizer(m)
     size = featurizer.feature_size
     assert size == 3

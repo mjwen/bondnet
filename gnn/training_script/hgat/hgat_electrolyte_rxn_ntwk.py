@@ -4,27 +4,23 @@ import warnings
 import torch
 import argparse
 import numpy as np
+import pandas as pd
 from datetime import datetime
-from collections import Counter
 from torch import autograd
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.nn import BCEWithLogitsLoss
-from sklearn.metrics import (
-    f1_score,
-    classification_report,
-    precision_recall_fscore_support,
-)
-from gnn.metric import EarlyStopping
-from gnn.model.hgat_reaction import HGATReaction
+from torch.nn import MSELoss
+from gnn.training_script.metric import WeightedL1Loss, EarlyStopping
+from gnn.model.hgat_reaction_network import HGATReactionNetwork
 from gnn.data.dataset import train_validation_test_split
-from gnn.data.electrolyte import ElectrolyteReactionDataset
-from gnn.data.dataloader import DataLoaderReaction
+from gnn.data.electrolyte import ElectrolyteReactionNetworkDataset
+from gnn.data.dataloader import DataLoaderReactionNetwork
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import (
     AtomFeaturizer,
     BondAsNodeFeaturizer,
     GlobalFeaturizerCharge,
 )
+from gnn.analysis.post_analysis import write_error
 from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
 
@@ -54,6 +50,13 @@ def parse_args():
         type=float,
         default=0.2,
         help="the negative slope of leaky relu",
+    )
+
+    parser.add_argument(
+        "--gat-num-fc-layers",
+        type=int,
+        default=3,
+        help="number of fc layers in gat node attantion layer",
     )
 
     parser.add_argument(
@@ -115,6 +118,10 @@ def parse_args():
 
     parser.add_argument("--restore", type=int, default=0, help="read checkpoints")
 
+    parser.add_argument(
+        "--post-analysis", type=str, default="none", help="post analysis type"
+    )
+
     args = parser.parse_args()
 
     if args.gpu >= 0 and torch.cuda.is_available():
@@ -168,53 +175,35 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
     model.train()
 
     epoch_loss = 0.0
-    all_pred_class = []
-    all_target_class = []
+    accuracy = 0.0
+    count = 0.0
 
     for it, (bg, label) in enumerate(data_loader):
         feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-        target_class = label["value"]
+        target = label["value"]
+        stdev = label["scaler_stdev"]
+
         if device is not None:
             feats = {k: v.to(device) for k, v in feats.items()}
-            target_class = target_class.to(device)
+            target = target.to(device)
+            stdev = stdev.to(device)
 
-        pred = model(
-            bg,
-            feats,
-            label["num_mols"],
-            label["atom_mapping"],
-            label["bond_mapping"],
-            label["global_mapping"],
-        )
+        pred = model(bg, feats, label["reaction"])
         pred = pred.view(-1)
 
-        # update parameters
-        loss = loss_fn(pred, target_class)
+        loss = loss_fn(pred, target)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        epoch_loss += loss.detach().item()
 
-        # retain data for score computation
-        pred_class = [1 if i >= 0.5 else 0 for i in pred]
-        all_pred_class.append(pred_class)
-        all_target_class.append(target_class.detach().cpu().numpy())
+        epoch_loss += loss.detach().item()
+        accuracy += metric_fn(pred, target, stdev).detach().item()
+        count += len(target)
 
     epoch_loss /= it + 1
+    accuracy /= count
 
-    # compute f1 score
-    all_pred_class = np.concatenate(all_pred_class)
-    all_target_class = np.concatenate(all_target_class)
-    if metric_fn == "f1_score":
-        score = f1_score(all_target_class, all_pred_class)
-    elif metric_fn == "prfs":
-        score = precision_recall_fscore_support(all_target_class, all_pred_class)
-    elif metric_fn == "classification_report":
-        score = classification_report(all_target_class, all_pred_class)
-    else:
-        raise ValueError("Unsupported metric `{}`".format(metric_fn))
-
-    return epoch_loss, score
+    return epoch_loss, accuracy
 
 
 def evaluate(model, nodes, data_loader, metric_fn, device=None):
@@ -227,74 +216,114 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
     model.eval()
 
     with torch.no_grad():
-
-        all_pred_class = []
-        all_target_class = []
+        accuracy = 0.0
+        count = 0.0
 
         for bg, label in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-            target_class = label["value"]
+            target = label["value"]
+            stdev = label["scaler_stdev"]
+            if device is not None:
+                feats = {k: v.to(device) for k, v in feats.items()}
+                target = target.to(device)
+                stdev = stdev.to(device)
+
+            pred = model(bg, feats, label["reaction"])
+            pred = pred.view(-1)
+
+            accuracy += metric_fn(pred, target, stdev).detach().item()
+            count += len(target)
+
+    return accuracy / count
+
+
+def write_features(
+    model, nodes, all_data_loader, feat_filename, meta_filename, device=None,
+):
+    model.eval()
+
+    all_feature = []
+    all_label = []
+    all_ids = []
+    loader_names = []
+
+    with torch.no_grad():
+        for name, data_loader in all_data_loader.items():
+
+            feature_data = []
+            label_data = []
+            ids = []
+            for bg, label in data_loader:
+                feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
+
+                if device is not None:
+                    feats = {k: v.to(device) for k, v in feats.items()}
+                feats = model.feature_before_fc(bg, feats, label["reaction"])
+
+                feature_data.append(feats)
+
+                target = (
+                    torch.mul(label["value"], label["scaler_stdev"])
+                    + label["scaler_mean"]
+                )
+                label_data.append(target.numpy())
+                ids.append([rxn.id for rxn in label["reaction"]])
+
+            all_feature.append(np.concatenate(feature_data))
+            all_label.append(np.concatenate(label_data))
+            all_ids.append(np.concatenate(ids))
+            loader_names.append(name)
+
+    # features
+    feats = np.concatenate(all_feature)
+
+    # metadata
+    loader_source = [[nm] * len(lb) for nm, lb in zip(loader_names, all_label)]
+    metadata = {
+        "ids": np.concatenate(all_ids),
+        "energy": np.concatenate(all_label),
+        "loader": np.concatenate(loader_source),
+    }
+
+    # write files
+    df = pd.DataFrame(feats)
+    df.to_csv(feat_filename, sep="\t", header=False, index=False)
+    df = pd.DataFrame(metadata)
+    df.to_csv(meta_filename, sep="\t", index=False)
+
+
+def error_analysis(model, nodes, data_loader, filename, device=None):
+    model.eval()
+
+    predictions = []
+    targets = []
+    ids = []
+
+    with torch.no_grad():
+
+        for bg, label in data_loader:
+            feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
+            tgt = label["value"]
+            mean = label["scaler_mean"]
+            stdev = label["scaler_stdev"]
+
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
 
-            pred = model(
-                bg,
-                feats,
-                label["num_mols"],
-                label["atom_mapping"],
-                label["bond_mapping"],
-                label["global_mapping"],
-            )
+            pred = model(bg, feats, label["reaction"])
             pred = pred.view(-1)
 
-            # retain data for score computation
-            pred_class = [1 if i >= 0.5 else 0 for i in pred]
-            all_pred_class.append(pred_class)
-            all_target_class.append(target_class.numpy())
+            pred = pred * stdev + mean
+            tgt = tgt * stdev + mean
+            predictions.append(pred.numpy())
+            targets.append(tgt.numpy())
+            ids.append([rxn.id for rxn in label["reaction"]])
 
-    # compute f1 score
-    all_pred_class = np.concatenate(all_pred_class)
-    all_target_class = np.concatenate(all_target_class)
-    if metric_fn == "f1_score":
-        score = f1_score(all_target_class, all_pred_class)
-    elif metric_fn == "prfs":
-        score = precision_recall_fscore_support(all_target_class, all_pred_class)
-    elif metric_fn == "classification_report":
-        score = classification_report(all_target_class, all_pred_class)
-    else:
-        raise ValueError("Unsupported metric `{}`".format(metric_fn))
+    predictions = np.concatenate(predictions)
+    targets = np.concatenate(targets)
+    ids = np.concatenate(ids)
 
-    return score
-
-
-def score_to_string(score, metric_fn="prfs"):
-    if metric_fn == "prfs":
-        res = ""
-        for i, line in enumerate(score):
-            # do not use support
-            if i < 3:
-                res += " ["
-                for j in line:
-                    res += "{:.2f} ".format(j)
-                res = res[:-1] + "]"
-        return res
-    else:
-        return str(score)
-
-
-def get_class_weight(data_loader):
-    """
-    Return a 1D tensor of the weight for positive example (class 1), which is set to
-    be equal to the number of negative examples divided by the number os positive
-    examples.
-    """
-    target_class = np.concatenate([label["value"].numpy() for bg, label in data_loader])
-    counts = [v for k, v in sorted(Counter(target_class).items())]
-    assert len(counts) == 2, f"number of classes {len(counts)} should be 2"
-
-    weight = torch.tensor([counts[0] / counts[1]])
-
-    return weight
+    write_error(predictions, targets, ids, sort=True, filename=filename)
 
 
 def get_grapher():
@@ -314,17 +343,22 @@ def main(args):
     print("\n\nStart training at:", datetime.now())
 
     ### dataset
-    sdf_file = "~/Applications/db_access/mol_builder/struct_rxn_clfn_n200.sdf"
-    label_file = "~/Applications/db_access/mol_builder/label_rxn_clfn_n200.yaml"
-    feature_file = "~/Applications/db_access/mol_builder/feature_rxn_clfn_n200.yaml"
+    # sdf_file = "~/Applications/db_access/mol_builder/struct_rxn_ntwk_rgrn_n200.sdf"
+    # label_file = "~/Applications/db_access/mol_builder/label_rxn_ntwk_rgrn_n200.yaml"
+    # feature_file = "~/Applications/db_access/mol_builder/feature_rxn_ntwk_rgrn_n200.yaml"
+    sdf_file = "~/Applications/db_access/mol_builder/zinc_struct_rxn_ntwk_rgrn_n200.sdf"
+    label_file = "~/Applications/db_access/mol_builder/zinc_label_rxn_ntwk_rgrn_n200.yaml"
+    feature_file = (
+        "~/Applications/db_access/mol_builder/zinc_feature_rxn_ntwk_rgrn_n200.yaml"
+    )
 
-    dataset = ElectrolyteReactionDataset(
+    dataset = ElectrolyteReactionNetworkDataset(
         grapher=get_grapher(),
         sdf_file=sdf_file,
         label_file=label_file,
         feature_file=feature_file,
-        label_transformer=False,
     )
+
     trainset, valset, testset = train_validation_test_split(
         dataset, validation=0.1, test=0.1
     )
@@ -334,13 +368,15 @@ def main(args):
         )
     )
 
-    train_loader = DataLoaderReaction(trainset, batch_size=args.batch_size, shuffle=True)
+    train_loader = DataLoaderReactionNetwork(
+        trainset, batch_size=args.batch_size, shuffle=True
+    )
     # larger val and test set batch_size is faster but needs more memory
     # adjust the batch size of to fit memory
     bs = max(len(valset) // 10, 1)
-    val_loader = DataLoaderReaction(valset, batch_size=bs, shuffle=False)
+    val_loader = DataLoaderReactionNetwork(valset, batch_size=bs, shuffle=False)
     bs = max(len(testset) // 10, 1)
-    test_loader = DataLoaderReaction(testset, batch_size=bs, shuffle=False)
+    test_loader = DataLoaderReactionNetwork(testset, batch_size=bs, shuffle=False)
 
     ### model
     attn_mechanism = {
@@ -359,7 +395,7 @@ def main(args):
     # set2set_ntypes_direct = None
 
     in_feats = trainset.get_feature_size(attn_order)
-    model = HGATReaction(
+    model = HGATReactionNetwork(
         attn_mechanism,
         attn_order,
         in_feats,
@@ -369,6 +405,7 @@ def main(args):
         feat_drop=args.feat_drop,
         attn_drop=args.attn_drop,
         negative_slope=args.negative_slope,
+        gat_num_fc_layers=args.gat_num_fc_layers,
         gat_residual=args.gat_residual,
         gat_batch_norm=args.gat_batch_norm,
         gat_activation=args.gat_activation,
@@ -387,15 +424,43 @@ def main(args):
     if args.device is not None:
         model.to(device=args.device)
 
+    if args.post_analysis != "none":
+        print(f"\nStart post analysis ({args.post_analysis}) at:", datetime.now())
+
+        # load saved model
+        checkpoints_objs = {"model": model}
+        load_checkpoints(checkpoints_objs)
+
+        if args.post_analysis == "write_feature":
+            # write_feature
+            write_features(
+                model,
+                attn_order,
+                {"train": train_loader, "validation": val_loader},
+                "feats.tsv",
+                "feats_metadata.tsv",
+                args.device,
+            )
+        elif args.post_analysis == "error_analysis":
+            loaders = [train_loader, val_loader, test_loader]
+            fnames = ["train_error.txt", "val_error.txt", "test_error.txt"]
+            for ld, nm in zip(loaders, fnames):
+                error_analysis(model, attn_order, ld, nm, args.device)
+        else:
+            raise ValueError(f"not supported post analysis type: {args.post_analysis}")
+
+        print(f"\nFinish post analysis ({args.post_analysis}) at:", datetime.now())
+
+        # we only do post analysis and do not need to train; so exist here
+        sys.exit(0)
+
     ### optimizer, loss, and metric
     optimizer = torch.optim.Adam(
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
 
-    pos_weight = get_class_weight(train_loader)
-    if args.device is not None:
-        pos_weight = pos_weight.to(args.device)
-    loss_func = BCEWithLogitsLoss(pos_weight=pos_weight, reduction="mean")
+    loss_func = MSELoss(reduction="mean")
+    metric = WeightedL1Loss(reduction="sum")
 
     ### learning rate scheduler and stopper
     scheduler = ReduceLROnPlateau(
@@ -412,18 +477,17 @@ def main(args):
             warnings.warn(str(e) + " Continue without loading checkpoints.")
             pass
 
-    print(
-        "\n\n# Epoch     Loss         TrainScore(prec,recall,f1)        ValScore("
-        "pred,recall,f1)     Time (s)"
-    )
+    print("\n\n# Epoch     Loss         TrainAcc        ValAcc     Time (s)")
     sys.stdout.flush()
+
+    t0 = time.time()
 
     for epoch in range(args.epochs):
         ti = time.time()
 
         # train and evaluate accuracy
-        loss, train_score = train(
-            optimizer, model, attn_order, train_loader, loss_func, "prfs", args.device
+        loss, train_acc = train(
+            optimizer, model, attn_order, train_loader, loss_func, metric, args.device
         )
 
         # bad, we get nan. Before existing, do some debugging
@@ -437,30 +501,25 @@ def main(args):
                     attn_order,
                     train_loader,
                     loss_func,
-                    "prfs",
+                    metric,
                     args.device,
                 )
             sys.exit(1)
 
-        val_score = evaluate(model, attn_order, val_loader, "prfs", args.device)
+        val_acc = evaluate(model, attn_order, val_loader, metric, args.device)
 
-        try:
-            recall = val_score[1][1]  # recall of the 1 class
-        except IndexError:
-            pass
-
-        if stopper.step(-recall, checkpoints_objs, msg="epoch " + str(epoch)):
+        if stopper.step(val_acc, checkpoints_objs, msg="epoch " + str(epoch)):
             # save results for hyperparam tune
             pickle_dump(float(stopper.best_score), args.output_file)
             break
 
-        scheduler.step(-recall)
+        scheduler.step(val_acc)
 
         tt = time.time() - ti
 
         print(
-            "{:5d}   {:12.6e}   {}   {}   {:.2f}".format(
-                epoch, loss, score_to_string(train_score), score_to_string(val_score), tt
+            "{:5d}   {:12.6e}   {:12.6e}   {:12.6e}   {:.2f}".format(
+                epoch, loss, train_acc, val_acc, tt
             )
         )
         if epoch % 10 == 0:
@@ -471,10 +530,21 @@ def main(args):
 
     # load best to calculate test accuracy
     load_checkpoints(checkpoints_objs)
-    score = evaluate(model, attn_order, test_loader, "prfs", args.device)
-    print("\nTest classification report:")
-    print(score)
 
+    test_acc = evaluate(model, attn_order, test_loader, metric, args.device)
+
+    # write features for post analysis
+    write_features(
+        model,
+        attn_order,
+        {"train": train_loader, "validation": val_loader},
+        "feats.tsv",
+        "feats_metadata.tsv",
+        args.device,
+    )
+
+    tt = time.time() - t0
+    print("\n#TestAcc: {:12.6e} | Total time (s): {:.2f}\n".format(test_acc, tt))
     print("\nFinish training at:", datetime.now())
 
 

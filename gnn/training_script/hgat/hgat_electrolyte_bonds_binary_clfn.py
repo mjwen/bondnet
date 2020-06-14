@@ -8,28 +8,28 @@ from datetime import datetime
 from collections import Counter
 from torch import autograd
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.nn import CrossEntropyLoss
+from torch.nn import BCEWithLogitsLoss
 from sklearn.metrics import (
     f1_score,
     classification_report,
     precision_recall_fscore_support,
 )
-from gnn.metric import EarlyStopping
-from gnn.model.hgat_reaction import HGATReaction
+from gnn.training_script.metric import EarlyStopping
+from gnn.model.hgat_bond import HGATBond
 from gnn.data.dataset import train_validation_test_split
-from gnn.data.electrolyte import ElectrolyteReactionDataset
-from gnn.data.dataloader import DataLoaderReaction
+from gnn.data.electrolyte import ElectrolyteBondDatasetClassification
+from gnn.data.dataloader import DataLoader
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import (
-    AtomFeaturizer,
+    AtomFeaturizerWithReactionInfo,
     BondAsNodeFeaturizer,
-    GlobalFeaturizerCharge,
+    GlobalFeaturizerWithReactionInfo,
 )
 from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="HGATReaction")
+    parser = argparse.ArgumentParser(description="HGATBond")
 
     # model
     parser.add_argument(
@@ -69,16 +69,7 @@ def parse_args():
     )
 
     parser.add_argument(
-        "--num-lstm-iters",
-        type=int,
-        default=6,
-        help="number of iterations for the LSTM in set2set readout layer",
-    )
-    parser.add_argument(
-        "--num-lstm-layers",
-        type=int,
-        default=3,
-        help="number of layers for the LSTM in set2set readout layer",
+        "--readout-type", type=str, default="bond", help="type of readout bond feature"
     )
 
     parser.add_argument(
@@ -173,19 +164,15 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
 
     for it, (bg, label) in enumerate(data_loader):
         feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-        target_class = label["value"].to(torch.int64)
+        target_class = label["value"].to(torch.float32)
+        bond_idx = label["indicator"]
         if device is not None:
             feats = {k: v.to(device) for k, v in feats.items()}
             target_class = target_class.to(device)
 
-        pred = model(
-            bg,
-            feats,
-            label["num_mols"],
-            label["atom_mapping"],
-            label["bond_mapping"],
-            label["global_mapping"],
-        )
+        pred = model(bg, feats)  # list of 2D tensor, each tensor for a molecule
+        # pred of the current bond
+        pred = torch.cat([x[i] for x, i in zip(pred, bond_idx)])
 
         # update parameters
         loss = loss_fn(pred, target_class)
@@ -195,8 +182,8 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
         epoch_loss += loss.detach().item()
 
         # retain data for score computation
-        pred_class = torch.argmax(pred, dim=1)
-        all_pred_class.append(pred_class.detach().cpu().numpy())
+        pred_class = [1 if i >= 0.5 else 0 for i in pred]
+        all_pred_class.append(pred_class)
         all_target_class.append(target_class.detach().cpu().numpy())
 
     epoch_loss /= it + 1
@@ -232,22 +219,18 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
 
         for bg, label in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-            target_class = label["value"].to(torch.int64)
+            target_class = label["value"].to(torch.float32)
+            bond_idx = label["indicator"]
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
 
-            pred = model(
-                bg,
-                feats,
-                label["num_mols"],
-                label["atom_mapping"],
-                label["bond_mapping"],
-                label["global_mapping"],
-            )
+            pred = model(bg, feats)  # list of 2D tensor, each tensor for a molecule
+            # pred of the current bond
+            pred = torch.cat([x[i] for x, i in zip(pred, bond_idx)])
 
             # retain data for score computation
-            pred_class = torch.argmax(pred, dim=1)
-            all_pred_class.append(pred_class.detach().cpu().numpy())
+            pred_class = [1 if i >= 0.5 else 0 for i in pred]
+            all_pred_class.append(pred_class)
             all_target_class.append(target_class.numpy())
 
     # compute f1 score
@@ -281,22 +264,24 @@ def score_to_string(score, metric_fn="prfs"):
 
 
 def get_class_weight(data_loader):
+    """
+    Return a 1D tensor of the weight for positive example (class 1), which is set to
+    be equal to the number of negative examples divided by the number os positive
+    examples.
+    """
     target_class = np.concatenate([label["value"].numpy() for bg, label in data_loader])
     counts = [v for k, v in sorted(Counter(target_class).items())]
+    assert len(counts) == 2, f"number of classes {len(counts)} should be 2"
 
-    # inverse proportional to the support
-    weight = [sum(counts) / i for i in counts]
-
-    # normalization
-    weight = torch.tensor([i / sum(weight) for i in weight])
+    weight = torch.tensor([counts[0] / counts[1]])
 
     return weight
 
 
 def get_grapher():
-    atom_featurizer = AtomFeaturizer()
-    bond_featurizer = BondAsNodeFeaturizer(length_featurizer=None)
-    global_featurizer = GlobalFeaturizerCharge()
+    atom_featurizer = AtomFeaturizerWithReactionInfo()
+    bond_featurizer = BondAsNodeFeaturizer(length_featurizer="bin")
+    global_featurizer = GlobalFeaturizerWithReactionInfo()
     grapher = HeteroMoleculeGraph(
         atom_featurizer=atom_featurizer,
         bond_featurizer=bond_featurizer,
@@ -310,16 +295,14 @@ def main(args):
     print("\n\nStart training at:", datetime.now())
 
     ### dataset
-    sdf_file = "~/Applications/db_access/mol_builder/struct_rxn_clfn_n200.sdf"
-    label_file = "~/Applications/db_access/mol_builder/label_rxn_clfn_n200.yaml"
-    feature_file = "~/Applications/db_access/mol_builder/feature_rxn_clfn_n200.yaml"
-
-    dataset = ElectrolyteReactionDataset(
+    sdf_file = "~/Applications/db_access/mol_builder/struct_bond_clfn_n200.sdf"
+    label_file = "~/Applications/db_access/mol_builder/label_bond_clfn_n200.txt"
+    feature_file = "~/Applications/db_access/mol_builder/feature_bond_clfn_n200.yaml"
+    dataset = ElectrolyteBondDatasetClassification(
         grapher=get_grapher(),
         sdf_file=sdf_file,
         label_file=label_file,
         feature_file=feature_file,
-        label_transformer=False,
     )
     trainset, valset, testset = train_validation_test_split(
         dataset, validation=0.1, test=0.1
@@ -330,13 +313,13 @@ def main(args):
         )
     )
 
-    train_loader = DataLoaderReaction(trainset, batch_size=args.batch_size, shuffle=True)
+    train_loader = DataLoader(trainset, batch_size=args.batch_size, shuffle=True)
     # larger val and test set batch_size is faster but needs more memory
     # adjust the batch size of to fit memory
     bs = max(len(valset) // 10, 1)
-    val_loader = DataLoaderReaction(valset, batch_size=bs, shuffle=False)
+    val_loader = DataLoader(valset, batch_size=bs, shuffle=False)
     bs = max(len(testset) // 10, 1)
-    test_loader = DataLoaderReaction(testset, batch_size=bs, shuffle=False)
+    test_loader = DataLoader(testset, batch_size=bs, shuffle=False)
 
     ### model
     attn_mechanism = {
@@ -345,17 +328,15 @@ def main(args):
         "global": {"edges": ["a2g", "b2g", "g2g"], "nodes": ["atom", "bond", "global"]},
     }
     attn_order = ["atom", "bond", "global"]
-    set2set_ntypes_direct = ["global"]
 
     # attn_mechanism = {
     #     "atom": {"edges": ["b2a", "a2a"], "nodes": ["bond", "atom"]},
     #     "bond": {"edges": ["a2b", "b2b"], "nodes": ["atom", "bond"]},
     # }
     # attn_order = ["atom", "bond"]
-    # set2set_ntypes_direct = None
 
     in_feats = trainset.get_feature_size(attn_order)
-    model = HGATReaction(
+    model = HGATBond(
         attn_mechanism,
         attn_order,
         in_feats,
@@ -368,15 +349,14 @@ def main(args):
         gat_residual=args.gat_residual,
         gat_batch_norm=args.gat_batch_norm,
         gat_activation=args.gat_activation,
-        num_lstm_iters=args.num_lstm_iters,
-        num_lstm_layers=args.num_lstm_layers,
-        set2set_ntypes_direct=set2set_ntypes_direct,
+        readout_type=args.readout_type,
         num_fc_layers=args.num_fc_layers,
         fc_hidden_size=args.fc_hidden_size,
         fc_batch_norm=args.fc_batch_norm,
         fc_activation=args.fc_activation,
         fc_drop=args.fc_drop,
-        outdim=3,
+        outdim=1,
+        classification=True,
     )
     print(model)
 
@@ -388,10 +368,10 @@ def main(args):
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
 
-    class_weight = get_class_weight(train_loader)
+    pos_weight = get_class_weight(train_loader)
     if args.device is not None:
-        class_weight = class_weight.to(args.device)
-    loss_func = CrossEntropyLoss(weight=class_weight, reduction="mean")
+        pos_weight = pos_weight.to(args.device)
+    loss_func = BCEWithLogitsLoss(pos_weight=pos_weight, reduction="mean")
 
     ### learning rate scheduler and stopper
     scheduler = ReduceLROnPlateau(

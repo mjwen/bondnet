@@ -8,23 +8,22 @@ from datetime import datetime
 from torch import autograd
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.nn import MSELoss
-from gnn.metric import WeightedL1Loss, EarlyStopping
+from gnn.training_script.metric import WeightedL1Loss, EarlyStopping
 from gnn.model.hgat_mol import HGATMol
 from gnn.data.dataset import train_validation_test_split
-from gnn.data.qm9 import QM9Dataset
+from gnn.data.electrolyte import ElectrolyteMoleculeDataset
 from gnn.data.dataloader import DataLoader
 from gnn.data.grapher import HeteroMoleculeGraph
-from gnn.data.featurizer import AtomFeaturizer, BondAsNodeFeaturizer, MolWeightFeaturizer
+from gnn.data.featurizer import (
+    AtomFeaturizerWithReactionInfo,
+    BondAsNodeFeaturizer,
+    GlobalFeaturizerChargeSpin,
+)
 from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="HGATMol")
-
-    # property
-    parser.add_argument(
-        "--property", type=str, default="u0_atom", help="QM9 property to train"
-    )
 
     # model
     parser.add_argument(
@@ -142,22 +141,22 @@ def parse_args():
         )
 
     # if len(args.gat_hidden_size) == 1:
-    #    val = args.gat_hidden_size[0]
-    #    args.gat_hidden_size = [val * 2 ** i for i in range(args.num_gat_layers)]
+    #     val = args.gat_hidden_size[0]
+    #     args.gat_hidden_size = [val * 2 ** i for i in range(args.num_gat_layers)]
     # else:
-    #    assert len(args.gat_hidden_size) == args.num_gat_layers, (
-    #        "length of `gat-hidden-size` should be equal to `num-gat-layers`, but got "
-    #        "{} and {}.".format(args.gat_hidden_size, args.num_gat_layers)
-    #    )
+    #     assert len(args.gat_hidden_size) == args.num_gat_layers, (
+    #         "length of `gat-hidden-size` should be equal to `num-gat-layers`, but got "
+    #         "{} and {}.".format(args.gat_hidden_size, args.num_gat_layers)
+    #     )
 
     # if len(args.fc_hidden_size) == 1:
-    #    val = args.fc_hidden_size[0]
-    #    args.fc_hidden_size = [val // 2 ** i for i in range(args.num_fc_layers)]
+    #     val = args.fc_hidden_size[0]
+    #     args.fc_hidden_size = [val // 2 ** i for i in range(args.num_fc_layers)]
     # else:
-    #    assert len(args.fc_hidden_size) == args.num_fc_layers, (
-    #        "length of `fc-hidden-size` should be equal to `num-fc-layers`, but got "
-    #        "{} and {}.".format(args.fc_hidden_size, args.num_fc_layers)
-    #    )
+    #     assert len(args.fc_hidden_size) == args.num_fc_layers, (
+    #         "length of `fc-hidden-size` should be equal to `num-fc-layers`, but got "
+    #         "{} and {}.".format(args.fc_hidden_size, args.num_fc_layers)
+    #     )
 
     return args
 
@@ -261,14 +260,9 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
 
 
 def get_grapher():
-    atom_featurizer = AtomFeaturizer()
-    bond_featurizer = BondAsNodeFeaturizer(
-        # length_featurizer="bin",
-        # length_featurizer_args={"low": 0.7, "high": 2.5, "num_bins": 10},
-        length_featurizer="rbf",
-        length_featurizer_args={"low": 0.3, "high": 2.3, "num_centers": 20},
-    )
-    global_featurizer = MolWeightFeaturizer()
+    atom_featurizer = AtomFeaturizerWithReactionInfo()
+    bond_featurizer = BondAsNodeFeaturizer(length_featurizer="bin")
+    global_featurizer = GlobalFeaturizerChargeSpin()
     grapher = HeteroMoleculeGraph(
         atom_featurizer=atom_featurizer,
         bond_featurizer=bond_featurizer,
@@ -282,15 +276,16 @@ def main(args):
     print("\n\nStart training at:", datetime.now())
 
     ### dataset
-    sdf_file = "/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf"
-    label_file = "/Users/mjwen/Documents/Dataset/qm9/gdb9_n200.sdf.csv"
+    sdf_file = "~/Applications/db_access/mol_builder/struct_mols_n200.sdf"
+    label_file = "~/Applications/db_access/mol_builder/label_mols_n200.csv"
+    feature_file = "~/Applications/db_access/mol_builder/feature_mols_n200.yaml"
 
-    props = [args.property]
-    dataset = QM9Dataset(
+    dataset = ElectrolyteMoleculeDataset(
         grapher=get_grapher(),
         sdf_file=sdf_file,
         label_file=label_file,
-        properties=props,
+        feature_file=feature_file,
+        properties=["atomization_energy"],
         unit_conversion=True,
         feature_transformer=True,
         label_transformer=True,

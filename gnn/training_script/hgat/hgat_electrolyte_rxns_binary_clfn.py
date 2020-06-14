@@ -8,17 +8,17 @@ from datetime import datetime
 from collections import Counter
 from torch import autograd
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.nn import CrossEntropyLoss
+from torch.nn import BCEWithLogitsLoss
 from sklearn.metrics import (
     f1_score,
     classification_report,
     precision_recall_fscore_support,
 )
-from gnn.metric import EarlyStopping
-from gnn.model.hgat_reaction_network import HGATReactionNetwork
+from gnn.training_script.metric import EarlyStopping
+from gnn.model.hgat_reaction import HGATReaction
 from gnn.data.dataset import train_validation_test_split
-from gnn.data.electrolyte import ElectrolyteReactionNetworkDataset
-from gnn.data.dataloader import DataLoaderReactionNetwork
+from gnn.data.electrolyte import ElectrolyteReactionDataset
+from gnn.data.dataloader import DataLoaderReaction
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import (
     AtomFeaturizer,
@@ -54,13 +54,6 @@ def parse_args():
         type=float,
         default=0.2,
         help="the negative slope of leaky relu",
-    )
-
-    parser.add_argument(
-        "--gat-num-fc-layers",
-        type=int,
-        default=3,
-        help="number of fc layers in gat node attantion layer",
     )
 
     parser.add_argument(
@@ -180,12 +173,20 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
 
     for it, (bg, label) in enumerate(data_loader):
         feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-        target_class = label["value"].to(torch.int64)
+        target_class = label["value"]
         if device is not None:
             feats = {k: v.to(device) for k, v in feats.items()}
             target_class = target_class.to(device)
 
-        pred = model(bg, feats, label["reaction"])
+        pred = model(
+            bg,
+            feats,
+            label["num_mols"],
+            label["atom_mapping"],
+            label["bond_mapping"],
+            label["global_mapping"],
+        )
+        pred = pred.view(-1)
 
         # update parameters
         loss = loss_fn(pred, target_class)
@@ -195,8 +196,8 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
         epoch_loss += loss.detach().item()
 
         # retain data for score computation
-        pred_class = torch.argmax(pred, dim=1)
-        all_pred_class.append(pred_class.detach().cpu().numpy())
+        pred_class = [1 if i >= 0.5 else 0 for i in pred]
+        all_pred_class.append(pred_class)
         all_target_class.append(target_class.detach().cpu().numpy())
 
     epoch_loss /= it + 1
@@ -232,15 +233,23 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
 
         for bg, label in data_loader:
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-            target_class = label["value"].to(torch.int64)
+            target_class = label["value"]
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
 
-            pred = model(bg, feats, label["reaction"])
+            pred = model(
+                bg,
+                feats,
+                label["num_mols"],
+                label["atom_mapping"],
+                label["bond_mapping"],
+                label["global_mapping"],
+            )
+            pred = pred.view(-1)
 
             # retain data for score computation
-            pred_class = torch.argmax(pred, dim=1)
-            all_pred_class.append(pred_class.detach().cpu().numpy())
+            pred_class = [1 if i >= 0.5 else 0 for i in pred]
+            all_pred_class.append(pred_class)
             all_target_class.append(target_class.numpy())
 
     # compute f1 score
@@ -274,14 +283,16 @@ def score_to_string(score, metric_fn="prfs"):
 
 
 def get_class_weight(data_loader):
+    """
+    Return a 1D tensor of the weight for positive example (class 1), which is set to
+    be equal to the number of negative examples divided by the number os positive
+    examples.
+    """
     target_class = np.concatenate([label["value"].numpy() for bg, label in data_loader])
     counts = [v for k, v in sorted(Counter(target_class).items())]
+    assert len(counts) == 2, f"number of classes {len(counts)} should be 2"
 
-    # inverse proportional to the support
-    weight = [sum(counts) / i for i in counts]
-
-    # normalization
-    weight = torch.tensor([i / sum(weight) for i in weight])
+    weight = torch.tensor([counts[0] / counts[1]])
 
     return weight
 
@@ -303,11 +314,11 @@ def main(args):
     print("\n\nStart training at:", datetime.now())
 
     ### dataset
-    sdf_file = "~/Applications/db_access/mol_builder/struct_rxn_ntwk_clfn_n200.sdf"
-    label_file = "~/Applications/db_access/mol_builder/label_rxn_ntwk_clfn_n200.yaml"
-    feature_file = "~/Applications/db_access/mol_builder/feature_rxn_ntwk_clfn_n200.yaml"
+    sdf_file = "~/Applications/db_access/mol_builder/struct_rxn_clfn_n200.sdf"
+    label_file = "~/Applications/db_access/mol_builder/label_rxn_clfn_n200.yaml"
+    feature_file = "~/Applications/db_access/mol_builder/feature_rxn_clfn_n200.yaml"
 
-    dataset = ElectrolyteReactionNetworkDataset(
+    dataset = ElectrolyteReactionDataset(
         grapher=get_grapher(),
         sdf_file=sdf_file,
         label_file=label_file,
@@ -323,15 +334,13 @@ def main(args):
         )
     )
 
-    train_loader = DataLoaderReactionNetwork(
-        trainset, batch_size=args.batch_size, shuffle=True
-    )
+    train_loader = DataLoaderReaction(trainset, batch_size=args.batch_size, shuffle=True)
     # larger val and test set batch_size is faster but needs more memory
     # adjust the batch size of to fit memory
     bs = max(len(valset) // 10, 1)
-    val_loader = DataLoaderReactionNetwork(valset, batch_size=bs, shuffle=False)
+    val_loader = DataLoaderReaction(valset, batch_size=bs, shuffle=False)
     bs = max(len(testset) // 10, 1)
-    test_loader = DataLoaderReactionNetwork(testset, batch_size=bs, shuffle=False)
+    test_loader = DataLoaderReaction(testset, batch_size=bs, shuffle=False)
 
     ### model
     attn_mechanism = {
@@ -350,7 +359,7 @@ def main(args):
     # set2set_ntypes_direct = None
 
     in_feats = trainset.get_feature_size(attn_order)
-    model = HGATReactionNetwork(
+    model = HGATReaction(
         attn_mechanism,
         attn_order,
         in_feats,
@@ -360,7 +369,6 @@ def main(args):
         feat_drop=args.feat_drop,
         attn_drop=args.attn_drop,
         negative_slope=args.negative_slope,
-        gat_num_fc_layers=args.gat_num_fc_layers,
         gat_residual=args.gat_residual,
         gat_batch_norm=args.gat_batch_norm,
         gat_activation=args.gat_activation,
@@ -372,7 +380,7 @@ def main(args):
         fc_batch_norm=args.fc_batch_norm,
         fc_activation=args.fc_activation,
         fc_drop=args.fc_drop,
-        outdim=3,
+        outdim=1,
     )
     print(model)
 
@@ -384,10 +392,10 @@ def main(args):
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
 
-    class_weight = get_class_weight(train_loader)
+    pos_weight = get_class_weight(train_loader)
     if args.device is not None:
-        class_weight = class_weight.to(args.device)
-    loss_func = CrossEntropyLoss(weight=class_weight, reduction="mean")
+        pos_weight = pos_weight.to(args.device)
+    loss_func = BCEWithLogitsLoss(pos_weight=pos_weight, reduction="mean")
 
     ### learning rate scheduler and stopper
     scheduler = ReduceLROnPlateau(

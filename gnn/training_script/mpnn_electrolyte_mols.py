@@ -5,14 +5,14 @@ import argparse
 import torch
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.nn import MSELoss
-from gnn.metric import WeightedL1Loss, EarlyStopping
+from gnn.training_script.metric import WeightedL1Loss, EarlyStopping
 from dgl.model_zoo.chem.mpnn import MPNNModel
 from gnn.data.dataset import train_validation_test_split
 from gnn.data.electrolyte import ElectrolyteMoleculeDataset
 from gnn.data.dataloader import DataLoader
 from gnn.data.grapher import HomoCompleteGraph
 from gnn.data.featurizer import (
-    AtomFeaturizerWithReactionInfo,
+    AtomFeaturizerMinimum,
     BondAsEdgeCompleteFeaturizer,
 )
 from gnn.utils import pickle_dump, seed_torch, load_checkpoints
@@ -134,7 +134,7 @@ def evaluate(model, data_loader, metric_fn, device=None):
 
 
 def get_grapher(self_loop=False):
-    atom_featurizer = AtomFeaturizerWithReactionInfo()
+    atom_featurizer = AtomFeaturizerMinimum()
     bond_featurizer = BondAsEdgeCompleteFeaturizer(
         self_loop=self_loop, length_featurizer="bin"
     )
@@ -156,9 +156,9 @@ def main(args):
     props = ["atomization_energy"]
     dataset = ElectrolyteMoleculeDataset(
         grapher=get_grapher(),
-        sdf_file=sdf_file,
-        label_file=label_file,
-        feature_file=feature_file,
+        molecules=sdf_file,
+        labels=label_file,
+        extra_features=feature_file,
         properties=props,
         unit_conversion=True,
     )

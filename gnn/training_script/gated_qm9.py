@@ -7,13 +7,17 @@ import numpy as np
 from datetime import datetime
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.nn import MSELoss
-from gnn.metric import WeightedL1Loss, EarlyStopping
+from gnn.training_script.metric import WeightedL1Loss, EarlyStopping
 from gnn.model.gated_mol import GatedGCNMol
 from gnn.data.dataset import train_validation_test_split
 from gnn.data.qm9 import QM9Dataset
 from gnn.data.dataloader import DataLoaderGraphNorm
 from gnn.data.grapher import HeteroMoleculeGraph
-from gnn.data.featurizer import AtomFeaturizer, BondAsNodeFeaturizer, MolWeightFeaturizer
+from gnn.data.featurizer import (
+    AtomFeaturizerFull,
+    BondAsNodeFeaturizerFull,
+    GlobalFeaturizer,
+)
 from gnn.utils import pickle_dump, seed_torch, load_checkpoints
 
 
@@ -200,14 +204,14 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
 
 
 def get_grapher():
-    atom_featurizer = AtomFeaturizer()
-    bond_featurizer = BondAsNodeFeaturizer(
+    atom_featurizer = AtomFeaturizerFull()
+    bond_featurizer = BondAsNodeFeaturizerFull(
         # length_featurizer="bin",
         # length_featurizer_args={"low": 0.7, "high": 2.5, "num_bins": 10},
         length_featurizer="rbf",
         length_featurizer_args={"low": 0.3, "high": 2.3, "num_centers": 20},
     )
-    global_featurizer = MolWeightFeaturizer()
+    global_featurizer = GlobalFeaturizer()
     grapher = HeteroMoleculeGraph(
         atom_featurizer=atom_featurizer,
         bond_featurizer=bond_featurizer,
@@ -227,8 +231,8 @@ def main(args):
     props = [args.property]
     dataset = QM9Dataset(
         grapher=get_grapher(),
-        sdf_file=sdf_file,
-        label_file=label_file,
+        molecules=sdf_file,
+        labels=label_file,
         properties=props,
         unit_conversion=True,
         feature_transformer=True,

@@ -10,10 +10,10 @@ from gnn.data.electrolyte import (
 from gnn.data.qm9 import QM9Dataset
 from gnn.data.grapher import HeteroMoleculeGraph, HomoCompleteGraph
 from gnn.data.featurizer import (
-    AtomFeaturizer,
-    BondAsNodeFeaturizer,
+    AtomFeaturizerFull,
+    BondAsNodeFeaturizerFull,
     BondAsEdgeCompleteFeaturizer,
-    GlobalFeaturizerCharge,
+    GlobalFeaturizer,
 )
 import torch
 
@@ -23,16 +23,17 @@ test_files = os.path.join(os.path.dirname(__file__), "testdata")
 
 def get_grapher_hetero():
     return HeteroMoleculeGraph(
-        atom_featurizer=AtomFeaturizer(),
-        bond_featurizer=BondAsNodeFeaturizer(),
-        global_featurizer=GlobalFeaturizerCharge(),
+        atom_featurizer=AtomFeaturizerFull(),
+        bond_featurizer=BondAsNodeFeaturizerFull(),
+        global_featurizer=GlobalFeaturizer(),
         self_loop=True,
     )
 
 
 def get_grapher_homo():
     return HomoCompleteGraph(
-        atom_featurizer=AtomFeaturizer(), bond_featurizer=BondAsEdgeCompleteFeaturizer()
+        atom_featurizer=AtomFeaturizerFull(),
+        bond_featurizer=BondAsEdgeCompleteFeaturizer(),
     )
 
 
