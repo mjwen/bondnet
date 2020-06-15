@@ -18,7 +18,7 @@ from gnn.utils import load_checkpoints, expand_path, check_exists
 
 MODEL_INFO = {
     "electrolyte": {"allowed_charge": [-1, 0, 1], "date": ["20200422", "20200528"]},
-    "nrel": {"allowed_charge": [-1, 0, 1], "date": ["20200422"]},
+    "alfabet": {"allowed_charge": [0], "date": ["20200615"]},
 }
 
 
@@ -111,10 +111,10 @@ def _check_species(molecules, state_dict_filename):
 
 def _get_grapher(model_name):
 
-    if "nrel" in model_name:
+    if "alfabet" in model_name:
         atom_featurizer = AtomFeaturizerFull()
         bond_featurizer = BondAsNodeFeaturizerFull(length_featurizer=None, dative=False)
-        global_featurizer = GlobalFeaturizer(allowed_charges=[0])
+        global_featurizer = GlobalFeaturizer()
 
     elif "electrolyte" in model_name:
         atom_featurizer = AtomFeaturizerMinimum()

@@ -26,9 +26,9 @@ jobs:
         pip install -e .
         conda install pytorch torchvision cpuonly -c pytorch
         conda install dgl -c dglteam
-        conda install pymatgen==2019.10.4 -c conda-forge
-        conda install rdkit==2020.03.1 -c conda-forge
-        conda install openbabel==2.4.1 -c conda-forge
+        conda install pymatgen==2020.6.8 -c conda-forge
+        conda install rdkit==2020.03.3 -c conda-forge
+        conda install openbabel==3.1.1 -c conda-forge
     - name: Lint with flake8
       run: |
         pip install flake8

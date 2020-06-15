@@ -548,7 +548,7 @@ class AtomFeaturizerMinimum(BaseFeaturizer):
 
             ft.append(atom.GetTotalDegree())
             ft.append(int(atom.IsInRing()))
-            ft.append(atom.GetTotalNumHs())
+            ft.append(atom.GetTotalNumHs(includeNeighbors=True))
 
             ft += one_hot_encoding(atom.GetSymbol(), species)
 
@@ -634,7 +634,7 @@ class AtomFeaturizerFull(BaseFeaturizer):
 
             # ft.append(atom.GetNumExplicitHs())
             # ft.append(atom.GetNumImplicitHs())
-            ft.append(atom.GetTotalNumHs())
+            ft.append(atom.GetTotalNumHs(includeNeighbors=True))
 
             # ft.append(atom.GetAtomicNum())
             ft += one_hot_encoding(atom.GetSymbol(), species)
