@@ -124,12 +124,15 @@ def nrel_plot_molecules(
     reactions = read_nrel_bde_dataset(filename)
     molecules = get_molecules_from_reactions(reactions)
 
+    unique_mols = {m.id: m for m in molecules}
+    molecules = list(unique_mols.keys())
+
     for m in molecules:
 
         fname = os.path.join(
             plot_prefix,
             "mol_png/{}_{}_{}_{}.png".format(
-                m.formula, m.charge, m.id, str(m.free_energy).replace(".", "dot")
+                m.id, m.formula, m.charge, str(m.free_energy).replace(".", "dot")
             ),
         )
         m.draw(fname, show_atom_idx=True)
@@ -137,10 +140,10 @@ def nrel_plot_molecules(
         fname = os.path.join(
             plot_prefix,
             "mol_pdb/{}_{}_{}_{}.pdb".format(
-                m.formula, m.charge, m.id, str(m.free_energy).replace(".", "dot")
+                m.id, m.formula, m.charge, str(m.free_energy).replace(".", "dot")
             ),
         )
-        m.write(fname, file_format="pdb")
+        m.write(fname, format="pdb")
 
 
 def nrel_create_struct_label_dataset_reaction_network_based_regression(
@@ -156,6 +159,20 @@ def nrel_create_struct_label_dataset_reaction_network_based_regression(
     )
 
 
+def nrel_create_struct_label_dataset_bond_based_regression(
+    filename="~/Documents/Dataset/NREL_BDE/rdf_data_190531_n200.csv",
+):
+    reactions = read_nrel_bde_dataset(filename)
+    extractor = ReactionCollection(reactions)
+
+    extractor.create_struct_label_dataset_bond_based_regression(
+        struct_file="~/Applications/db_access/nrel_bde/nrel_struct_bond_rgrn_n200.sdf",
+        label_file="~/Applications/db_access/nrel_bde/nrel_label_bond_rgrn_n200.yaml",
+        feature_file="~/Applications/db_access/nrel_bde/nrel_feature_bond_rgrn_n200.yaml",
+    )
+
+
 if __name__ == "__main__":
-    # plot_molecules()
-    nrel_create_struct_label_dataset_reaction_network_based_regression()
+    # nrel_plot_molecules()
+    # nrel_create_struct_label_dataset_reaction_network_based_regression()
+    nrel_create_struct_label_dataset_bond_based_regression()
