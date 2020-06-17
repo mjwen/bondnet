@@ -1,6 +1,7 @@
 import itertools
 import copy
 import logging
+import warnings
 from collections import namedtuple
 from collections.abc import Iterable
 import numpy as np
@@ -729,12 +730,15 @@ class ReactionsOnePerBond(ReactionsMultiplePerBond):
         bond = rxn.get_broken_bond()
         for r in self.reactions:
             if r.get_broken_bond() == bond:
-                raise ValueError(
+                warnings.warn(
                     f"Reaction breaking bond {bond} already exists.\n"
                     f"Existing reaction: {str(r.as_dict())}\n"
                     f"New      reaction: {str(rxn.as_dict())}"
+                    f"The new one is not added skipped."
                 )
-        self._reactions.append(rxn)
+                break
+        else:
+            self._reactions.append(rxn)
 
     def order_reactions(
         self, one_per_iso_bond_group=True, complement_reactions=False, mol_reservoir=None
