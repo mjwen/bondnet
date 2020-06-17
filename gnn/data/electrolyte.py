@@ -23,43 +23,47 @@ class ElectrolyteBondDataset(BaseDataset):
 
         logger.info("Start loading dataset")
 
-        # read label and feature file
-        raw_value, raw_indicator, raw_mol_source = self._read_label_file()
-        if self.extra_features is not None:
-            features = yaml_load(self.extra_features)
-        else:
-            features = [None] * len(raw_value)
-
-        # build graph for mols from sdf file
+        # get molecules, labels, and extra features
         molecules = self.get_molecules(self.molecules)
-        species = get_dataset_species(molecules)
+        raw_labels = self.get_labels(self.raw_labels)
+        if self.extra_features is not None:
+            extra_features = self.get_features(self.extra_features)
+        else:
+            extra_features = [None] * len(molecules)
+
+        # get state info
+        if self.state_dict_filename is not None:
+            logger.info(f"Load dataset state dict from: {self.state_dict_filename}")
+            state_dict = torch.load(self.state_dict_filename)
+            self.load_state_dict(state_dict)
+
+        # get species
+        if self.state_dict_filename is None:
+            species = get_dataset_species(molecules)
+            self._species = species
+        else:
+            species = self.state_dict()["species"]
+            assert species is not None, "Corrupted state_dict file, `species` not found"
+
+        graphs = self.build_graphs(self.grapher, molecules, extra_features, species)
 
         self.graphs = []
         self.labels = []
-        for i, mol in enumerate(molecules):
-            if mol is None:
-                continue
-
-            # graph
-            g = self.grapher.build_graph_and_featurize(
-                mol, extra_feats_info=features[i], dataset_species=species
-            )
-            # we add this for check purpose, because some entries in the sdf file may fail
-            g.graph_id = i
-            self.graphs.append(g)
-
-            # label
-            dtype = getattr(torch, self.dtype)
-            bonds_energy = torch.tensor(raw_value[i], dtype=dtype)
-            bonds_indicator = torch.tensor(raw_indicator[i], dtype=dtype)
-            bonds_mol_source = raw_mol_source[i]
-
-            label = {
-                "value": bonds_energy,  # 1D tensor
-                "indicator": bonds_indicator,  # 1D tensor
-                "id": bonds_mol_source,  # str
-            }
-            self.labels.append(label)
+        self._failed = []
+        for i, g in enumerate(graphs):
+            if g is None:
+                self._failed.append(True)
+            else:
+                self.graphs.append(g)
+                lb = {}
+                for k, v in raw_labels[i].items():
+                    if k == "value":
+                        v = torch.tensor(v, dtype=getattr(torch, self.dtype))
+                    elif k in ["bond_index", "num_bonds_in_molecule"]:
+                        v = torch.tensor(v, dtype=torch.int64)
+                    lb[k] = v
+                self.labels.append(lb)
+                self._failed.append(False)
 
         # this should be called after grapher.build_graph_and_featurize,
         # which initializes the feature name and size
@@ -68,62 +72,79 @@ class ElectrolyteBondDataset(BaseDataset):
         logger.info("Feature name: {}".format(self.feature_name))
         logger.info("Feature size: {}".format(self.feature_size))
 
-        # transformers
+        # feature transformers
         if self.feature_transformer:
-            feature_scaler = GraphFeatureStandardScaler()
+
+            if self.state_dict_filename is None:
+                feature_scaler = GraphFeatureStandardScaler(mean=None, std=None)
+            else:
+                assert (
+                    self._feature_scaler_mean is not None
+                ), "Corrupted state_dict file, `feature_scaler_mean` not found"
+                assert (
+                    self._feature_scaler_std is not None
+                ), "Corrupted state_dict file, `feature_scaler_std` not found"
+
+                feature_scaler = GraphFeatureStandardScaler(
+                    mean=self._feature_scaler_mean, std=self._feature_scaler_std
+                )
+
+            if self.state_dict_filename is None:
+                self._feature_scaler_mean = feature_scaler.mean
+                self._feature_scaler_std = feature_scaler.std
+
             self.graphs = feature_scaler(self.graphs)
             logger.info("Feature scaler mean: {}".format(feature_scaler.mean))
             logger.info("Feature scaler std: {}".format(feature_scaler.std))
 
+        # label transformers
         if self.label_transformer:
-            labels = [lb["value"] for lb in self.labels]  # list of 1D tensor
-            labels = torch.cat(labels)  # 1D tensor
-
-            # compute mean and stdev using nonzero elements (these are the actual label)
-            non_zeros = [i for i in labels if i != 0.0]
-            mean = float(np.mean(non_zeros))
-            std = float(np.std(non_zeros))
 
             # normalization
-            labels = (labels - mean) / std
+            values = torch.cat([lb["value"] for lb in self.labels])  # 1D tensor
+
+            if self.state_dict_filename is None:
+                mean = torch.mean(values)
+                std = torch.std(values)
+                self._label_scaler_mean = mean
+                self._label_scaler_std = std
+            else:
+                assert (
+                    self._label_scaler_mean is not None
+                ), "Corrupted state_dict file, `label_scaler_mean` not found"
+                assert (
+                    self._label_scaler_std is not None
+                ), "Corrupted state_dict file, `label_scaler_std` not found"
+                mean = self._label_scaler_mean
+                std = self._label_scaler_std
+
+            values = (values - mean) / std
+
+            # update label
             sizes = [len(lb["value"]) for lb in self.labels]
-            labels = torch.split(labels, sizes)
-
-            for i, lb in enumerate(labels):
-                m = torch.tensor([mean] * len(lb), dtype=getattr(torch, self.dtype))
-                s = torch.tensor([std] * len(lb), dtype=getattr(torch, self.dtype))
+            lbs = torch.split(values, split_size_or_sections=sizes)
+            for i, lb in enumerate(lbs):
+                sz = len(lb)
                 self.labels[i]["value"] = lb
-                self.labels[i]["scaler_mean"] = m
-                self.labels[i]["scaler_stdev"] = s
+                self.labels[i]["scaler_mean"] = mean.repeat(sz)
+                self.labels[i]["scaler_stdev"] = std.repeat(sz)
 
-            logger.info("Label scaler mean: {}".format(mean))
-            logger.info("Label scaler std: {}".format(std))
+            logger.info(f"Label scaler mean: {mean}")
+            logger.info(f"Label scaler std: {std}")
 
         logger.info("Finish loading {} labels...".format(len(self.labels)))
 
-    def _read_label_file(self):
-        value = []
-        indicator = []
-        mol_source = []
-        with open(self.raw_labels, "r") as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("#"):
-                    continue
+    @staticmethod
+    def get_labels(labels):
+        if isinstance(labels, str):
+            labels = yaml_load(labels)
+        return labels
 
-                # remove inline comments
-                if "#" in line:
-                    line = line[: line.index("#")]
-
-                line = line.split()
-                mol_source.append(line[-1])  # it could be a string
-
-                line = [float(i) for i in line[:-1]]
-                nbonds = len(line) // 2
-                value.append(line[:nbonds])
-                indicator.append(line[nbonds:])
-
-        return value, indicator, mol_source
+    @staticmethod
+    def get_features(features):
+        if isinstance(features, str):
+            features = yaml_load(features)
+        return features
 
 
 class ElectrolyteBondDatasetClassification(BaseDataset):
@@ -610,6 +631,8 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
             if self.state_dict_filename is None:
                 mean = torch.mean(values)
                 std = torch.std(values)
+                self._label_scaler_mean = mean
+                self._label_scaler_std = std
             else:
                 assert (
                     self._label_scaler_mean is not None
@@ -627,10 +650,6 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
                 self.labels[i]["value"] = lb
                 self.labels[i]["scaler_mean"] = mean
                 self.labels[i]["scaler_stdev"] = std
-
-            if self.state_dict_filename is None:
-                self._label_scaler_mean = mean
-                self._label_scaler_std = std
 
             logger.info(f"Label scaler mean: {mean}")
             logger.info(f"Label scaler std: {std}")

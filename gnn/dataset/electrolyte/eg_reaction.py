@@ -608,7 +608,7 @@ def create_struct_label_dataset_bond_based_regression(
 
     extractor.create_struct_label_dataset_bond_based_regression(
         struct_file="~/Applications/db_access/mol_builder/struct_n200.sdf",
-        label_file="~/Applications/db_access/mol_builder/label_n200.txt",
+        label_file="~/Applications/db_access/mol_builder/label_n200.yaml",
         feature_file="~/Applications/db_access/mol_builder/feature_n200.yaml",
         # struct_file="~/Applications/db_access/mol_builder/struct_qc.sdf",
         # label_file="~/Applications/db_access/mol_builder/label_qc.txt",
@@ -728,11 +728,11 @@ if __name__ == "__main__":
 
     # create_struct_label_dataset_mol_based()
 
-    # create_struct_label_dataset_bond_based_regression()
+    create_struct_label_dataset_bond_based_regression()
     # create_struct_label_dataset_bond_based_classification()
 
     # create_struct_label_dataset_reaction_based_regression()
     # create_struct_label_dataset_reaction_based_classification()
 
-    create_struct_label_dataset_reaction_network_based_regression()
+    # create_struct_label_dataset_reaction_network_based_regression()
     # create_struct_label_dataset_reaction_network_based_classification()

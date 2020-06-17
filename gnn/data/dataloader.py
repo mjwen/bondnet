@@ -5,7 +5,7 @@ import dgl
 
 class DataLoader(torch.utils.data.DataLoader):
     """
-    This dataloader works for the case where the label of each data point are of the
+    This dataloader works for the case where the labels of all data points are of the
     same shape. For example, regression on molecule energy.
     """
 
@@ -84,12 +84,8 @@ class DataLoaderGraphNorm(torch.utils.data.DataLoader):
 
 class DataLoaderBond(torch.utils.data.DataLoader):
     """
-    This dataloader works for the case where the label of each data point are NOT of the
-    same shape.
-
-    For example, regression (classification) on bond energy, where all the bonds in a
-    molecule are represented in a molecule. Because each molecule has different number
-    of bonds, the shape of label value can be different from data point to data point.
+    This dataloader works for bond related dataset, where bond specific properties (
+    e.g. bond energy) needs to be ber specified by an index.
     """
 
     def __init__(self, dataset, **kwargs):
@@ -114,23 +110,23 @@ class DataLoaderBond(torch.utils.data.DataLoader):
                 )
 
             value = torch.cat([la["value"] for la in labels])
-            identifier = [la["id"] for la in labels]
-
-            # size of value (indicator) for each data point i.e. number of bonds in
-            # the molecule from which the bond come from
-            size = [len(la["value"]) for la in labels]
-
-            batched_labels = {
-                "value": value,
-                "id": identifier,
-                "size": size,
-            }
-
-            try:
-                indicator = torch.cat([la["indicator"] for la in labels])
-                batched_labels["indicator"] = indicator
-            except KeyError:
-                pass
+            # index_0 = labels[0]["bond_index"]
+            # indices = [
+            #     labels[i]["bond_index"] + labels[i - 1]["num_bonds_in_molecule"]
+            #     for i in range(1, len(labels))
+            # ]
+            # indices = torch.stack(index_0 + indices)
+            num_bonds = torch.stack([la["num_bonds_in_molecule"] for la in labels])
+            staring_index = torch.cumsum(num_bonds, dim=0)
+            index = torch.cat(
+                [
+                    la["bond_index"]
+                    if i == 0
+                    else la["bond_index"] + staring_index[i - 1]
+                    for i, la in enumerate(labels)
+                ]
+            )
+            batched_labels = {"value": value, "index": index}
 
             # add label scaler if it is used
             try:

@@ -1,29 +1,36 @@
 import sys
+import os
 import time
 import warnings
 import torch
 import argparse
 import numpy as np
 from datetime import datetime
-from itertools import compress
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from gnn.training_script.metric import (
-    WeightedMSELoss,
-    WeightedL1Loss,
-    EarlyStopping,
-    OrderAccuracy,
-)
+from torch.nn import MSELoss
+import torch.distributed as dist
+import torch.multiprocessing as mp
+from torch.nn.parallel import DistributedDataParallel as DDP
+from gnn.training_script.metric import WeightedL1Loss, EarlyStopping
 from gnn.model.gated_bond import GatedGCNBond
-from gnn.data.dataset import train_validation_test_split_test_with_all_bonds_of_mol
+from gnn.data.dataset import train_validation_test_split
 from gnn.data.electrolyte import ElectrolyteBondDataset
 from gnn.data.dataloader import DataLoaderBond
 from gnn.data.grapher import HeteroMoleculeGraph
 from gnn.data.featurizer import (
-    AtomFeaturizerMinimum,
-    BondAsNodeFeaturizerMinimum,
+    AtomFeaturizerFull,
+    BondAsNodeFeaturizerFull,
     GlobalFeaturizer,
 )
-from gnn.utils import pickle_dump, seed_torch, load_checkpoints
+from gnn.utils import (
+    load_checkpoints,
+    save_checkpoints,
+    seed_torch,
+    pickle_dump,
+    yaml_dump,
+)
+
+best = np.finfo(np.float32).max
 
 
 def parse_args():
@@ -53,22 +60,43 @@ def parse_args():
     parser.add_argument("--fc-dropout", type=float, default=0.0)
 
     # training
-    parser.add_argument("--gpu", type=int, default=-1, help="GPU index. -1 to use CPU.")
+    parser.add_argument("--start-epoch", type=int, default=0)
     parser.add_argument("--epochs", type=int, default=1000, help="number of epochs")
     parser.add_argument("--batch-size", type=int, default=100, help="batch size")
     parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
     parser.add_argument("--weight-decay", type=float, default=0.0, help="weight decay")
     parser.add_argument("--restore", type=int, default=0, help="read checkpoints")
+    parser.add_argument(
+        "--dataset-state-dict-filename", type=str, default="dataset_state_dict.pkl"
+    )
+    # gpu
+    parser.add_argument(
+        "--gpu", type=int, default=None, help="GPU index. None to use CPU."
+    )
+    parser.add_argument(
+        "--distributed",
+        type=int,
+        default=0,
+        help="DDP training, --gpu is ignored if this is True",
+    )
+    parser.add_argument(
+        "--num-gpu",
+        type=int,
+        default=None,
+        help="Number of GPU to use in distributed mode; ignored otherwise.",
+    )
+    parser.add_argument(
+        "--dist-url",
+        default="tcp://localhost:13456",
+        type=str,
+        help="url used to set up distributed training",
+    )
+    parser.add_argument("--dist-backend", type=str, default="nccl")
 
     # output file (needed by hypertunity)
     parser.add_argument("--output_file", type=str, default="results.pkl")
 
     args = parser.parse_args()
-
-    if args.gpu >= 0 and torch.cuda.is_available():
-        args.device = torch.device("cuda:{}".format(args.gpu))
-    else:
-        args.device = None
 
     if len(args.gated_hidden_size) == 1:
         args.gated_hidden_size = args.gated_hidden_size * args.gated_num_layers
@@ -98,7 +126,7 @@ def parse_args():
     if len(args.fc_hidden_size) == 1:
         # val = args.fc_hidden_size[0]
         val = args.gated_hidden_size[-1]
-        args.fc_hidden_size = [val // 2 ** i for i in range(args.fc_num_layers)]
+        args.fc_hidden_size = [max(val // 2 ** i, 8) for i in range(args.fc_num_layers)]
     else:
         assert len(args.fc_hidden_size) == args.fc_num_layers, (
             "length of `fc-hidden-size` should be equal to `num-fc-layers`, but got "
@@ -122,8 +150,8 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
 
     for it, (bg, label) in enumerate(data_loader):
         feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-        label_val = label["value"]
-        label_ind = label["indicator"]
+        target = label["value"]
+        index = label["index"]
         # norm_atom = label["norm_atom"]
         # norm_bond = label["norm_bond"]
         norm_atom = None
@@ -135,24 +163,23 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
 
         if device is not None:
             feats = {k: v.to(device) for k, v in feats.items()}
-            label_val = label_val.to(device)
-            label_ind = label_ind.to(device)
+            target = target.to(device)
+            index = index.to(device)
             norm_atom = norm_atom.to(device)
             norm_bond = norm_bond.to(device)
-            if stdev is not None:
-                stdev = stdev.to(device)
+            stdev = stdev.to(device)
 
         pred = model(bg, feats, norm_atom, norm_bond)
+        pred = pred[index]
 
-        loss = loss_fn(pred, label_val, label_ind)
+        loss = loss_fn(pred, target)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
         epoch_loss += loss.detach().item()
-        weight = label_ind if stdev is None else label_ind * stdev
-        accuracy += metric_fn(pred, label_val, weight).detach().item()
-        count += sum(label_ind).item()
+        accuracy += metric_fn(pred, target, stdev).detach().item()
+        count += len(target)
 
     epoch_loss /= it + 1
     accuracy /= count
@@ -173,10 +200,10 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
         accuracy = 0.0
         count = 0.0
 
-        for bg, label in data_loader:
+        for it, (bg, label) in enumerate(data_loader):
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-            label_val = label["value"]
-            label_ind = label["indicator"]
+            target = label["value"]
+            index = label["index"]
             # norm_atom = label["norm_atom"]
             # norm_bond = label["norm_bond"]
             norm_atom = None
@@ -188,87 +215,29 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
 
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
-                label_val = label_val.to(device)
-                label_ind = label_ind.to(device)
+                target = target.to(device)
+                index = index.to(device)
                 norm_atom = norm_atom.to(device)
                 norm_bond = norm_bond.to(device)
-                if stdev is not None:
-                    stdev = stdev.to(device)
+                stdev = stdev.to(device)
 
             pred = model(bg, feats, norm_atom, norm_bond)
+            pred = pred[index]
 
-            weight = label_ind if stdev is None else label_ind * stdev
-            accuracy += metric_fn(pred, label_val, weight).detach().item()
-            count += sum(label_ind).item()
+            accuracy += metric_fn(pred, target, stdev).detach().item()
+            count += len(target)
 
     return accuracy / count
 
 
-def ordering_accuracy(model, nodes, data_loader, device=None):
-    """
-    Evaluate the accuracy of an validation set of test set.
-    """
-
-    model.eval()
-
-    all_pred = []
-    all_target = []
-    all_ind = []
-    all_mol_source = []
-
-    with torch.no_grad():
-
-        for bg, label in data_loader:
-            feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
-            label_target = label["value"]
-            label_ind = label["indicator"]
-            label_id = label["id"]
-            label_size = label["size"]
-            # norm_atom = label["norm_atom"]
-            # norm_bond = label["norm_bond"]
-            norm_atom = None
-            norm_bond = None
-
-            if device is not None:
-                feats = {k: v.to(device) for k, v in feats.items()}
-                norm_atom = norm_atom.to(device)
-                norm_bond = norm_bond.to(device)
-
-            pred = model(bg, feats, norm_atom, norm_bond)
-
-            # each element of these list corresponds to a bond
-
-            all_pred.extend(
-                [t.detach().numpy() for t in torch.split(pred, label_size)]
-            )  # list of 1D array
-
-            all_target.extend(
-                [t.detach().numpy() for t in torch.split(label_target, label_size)]
-            )  # list of 1D array
-
-            all_ind.extend(
-                [t.detach().numpy() for t in torch.split(label_ind, label_size)]
-            )  # list of 1D array
-
-            all_mol_source.extend(label_id)  # list of str
-
-    # select the bond that has energy
-    all_pred = np.asarray(
-        [list(compress(v, i)) for v, i in zip(all_pred, all_ind)]
-    ).reshape(-1)
-    all_target = np.asarray(
-        [list(compress(v, i)) for v, i in zip(all_target, all_ind)]
-    ).reshape(-1)
-
-    oa = OrderAccuracy(max_n=3)
-    return oa.step(all_pred, all_target, all_mol_source)
-
-
 def get_grapher():
+    atom_featurizer = AtomFeaturizerFull()
+    bond_featurizer = BondAsNodeFeaturizerFull(length_featurizer=None, dative=False)
+    global_featurizer = GlobalFeaturizer(allowed_charges=None)
 
-    atom_featurizer = AtomFeaturizerMinimum()
-    bond_featurizer = BondAsNodeFeaturizerMinimum(length_featurizer=None)
-    global_featurizer = GlobalFeaturizer(allowed_charges=[-1, 0, 1])
+    # atom_featurizer = AtomFeaturizerMinimum()
+    # bond_featurizer = BondAsNodeFeaturizerMinimum(length_featurizer=None)
+    # global_featurizer = GlobalFeaturizer(allowed_charges=[-1, 0, 1])
 
     grapher = HeteroMoleculeGraph(
         atom_featurizer=atom_featurizer,
@@ -279,16 +248,47 @@ def get_grapher():
     return grapher
 
 
-def main(args):
-    print("\n\nStart training at:", datetime.now())
+def main_worker(gpu, world_size, args):
+    global best
+    args.gpu = gpu
+
+    if not args.distributed or (args.distributed and args.gpu == 0):
+        print("\n\nStart training at:", datetime.now())
+
+    if args.distributed:
+        dist.init_process_group(
+            args.dist_backend,
+            init_method=args.dist_url,
+            world_size=world_size,
+            rank=args.gpu,
+        )
+
+    # Explicitly setting seed to ensure the same dataset split and models created in
+    # two processes (when distributed) start from the same random weights and biases
+    seed_torch()
 
     ### dataset
-    # sdf_file = "~/Applications/db_access/mol_builder/struct_n200.sdf"
-    # label_file = "~/Applications/db_access/mol_builder/label_n200.txt"
-    # feature_file = "~/Applications/db_access/mol_builder/feature_n200.yaml"
-    sdf_file = "~/Applications/db_access/zinc_bde/zinc_struct_bond_rgrn_n200.sdf"
-    label_file = "~/Applications/db_access/zinc_bde/zinc_label_bond_rgrn_n200.txt"
-    feature_file = "~/Applications/db_access/zinc_bde/zinc_feature_bond_rgrn_n200.yaml"
+    sdf_file = "~/Applications/db_access/mol_builder/struct_n200.sdf"
+    label_file = "~/Applications/db_access/mol_builder/label_n200.yaml"
+    feature_file = "~/Applications/db_access/mol_builder/feature_n200.yaml"
+    # sdf_file = "~/Applications/db_access/zinc_bde/zinc_struct_bond_rgrn_n200.sdf"
+    # label_file = "~/Applications/db_access/zinc_bde/zinc_label_bond_rgrn_n200.txt"
+    # feature_file = "~/Applications/db_access/zinc_bde/zinc_feature_bond_rgrn_n200.yaml"
+
+    if args.restore:
+        dataset_state_dict_filename = args.dataset_state_dict_filename
+
+        if dataset_state_dict_filename is None:
+            warnings.warn("Restore with `args.dataset_state_dict_filename` set to None.")
+        if not os.path.exists(dataset_state_dict_filename):
+            warnings.warn(
+                f"`{dataset_state_dict_filename} not found; set "
+                f"args.dataset_state_dict_filename` to None"
+            )
+            dataset_state_dict_filename = None
+    else:
+        dataset_state_dict_filename = None
+
     dataset = ElectrolyteBondDataset(
         grapher=get_grapher(),
         molecules=sdf_file,
@@ -296,18 +296,32 @@ def main(args):
         extra_features=feature_file,
         feature_transformer=True,
         label_transformer=True,
+        state_dict_filename=dataset_state_dict_filename,
     )
 
-    trainset, valset, testset = train_validation_test_split_test_with_all_bonds_of_mol(
+    trainset, valset, testset = train_validation_test_split(
         dataset, validation=0.1, test=0.1
     )
-    print(
-        "Trainset size: {}, valset size: {}: testset size: {}.".format(
-            len(trainset), len(valset), len(testset)
-        )
-    )
 
-    train_loader = DataLoaderBond(trainset, batch_size=args.batch_size, shuffle=True)
+    if not args.distributed or (args.distributed and args.gpu == 0):
+        torch.save(dataset.state_dict(), args.dataset_state_dict_filename)
+        print(
+            "Trainset size: {}, valset size: {}: testset size: {}.".format(
+                len(trainset), len(valset), len(testset)
+            )
+        )
+
+    if args.distributed:
+        train_sampler = torch.utils.data.distributed.DistributedSampler(trainset)
+    else:
+        train_sampler = None
+
+    train_loader = DataLoaderBond(
+        trainset,
+        batch_size=args.batch_size,
+        shuffle=(train_sampler is None),
+        sampler=train_sampler,
+    )
     # larger val and test set batch_size is faster but needs more memory
     # adjust the batch size of to fit memory
     bs = max(len(valset) // 10, 1)
@@ -319,12 +333,21 @@ def main(args):
 
     feature_names = ["atom", "bond", "global"]
     set2set_ntypes_direct = ["global"]
+    feature_size = dataset.feature_size
 
     # feature_names = ["atom", "bond"]
     # set2set_ntypes_direct = None
+    # feature_size = {k: v for k, v in dataset.feature_size.items() if k != "global"}
+
+    args.feature_size = feature_size
+    args.set2set_ntypes_direct = set2set_ntypes_direct
+
+    # save args
+    if not args.distributed or (args.distributed and args.gpu == 0):
+        yaml_dump(args, "train_args.yaml")
 
     model = GatedGCNBond(
-        in_feats=dataset.feature_size,
+        in_feats=args.feature_size,
         embedding_size=args.embedding_size,
         gated_num_layers=args.gated_num_layers,
         gated_hidden_size=args.gated_hidden_size,
@@ -342,17 +365,23 @@ def main(args):
         fc_dropout=args.fc_dropout,
         outdim=1,
     )
-    print(model)
 
-    if args.device is not None:
-        model.to(device=args.device)
+    if not args.distributed or (args.distributed and args.gpu == 0):
+        print(model)
+
+    if args.gpu is not None:
+        model.to(args.gpu)
+    if args.distributed:
+        ddp_model = DDP(model, device_ids=[args.gpu])
+        ddp_model.feature_before_fc = model.feature_before_fc
+        model = ddp_model
 
     ### optimizer, loss, and metric
     optimizer = torch.optim.Adam(
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
     )
 
-    loss_func = WeightedMSELoss(reduction="mean")
+    loss_func = MSELoss(reduction="mean")
     metric = WeightedL1Loss(reduction="sum")
 
     ### learning rate scheduler and stopper
@@ -361,81 +390,117 @@ def main(args):
     )
     stopper = EarlyStopping(patience=150)
 
-    checkpoints_objs = {"model": model, "optimizer": optimizer, "scheduler": scheduler}
+    # load checkpoint
+    state_dict_objs = {"model": model, "optimizer": optimizer, "scheduler": scheduler}
     if args.restore:
         try:
-            load_checkpoints(checkpoints_objs)
-            print("Successfully load checkpoints")
+
+            if args.gpu is None:
+                checkpoint = load_checkpoints(state_dict_objs, filename="checkpoint.pkl")
+            else:
+                # Map model to be loaded to specified single gpu.
+                loc = "cuda:{}".format(args.gpu)
+                checkpoint = load_checkpoints(
+                    state_dict_objs, map_location=loc, filename="checkpoint.pkl"
+                )
+
+            args.start_epoch = checkpoint["epoch"]
+            best = checkpoint["best"]
+            print(f"Successfully load checkpoints, best {best}, epoch {args.start_epoch}")
+
         except FileNotFoundError as e:
             warnings.warn(str(e) + " Continue without loading checkpoints.")
             pass
 
-    print(
-        "\n\n# Epoch     Loss         TrainAcc        ValAcc        OrdAcc     Time ("
-        "s)"
-    )
-    sys.stdout.flush()
+    # start training
+    if not args.distributed or (args.distributed and args.gpu == 0):
+        print("\n\n# Epoch     Loss         TrainAcc        ValAcc     Time (s)")
+        sys.stdout.flush()
 
-    for epoch in range(args.epochs):
+    for epoch in range(args.start_epoch, args.epochs):
         ti = time.time()
+
+        # In distributed mode, calling the set_epoch method is needed to make shuffling
+        # work; each process will use the same random seed otherwise.
+        if args.distributed:
+            train_sampler.set_epoch(epoch)
 
         # train
         loss, train_acc = train(
-            optimizer, model, feature_names, train_loader, loss_func, metric, args.device
+            optimizer, model, feature_names, train_loader, loss_func, metric, args.gpu
         )
 
         # bad, we get nan
         if np.isnan(loss):
-            print(
-                "\n\nBad, we get nan for loss. Turn debug on and hope to catch "
-                "it. Note, although we load the checkpoints before the failing, "
-                "the debug may still fail because the data loader is random and "
-                "thus the data feeded are different from what causes the failing "
-                "when running directly. The only hope is that the error can reoccur."
-            )
+            print("\n\nBad, we get nan for loss. Existing")
             sys.stdout.flush()
             sys.exit(1)
 
         # evaluate
-        val_acc = evaluate(model, feature_names, val_loader, metric, args.device)
+        val_acc = evaluate(model, feature_names, val_loader, metric, args.gpu)
 
-        # note, we should use test_loader here since it contains all bond energies for
-        # each molecule in it
-        ordering_score = ordering_accuracy(model, feature_names, test_loader, args.device)
-
-        if stopper.step(val_acc, checkpoints_objs, msg="epoch " + str(epoch)):
-            # save results for hyperparam tune
-            pickle_dump(float(stopper.best_score), args.output_file)
+        if stopper.step(val_acc):
+            pickle_dump(best, args.output_file)  # save results for hyperparam tune
             break
 
         scheduler.step(val_acc)
 
-        tt = time.time() - ti
+        is_best = val_acc < best
+        if is_best:
+            best = val_acc
 
-        print(
-            "{:5d}   {:12.6e}   {:12.6e}   {:12.6e}   {}   {:.2f}".format(
-                epoch, loss, train_acc, val_acc, ordering_score, tt
+        # save checkpoint
+        if not args.distributed or (args.distributed and args.gpu == 0):
+
+            misc_objs = {"best": best, "epoch": epoch}
+
+            save_checkpoints(
+                state_dict_objs,
+                misc_objs,
+                is_best,
+                msg=f"epoch: {epoch}, score {val_acc}",
             )
-        )
-        if epoch % 10 == 0:
-            sys.stdout.flush()
 
-    # save results for hyperparam tune
-    pickle_dump(float(stopper.best_score), args.output_file)
+            tt = time.time() - ti
+
+            print(
+                "{:5d}   {:12.6e}   {:12.6e}   {:12.6e}   {:.2f}".format(
+                    epoch, loss, train_acc, val_acc, tt
+                )
+            )
+            if epoch % 10 == 0:
+                sys.stdout.flush()
 
     # load best to calculate test accuracy
-    load_checkpoints(checkpoints_objs)
-    test_acc = evaluate(model, feature_names, test_loader, metric, args.device)
-    ordering_score = ordering_accuracy(model, feature_names, test_loader, args.device)
+    if args.gpu is None:
+        checkpoint = load_checkpoints(state_dict_objs, filename="best_checkpoint.pkl")
+    else:
+        # Map model to be loaded to specified single  gpu.
+        loc = "cuda:{}".format(args.gpu)
+        checkpoint = load_checkpoints(
+            state_dict_objs, map_location=loc, filename="best_checkpoint.pkl"
+        )
 
-    print("\n#TestAcc: {:12.6e}\n".format(test_acc))
-    print(f"\n#Test Order Accuracy: {ordering_score}\n")
+    if not args.distributed or (args.distributed and args.gpu == 0):
+        test_acc = evaluate(model, feature_names, test_loader, metric, args.gpu)
 
-    print("\nFinish training at:", datetime.now())
+        print("\n#TestAcc: {:12.6e} \n".format(test_acc))
+        print("\nFinish training at:", datetime.now())
 
 
-# do not make it main because we need to run hypertunity
-seed_torch()
-args = parse_args()
-print(args)
-main(args)
+def main():
+    args = parse_args()
+    print(args)
+
+    if args.distributed:
+        # DDP
+        world_size = torch.cuda.device_count() if args.num_gpu is None else args.num_gpu
+        mp.spawn(main_worker, nprocs=world_size, args=(world_size, args))
+
+    else:
+        # train on CPU or a single GPU
+        main_worker(args.gpu, None, args)
+
+
+if __name__ == "__main__":
+    main()

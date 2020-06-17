@@ -40,22 +40,21 @@ def get_grapher_homo():
 def test_electrolyte_bond_label():
     def assert_label(lt):
 
-        ref_label_energies = [[0, 0.1, 0, 0.2, 0, 0.3], [0.4, 0, 0, 0.5, 0, 0]]
-        ref_label_indicators = [[0, 1, 0, 1, 0, 1], [1, 0, 0, 1, 0, 0]]
+        ref_label_energy = [[0.1, 0.2, 0.3], [0.4, 0.5]]
+        ref_label_index = [[1, 3, 5], [0, 3]]
 
         if lt:
-            non_zeros = [i for j in ref_label_energies for i in j if i != 0.0]
-            mean = float(np.mean(non_zeros))
-            std = float(np.std(non_zeros))
-            ref_label_energies = [
-                (np.asarray(a) - mean) / std for a in ref_label_energies
-            ]
-            ref_ts = [[std] * len(x) for x in ref_label_energies]
+            energies = torch.tensor(np.concatenate(ref_label_energy))
+            mean = float(torch.mean(energies))
+            std = float(torch.std(energies))
+            ref_label_energy = [(np.asarray(a) - mean) / std for a in ref_label_energy]
+            ref_std = [[std] * len(x) for x in ref_label_energy]
+            ref_mean = [[mean] * len(x) for x in ref_label_energy]
 
         dataset = ElectrolyteBondDataset(
             grapher=get_grapher_hetero(),
             molecules=os.path.join(test_files, "electrolyte_struct_bond.sdf"),
-            labels=os.path.join(test_files, "electrolyte_label_bond.txt"),
+            labels=os.path.join(test_files, "electrolyte_label_bond.yaml"),
             extra_features=os.path.join(test_files, "electrolyte_feature_bond.yaml"),
             feature_transformer=True,
             label_transformer=lt,
@@ -66,10 +65,11 @@ def test_electrolyte_bond_label():
 
         for i in range(size):
             _, label = dataset[i]
-            assert np.allclose(label["value"], ref_label_energies[i])
-            assert np.array_equal(label["indicator"], ref_label_indicators[i])
+            assert np.allclose(label["value"], ref_label_energy[i])
+            assert np.array_equal(label["bond_index"], ref_label_index[i])
             if lt:
-                assert np.allclose(label["scaler_stdev"], ref_ts[i])
+                assert np.allclose(label["scaler_mean"], ref_mean[i])
+                assert np.allclose(label["scaler_stdev"], ref_std[i])
             else:
                 assert "scaler_stedv" not in label
 

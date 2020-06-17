@@ -5,6 +5,7 @@ Here we mainly test the correctness of batch.
 
 import numpy as np
 import os
+import torch
 from gnn.data.electrolyte import (
     ElectrolyteBondDataset,
     ElectrolyteReactionDataset,
@@ -88,42 +89,45 @@ def test_dataloader():
 
 def test_dataloader_bond():
     def assert_label(lt):
-        ref_label_energies = [[0, 0.1, 0, 0.2, 0, 0.3], [0.4, 0, 0, 0.5, 0, 0]]
-        ref_label_indicators = [[0, 1, 0, 1, 0, 1], [1, 0, 0, 1, 0, 0]]
+
+        ref_label_energy = [[0.1, 0.2, 0.3], [0.4, 0.5]]
+        ref_label_index = [[1, 3, 5], [0, 3]]
+        ref_label_index_2 = [1, 3, 5, 6, 9]
 
         if lt:
-            non_zeros = [i for j in ref_label_energies for i in j if i != 0.0]
-            mean = np.mean(non_zeros)
-            std = np.std(non_zeros)
-            ref_label_energies = [
-                (np.asarray(a) - mean) / std for a in ref_label_energies
-            ]
-            ref_scales = [[std] * len(x) for x in ref_label_energies]
+            energies = torch.tensor(np.concatenate(ref_label_energy))
+            mean = float(torch.mean(energies))
+            std = float(torch.std(energies))
+            ref_label_energy = [(np.asarray(a) - mean) / std for a in ref_label_energy]
+            ref_mean = [[mean] * len(x) for x in ref_label_energy]
+            ref_std = [[std] * len(x) for x in ref_label_energy]
 
         dataset = ElectrolyteBondDataset(
             grapher=get_grapher_hetero(),
             molecules=os.path.join(test_files, "electrolyte_struct_bond.sdf"),
-            labels=os.path.join(test_files, "electrolyte_label_bond.txt"),
+            labels=os.path.join(test_files, "electrolyte_label_bond.yaml"),
             extra_features=os.path.join(test_files, "electrolyte_feature_bond.yaml"),
-            feature_transformer=False,
+            feature_transformer=True,
             label_transformer=lt,
         )
 
         # batch size 1 case (exactly the same as test_dataset)
         data_loader = DataLoaderBond(dataset, batch_size=1, shuffle=False)
         for i, (graph, labels) in enumerate(data_loader):
-            assert np.allclose(labels["value"], ref_label_energies[i])
-            assert np.allclose(labels["indicator"], ref_label_indicators[i])
+            assert np.allclose(labels["value"], ref_label_energy[i])
+            assert np.allclose(labels["index"], ref_label_index[i])
             if lt:
-                assert np.allclose(labels["scaler_stdev"], ref_scales[i])
+                assert np.allclose(labels["scaler_mean"], ref_mean[i])
+                assert np.allclose(labels["scaler_stdev"], ref_std[i])
 
         # batch size 2 case
         data_loader = DataLoaderBond(dataset, batch_size=2, shuffle=False)
         for graph, labels in data_loader:
-            assert np.allclose(labels["value"], np.concatenate(ref_label_energies))
-            assert np.allclose(labels["indicator"], np.concatenate(ref_label_indicators))
+            assert np.allclose(labels["value"], np.concatenate(ref_label_energy))
+            assert np.allclose(labels["index"], ref_label_index_2)
             if lt:
-                assert np.allclose(labels["scaler_stdev"], np.concatenate(ref_scales))
+                assert np.allclose(labels["scaler_mean"], np.concatenate(ref_mean))
+                assert np.allclose(labels["scaler_stdev"], np.concatenate(ref_std))
 
     assert_label(False)
     assert_label(True)

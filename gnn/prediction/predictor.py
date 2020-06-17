@@ -6,6 +6,7 @@ from gnn.prediction.io import (
     PredictionOneReactant,
     PredictionMultiReactant,
     PredictionByReaction,
+    PredictionStructLabelFeatFiles,
 )
 from gnn.prediction.load_model import select_model, load_model, load_dataset
 from gnn.utils import expand_path
@@ -123,6 +124,19 @@ def predict_by_reactions(
 
     predictor = PredictionByReaction(
         molecule_file, reaction_file, charge_file, format=format
+    )
+
+    molecules, labels, extra_features = predictor.prepare_data()
+    predictions = get_prediction(model, molecules, labels, extra_features)
+    return predictor.write_results(predictions, out_file)
+
+
+def predict_by_struct_label_extra_feats_files(
+    model, molecule_file, label_file, extra_feats_file, out_file="bde.yaml"
+):
+    model, allowed_charge = select_model(model)
+    predictor = PredictionStructLabelFeatFiles(
+        molecule_file, label_file, extra_feats_file
     )
 
     molecules, labels, extra_features = predictor.prepare_data()

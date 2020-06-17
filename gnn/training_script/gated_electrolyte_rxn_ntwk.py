@@ -34,7 +34,7 @@ best = np.finfo(np.float32).max
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="HGATReaction")
+    parser = argparse.ArgumentParser(description="GatedReactionNetwork")
 
     # embedding layer
     parser.add_argument("--embedding-size", type=int, default=24)
@@ -43,7 +43,7 @@ def parse_args():
     parser.add_argument("--gated-num-layers", type=int, default=3)
     parser.add_argument("--gated-hidden-size", type=int, nargs="+", default=[64, 64, 64])
     parser.add_argument("--gated-num-fc-layers", type=int, default=1)
-    parser.add_argument("--gated-graph-norm", type=int, default=1)
+    parser.add_argument("--gated-graph-norm", type=int, default=0)
     parser.add_argument("--gated-batch-norm", type=int, default=1)
     parser.add_argument("--gated-activation", type=str, default="ReLU")
     parser.add_argument("--gated-residual", type=int, default=1)

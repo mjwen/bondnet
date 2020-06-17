@@ -860,7 +860,7 @@ class ReactionCollection:
     def create_struct_label_dataset_bond_based_regression(
         self,
         struct_file="sturct.sdf",
-        label_file="label.txt",
+        label_file="label.yaml",
         feature_file=None,
         group_mode="charge_0",
         one_per_iso_bond_group=True,
@@ -883,64 +883,23 @@ class ReactionCollection:
 
         """
 
-        def write_label(reactions, bond_idx, filename="label.txt"):
-            """
-            Write bond energy to file.
+        def get_labels(reactions, bond_idx):
+            labels = []
 
-            See the text below on how the info is written.
-
-            Args:
-                reactions (list of Reaction):
-                bond_idx (list of int): the index of the broken bond in the reactant;
-                filename (str): name of the file to write the label
-            """
-
-            filename = expand_path(filename)
-            create_directory(filename)
-            with open(filename, "w") as f:
-                f.write(
-                    "# Each line lists the energy of a bond in a molecule. "
-                    "The number of items in each line is equal to 2*N+1, where N is the "
-                    "number bonds in the molecule. The first N items are bond energies "
-                    "and the next N items are indicators (0 or 1) specifying whether the "
-                    "bond energy exists. A value of 0 means the corresponding bond "
-                    "energy should be ignored, whatever its value is. The last item "
-                    "specifies the molecule from which the bond come.\n"
+            for i, (rxn, idx) in enumerate(zip(reactions, bond_idx)):
+                reactant = rxn.reactants[0]
+                num_bonds = len(reactant.bonds)
+                labels.append(
+                    {
+                        "value": [rxn.get_free_energy()],
+                        "bond_index": [idx],
+                        "molecule_id": reactant.id,
+                        "num_bonds_in_molecule": num_bonds,
+                        "reaction_id": rxn.get_id(),
+                    }
                 )
 
-                for i, (rxn, idx) in enumerate(zip(reactions, bond_idx)):
-                    reactant = rxn.reactants[0]
-                    num_bonds = len(reactant.bonds)
-
-                    # write bond energies
-                    for j in range(num_bonds):
-                        if j == idx:
-                            f.write("{:.15g} ".format(rxn.get_free_energy()))
-                        else:
-                            f.write("0.0 ")
-                    f.write("   ")
-
-                    # write bond energy indicator
-                    for j in range(num_bonds):
-                        if j == idx:
-                            f.write("1 ")
-                        else:
-                            f.write("0 ")
-
-                    # write which molecule this atom come from
-                    f.write("    {}".format(reactant.id))
-
-                    # write other info (reactant and product info, and bond energy)
-
-                    attr = rxn.as_dict()
-                    f.write(
-                        "    # {} {} {} {}\n".format(
-                            attr["reactants"],
-                            attr["products"],
-                            attr["broken_bond"],
-                            attr["bond_energy"],
-                        )
-                    )
+            return labels
 
         if group_mode == "all":
             grouped_rxns = self.group_by_reactant_all()
@@ -984,7 +943,8 @@ class ReactionCollection:
         all_reactants = [rxn.reactants[0] for rxn in all_rxns]
 
         # write label
-        write_label(all_rxns, broken_bond_idx, label_file)
+        labels = get_labels(all_rxns, broken_bond_idx)
+        yaml_dump(labels, label_file)
 
         # write sdf
         self.write_sdf(all_reactants, struct_file)

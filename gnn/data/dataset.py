@@ -192,7 +192,7 @@ class BaseDataset:
         return graphs
 
     def __getitem__(self, item):
-        """Get datapoint with index
+        """Get data point with index
 
         Args:
             item (int): data point index
@@ -205,8 +205,7 @@ class BaseDataset:
         return g, lb
 
     def __len__(self):
-        """Length of the dataset.
-
+        """
         Returns:
             int: length of dataset
         """
