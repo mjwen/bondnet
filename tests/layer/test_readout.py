@@ -1,5 +1,5 @@
 import numpy as np
-from gnn.layer.readout import (
+from bondnet.layer.readout import (
     ConcatenateMeanMax,
     ConcatenateMeanAbsDiff,
     Set2Set,

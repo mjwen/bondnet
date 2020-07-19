@@ -1,5 +1,5 @@
 import numpy as np
-from gnn.utils import np_split_by_size
+from bondnet.utils import np_split_by_size
 
 
 def test_np_split_by_size():

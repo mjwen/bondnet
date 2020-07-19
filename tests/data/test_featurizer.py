@@ -1,5 +1,5 @@
 import numpy as np
-from gnn.data.featurizer import (
+from bondnet.data.featurizer import (
     AtomFeaturizerFull,
     BondAsNodeFeaturizerFull,
     BondAsNodeCompleteFeaturizer,

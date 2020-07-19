@@ -6,20 +6,20 @@ Here we mainly test the correctness of batch.
 import numpy as np
 import os
 import torch
-from gnn.data.electrolyte import (
+from bondnet.data.electrolyte import (
     ElectrolyteBondDataset,
     ElectrolyteReactionDataset,
     ElectrolyteReactionNetworkDataset,
 )
-from gnn.data.qm9 import QM9Dataset
-from gnn.data.dataloader import (
+from bondnet.data.qm9 import QM9Dataset
+from bondnet.data.dataloader import (
     DataLoaderBond,
     DataLoader,
     DataLoaderReaction,
     DataLoaderReactionNetwork,
 )
-from gnn.data.grapher import HeteroMoleculeGraph, HomoCompleteGraph
-from gnn.data.featurizer import (
+from bondnet.data.grapher import HeteroMoleculeGraph, HomoCompleteGraph
+from bondnet.data.featurizer import (
     AtomFeaturizerFull,
     BondAsNodeFeaturizerFull,
     BondAsEdgeCompleteFeaturizer,

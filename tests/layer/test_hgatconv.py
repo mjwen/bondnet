@@ -1,11 +1,11 @@
 import torch
 import numpy as np
-from gnn.layer.hgatconv import (
+from bondnet.layer.hgatconv import (
     NodeAttentionLayer,
     HGATConv,
     heterograph_edge_softmax,
 )
-from gnn.layer.utils import UnifySize
+from bondnet.layer.utils import UnifySize
 
 from ..utils import make_hetero_CH2O
 

@@ -1,15 +1,15 @@
 import numpy as np
 import os
-from gnn.data.electrolyte import (
+from bondnet.data.electrolyte import (
     ElectrolyteBondDataset,
     ElectrolyteBondDatasetClassification,
     ElectrolyteMoleculeDataset,
     ElectrolyteReactionDataset,
     ElectrolyteReactionNetworkDataset,
 )
-from gnn.data.qm9 import QM9Dataset
-from gnn.data.grapher import HeteroMoleculeGraph, HomoCompleteGraph
-from gnn.data.featurizer import (
+from bondnet.data.qm9 import QM9Dataset
+from bondnet.data.grapher import HeteroMoleculeGraph, HomoCompleteGraph
+from bondnet.data.featurizer import (
     AtomFeaturizerFull,
     BondAsNodeFeaturizerFull,
     BondAsEdgeCompleteFeaturizer,

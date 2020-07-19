@@ -1,12 +1,12 @@
 import os
 from click.testing import CliRunner
-import gnn
-from gnn.prediction.predictor import (
+import bondnet
+from bondnet.prediction.predictor import (
     predict_single_molecule,
     predict_multiple_molecules,
     predict_by_reactions,
 )
-from gnn.scripts.prediction_cli import cli
+from bondnet.scripts.prediction_cli import cli
 
 
 def test_predict_single_molecule():
@@ -15,7 +15,7 @@ def test_predict_single_molecule():
 
 
 def test_predict_multiple_molecules():
-    prefix = os.path.join(os.path.dirname(gnn.__file__), "prediction", "examples")
+    prefix = os.path.join(os.path.dirname(bondnet.__file__), "prediction", "examples")
     molecule_file = os.path.join(prefix, "molecules.sdf")
     charge_file = os.path.join(prefix, "charges.txt")
 
@@ -37,7 +37,7 @@ def test_predict_multiple_molecules():
 
 
 def test_predict_by_reaction():
-    prefix = os.path.join(os.path.dirname(gnn.__file__), "prediction", "examples")
+    prefix = os.path.join(os.path.dirname(bondnet.__file__), "prediction", "examples")
     molecule_file = os.path.join(prefix, "molecules.sdf")
     rxn_file = os.path.join(prefix, "reactions.csv")
     charge_file = os.path.join(prefix, "charges.txt")
@@ -66,6 +66,6 @@ def test_cli():
     result = runner.invoke(cli, ["single", "CC", "0"])
 
     molecule_file = os.path.join(
-        os.path.dirname(gnn.__file__), "prediction", "examples", "molecules.sdf"
+        os.path.dirname(bondnet.__file__), "prediction", "examples", "molecules.sdf"
     )
     result = runner.invoke(cli, ["multiple", molecule_file])

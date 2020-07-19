@@ -1,6 +1,6 @@
 import numpy as np
 from collections import defaultdict
-from gnn.data.transformers import StandardScaler, GraphFeatureStandardScaler
+from bondnet.data.transformers import StandardScaler, GraphFeatureStandardScaler
 import torch
 from ..utils import make_homo_CH2O, make_hetero_CH2O
 

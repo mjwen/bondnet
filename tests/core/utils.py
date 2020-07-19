@@ -1,8 +1,8 @@
 from pymatgen import Molecule
 from pymatgen.analysis.graphs import MoleculeGraph
-from gnn.core.molwrapper import create_wrapper_mol_from_atoms_and_bonds
-from gnn.core.molwrapper import create_rdkit_mol_from_mol_graph
-from gnn.core.reaction import Reaction
+from bondnet.core.molwrapper import create_wrapper_mol_from_atoms_and_bonds
+from bondnet.core.molwrapper import create_rdkit_mol_from_mol_graph
+from bondnet.core.reaction import Reaction
 
 
 def create_LiEC_pymatgen_mol():

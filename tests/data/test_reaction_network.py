@@ -1,5 +1,5 @@
 import numpy as np
-from gnn.data.reaction_network import ReactionInNetwork, ReactionNetwork
+from bondnet.data.reaction_network import ReactionInNetwork, ReactionNetwork
 
 
 class TestReaction:

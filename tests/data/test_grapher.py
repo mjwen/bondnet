@@ -1,13 +1,13 @@
 import numpy as np
 from collections import defaultdict
 import itertools
-from gnn.data.grapher import (
+from bondnet.data.grapher import (
     HomoBidirectedGraph,
     HomoCompleteGraph,
     HeteroMoleculeGraph,
     HeteroCompleteGraph,
 )
-from gnn.data.utils import get_atom_to_bond_map, get_bond_to_atom_map
+from bondnet.data.utils import get_atom_to_bond_map, get_bond_to_atom_map
 from .utils import make_a_mol
 
 

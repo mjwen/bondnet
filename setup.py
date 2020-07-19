@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 import os
 
 
-def get_version(fname=os.path.join("gnn", "__init__.py")):
+def get_version(fname=os.path.join("bondnet", "__init__.py")):
     with open(fname) as fin:
         for line in fin:
             line = line.strip()
@@ -17,10 +17,10 @@ def get_version(fname=os.path.join("gnn", "__init__.py")):
 
 
 setup(
-    name="gnn",
+    name="bondnet",
     version=get_version(),
     packages=find_packages(),
-    entry_points={"console_scripts": ["bdenet = gnn.scripts.prediction_cli:cli"]},
+    entry_points={"console_scripts": ["bdenet = bondnet.scripts.prediction_cli:cli"]},
     install_requires=["numpy", "pyyaml", "beautifultable", "sklearn", "click"],
     author="Mingjian Wen",
     author_email="wenxx151@gmail.com",

@@ -1,4 +1,4 @@
-from gnn.core.reaction import (
+from bondnet.core.reaction import (
     ReactionsOfSameBond,
     ReactionsMultiplePerBond,
     ReactionExtractorFromMolSet,

@@ -8,7 +8,11 @@ from ..utils import (
     make_hetero_H,
     make_batched_hetero_forming_reaction,
 )
-from gnn.model.hgat_reaction import create_rxn_graph, mol_graph_to_rxn_graph, HGATReaction
+from bondnet.model.hgat_reaction import (
+    create_rxn_graph,
+    mol_graph_to_rxn_graph,
+    HGATReaction,
+)
 
 
 def test_create_rxn_graph():

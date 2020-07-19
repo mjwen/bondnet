@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from gnn.layer.utils import sum_nodes, softmax_nodes, broadcast_nodes
+from bondnet.layer.utils import sum_nodes, softmax_nodes, broadcast_nodes
 from ..utils import make_batched_hetero_CH2O
 
 

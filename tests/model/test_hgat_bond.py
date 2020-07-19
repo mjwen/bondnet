@@ -2,7 +2,7 @@
 Test the Heterograph conv.
 """
 from ..utils import make_hetero_CH2O
-from gnn.model.hgat_bond import HGATBond
+from bondnet.model.hgat_bond import HGATBond
 
 
 def test_hgat_bond():

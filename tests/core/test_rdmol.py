@@ -1,6 +1,6 @@
 import numpy as np
 from rdkit.Chem import BondType
-from gnn.core.rdmol import (
+from bondnet.core.rdmol import (
     remove_metals,
     create_rdkit_mol,
     create_rdkit_mol_from_mol_graph,

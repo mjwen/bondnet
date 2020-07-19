@@ -1,6 +1,6 @@
 import numpy as np
-from gnn.data.reaction_network import ReactionInNetwork
-from gnn.model.hgat_reaction_network import (
+from bondnet.data.reaction_network import ReactionInNetwork
+from bondnet.model.hgat_reaction_network import (
     create_rxn_graph,
     mol_graph_to_rxn_graph,
     HGATReactionNetwork,
