@@ -10,7 +10,49 @@ import pandas as pd
 from gnn.data.dataset import train_validation_test_split
 from gnn.data.dataloader import DataLoaderReactionNetwork
 from gnn.prediction.load_model import load_model, load_dataset
-from gnn.utils import seed_torch, expand_path
+from gnn.utils import seed_torch, expand_path, yaml_load
+
+
+def get_charges(label_file, feature_file):
+    """
+    Charge of reactant and products molecule in each reaction.
+    """
+    labels = yaml_load(expand_path(label_file))
+    features = yaml_load(expand_path(feature_file))
+
+    ids = []
+    num_prdts = []
+    rct_charges = []
+    prdt1_charges = []
+    prdt2_charges = []
+
+    for lb in labels:
+        ids.append(lb["id"])
+        rct_idx = lb["reactants"][0]
+        prdts = lb["products"]
+
+        N = len(prdts)
+        num_prdts.append(N)
+
+        rct_charges.append(features[rct_idx]["charge"])
+        prdt1_idx = prdts[0]
+        prdt1_charges.append(features[prdt1_idx]["charge"])
+        if N == 2:
+            prdt2_idx = prdts[1]
+            prdt2_charges.append(features[prdt2_idx]["charge"])
+        else:
+            prdt2_charges.append(None)
+
+    df = pd.DataFrame(
+        {
+            "identifier": ids,
+            "num products": num_prdts,
+            "charge": rct_charges,
+            "product1 charge": prdt1_charges,
+            "product2 charge": prdt2_charges,
+        }
+    )
+    return df
 
 
 def evaluate(model, nodes, data_loader, compute_features=False):
@@ -82,9 +124,20 @@ def main(
     ids, targets, predictions, errors, species, features = evaluate(
         model, feature_names, data_loader, compute_features=True
     )
-
     df = pd.DataFrame(features)
     df.to_csv(expand_path(feat_filename), sep="\t", header=False, index=False)
+
+    # metadata
+    charges = get_charges(label_file, feature_file)
+    rct_charges = []
+    prdt1_charges = []
+    prdt2_charges = []
+    for i in ids:
+        c = charges[charges["identifier"] == i].to_dict("records")[0]
+        rct_charges.append(c["charge"])
+        prdt1_charges.append(c["product1 charge"])
+        prdt2_charges.append(c["product2 charge"])
+
     df = pd.DataFrame(
         {
             "identifier": ids,
@@ -92,6 +145,9 @@ def main(
             "prediction": predictions,
             "error": errors,
             "species": species,
+            "reactant charge": rct_charges,
+            "product1 charge": prdt1_charges,
+            "product2 charge": prdt2_charges,
         }
     )
     df.to_csv(expand_path(meta_filename), sep="\t", index=False)

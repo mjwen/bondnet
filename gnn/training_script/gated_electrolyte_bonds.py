@@ -165,9 +165,10 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
             feats = {k: v.to(device) for k, v in feats.items()}
             target = target.to(device)
             index = index.to(device)
-            norm_atom = norm_atom.to(device)
-            norm_bond = norm_bond.to(device)
-            stdev = stdev.to(device)
+            # norm_atom = norm_atom.to(device)
+            # norm_bond = norm_bond.to(device)
+            if stdev is not None:
+                stdev = stdev.to(device)
 
         pred = model(bg, feats, norm_atom, norm_bond)
         pred = pred[index]
@@ -217,9 +218,10 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
                 feats = {k: v.to(device) for k, v in feats.items()}
                 target = target.to(device)
                 index = index.to(device)
-                norm_atom = norm_atom.to(device)
-                norm_bond = norm_bond.to(device)
-                stdev = stdev.to(device)
+                # norm_atom = norm_atom.to(device)
+                # norm_bond = norm_bond.to(device)
+                if stdev is not None:
+                    stdev = stdev.to(device)
 
             pred = model(bg, feats, norm_atom, norm_bond)
             pred = pred[index]
@@ -372,7 +374,7 @@ def main_worker(gpu, world_size, args):
     if args.gpu is not None:
         model.to(args.gpu)
     if args.distributed:
-        ddp_model = DDP(model, device_ids=[args.gpu])
+        ddp_model = DDP(model, device_ids=[args.gpu], find_unused_parameters=False)
         ddp_model.feature_before_fc = model.feature_before_fc
         model = ddp_model
 

@@ -47,19 +47,44 @@ def evaluate(model, nodes, data_loader):
 
 def get_charges(label_file, feature_file):
     """
-    Charge of reactant molecule in each reaction.
+    Charge of reactant and products molecule in each reaction.
     """
     labels = yaml_load(expand_path(label_file))
     features = yaml_load(expand_path(feature_file))
+
     ids = []
-    charges = []
+    num_prdts = []
+    rct_charges = []
+    prdt1_charges = []
+    prdt2_charges = []
 
     for lb in labels:
         ids.append(lb["id"])
-        reactant_idx = lb["reactants"][0]
-        charges.append(features[reactant_idx]["charge"])
+        rct_idx = lb["reactants"][0]
+        prdts = lb["products"]
 
-    return ids, charges
+        N = len(prdts)
+        num_prdts.append(N)
+
+        rct_charges.append(features[rct_idx]["charge"])
+        prdt1_idx = prdts[0]
+        prdt1_charges.append(features[prdt1_idx]["charge"])
+        if N == 2:
+            prdt2_idx = prdts[1]
+            prdt2_charges.append(features[prdt2_idx]["charge"])
+        else:
+            prdt2_charges.append(None)
+
+    df = pd.DataFrame(
+        {
+            "identifier": ids,
+            "num products": num_prdts,
+            "charge": rct_charges,
+            "product1 charge": prdt1_charges,
+            "product2 charge": prdt2_charges,
+        }
+    )
+    return df
 
 
 def main(
@@ -74,9 +99,12 @@ def main(
     seed_torch()
 
     dataset = load_dataset(model_name, sdf_file, label_file, feature_file)
-    _, _, testset = train_validation_test_split(dataset, validation=0.1, test=0.1)
+    trainset, valset, testset = train_validation_test_split(
+        dataset, validation=0.1, test=0.1
+    )
+    # data_loader = DataLoaderReactionNetwork(trainset, batch_size=100, shuffle=False)
+    # data_loader = DataLoaderReactionNetwork(valset, batch_size=100, shuffle=False)
     data_loader = DataLoaderReactionNetwork(testset, batch_size=100, shuffle=False)
-    # data_loader = DataLoaderReactionNetwork(dataset, batch_size=100, shuffle=False)
 
     model = load_model(model_name)
 
@@ -104,8 +132,7 @@ def main(
     df.to_csv(expand_path(error_file), sep="\t", index=False)
 
     # charges
-    ids, charges = get_charges(label_file, feature_file)
-    df = pd.DataFrame({"identifier": ids, "charge": charges})
+    df = get_charges(label_file, feature_file)
     df.to_csv(expand_path(charge_file), sep="\t", index=False)
 
 

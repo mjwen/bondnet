@@ -50,14 +50,23 @@ def select_data_by_species(feature_file, metadata_file):
 
     for i, species in enumerate(metadata["species"]):
         if species in major_species:
+            cg = ""
             for k in keys:
-                new_metadata[k].append(metadata[k][i])
+                if "charge" in k:
+                    cg += "_{}".format(metadata[k][i])
+                else:
+                    new_metadata[k].append(metadata[k][i])
+            new_metadata["charge"].append(cg)
         else:
+            cg = ""
             for k in keys:
-                if k == "species":
+                if "charge" in k:
+                    cg += "_{}".format(metadata[k][i])
+                elif k == "species":
                     new_metadata[k].append("others")
                 else:
                     new_metadata[k].append(metadata[k][i])
+            new_metadata["charge"].append(cg)
     metadata = {k: np.asarray(v) for k, v in new_metadata.items()}
 
     return features, metadata
@@ -121,8 +130,9 @@ def umap_analysis(
 
     filename = "~/Applications/db_access/mol_builder/post_analysis/umap_species.pdf"
     analyzer.plot_via_umap_points(filename, "species", True)
-    # filename = "~/Applications/db_access/mol_builder/post_analysis/umap_species.html"
-    # analyzer.plot_via_umap_interactive(filename, "species", True)
+
+    filename = "~/Applications/db_access/mol_builder/post_analysis/umap_species.html"
+    analyzer.plot_via_umap_interactive(filename, "species", True)
 
     analyzer.write_embedding_to_csv(
         filename="~/applications/db_access/mol_builder/post_analysis/umap_embedding.tsv",

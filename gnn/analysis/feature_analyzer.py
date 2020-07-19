@@ -270,7 +270,7 @@ class BaseAnalyzer(abc.ABC):
     def plot_via_umap_points(
         self,
         filename="embedding.pdf",
-        metadata_key_as_color="energy",
+        metadata_key_as_color="prediction",
         categorical_color=False,
     ):
         if not categorical_color:
@@ -291,10 +291,10 @@ class BaseAnalyzer(abc.ABC):
     def plot_via_umap_interactive(
         self,
         filename="embedding.html",
-        metadata_key_as_color="energy",
+        metadata_key_as_color="species",
         categorical_color=False,
     ):
-        if categorical_color:
+        if not categorical_color:
             umap_plot.interactive(
                 expand_path(filename),
                 self.model,
@@ -309,7 +309,7 @@ class BaseAnalyzer(abc.ABC):
                 self.model,
                 labels=self.metadata[metadata_key_as_color],
                 hover_data=pd.DataFrame(self.metadata),
-                color_key_cmap="Paired",
+                color_key_cmap="tab20",
                 point_size=5,
             )
 
