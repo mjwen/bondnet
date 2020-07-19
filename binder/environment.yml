@@ -1,4 +1,4 @@
-name: bdenet
+name: bondnet
 channels:
   - conda-forge
   - pytorch
