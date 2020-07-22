@@ -39,5 +39,7 @@ jobs:
     - name: Test with pytest
       run: |
         pip install pytest
-        # ignore the tests/database/ directory, where we need custom pymatgen
-        pytest -s --ignore tests/database/
+        # ignore tests in "tests/prediction/". They need the pre-trained
+        # models, but these are stored as LFS on GitHub and Action cannot get
+        # access to it.
+        pytest -s --ignore=tests/prediction/
