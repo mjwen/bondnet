@@ -41,7 +41,7 @@ def predict_single_molecule(
         str: sdf string representing the molecules and energies.
     """
 
-    model, allowed_charge = select_model(model)
+    model, allowed_charge, unit_converter = select_model(model)
 
     assert (
         charge in allowed_charge
@@ -70,7 +70,7 @@ def predict_single_molecule(
     predictor = PredictionOneReactant(molecule, charge, format, allowed_charge, ring_bond)
 
     molecules, labels, extra_features = predictor.prepare_data()
-    predictions = get_prediction(model, molecules, labels, extra_features)
+    predictions = get_prediction(model, unit_converter, molecules, labels, extra_features)
 
     return predictor.write_results(predictions, figure_name, write_result)
 
@@ -91,13 +91,14 @@ def predict_multiple_molecules(model, molecule_file, charge_file, out_file, form
             and `inchi`.
     """
 
-    model, allowed_charge = select_model(model)
+    model, allowed_charge, unit_converter = select_model(model)
 
     predictor = PredictionMultiReactant(
         molecule_file, charge_file, format, allowed_charge, ring_bond=False
     )
     molecules, labels, extra_features = predictor.prepare_data()
-    predictions = get_prediction(model, molecules, labels, extra_features)
+    predictions = get_prediction(model, unit_converter, molecules, labels, extra_features)
+
     return predictor.write_results(predictions, out_file)
 
 
@@ -120,31 +121,34 @@ def predict_by_reactions(
             and `inchi`.
     """
 
-    model, allowed_charge = select_model(model)
+    model, allowed_charge, unit_converter = select_model(model)
 
     predictor = PredictionByReaction(
         molecule_file, reaction_file, charge_file, format=format
     )
 
     molecules, labels, extra_features = predictor.prepare_data()
-    predictions = get_prediction(model, molecules, labels, extra_features)
+    predictions = get_prediction(model, unit_converter, molecules, labels, extra_features)
+
     return predictor.write_results(predictions, out_file)
 
 
 def predict_by_struct_label_extra_feats_files(
     model, molecule_file, label_file, extra_feats_file, out_file="bde.yaml"
 ):
-    model, allowed_charge = select_model(model)
+    model, allowed_charge, unit_converter = select_model(model)
+
     predictor = PredictionStructLabelFeatFiles(
         molecule_file, label_file, extra_feats_file
     )
 
     molecules, labels, extra_features = predictor.prepare_data()
-    predictions = get_prediction(model, molecules, labels, extra_features)
+    predictions = get_prediction(model, unit_converter, molecules, labels, extra_features)
+
     return predictor.write_results(predictions, out_file)
 
 
-def get_prediction(model_name, molecules, labels, extra_features):
+def get_prediction(model_name, unit_converter, molecules, labels, extra_features):
 
     model = load_model(model_name)
     dataset = load_dataset(model_name, molecules, labels, extra_features)
@@ -163,9 +167,11 @@ def get_prediction(model_name, molecules, labels, extra_features):
             if failed:
                 pred.append(None)
             else:
-                pred.append(predictions[idx])
+                pred.append(predictions[idx] * unit_converter)
                 idx += 1
         predictions = pred
+    else:
+        predictions = np.asarray(predictions) * unit_converter
 
     return predictions
 

@@ -16,9 +16,15 @@ from bondnet.core.rdmol import read_rdkit_mols_from_file
 from bondnet.data.utils import get_dataset_species
 from bondnet.utils import load_checkpoints, expand_path, check_exists
 
+kcalPerMol2eV = 0.043363
+
 MODEL_INFO = {
-    "mesd": {"allowed_charge": [-1, 0, 1], "date": ["20200611"]},
-    "pubchem": {"allowed_charge": [0], "date": ["20200531"]},
+    "mesd": {"allowed_charge": [-1, 0, 1], "date": ["20200611"], "unit_converter": 1.0},
+    "pubchem": {
+        "allowed_charge": [0],
+        "date": ["20200531"],
+        "unit_converter": kcalPerMol2eV,
+    },
 }
 
 
@@ -146,7 +152,9 @@ def select_model(model_name):
         model_name (str)
 
     Returns:
-        str: the model to use
+        model (str): name the model to use
+        allowed_charge (list): allowed charges for molecules
+        unit_converter (float): a value to multiply to convert the energy unit to eV
     """
     model_name = model_name.strip().lower()
     if "/" in model_name:
@@ -162,8 +170,9 @@ def select_model(model_name):
 
     model = "/".join([prefix, date])
     allowed_charge = MODEL_INFO[prefix]["allowed_charge"]
+    unit_converter = MODEL_INFO[prefix]["unit_converter"]
 
-    return model, allowed_charge
+    return model, allowed_charge, unit_converter
 
 
 def get_model_dir(model_name):

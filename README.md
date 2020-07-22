@@ -28,7 +28,7 @@ Currently, we only support installation from source:
 
 3. install this repo
     ```bash
-    git clone -b stable https://github.com/mjwen/bondnet.git
+    git clone https://github.com/mjwen/bondnet.git
     pip install -e bondnet
     ```
 
@@ -39,7 +39,7 @@ Currently, we only support installation from source:
 
 For a quick prediction of the energies of bonds in a single molecule, try the live demo at: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mjwen/bondnet/binder?filepath=bondnet%2Fscripts%2Fprediction_binder.ipynb)
 
-A command line interface (CLI) `bondnet` is also provided to make batch predictions. 
+A command line interface (CLI) `bondnet` is also provided to make batch predictions.
 We support multiple modes of predictions using different input data format.
 
 - a single molecule given by a `SMILES` or `InChI` string, e.g.:
@@ -52,20 +52,20 @@ We support multiple modes of predictions using different input data format.
     ```bash
     $ bondnet multiple molecules.sdf -o results.sdf
     ```
-  
+
 - explicitly specifying the bonds to predict. In this mode, a `moleclue` file
   to list all the molecules and a `reaction` file to list all the reactions associated
   with the bonds are needed (Optionally, a `charge` file lists the charges of all the
-  molecules can be provided). Supported molecule format includes `graph `, `sdf`, `pdb`, 
+  molecules can be provided). Supported molecule format includes `graph `, `sdf`, `pdb`,
   `smiles `, and `inchi`. e.g.
     ```bash
     $ bondnet reaction -t sdf molecules.sdf reactions.csv -c charges.txt
-    ```  
+    ```
     ```bash
     $ bondnet reaction -t graph molecule_graphs.json reactions.csv
-    ```  
+    ```
 
-Detailed description of the format of the input files and examples can be found 
+Detailed description of the format of the input files and examples can be found
 [here](https://github.com/mjwen/bondnet/tree/binder/bondnet/prediction/examples).
 
 
