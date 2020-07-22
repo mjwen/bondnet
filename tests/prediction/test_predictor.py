@@ -10,8 +10,8 @@ from bondnet.scripts.prediction_cli import cli
 
 
 def test_predict_single_molecule():
-    predict_single_molecule(model="electrolyte", molecule="CC")
-    predict_single_molecule(model="alfabet", molecule="CC")
+    predict_single_molecule(model="mesd", molecule="CC")
+    predict_single_molecule(model="pubchem", molecule="CC")
 
 
 def test_predict_multiple_molecules():
@@ -20,7 +20,7 @@ def test_predict_multiple_molecules():
     charge_file = os.path.join(prefix, "charges.txt")
 
     predict_multiple_molecules(
-        model="electrolyte",
+        model="mesd",
         molecule_file=molecule_file,
         charge_file=charge_file,
         out_file="/tmp/bde.sdf",
@@ -28,7 +28,7 @@ def test_predict_multiple_molecules():
     )
 
     predict_multiple_molecules(
-        model="alfabet",
+        model="pubchem",
         molecule_file=molecule_file,
         charge_file=None,
         out_file="/tmp/bde.sdf",
@@ -43,7 +43,7 @@ def test_predict_by_reaction():
     charge_file = os.path.join(prefix, "charges.txt")
 
     predict_by_reactions(
-        model="electrolyte",
+        model="mesd",
         molecule_file=molecule_file,
         reaction_file=rxn_file,
         charge_file=charge_file,
@@ -52,7 +52,7 @@ def test_predict_by_reaction():
     )
 
     predict_by_reactions(
-        model="electrolyte",
+        model="mesd",
         molecule_file=molecule_file,
         reaction_file=rxn_file,
         charge_file=None,

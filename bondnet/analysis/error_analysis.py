@@ -88,7 +88,7 @@ def get_charges(label_file, feature_file):
 
 
 def main(
-    model_name="electrolyte/20200528",
+    model_name="mesd/20200611",
     sdf_file="~/Applications/db_access/mol_builder/struct_rxn_ntwk_rgrn_qc.sdf",
     label_file="~/Applications/db_access/mol_builder/label_rxn_ntwk_rgrn_qc.yaml",
     feature_file="~/Applications/db_access/mol_builder/feature_rxn_ntwk_rgrn_qc.yaml",

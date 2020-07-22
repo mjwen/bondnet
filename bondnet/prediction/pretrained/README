@@ -1,0 +1,7 @@
+Pre-trained BonDNet models.
+
+mesd: using the dataset consists of homolytic and heterolytic bond dissociation
+of charged and neutral molecules. This is a newly generated dataset to test
+BonDnet.
+
+pubchem: using the PubChem BDE dataset developed in the ALFABET paper: https://doi.org/10.1038/s41467-020-16201-z

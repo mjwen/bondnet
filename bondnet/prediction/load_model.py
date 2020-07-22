@@ -17,8 +17,8 @@ from bondnet.data.utils import get_dataset_species
 from bondnet.utils import load_checkpoints, expand_path, check_exists
 
 MODEL_INFO = {
-    "electrolyte": {"allowed_charge": [-1, 0, 1], "date": ["20200422", "20200528"]},
-    "alfabet": {"allowed_charge": [0], "date": ["20200615"]},
+    "mesd": {"allowed_charge": [-1, 0, 1], "date": ["20200611"]},
+    "pubchem": {"allowed_charge": [0], "date": ["20200531"]},
 }
 
 
@@ -111,12 +111,12 @@ def _check_species(molecules, state_dict_filename):
 
 def _get_grapher(model_name):
 
-    if "alfabet" in model_name:
+    if "pubchem" in model_name:
         atom_featurizer = AtomFeaturizerFull()
         bond_featurizer = BondAsNodeFeaturizerFull(length_featurizer=None, dative=False)
         global_featurizer = GlobalFeaturizer()
 
-    elif "electrolyte" in model_name:
+    elif "mesd" in model_name:
         atom_featurizer = AtomFeaturizerMinimum()
         bond_featurizer = BondAsNodeFeaturizerMinimum(length_featurizer=None)
         global_featurizer = GlobalFeaturizer(allowed_charges=[-1, 0, 1])
@@ -168,7 +168,7 @@ def select_model(model_name):
 
 def get_model_dir(model_name):
     model_dir = os.path.join(
-        os.path.dirname(bondnet.__file__), "prediction", "pre_trained", model_name
+        os.path.dirname(bondnet.__file__), "prediction", "pretrained", model_name
     )
 
     return model_dir

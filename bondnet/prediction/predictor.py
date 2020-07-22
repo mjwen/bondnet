@@ -25,9 +25,9 @@ def predict_single_molecule(
     Make predictions for a single molecule.
 
     Args:
-        model (str): The pretrained model to use for making predictions. A model should
-            be of the format format `dataset/date`, e.g. `electrolyte/20200528`,
-            `alfabet/20200615`. It is possible to provide only the `dataset` part,
+        model (str): The pre-trained model to use for making predictions. A model should
+            be of the format format `dataset/date`, e.g. `mesd/20200611`,
+            `pubchem/20200521`. It is possible to provide only the `dataset` part,
             and in this case, the latest model will be used.
         molecule (str): SMILES string or InChI string.
         charge (int): charge of the molecule.
@@ -81,8 +81,8 @@ def predict_multiple_molecules(model, molecule_file, charge_file, out_file, form
 
     Args:
         model (str): The pretrained model to use for making predictions. A model should
-            be of the format format `dataset/date`, e.g. `electrolyte/20200528`,
-            `alfabet/20200615`. It is possible to provide only the `dataset` part,
+            be of the format format `dataset/date`, e.g. `mesd/20200611`,
+            `pubchem/20200531`. It is possible to provide only the `dataset` part,
             and in this case, the latest model will be used.
         molecule_file (str): path to molecule file
         charge_file (str): path to charge file, if `None` charges are set to zero
@@ -109,8 +109,8 @@ def predict_by_reactions(
 
     Args:
         model (str): The pretrained model to use for making predictions. A model should
-            be of the format format `dataset/date`, e.g. `electrolyte/20200528`,
-            `alfabet/20200615`. It is possible to provide only the `dataset` part,
+            be of the format format `dataset/date`, e.g. `mesd/20200611`,
+            `pubchem/20200531`. It is possible to provide only the `dataset` part,
             and in this case, the latest model will be used.
         molecule_file (str): path to file storing all molecules
         reaction_file (str): path to file specifying reactions
