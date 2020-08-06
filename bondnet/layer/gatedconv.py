@@ -59,7 +59,6 @@ class GatedGCNConv(nn.Module):
         if dropout >= delta:
             self.dropout = nn.Dropout(dropout)
         else:
-            logger.warning(f"dropout ({dropout}) smaller than {delta}. Ignored.")
             self.dropout = nn.Identity()
 
     @staticmethod
@@ -90,6 +89,8 @@ class GatedGCNConv(nn.Module):
         e = nodes.mailbox["e"]
         Eh_j = nodes.mailbox["Eh_j"]
 
+        # TODO select_not_equal is time consuming; it might be improved by passing node
+        #  index along with Eh_j and compare the node index to select the different one
         Eh_j = select_not_equal(Eh_j, Eh_i)
         sigma_ij = torch.sigmoid(e)  # sigma_ij = sigmoid(e_ij)
 
@@ -98,7 +99,7 @@ class GatedGCNConv(nn.Module):
 
         return {"h": h}
 
-    def forward(self, g, feats, norm_atom, norm_bond):
+    def forward(self, g, feats, norm_atom=None, norm_bond=None):
 
         g = g.local_var()
 
@@ -124,6 +125,7 @@ class GatedGCNConv(nn.Module):
             },
             "sum",
         )
+
         e = g.nodes["bond"].data["e"]
         if self.graph_norm:
             e = e * norm_bond
@@ -149,6 +151,7 @@ class GatedGCNConv(nn.Module):
             },
             "sum",
         )
+
         h = g.nodes["atom"].data["h"]
         if self.graph_norm:
             h = h * norm_atom
@@ -186,11 +189,6 @@ class GatedGCNConv(nn.Module):
         feats = {"atom": h, "bond": e, "global": u}
 
         return feats
-
-    # def __repr__(self):
-    #     return "{}(in_channels={}, out_channels={})".format(
-    #         self.__class__.__name__, self.in_channels, self.out_channels
-    #     )
 
 
 class GatedGCNConv1(GatedGCNConv):
@@ -492,11 +490,6 @@ class GatedGCNConv2(GatedGCNConv):
         feats = {"atom": h, "bond": e}
 
         return feats
-
-    # def __repr__(self):
-    #     return "{}(in_channels={}, out_channels={})".format(
-    #         self.__class__.__name__, self.in_channels, self.out_channels
-    #     )
 
 
 def select_not_equal(x, y):

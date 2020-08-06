@@ -119,10 +119,6 @@ class GatedGCNMol(nn.Module):
         # need dropout?
         delta = 1e-3
         if fc_dropout < delta:
-            logger.warning(
-                f"`fc_dropout = {fc_dropout}` provided for {self.__class__.__name__} "
-                f"smaller than {delta}. Ignored."
-            )
             apply_drop = False
         else:
             apply_drop = True

@@ -1,10 +1,11 @@
 """Torch modules for GAT for heterograph."""
+import logging
 import torch
 from torch import nn
-import warnings
 from dgl import function as fn
-from bondnet.utils import warn_stdout
 from bondnet.layer.utils import LinearN
+
+logger = logging.getLogger(__name__)
 
 
 class NodeAttentionLayer(nn.Module):
@@ -96,8 +97,7 @@ class NodeAttentionLayer(nn.Module):
         if feat_drop >= delta:
             self.feat_drop = nn.Dropout(feat_drop)
         else:
-            warnings.showwarning = warn_stdout
-            warnings.warn(
+            logger.warning(
                 "`feat_drop = {}` provided for {} smaller than {}. "
                 "Ignore dropout.".format(feat_drop, self.__class__.__name__, delta)
             )
@@ -108,8 +108,7 @@ class NodeAttentionLayer(nn.Module):
         if attn_drop >= delta:
             self.attn_drop = nn.Dropout(attn_drop)
         else:
-            warnings.showwarning = warn_stdout
-            warnings.warn(
+            logger.warning(
                 "`attn_drop = {}` provided for {} smaller than {}. "
                 "Ignore dropout.".format(attn_drop, self.__class__.__name__, delta)
             )

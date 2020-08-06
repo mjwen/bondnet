@@ -11,6 +11,7 @@ import sys
 import shutil
 import itertools
 import copy
+from pathlib import Path
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -46,26 +47,24 @@ def np_split_by_size(array, sizes, axis=0):
 
 
 def expand_path(path):
-    return os.path.abspath(os.path.expanduser(os.path.expandvars(path)))
+    return Path(path).expanduser().resolve()
 
 
 def check_exists(path, is_file=True):
+    p = expand_path(path)
     if is_file:
-        fname = expand_path(path)
-        if not os.path.isfile(fname):
+        if not p.is_file():
             raise ValueError(f"File does not exist: {path}")
     else:
-        fname = expand_path(path)
-        if not os.path.exists(fname):
+        if not p.is_dir():
             raise ValueError(f"File does not exist: {path}")
 
 
-def create_directory(filename):
-    filename = expand_path(filename)
-    dirname = os.path.dirname(filename)
-    if not os.path.exists(dirname):
+def create_directory(path):
+    p = expand_path(path)
+    dirname = p.parent
+    if not dirname.exists():
         os.makedirs(dirname)
-    return filename
 
 
 def pickle_dump(obj, filename):

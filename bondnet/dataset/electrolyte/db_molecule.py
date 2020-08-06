@@ -56,6 +56,7 @@ class MoleculeWrapperTaskCollection(MoleculeWrapper):
         # free energy
         free_energy = self._get_free_energy(db_entry, self.id, self.formula)
 
+        # init superclass
         super(MoleculeWrapperTaskCollection, self).__init__(
             mol_graph, free_energy, identifier
         )
@@ -139,10 +140,10 @@ class MoleculeWrapperMolBuilder(MoleculeWrapper):
                 )
             else:
                 print(
-                    "conversion failed",
+                    "property not in db",
                     self.__class__.__name__,
                     e,
-                    "free energy",
+                    "mol graph",
                     identifier,
                     formula,
                 )
@@ -152,9 +153,17 @@ class MoleculeWrapperMolBuilder(MoleculeWrapper):
         try:
             free_energy = db_entry["free_energy"]
         except KeyError as e:
-            print(self.__class__.__name__, e, "free energy", identifier, formula)
+            print(
+                "property not in db",
+                self.__class__.__name__,
+                e,
+                "free energy",
+                identifier,
+                formula,
+            )
             raise UnsuccessfulEntryError
 
+        # init superclass
         super(MoleculeWrapperMolBuilder, self).__init__(
             mol_graph, free_energy, identifier
         )
@@ -163,7 +172,14 @@ class MoleculeWrapperMolBuilder(MoleculeWrapper):
         try:
             self.resp = db_entry["resp"]
         except KeyError as e:
-            print(self.__class__.__name__, e, "resp", self.id, self.formula)
+            print(
+                "property not in db",
+                self.__class__.__name__,
+                e,
+                "resp",
+                self.id,
+                self.formula,
+            )
             raise UnsuccessfulEntryError
 
         try:
@@ -175,7 +191,14 @@ class MoleculeWrapperMolBuilder(MoleculeWrapper):
                 self.mulliken = [i[0] for i in mulliken]
                 self.atom_spin = [i[1] for i in mulliken]
         except KeyError as e:
-            print(self.__class__.__name__, e, "mulliken", self.id, self.formula)
+            print(
+                "property not in db",
+                self.__class__.__name__,
+                e,
+                "mulliken",
+                self.id,
+                self.formula,
+            )
             raise UnsuccessfulEntryError
 
         # critic
@@ -183,7 +206,14 @@ class MoleculeWrapperMolBuilder(MoleculeWrapper):
             self.critic = db_entry["critic"]
         except KeyError as e:
             if db_entry["nsites"] != 1:  # not single atom molecule
-                print(self.__class__.__name__, e, "critic", self.id, self.formula)
+                print(
+                    "property not in db",
+                    self.__class__.__name__,
+                    e,
+                    "critic",
+                    self.id,
+                    self.formula,
+                )
                 raise UnsuccessfulEntryError
 
     def convert_to_babel_mol_graph(self, use_metal_edge_extender=True):

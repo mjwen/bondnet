@@ -4,7 +4,7 @@ import numpy as np
 import shutil
 from matplotlib import pyplot as plt
 from rdkit import Chem
-from bondnet.dataset.db_query import DatabaseOperation
+from bondnet.dataset.electrolyte.db_molecule import DatabaseOperation
 from bondnet.utils import pickle_dump, pickle_load, expand_path
 
 
@@ -203,11 +203,11 @@ def get_single_atom_energy():
 
 if __name__ == "__main__":
     # pickle_db_entries()
-    # pickle_molecules()
+    pickle_molecules()
 
     # print_mol_property()
 
-    plot_molecules()
+    # plot_molecules()
     # plot_atom_distance_hist()
     # number_of_bonds()
     # detect_bad_mols()
