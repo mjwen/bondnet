@@ -46,12 +46,12 @@ def np_split_by_size(array, sizes, axis=0):
     return np.split(array, indices, axis=axis)
 
 
-def expand_path(path):
+def to_path(path):
     return Path(path).expanduser().resolve()
 
 
 def check_exists(path, is_file=True):
-    p = expand_path(path)
+    p = to_path(path)
     if is_file:
         if not p.is_file():
             raise ValueError(f"File does not exist: {path}")
@@ -61,36 +61,32 @@ def check_exists(path, is_file=True):
 
 
 def create_directory(path):
-    p = expand_path(path)
+    p = to_path(path)
     dirname = p.parent
     if not dirname.exists():
         os.makedirs(dirname)
 
 
 def pickle_dump(obj, filename):
-    filename = expand_path(filename)
     create_directory(filename)
-    with open(filename, "wb") as f:
+    with open(to_path(filename), "wb") as f:
         pickle.dump(obj, f)
 
 
 def pickle_load(filename):
-    filename = expand_path(filename)
-    with open(filename, "rb") as f:
+    with open(to_path(filename), "rb") as f:
         obj = pickle.load(f)
     return obj
 
 
 def yaml_dump(obj, filename):
-    filename = expand_path(filename)
     create_directory(filename)
-    with open(filename, "w") as f:
+    with open(to_path(filename), "w") as f:
         yaml.dump(obj, f, default_flow_style=False)
 
 
 def yaml_load(filename):
-    filename = expand_path(filename)
-    with open(filename, "r") as f:
+    with open(to_path(filename), "r") as f:
         obj = yaml.safe_load(f)
     return obj
 

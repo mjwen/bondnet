@@ -1,8 +1,8 @@
 from setuptools import setup, find_packages
-import os
+from pathlib import Path
 
 
-def get_version(fname=os.path.join("bondnet", "__init__.py")):
+def get_version(fname=Path.cwd().joinpath("bondnet", "__init__.py")):
     with open(fname) as fin:
         for line in fin:
             line = line.strip()

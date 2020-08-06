@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 from click.testing import CliRunner
 import bondnet
 from bondnet.prediction.predictor import (
@@ -15,9 +15,9 @@ def test_predict_single_molecule():
 
 
 def test_predict_multiple_molecules():
-    prefix = os.path.join(os.path.dirname(bondnet.__file__), "prediction", "examples")
-    molecule_file = os.path.join(prefix, "molecules.sdf")
-    charge_file = os.path.join(prefix, "charges.txt")
+    prefix = Path(bondnet.__file__).parent.joinpath("prediction", "examples")
+    molecule_file = prefix.joinpath("molecules.sdf")
+    charge_file = prefix.joinpath("charges.txt")
 
     predict_multiple_molecules(
         model="mesd",
@@ -37,10 +37,10 @@ def test_predict_multiple_molecules():
 
 
 def test_predict_by_reaction():
-    prefix = os.path.join(os.path.dirname(bondnet.__file__), "prediction", "examples")
-    molecule_file = os.path.join(prefix, "molecules.sdf")
-    rxn_file = os.path.join(prefix, "reactions.csv")
-    charge_file = os.path.join(prefix, "charges.txt")
+    prefix = Path(bondnet.__file__).parent.joinpath("prediction", "examples")
+    molecule_file = prefix.joinpath("molecules.sdf")
+    rxn_file = prefix.joinpath("reactions.csv")
+    charge_file = prefix.joinpath("charges.txt")
 
     predict_by_reactions(
         model="mesd",
@@ -65,7 +65,7 @@ def test_cli():
     runner = CliRunner()
     result = runner.invoke(cli, ["single", "CC", "0"])
 
-    molecule_file = os.path.join(
-        os.path.dirname(bondnet.__file__), "prediction", "examples", "molecules.sdf"
+    molecule_file = Path(bondnet.__file__).parent.joinpath(
+        "prediction", "examples", "molecules.sdf"
     )
     result = runner.invoke(cli, ["multiple", molecule_file])

@@ -7,7 +7,7 @@ from matplotlib import pyplot as plt
 from bondnet.analysis.utils import TexWriter
 from bondnet.core.reaction import ReactionsMultiplePerBond, ReactionExtractorFromMolSet
 from bondnet.core.reaction_collection import ReactionCollection
-from bondnet.utils import pickle_load, expand_path, create_directory
+from bondnet.utils import pickle_load, to_path, create_directory
 
 
 def get_reactions_with_lowest_energy(extractor):
@@ -312,8 +312,9 @@ def plot_reaction_energy_difference_arcoss_reactant_charge(
 
             outname = "~/Applications/db_access/mol_builder/reactant_e_diff/"
             outname += "reactant_e_diff_{}{}_{}_{}.pdf".format(s1, s2, *charge)
-            outname = expand_path(outname)
             create_directory(outname)
+
+            outname = to_path(outname)
             plot_hist(energies, outname, s1, s2, *charge)
 
     # all species together
@@ -378,7 +379,7 @@ def plot_bond_type_heat_map(
         filename = "~/Applications/db_access/mol_builder/bond_type_count_{}.pdf".format(
             charge
         )
-        filename = expand_path(filename)
+        filename = to_path(filename)
         plot_heat_map(data, species, filename)
 
         # table
@@ -451,7 +452,8 @@ def plot_bond_energy_hist(
             outname += "bond_energy_histogram_species_{}{}_charge_{}.pdf".format(
                 s1, s2, ch
             )
-            outname = expand_path(outname)
+            outname = to_path(outname)
+
             create_directory(outname)
             plot_hist(energies, outname, s1, s2, ch, xmin, xmax)
 
@@ -512,7 +514,7 @@ def plot_all_bond_length_hist(
 
     print("\n\n@@@ all bond length min={}, max={}".format(min(data), max(data)))
     filename = "~/Applications/db_access/mol_builder/bond_length_all.pdf"
-    filename = expand_path(filename)
+    filename = to_path(filename)
     plot_hist(data, filename)
 
 
@@ -561,7 +563,7 @@ def plot_broken_bond_length_hist(
 
     print("\n\n@@@ broken bond length min={}, max={}".format(min(data), max(data)))
     filename = "~/Applications/db_access/mol_builder/bond_length_broken.pdf"
-    filename = expand_path(filename)
+    filename = to_path(filename)
     plot_hist(data, filename)
 
 

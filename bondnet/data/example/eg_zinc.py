@@ -1,6 +1,6 @@
 import numpy as np
 from matplotlib import pyplot as plt
-from bondnet.utils import expand_path, create_directory
+from bondnet.utils import to_path, create_directory
 from bondnet.dataset.zinc_bde import read_zinc_bde_dataset
 from bondnet.data.grapher import HeteroMoleculeGraph
 from bondnet.data.featurizer import (
@@ -42,7 +42,7 @@ def plot_bond_distance_hist(
     print("\n\n### atom distance min={}, max={}".format(min(data), max(data)))
     filename = "~/Applications/db_access/zinc_bde/bond_distances.pdf"
     create_directory(filename)
-    filename = expand_path(filename)
+    filename = to_path(filename)
     plot_hist(data, filename)
 
 

@@ -1,11 +1,8 @@
-import os
-import glob
-import logging
 from rdkit import Chem
 from bondnet.core.molwrapper import rdkit_mol_to_wrapper_mol
 from bondnet.core.reaction import ReactionExtractorFromReactant
 from bondnet.core.reaction_collection import ReactionCollection
-from bondnet.utils import expand_path
+from bondnet.utils import to_path
 
 
 def read_zinc_bde_dataset(dirname):
@@ -48,15 +45,15 @@ def read_zinc_bde_dataset(dirname):
 
         return title, energies
 
-    dirname = expand_path(dirname)
-    if not os.path.isdir(dirname):
+    dirname = to_path(dirname)
+    if not dirname.is_dir():
         raise ValueError(f"expect dirname to be a directory, but got {dirname}")
 
     n_bad = 0
     mols = []
     bond_energies = []
 
-    filenames = glob.glob(os.path.join(dirname, "*.sdf"))
+    filenames = dirname.glob("*.sdf")
     for i, fname in enumerate(filenames):
         m = Chem.MolFromMolFile(fname, sanitize=True, removeHs=False)
         if m is None:
@@ -91,19 +88,22 @@ def read_zinc_bde_dataset(dirname):
 
 def plot_zinc_mols(dirname="~/Documents/Dataset/ZINC_BDE"):
 
-    dirname = expand_path(dirname)
+    dirname = to_path(dirname)
 
-    filenames = glob.glob(os.path.join(dirname, "*.sdf"))
+    filenames = dirname.glob("*.sdf")
     for i, fname in enumerate(filenames):
-        m = Chem.MolFromMolFile(fname, sanitize=True, removeHs=False)
+        m = Chem.MolFromMolFile(str(fname), sanitize=True, removeHs=False)
         if m is not None:
             m = rdkit_mol_to_wrapper_mol(m)
-            identifier = os.path.splitext(os.path.basename(fname))[0]
-            prefix = "~/Applications/db_access/zinc_bde/mol_png"
-            m.draw(os.path.join(prefix, identifier + ".png"), show_atom_idx=True)
-
-            prefix = "~/Applications/db_access/zinc_bde/mol_pdb"
-            m.write(os.path.join(prefix, identifier + ".pdb"), format="pdb")
+            identifier = fname.stem
+            fname = to_path("~/Applications/db_access/zinc_bde/mol_png").joinpath(
+                identifier + ".png"
+            )
+            m.draw(fname, show_atom_idx=True)
+            fname = to_path("~/Applications/db_access/zinc_bde/mol_pdb").joinpath(
+                identifier + ".pdb"
+            )
+            m.write(fname, format="pdb")
 
 
 def zinc_create_struct_label_dataset_bond_based_regression(

@@ -1,7 +1,7 @@
 import numpy as np
 from rdkit import Chem
 from bondnet.core.molwrapper import write_edge_label_based_on_bond, write_sdf_csv_dataset
-from bondnet.utils import pickle_load, expand_path
+from bondnet.utils import pickle_load, to_path
 
 
 def write_dataset():
@@ -40,7 +40,7 @@ def write_dataset_edge_label():
 
 def detect_bad_mols():
     struct_file = "~/Applications/db_access/mol_builder/struct.sdf"
-    struct_file = expand_path(struct_file)
+    struct_file = to_path(struct_file)
     suppl = Chem.SDMolSupplier(struct_file, sanitize=True, removeHs=False)
     for i, mol in enumerate(suppl):
         if mol is None:

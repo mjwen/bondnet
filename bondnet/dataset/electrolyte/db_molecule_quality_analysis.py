@@ -1,12 +1,10 @@
-import os
 import copy
 import numpy as np
 import subprocess
 import itertools
-from pathlib import Path
 from bondnet.core.molwrapper import create_rdkit_mol_from_mol_graph
 from bondnet.analysis.utils import TexWriter
-from bondnet.utils import pickle_dump, pickle_load, expand_path
+from bondnet.utils import pickle_dump, pickle_load, to_path
 
 
 def check_connectivity_mol(
@@ -366,12 +364,13 @@ def check_all(
     filename="~/Applications/db_access/mol_builder/molecules_n200.pkl",
     output_prefix=None,
 ):
+    filename = to_path(filename)
 
     mols = pickle_load(filename)
     print("Number of mols before any check:", len(mols))
 
     if output_prefix is None:
-        output_prefix = Path(filename).parent
+        output_prefix = filename.parent
 
     mols = check_connectivity(
         mols=mols,
@@ -395,7 +394,7 @@ def check_all(
 
     print("Number of mols after check:", len(mols))
 
-    outname = output_prefix.joinpath(Path(filename).stem + "_qc" + Path(filename).suffix)
+    outname = output_prefix.joinpath(filename.stem + "_qc" + filename.suffix)
     pickle_dump(mols, outname)
 
 
@@ -404,8 +403,7 @@ def plot_mol_graph(
     # filename="~/Applications/db_access/mol_builder/molecules_n200.pkl",
 ):
     def plot_one(m, prefix):
-        fname = os.path.join(prefix, "{}.png".format(m.id))
-        fname = expand_path(fname)
+        fname = to_path(prefix).joinpath("{}.png".format(m.id))
         m.draw(fname, show_atom_idx=True)
         subprocess.run(["convert", fname, "-trim", "-resize", "100%", fname])
 
@@ -513,7 +511,7 @@ def compare_connectivity_across_graph_builder(
         mols_differ_graph = remaining
 
     # write tex file
-    tex_file = expand_path(tex_file)
+    tex_file = to_path(tex_file)
     with open(tex_file, "w") as f:
         f.write(TexWriter.head())
         f.write(
@@ -596,10 +594,10 @@ def compare_connectivity_across_graph_builder(
                     p = "png_extender_builder"
                 elif j == 3:
                     p = "png_critic_builder"
-                fname = os.path.join(
-                    "~/Applications/db_access/mol_builder", p, "{}.png".format(m.id)
+                fname = to_path("~/Applications/db_access/mol_builder").joinpath(
+                    p, "{}.png".format(m.id)
                 )
-                fname = expand_path(fname)
+                fname = to_path(fname)
 
                 f.write(TexWriter.single_figure(fname, figure_size=0.2))
                 f.write(TexWriter.verbatim("=" * 80))

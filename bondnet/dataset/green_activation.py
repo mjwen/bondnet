@@ -1,4 +1,3 @@
-import os
 import logging
 import multiprocessing
 import warnings
@@ -11,7 +10,7 @@ from bondnet.core.rdmol import (
 )
 from bondnet.core.molwrapper import rdkit_mol_to_wrapper_mol
 from bondnet.core.reaction import Reaction
-from bondnet.utils import expand_path
+from bondnet.utils import to_path
 
 
 logger = logging.getLogger(__name__)
@@ -35,7 +34,7 @@ def read_dataset(filename):
             smiles[s] = idx
         return idx
 
-    filename = expand_path(filename)
+    filename = to_path(filename)
     df = pd.read_csv(filename, header=0, index_col=0)
 
     # remove duplicate reactions where reactant and products are the same
@@ -135,6 +134,8 @@ def get_atom_mapping(amp1, amp2):
 def plot_molecules(filename, plot_prefix):
     reactions = read_dataset(filename)
 
+    plot_prefix = to_path(plot_prefix)
+
     for rxn in reactions:
         molecules = rxn.reactants + rxn.products
         rxn_id = rxn.get_id()
@@ -142,16 +143,14 @@ def plot_molecules(filename, plot_prefix):
         for i, m in enumerate(molecules):
             r_or_p = "rct" if i == 0 else "prdt"
 
-            fname = os.path.join(
-                plot_prefix,
+            fname = plot_prefix.joinpath(
                 "mol_png/{}_{}_{}_{}.png".format(rxn_id, r_or_p, m.formula, m.charge),
             )
             # since the molecules have AtomMapNum set when reading smarts mol,
             # we set `show_atom_idx` to False to use the AtomMapNum there
             m.draw(fname, show_atom_idx=False)
 
-            fname = os.path.join(
-                plot_prefix,
+            fname = plot_prefix.joinpath(
                 "mol_pdb/{}_{}_{}_{}.pdb".format(rxn_id, r_or_p, m.formula, m.charge),
             )
             m.write(fname, format="pdb")
@@ -255,7 +254,7 @@ def bucket_rxns_by_altered_bond_types(reactions, n_bonds_altered=1):
 
 def select_one_bond_break_reactions(filename, outname="one_bond_break.csv"):
 
-    filename = expand_path(filename)
+    filename = to_path(filename)
     df = pd.read_csv(filename, header=0, index_col=0)
 
     reactions = read_dataset(filename)
@@ -301,7 +300,7 @@ def select_one_bond_break_reactions(filename, outname="one_bond_break.csv"):
         }
     )
 
-    df.to_csv(expand_path(outname))
+    df.to_csv(to_path(outname))
 
 
 if __name__ == "__main__":

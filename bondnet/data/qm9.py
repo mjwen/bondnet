@@ -10,7 +10,7 @@ import itertools
 from collections import OrderedDict
 from rdkit import Chem
 from bondnet.data.electrolyte import ElectrolyteMoleculeDataset
-from bondnet.utils import expand_path, yaml_dump
+from bondnet.utils import to_path, yaml_dump
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +103,7 @@ def create_edge_label_based_on_bond(
     """
 
     def read_sdf(filename):
-        filename = expand_path(filename)
+        filename = to_path(filename)
         supp = Chem.SDMolSupplier(filename, sanitize=True, removeHs=False)
         all_mols = []
         for i, mol in enumerate(supp):

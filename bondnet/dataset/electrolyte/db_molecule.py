@@ -13,7 +13,7 @@ from pymatgen.analysis.local_env import OpenBabelNN
 from pymatgen.analysis.fragmenter import metal_edge_extender
 from atomate.qchem.database import QChemCalcDb
 from bondnet.core.molwrapper import MoleculeWrapper
-from bondnet.utils import create_directory, expand_path
+from bondnet.utils import create_directory, to_path
 
 logger = logging.getLogger(__name__)
 
@@ -496,9 +496,8 @@ class DatabaseOperation:
                 ij = tuple(sorted(ij))
                 charge_combinations[ij] += 1
 
-        filename = expand_path(filename)
         create_directory(filename)
-        with open(filename, "w") as f:
+        with open(to_path(filename), "w") as f:
             f.write("Number of molecules: {}\n\n".format(len(molecules)))
             f.write("Molecule charge state statistics.\n")
             f.write("# charge state     number of molecules:\n")

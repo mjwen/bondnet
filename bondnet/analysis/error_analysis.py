@@ -4,7 +4,7 @@ import pandas as pd
 from bondnet.data.dataset import train_validation_test_split
 from bondnet.data.dataloader import DataLoaderReactionNetwork
 from bondnet.prediction.load_model import load_model, load_dataset
-from bondnet.utils import seed_torch, expand_path, yaml_load
+from bondnet.utils import seed_torch, to_path, yaml_load
 
 
 def evaluate(model, nodes, data_loader):
@@ -49,8 +49,8 @@ def get_charges(label_file, feature_file):
     """
     Charge of reactant and products molecule in each reaction.
     """
-    labels = yaml_load(expand_path(label_file))
-    features = yaml_load(expand_path(feature_file))
+    labels = yaml_load(label_file)
+    features = yaml_load(feature_file)
 
     ids = []
     num_prdts = []
@@ -129,11 +129,11 @@ def main(
         }
     )
 
-    df.to_csv(expand_path(error_file), sep="\t", index=False)
+    df.to_csv(to_path(error_file), sep="\t", index=False)
 
     # charges
     df = get_charges(label_file, feature_file)
-    df.to_csv(expand_path(charge_file), sep="\t", index=False)
+    df.to_csv(to_path(charge_file), sep="\t", index=False)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,3 @@
-import os
 import torch
 import numpy as np
 from bondnet.data.dataloader import DataLoaderReactionNetwork
@@ -9,7 +8,7 @@ from bondnet.prediction.io import (
     PredictionStructLabelFeatFiles,
 )
 from bondnet.prediction.load_model import select_model, load_model, load_dataset
-from bondnet.utils import expand_path
+from bondnet.utils import to_path
 
 
 def predict_single_molecule(
@@ -29,7 +28,7 @@ def predict_single_molecule(
             be of the format format `dataset/date`, e.g. `mesd/20200611`,
             `pubchem/20200521`. It is possible to provide only the `dataset` part,
             and in this case, the latest model will be used.
-        molecule (str): SMILES string or InChI string.
+        molecule (str): SMILES or InChI string or a path to a file storing these string.
         charge (int): charge of the molecule.
         ring_bond (bool): whether to make predictions for ring bond.
         write_result (bool): whether to write the returned sdf to stdout.
@@ -47,18 +46,19 @@ def predict_single_molecule(
         charge in allowed_charge
     ), f"expect charge to be one of {allowed_charge}, but got {charge}"
 
-    if os.path.isfile(molecule):
+    p = to_path(molecule)
+    if p.is_file():
         if format is None:
-            extension = os.path.splitext(molecule)[1]
-            if extension.lower() == ".sdf":
+            suffix = p.suffix.lower()
+            if suffix == ".sdf":
                 format = "sdf"
-            elif extension.lower() == ".pdb":
+            elif suffix == ".pdb":
                 format = "pdb"
             else:
                 raise RuntimeError(
-                    f"Expect file format `.sdf` or `.pdb`, but got {extension}"
+                    f"Expect file format `.sdf` or `.pdb`, but got {suffix}"
                 )
-        with open(expand_path(molecule), "r") as f:
+        with open(p, "r") as f:
             molecule = f.read().strip()
     else:
         if format is None:

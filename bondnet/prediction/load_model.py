@@ -1,7 +1,7 @@
-import os
 import torch
 import yaml
 import bondnet
+from pathlib import Path
 from bondnet.model.gated_reaction_network import GatedGCNReactionNetwork
 from bondnet.data.electrolyte import ElectrolyteReactionNetworkDataset
 from bondnet.data.grapher import HeteroMoleculeGraph
@@ -14,7 +14,7 @@ from bondnet.data.featurizer import (
 )
 from bondnet.core.rdmol import read_rdkit_mols_from_file
 from bondnet.data.utils import get_dataset_species
-from bondnet.utils import load_checkpoints, expand_path, check_exists
+from bondnet.utils import load_checkpoints, check_exists
 
 kcalPerMol2eV = 0.043363
 
@@ -34,7 +34,7 @@ def load_model(model_name, pretrained=True):
 
     # NOTE cannot use bondnet.utils.yaml_load, seems a bug in yaml.
     #  see: https://github.com/yaml/pyyaml/issues/266
-    with open(os.path.join(model_dir, "train_args.yaml"), "r") as f:
+    with open(model_dir.joinpath("train_args.yaml"), "r") as f:
         model_args = yaml.load(f, Loader=yaml.Loader)
 
     model = GatedGCNReactionNetwork(
@@ -64,7 +64,7 @@ def load_model(model_name, pretrained=True):
         load_checkpoints(
             {"model": model},
             map_location=torch.device("cpu"),
-            filename=os.path.join(model_dir, "checkpoint.pkl"),
+            filename=model_dir.joinpath("checkpoint.pkl"),
         )
 
     return model
@@ -73,7 +73,7 @@ def load_model(model_name, pretrained=True):
 def load_dataset(model_name, molecules, labels, extra_features):
 
     model_dir = get_model_dir(model_name)
-    state_dict_filename = os.path.join(model_dir, "dataset_state_dict.pkl")
+    state_dict_filename = model_dir.joinpath("dataset_state_dict.pkl")
 
     _check_species(molecules, state_dict_filename)
 
@@ -94,8 +94,7 @@ def _check_species(molecules, state_dict_filename):
 
     if isinstance(molecules, str):
         check_exists(molecules)
-        fname = expand_path(molecules)
-        mols = read_rdkit_mols_from_file(fname)
+        mols = read_rdkit_mols_from_file(molecules)
     else:
         mols = molecules
 
@@ -176,8 +175,8 @@ def select_model(model_name):
 
 
 def get_model_dir(model_name):
-    model_dir = os.path.join(
-        os.path.dirname(bondnet.__file__), "prediction", "pretrained", model_name
+    model_dir = Path(bondnet.__file__).parent.joinpath(
+        "prediction", "pretrained", model_name
     )
 
     return model_dir

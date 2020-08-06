@@ -1,11 +1,10 @@
-import os
 import itertools
 import numpy as np
 import shutil
 from matplotlib import pyplot as plt
 from rdkit import Chem
 from bondnet.dataset.electrolyte.db_molecule import DatabaseOperation
-from bondnet.utils import pickle_dump, pickle_load, expand_path
+from bondnet.utils import pickle_dump, pickle_load, to_path
 
 
 def pickle_db_entries():
@@ -73,21 +72,19 @@ def plot_molecules(
     plot_prefix="~/Applications/db_access/mol_builder",
 ):
 
-    plot_prefix = expand_path(plot_prefix)
+    plot_prefix = to_path(plot_prefix)
 
     mols = pickle_load(filename)
 
     for m in mols:
 
-        fname1 = os.path.join(
-            plot_prefix,
+        fname1 = plot_prefix.joinpath(
             "mol_png/{}_{}_{}_{}.png".format(
                 m.formula, m.charge, m.id, str(m.free_energy).replace(".", "dot")
             ),
         )
         m.draw(filename=fname1, show_atom_idx=True)
-        fname2 = os.path.join(
-            plot_prefix,
+        fname2 = plot_prefix.joinpath(
             "mol_png_id/{}_{}_{}_{}.png".format(
                 m.id, m.formula, m.charge, str(m.free_energy).replace(".", "dot")
             ),
@@ -95,8 +92,7 @@ def plot_molecules(
         shutil.copyfile(fname1, fname2)
 
         for ext in ["sdf", "pdb"]:
-            fname1 = os.path.join(
-                plot_prefix,
+            fname1 = plot_prefix.joinpath(
                 "mol_{}/{}_{}_{}_{}.{}".format(
                     ext,
                     m.formula,
@@ -107,8 +103,7 @@ def plot_molecules(
                 ),
             )
             m.write(fname1, format=ext)
-            fname2 = os.path.join(
-                plot_prefix,
+            fname2 = plot_prefix.joinpath(
                 "mol_{}_id/{}_{}_{}_{}.{}".format(
                     ext,
                     m.id,
@@ -152,7 +147,7 @@ def plot_atom_distance_hist(
 
     print("\n\n### atom distance min={}, max={}".format(min(data), max(data)))
     filename = "~/Applications/db_access/mol_builder/atom_distances.pdf"
-    filename = expand_path(filename)
+    filename = to_path(filename)
     plot_hist(data, filename)
 
 
@@ -167,7 +162,7 @@ def write_group_isomorphic_to_file():
 
 def detect_bad_mols():
     struct_file = "~/Applications/db_access/mol_builder/struct.sdf"
-    struct_file = expand_path(struct_file)
+    struct_file = to_path(struct_file)
     suppl = Chem.SDMolSupplier(struct_file, sanitize=True, removeHs=False)
     for i, mol in enumerate(suppl):
         if mol is None:

@@ -1,6 +1,4 @@
-import os
 import abc
-import glob
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
@@ -12,7 +10,7 @@ import matplotlib.pyplot as plt
 from bondnet.layer.readout import ConcatenateMeanMax
 from bondnet.analysis import umap_plot
 from bondnet.analysis.utils import TexWriter
-from bondnet.utils import expand_path, yaml_load
+from bondnet.utils import to_path, yaml_load
 from rdkit import Chem
 from bondnet.data.utils import get_dataset_species
 from bondnet.data.featurizer import (
@@ -30,7 +28,7 @@ def write_dataset_raw_features_to_tex(
 ):
     def get_sdfs(fname):
         structs = []
-        with open(expand_path(fname), "r") as f:
+        with open(to_path(fname), "r") as f:
             for line in f:
                 if "index" in line:
                     body = line
@@ -41,7 +39,7 @@ def write_dataset_raw_features_to_tex(
         return structs
 
     def get_molecules(fname):
-        supp = Chem.SDMolSupplier(expand_path(fname), sanitize=True, removeHs=False)
+        supp = Chem.SDMolSupplier(to_path(fname), sanitize=True, removeHs=False)
         molecules = [m for m in supp]
         return molecules
 
@@ -78,10 +76,10 @@ def write_dataset_raw_features_to_tex(
 
     grapher = get_grapher()
 
-    png_dir = expand_path(png_dir)
-    all_pngs = glob.glob(os.path.join(png_dir, "*.png"))
+    png_dir = to_path(png_dir)
+    all_pngs = png_dir.glob("*.png")
 
-    tex_file = expand_path(tex_file)
+    tex_file = to_path(tex_file)
 
     with open(tex_file, "w") as f:
         f.write(TexWriter.head())
@@ -275,14 +273,14 @@ class BaseAnalyzer(abc.ABC):
     ):
         if not categorical_color:
             umap_plot.points(
-                expand_path(filename),
+                to_path(filename),
                 self.embedding,
                 values=self.metadata[metadata_key_as_color],
                 theme="viridis",
             )
         else:
             umap_plot.points(
-                expand_path(filename),
+                to_path(filename),
                 self.embedding,
                 labels=self.metadata[metadata_key_as_color],
                 color_key_cmap="tab20",
@@ -296,7 +294,7 @@ class BaseAnalyzer(abc.ABC):
     ):
         if not categorical_color:
             umap_plot.interactive(
-                expand_path(filename),
+                to_path(filename),
                 self.model,
                 values=self.metadata[metadata_key_as_color],
                 hover_data=pd.DataFrame(self.metadata),
@@ -305,7 +303,7 @@ class BaseAnalyzer(abc.ABC):
             )
         else:
             umap_plot.interactive(
-                expand_path(filename),
+                to_path(filename),
                 self.model,
                 labels=self.metadata[metadata_key_as_color],
                 hover_data=pd.DataFrame(self.metadata),
@@ -359,7 +357,7 @@ class UMAPAnalyzer(BaseAnalyzer):
         metric="euclidean",
         verbose=True,
         n_epochs=1000,
-        **kwargs
+        **kwargs,
     ):
         self.model = UMAP(
             n_neighbors=n_neighbors,
@@ -529,10 +527,9 @@ def plot_scatter(features, labels, filename):
         ax.set_xlim(xmin, xmax)
         ax.set_ylim(ymin, ymax)
 
-        filename = expand_path(filename)
-        fm = os.path.splitext(filename)
-        fm = fm[0] + "_" + str(i) + fm[1]
-        fig.savefig(fm, bbox_inches="tight")
+        filename = to_path(filename)
+        filename = filename.parent.joinpath(filename.stem + f"_{i}" + filename.suffix)
+        fig.savefig(filename, bbox_inches="tight")
 
 
 def plot_heat_map(matrix, labels, filename="heat_map.pdf", cmap=mpl.cm.viridis):

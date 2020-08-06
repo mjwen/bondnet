@@ -1,4 +1,3 @@
-import os
 import logging
 import multiprocessing
 import pandas as pd
@@ -9,7 +8,7 @@ from bondnet.core.reaction_collection import (
     ReactionCollection,
     get_molecules_from_reactions,
 )
-from bondnet.utils import expand_path
+from bondnet.utils import to_path
 
 
 logger = logging.getLogger(__name__)
@@ -46,7 +45,7 @@ def read_nrel_bde_dataset(filename):
             smiles[s] = idx
         return idx
 
-    filename = expand_path(filename)
+    filename = to_path(filename)
     df = pd.read_csv(filename, header=0, index_col=None)
 
     # remove duplicate reactions where reactant and products are the same
@@ -132,16 +131,14 @@ def nrel_plot_molecules(
 
     for m in molecules:
 
-        fname = os.path.join(
-            plot_prefix,
+        fname = to_path(plot_prefix).joinpath(
             "mol_png/{}_{}_{}_{}.png".format(
                 m.id, m.formula, m.charge, str(m.free_energy).replace(".", "dot")
             ),
         )
         m.draw(fname, show_atom_idx=True)
 
-        fname = os.path.join(
-            plot_prefix,
+        fname = to_path(plot_prefix).joinpath(
             "mol_pdb/{}_{}_{}_{}.pdb".format(
                 m.id, m.formula, m.charge, str(m.free_energy).replace(".", "dot")
             ),

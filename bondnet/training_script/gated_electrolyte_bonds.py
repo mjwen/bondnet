@@ -1,9 +1,9 @@
 import sys
-import os
 import time
 import warnings
 import torch
 import argparse
+from pathlib import Path
 import numpy as np
 from datetime import datetime
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -282,7 +282,7 @@ def main_worker(gpu, world_size, args):
 
         if dataset_state_dict_filename is None:
             warnings.warn("Restore with `args.dataset_state_dict_filename` set to None.")
-        if not os.path.exists(dataset_state_dict_filename):
+        elif not Path(dataset_state_dict_filename).exists():
             warnings.warn(
                 f"`{dataset_state_dict_filename} not found; set "
                 f"args.dataset_state_dict_filename` to None"

@@ -2,7 +2,6 @@
 Converting data files to standard data the model accepts and write prediction results.
 """
 
-import os
 import logging
 import json
 import multiprocessing
@@ -20,7 +19,7 @@ from bondnet.core.rdmol import (
 )
 from bondnet.core.reaction import Reaction, ReactionExtractorFromReactant
 from bondnet.core.reaction_collection import ReactionCollection
-from bondnet.utils import expand_path
+from bondnet.utils import to_path
 from bondnet.utils import yaml_load, yaml_dump
 
 logger = logging.getLogger(__name__)
@@ -280,8 +279,8 @@ class PredictionMultiReactant(BasePrediction):
     ):
         super(PredictionMultiReactant, self).__init__()
 
-        self.molecule_file = expand_path(molecule_file)
-        self.charge_file = expand_path(charge_file) if charge_file is not None else None
+        self.molecule_file = to_path(molecule_file)
+        self.charge_file = to_path(charge_file) if charge_file is not None else None
         self.format = format
         self.allowed_product_charges = allowed_product_charges
         self.ring_bond = ring_bond
@@ -440,7 +439,7 @@ class PredictionMultiReactant(BasePrediction):
         if filename is None:
             print(all_sdf)
         else:
-            with open(expand_path(filename), "w") as f:
+            with open(to_path(filename), "w") as f:
                 f.write(all_sdf)
             print(f"The predictions have been written to file {filename}.\n")
         print(
@@ -474,9 +473,9 @@ class PredictionByReaction(BasePrediction):
     def __init__(
         self, molecule_file, reaction_file, charge_file=None, format="sdf", nprocs=None
     ):
-        self.molecule_file = expand_path(molecule_file)
-        self.reaction_file = expand_path(reaction_file)
-        self.charge_file = expand_path(charge_file) if charge_file is not None else None
+        self.molecule_file = to_path(molecule_file)
+        self.reaction_file = to_path(reaction_file)
+        self.charge_file = to_path(charge_file) if charge_file is not None else None
         self.format = format
         self.nprocs = nprocs
 
@@ -489,7 +488,7 @@ class PredictionByReaction(BasePrediction):
                     f"charge file {self.charge_file} ignored for format `graph`"
                 )
 
-            file_type = os.path.splitext(self.molecule_file)[1]
+            file_type = self.molecule_file.suffix
             if file_type == ".json":
                 with open(self.molecule_file, "r") as f:
                     mol_graph_dicts = json.load(f)
@@ -623,7 +622,7 @@ class PredictionByReaction(BasePrediction):
             )
 
         df["bond_energy"] = all_predictions
-        filename = expand_path(filename) if filename is not None else filename
+        filename = to_path(filename) if filename is not None else filename
         rst = df.to_csv(filename, index=False)
         if rst is not None:
             print(rst)
@@ -659,7 +658,7 @@ class PredictionSmilesReaction:
     """
 
     def __init__(self, filename, nprocs=None):
-        self.filename = expand_path(filename)
+        self.filename = to_path(filename)
         self.nprocs = nprocs
         self.failed = None
 
@@ -818,7 +817,7 @@ class PredictionSmilesReaction:
             )
 
         df["bond_energy"] = all_predictions
-        filename = expand_path(filename) if filename is not None else filename
+        filename = to_path(filename) if filename is not None else filename
         rst = df.to_csv(filename, index=False)
         if rst is not None:
             print(rst)
@@ -836,9 +835,9 @@ class PredictionStructLabelFeatFiles:
     """
 
     def __init__(self, struct_file, label_file, feature_file):
-        self.struct_file = expand_path(struct_file)
-        self.label_file = expand_path(label_file)
-        self.feature_file = expand_path(feature_file)
+        self.struct_file = to_path(struct_file)
+        self.label_file = to_path(label_file)
+        self.feature_file = to_path(feature_file)
 
     def prepare_data(self):
         return self.struct_file, self.label_file, self.feature_file
@@ -866,7 +865,7 @@ class PredictionStructLabelFeatFiles:
                 f"predictions for them are not made: {msg}"
             )
 
-        filename = expand_path(filename) if filename is not None else filename
+        filename = to_path(filename) if filename is not None else filename
         if filename is not None:
             yaml_dump(labels, filename)
         else:

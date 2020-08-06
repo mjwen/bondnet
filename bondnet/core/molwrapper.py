@@ -10,7 +10,7 @@ from rdkit import Chem
 from rdkit.Chem import Draw, AllChem
 from rdkit.Chem.Draw import rdMolDraw2D
 from bondnet.core.rdmol import create_rdkit_mol_from_mol_graph
-from bondnet.utils import create_directory, expand_path, yaml_dump
+from bondnet.utils import create_directory, to_path, yaml_dump
 
 logger = logging.getLogger(__name__)
 
@@ -316,8 +316,8 @@ class MoleculeWrapper:
             v3000 (bool): whether to force v3000 form if format is `sdf`
         """
         if filename is not None:
-            filename = expand_path(filename)
             create_directory(filename)
+            filename = str(to_path(filename))
 
         name = str(self.id) if name is None else name
         self.rdkit_mol.SetProp("_Name", name)
@@ -362,8 +362,8 @@ class MoleculeWrapper:
         if filename is None:
             return m
         else:
-            filename = create_directory(filename)
-            filename = expand_path(filename)
+            create_directory(filename)
+            filename = str(to_path(filename))
             Draw.MolToFile(m, filename)
 
     def draw_with_bond_note(self, bond_note, filename="mol.png", show_atom_idx=True):
@@ -400,9 +400,8 @@ class MoleculeWrapper:
         )
         d.FinishDrawing()
 
-        filename = create_directory(filename)
-        filename = expand_path(filename)
-        with open(filename, "wb") as f:
+        create_directory(filename)
+        with open(to_path(filename), "wb") as f:
             f.write(d.GetDrawingText())
 
     def pack_features(self, broken_bond=None):
@@ -491,8 +490,8 @@ def write_sdf_csv_dataset(
     feature_file="feature_mols.yaml",
     exclude_single_atom=True,
 ):
-    struct_file = expand_path(struct_file)
-    label_file = expand_path(label_file)
+    struct_file = to_path(struct_file)
+    label_file = to_path(label_file)
 
     logger.info(
         "Start writing dataset to files: {} and {}".format(struct_file, label_file)
@@ -569,7 +568,7 @@ def write_edge_label_based_on_bond(
 
     labels = []
     charges = []
-    sdf_filename = expand_path(sdf_filename)
+    sdf_filename = to_path(sdf_filename)
     with open(sdf_filename, "w") as f:
         i = 0
         for m in molecules:
@@ -584,8 +583,8 @@ def write_edge_label_based_on_bond(
             charges.append({"charge": m.charge})
             i += 1
 
-    yaml_dump(labels, expand_path(label_filename))
-    yaml_dump(charges, expand_path(feature_filename))
+    yaml_dump(labels, to_path(label_filename))
+    yaml_dump(charges, to_path(feature_filename))
 
 
 def fragment_mol_graph(mol_graph, bonds):

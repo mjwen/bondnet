@@ -4,7 +4,7 @@ import multiprocessing
 import numpy as np
 from collections import defaultdict, OrderedDict
 from bondnet.core.reaction import Reaction, ReactionsMultiplePerBond, ReactionsOnePerBond
-from bondnet.utils import create_directory, pickle_load, yaml_dump, expand_path
+from bondnet.utils import create_directory, pickle_load, yaml_dump, to_path
 
 logger = logging.getLogger(__name__)
 
@@ -766,9 +766,8 @@ class ReactionCollection:
                 filename (str): name of the file to write the label
             """
 
-            filename = expand_path(filename)
             create_directory(filename)
-            with open(filename, "w") as f:
+            with open(to_path(filename), "w") as f:
                 f.write(
                     "# Each line lists the energy class of a bond in a molecule. "
                     "Each line has three items: "
@@ -981,9 +980,8 @@ class ReactionCollection:
             grouped_reactions = self.group_by_reactant_charge_0()
 
         # write label
-        label_file = expand_path(label_file)
         create_directory(label_file)
-        with open(label_file, "w") as f:
+        with open(to_path(label_file), "w") as f:
             f.write(
                 "# Each line lists the bond energies of a molecule. "
                 "The number of items in each line is equal to 2*N, where N is the "
@@ -1043,10 +1041,8 @@ class ReactionCollection:
         """
         logger.info("Start writing sdf file: {}".format(filename))
 
-        filename = expand_path(filename)
         create_directory(filename)
-
-        with open(filename, "w") as f:
+        with open(to_path(filename), "w") as f:
             for i, m in enumerate(molecules):
                 name = "{}_{}_{}_{}_index-{}".format(
                     m.id, m.formula, m.charge, m.free_energy, i

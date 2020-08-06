@@ -2,11 +2,11 @@
 The Li-EC electrolyte dataset.
 """
 
-
 import torch
 import logging
 import numpy as np
 from collections import OrderedDict
+from pathlib import Path
 import pandas as pd
 from bondnet.data.dataset import BaseDataset
 from bondnet.data.transformers import StandardScaler, GraphFeatureStandardScaler
@@ -136,13 +136,13 @@ class ElectrolyteBondDataset(BaseDataset):
 
     @staticmethod
     def get_labels(labels):
-        if isinstance(labels, str):
+        if isinstance(labels, Path):
             labels = yaml_load(labels)
         return labels
 
     @staticmethod
     def get_features(features):
-        if isinstance(features, str):
+        if isinstance(features, Path):
             features = yaml_load(features)
         return features
 
@@ -658,13 +658,13 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
 
     @staticmethod
     def get_labels(labels):
-        if isinstance(labels, str):
+        if isinstance(labels, Path):
             labels = yaml_load(labels)
         return labels
 
     @staticmethod
     def get_features(features):
-        if isinstance(features, str):
+        if isinstance(features, Path):
             features = yaml_load(features)
         return features
 

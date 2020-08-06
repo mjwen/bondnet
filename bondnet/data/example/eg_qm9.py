@@ -2,7 +2,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from rdkit import Chem
 from bondnet.data.qm9 import QM9Dataset, create_edge_label_based_on_bond
-from bondnet.utils import expand_path, create_directory
+from bondnet.utils import to_path, create_directory
 from bondnet.data.grapher import HeteroMoleculeGraph
 from bondnet.data.featurizer import (
     AtomFeaturizer,
@@ -12,7 +12,7 @@ from bondnet.data.featurizer import (
 
 
 def load_mols(filename):
-    filename = expand_path(filename)
+    filename = to_path(filename)
     supp = Chem.SDMolSupplier(filename, sanitize=True, removeHs=False)
     all_mols = []
     for i, mol in enumerate(supp):
@@ -62,7 +62,7 @@ def plot_bond_distance_hist(
     print("\n\n### atom distance min={}, max={}".format(min(data), max(data)))
     filename = "~/Applications/db_access/qm9/bond_distances.pdf"
     create_directory(filename)
-    filename = expand_path(filename)
+    filename = to_path(filename)
     plot_hist(data, filename)
 
 

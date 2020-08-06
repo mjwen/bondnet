@@ -1,7 +1,8 @@
 import numpy as np
+from pathlib import Path
 from collections import defaultdict
 from rdkit import Chem
-from bondnet.utils import expand_path
+from bondnet.utils import to_path
 
 
 class BaseDataset:
@@ -54,12 +55,12 @@ class BaseDataset:
 
         self.grapher = grapher
         self.molecules = (
-            expand_path(molecules) if isinstance(molecules, str) else molecules
+            to_path(molecules) if isinstance(molecules, (str, Path)) else molecules
         )
-        self.raw_labels = expand_path(labels) if isinstance(labels, str) else labels
+        self.raw_labels = to_path(labels) if isinstance(labels, (str, Path)) else labels
         self.extra_features = (
-            expand_path(extra_features)
-            if isinstance(extra_features, str)
+            to_path(extra_features)
+            if isinstance(extra_features, (str, Path))
             else extra_features
         )
         self.feature_transformer = feature_transformer
@@ -156,8 +157,9 @@ class BaseDataset:
 
     @staticmethod
     def get_molecules(molecules):
-        if isinstance(molecules, str):
-            supp = Chem.SDMolSupplier(molecules, sanitize=True, removeHs=False)
+        if isinstance(molecules, Path):
+            path = str(molecules)
+            supp = Chem.SDMolSupplier(path, sanitize=True, removeHs=False)
             molecules = [m for m in supp]
         return molecules
 

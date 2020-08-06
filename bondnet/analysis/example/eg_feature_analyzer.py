@@ -1,5 +1,5 @@
-import os
 import numpy as np
+from pathlib import Path
 from collections import defaultdict
 import pandas as pd
 from bondnet.analysis.feature_analyzer import (
@@ -27,7 +27,7 @@ def corelation(dataset, excludes):
     for ntype in ["atom", "bond", "global"]:
         exclude = excludes[ntype]
         corr = analyzer.compute(ntype, exclude)
-        filename = os.path.join(os.path.dirname(__file__), "{}_heatmap.pdf".format(ntype))
+        filename = Path(__file__).parent.joinpath("{}_heatmap.pdf".format(ntype))
         labels = np.delete(dataset.feature_name[ntype], excludes[ntype])
         plot_heat_map(corr, labels, filename)
 

@@ -3,14 +3,13 @@ Write the bond features in the molecules for each GNN layer.
 
 This is the code we used to generate data for LBDC bond similarity heatmap.
 """
-import os
 import torch
 import numpy as np
 import pandas as pd
 from collections import defaultdict
 from bondnet.data.dataloader import DataLoaderReactionNetwork
 from bondnet.prediction.load_model import load_model, load_dataset
-from bondnet.utils import seed_torch
+from bondnet.utils import seed_torch, to_path
 
 
 def evaluate(model, nodes, data_loader):
@@ -85,7 +84,7 @@ def main(
 
     # write to file
     for idx, ft in features.items():
-        fname = os.path.join(feat_meta_prefix, f"feats_layer{idx}.tsv")
+        fname = to_path(feat_meta_prefix).joinpath(f"feats_layer{idx}.tsv")
         df = pd.DataFrame(ft)
         df.to_csv(fname, sep="\t", header=False, index=False)
 
@@ -98,7 +97,7 @@ def main(
             "species": species,
         }
     )
-    fname = os.path.join(feat_meta_prefix, "feats_metadata.tsv")
+    to_path(feat_meta_prefix).joinpath("feats_metadata.tsv")
     df.to_csv(fname, sep="\t", index=False)
 
 

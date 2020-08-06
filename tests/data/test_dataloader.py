@@ -3,9 +3,9 @@ Do not assert feature and graph struct, which is handled by dgl.
 Here we mainly test the correctness of batch.
 """
 
-import numpy as np
-import os
+from pathlib import Path
 import torch
+import numpy as np
 from bondnet.data.electrolyte import (
     ElectrolyteBondDataset,
     ElectrolyteReactionDataset,
@@ -26,7 +26,7 @@ from bondnet.data.featurizer import (
     GlobalFeaturizer,
 )
 
-test_files = os.path.join(os.path.dirname(__file__), "testdata")
+test_files = Path(__file__).parent.joinpath("testdata")
 
 
 def get_grapher_hetero():
@@ -61,8 +61,8 @@ def test_dataloader():
 
         dataset = QM9Dataset(
             grapher=get_grapher_homo(),
-            molecules=os.path.join(test_files, "gdb9_n2.sdf"),
-            labels=os.path.join(test_files, "gdb9_n2.sdf.csv"),
+            molecules=test_files.joinpath("gdb9_n2.sdf"),
+            labels=test_files.joinpath("gdb9_n2.sdf.csv"),
             properties=["homo", "u0"],  # homo is intensive and u0 is extensive
             unit_conversion=False,
             feature_transformer=True,
@@ -104,9 +104,9 @@ def test_dataloader_bond():
 
         dataset = ElectrolyteBondDataset(
             grapher=get_grapher_hetero(),
-            molecules=os.path.join(test_files, "electrolyte_struct_bond.sdf"),
-            labels=os.path.join(test_files, "electrolyte_label_bond.yaml"),
-            extra_features=os.path.join(test_files, "electrolyte_feature_bond.yaml"),
+            molecules=test_files.joinpath("electrolyte_struct_bond.sdf"),
+            labels=test_files.joinpath("electrolyte_label_bond.yaml"),
+            extra_features=test_files.joinpath("electrolyte_feature_bond.yaml"),
             feature_transformer=True,
             label_transformer=lt,
         )
@@ -139,9 +139,9 @@ def test_dataloader_reaction():
 
     dataset = ElectrolyteReactionDataset(
         grapher=get_grapher_hetero(),
-        molecules=os.path.join(test_files, "electrolyte_struct_rxn_clfn.sdf"),
-        labels=os.path.join(test_files, "electrolyte_label_rxn_clfn.yaml"),
-        extra_features=os.path.join(test_files, "electrolyte_feature_rxn_clfn.yaml"),
+        molecules=test_files.joinpath("electrolyte_struct_rxn_clfn.sdf"),
+        labels=test_files.joinpath("electrolyte_label_rxn_clfn.yaml"),
+        extra_features=test_files.joinpath("electrolyte_feature_rxn_clfn.yaml"),
         feature_transformer=False,
         label_transformer=False,
     )
@@ -164,9 +164,9 @@ def test_dataloader_reaction_network():
 
     dataset = ElectrolyteReactionNetworkDataset(
         grapher=get_grapher_hetero(),
-        molecules=os.path.join(test_files, "electrolyte_struct_rxn_ntwk_clfn.sdf"),
-        labels=os.path.join(test_files, "electrolyte_label_rxn_ntwk_clfn.yaml"),
-        extra_features=os.path.join(test_files, "electrolyte_feature_rxn_ntwk_clfn.yaml"),
+        molecules=test_files.joinpath("electrolyte_struct_rxn_ntwk_clfn.sdf"),
+        labels=test_files.joinpath("electrolyte_label_rxn_ntwk_clfn.yaml"),
+        extra_features=test_files.joinpath("electrolyte_feature_rxn_ntwk_clfn.yaml"),
         feature_transformer=False,
         label_transformer=False,
     )

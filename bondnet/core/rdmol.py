@@ -8,7 +8,7 @@ from rdkit import Chem
 from rdkit.Chem import BondType, AllChem
 from rdkit.Geometry import Point3D
 from openbabel import openbabel as ob
-from bondnet.utils import expand_path
+from bondnet.utils import to_path
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +136,7 @@ def read_rdkit_mols_from_file(filename, format="sdf"):
     and `pdb`.
 
     Args:
-        filename (str): name of the file
+        filename (str or pathlib.Path): name of the file
         format (str): format of the molecules in the file
 
     Returns:
@@ -145,7 +145,7 @@ def read_rdkit_mols_from_file(filename, format="sdf"):
 
     def from_smiles(filename):
         smiles = []
-        with open(expand_path(filename), "r") as f:
+        with open(filename, "r") as f:
             for line in f:
                 smiles.append(line.strip())
 
@@ -161,7 +161,7 @@ def read_rdkit_mols_from_file(filename, format="sdf"):
 
     def from_inchi(filename):
         inchi = []
-        with open(expand_path(filename), "r") as f:
+        with open(filename, "r") as f:
             for line in f:
                 inchi.append(line.strip())
 
@@ -182,7 +182,7 @@ def read_rdkit_mols_from_file(filename, format="sdf"):
         return molecules
 
     def from_pdb(filename):
-        with open(expand_path(filename), "r") as f:
+        with open(filename, "r") as f:
             pdbs = f.read()
         pdbs = [s.strip() for s in pdbs.split("$$$$\n")]
         pdbs = [s for s in pdbs if s != ""]
@@ -190,6 +190,7 @@ def read_rdkit_mols_from_file(filename, format="sdf"):
 
         return molecules
 
+    filename = str(to_path(filename))
     if format == "smiles":
         return from_smiles(filename)
     elif format == "inchi":
