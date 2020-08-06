@@ -13,7 +13,10 @@ import torch.multiprocessing as mp
 from torch.nn.parallel import DistributedDataParallel as DDP
 from bondnet.training_script.metric import WeightedL1Loss, EarlyStopping
 from bondnet.model.gated_reaction_network import GatedGCNReactionNetwork
-from bondnet.data.dataset import train_validation_test_split
+from bondnet.data.dataset import (
+    train_validation_test_split,
+    train_validation_test_split_selected_bond_in_train,
+)
 from bondnet.data.electrolyte import ElectrolyteReactionNetworkDataset
 from bondnet.data.dataloader import DataLoaderReactionNetwork
 from bondnet.data.grapher import HeteroMoleculeGraph
@@ -265,19 +268,19 @@ def main_worker(gpu, world_size, args):
     seed_torch()
 
     ### dataset
-    # sdf_file = "~/Applications/db_access/mol_builder/struct_rxn_ntwk_rgrn_n200.sdf"
-    # label_file = "~/Applications/db_access/mol_builder/label_rxn_ntwk_rgrn_n200.yaml"
-    # feature_file = "~/Applications/db_access/mol_builder/feature_rxn_ntwk_rgrn_n200.yaml"
+    sdf_file = "~/Applications/db_access/mol_builder/struct_rxn_ntwk_rgrn_n200.sdf"
+    label_file = "~/Applications/db_access/mol_builder/label_rxn_ntwk_rgrn_n200.yaml"
+    feature_file = "~/Applications/db_access/mol_builder/feature_rxn_ntwk_rgrn_n200.yaml"
     # sdf_file = "~/Applications/db_access/zinc_bde/zinc_struct_rxn_ntwk_rgrn_n200.sdf"
     # label_file = "~/Applications/db_access/zinc_bde/zinc_label_rxn_ntwk_rgrn_n200.yaml"
     # feature_file = (
     #    "~/Applications/db_access/zinc_bde/zinc_feature_rxn_ntwk_rgrn_n200.yaml"
     # )
-    sdf_file = "~/Applications/db_access/nrel_bde/nrel_struct_rxn_ntwk_rgrn_n200.sdf"
-    label_file = "~/Applications/db_access/nrel_bde/nrel_label_rxn_ntwk_rgrn_n200.yaml"
-    feature_file = (
-        "~/Applications/db_access/nrel_bde/nrel_feature_rxn_ntwk_rgrn_n200.yaml"
-    )
+    # sdf_file = "~/Applications/db_access/nrel_bde/nrel_struct_rxn_ntwk_rgrn_n200.sdf"
+    # label_file = "~/Applications/db_access/nrel_bde/nrel_label_rxn_ntwk_rgrn_n200.yaml"
+    # feature_file = (
+    #     "~/Applications/db_access/nrel_bde/nrel_feature_rxn_ntwk_rgrn_n200.yaml"
+    # )
 
     if args.restore:
         dataset_state_dict_filename = args.dataset_state_dict_filename
@@ -303,8 +306,14 @@ def main_worker(gpu, world_size, args):
         state_dict_filename=dataset_state_dict_filename,
     )
 
-    trainset, valset, testset = train_validation_test_split(
-        dataset, validation=0.1, test=0.1
+    # trainset, valset, testset = train_validation_test_split(
+    #     dataset, validation=0.1, test=0.1
+    # )
+    trainset, valset, testset = train_validation_test_split_selected_bond_in_train(
+        dataset,
+        validation=0.1,
+        test=0.1,
+        selected_bond_type=(("H", "H"), ("H", "F"), ("F", "F")),
     )
 
     if not args.distributed or (args.distributed and args.gpu == 0):
