@@ -1,38 +1,42 @@
-import itertools
 import numpy as np
-import shutil
-from matplotlib import pyplot as plt
 from rdkit import Chem
 from bondnet.dataset.electrolyte.db_molecule import DatabaseOperation
+from bondnet.dataset.electrolyte.db_molecule_quality_analysis import (
+    check_bond_length,
+    check_bond_species,
+    check_connectivity,
+    check_rdkit_sanitize,
+    remove_mols_containing_species,
+    plot_molecules,
+    get_single_atom_molecule_energy,
+)
 from bondnet.utils import pickle_dump, pickle_load, to_path
 
 
-def pickle_db_entries():
+def pickle_db_entries(filename="~/Applications/db_access/mol_builder/database_n200.pkl"):
     entries = DatabaseOperation.query_db_entries(
         db_collection="mol_builder", num_entries=200
     )
     # entries = DatabaseOperation.query_db_entries(db_collection="smd", num_entries=200)
 
-    filename = "~/Applications/db_access/mol_builder/database_n200.pkl"
     pickle_dump(entries, filename)
 
 
-def pickle_molecules():
-    # db_collection = "task"
+def pickle_molecules(outname, num_entries=500, db_file=None):
+
     db_collection = "mol_builder"
+    # db_collection = "task"
     entries = DatabaseOperation.query_db_entries(
-        db_collection=db_collection, num_entries=500
+        db_collection=db_collection, db_file=db_file, num_entries=num_entries,
     )
 
     mols = DatabaseOperation.to_molecules(entries, db_collection=db_collection)
-    # filename = "~/Applications/db_access/mol_builder/molecules_unfiltered.pkl"
-    filename = "~/Applications/db_access/mol_builder/molecules_n200_unfiltered.pkl"
-    pickle_dump(mols, filename)
+
+    # filename = "~/Applications/db_access/mol_builder/molecules_n200_unfiltered.pkl"
+    # pickle_dump(mols, filename)
 
     mols = DatabaseOperation.filter_molecules(mols, connectivity=True, isomorphism=True)
-    # filename = "~/Applications/db_access/mol_builder/molecules.pkl"
-    filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
-    pickle_dump(mols, filename)
+    pickle_dump(mols, outname)
 
 
 def print_mol_property():
@@ -64,91 +68,6 @@ def print_mol_property():
     print("\n\nlooping m.bonds")
     for bond, attr in m.bonds.items():
         print(bond, attr)
-
-
-def plot_molecules(
-    filename="~/Applications/db_access/mol_builder/molecules_qc.pkl",
-    # filename="~/Applications/db_access/mol_builder/molecules_n200.pkl",
-    plot_prefix="~/Applications/db_access/mol_builder",
-):
-
-    plot_prefix = to_path(plot_prefix)
-
-    mols = pickle_load(filename)
-
-    for m in mols:
-
-        fname1 = plot_prefix.joinpath(
-            "mol_png/{}_{}_{}_{}.png".format(
-                m.formula, m.charge, m.id, str(m.free_energy).replace(".", "dot")
-            ),
-        )
-        m.draw(filename=fname1, show_atom_idx=True)
-        fname2 = plot_prefix.joinpath(
-            "mol_png_id/{}_{}_{}_{}.png".format(
-                m.id, m.formula, m.charge, str(m.free_energy).replace(".", "dot")
-            ),
-        )
-        shutil.copyfile(fname1, fname2)
-
-        for ext in ["sdf", "pdb"]:
-            fname1 = plot_prefix.joinpath(
-                "mol_{}/{}_{}_{}_{}.{}".format(
-                    ext,
-                    m.formula,
-                    m.charge,
-                    m.id,
-                    str(m.free_energy).replace(".", "dot"),
-                    ext,
-                ),
-            )
-            m.write(fname1, format=ext)
-            fname2 = plot_prefix.joinpath(
-                "mol_{}_id/{}_{}_{}_{}.{}".format(
-                    ext,
-                    m.id,
-                    m.formula,
-                    m.charge,
-                    str(m.free_energy).replace(".", "dot"),
-                    ext,
-                ),
-            )
-            shutil.copyfile(fname1, fname2)
-
-
-def plot_atom_distance_hist(
-    filename="~/Applications/db_access/mol_builder/molecules.pkl",
-):
-    """
-    Plot the distance between atoms.
-    """
-
-    def plot_hist(data, filename):
-        fig = plt.figure()
-        ax = fig.gca()
-        ax.hist(data, 20)
-
-        ax.set_xlabel("Bond length")
-        ax.set_ylabel("counts")
-
-        fig.savefig(filename, bbox_inches="tight")
-
-    def get_distances(m):
-        dist = [
-            np.linalg.norm(m.coords[u] - m.coords[v])
-            for u, v in itertools.combinations(range(len(m.coords)), 2)
-        ]
-        return dist
-
-    # prepare data
-    mols = pickle_load(filename)
-    data = [get_distances(m) for m in mols]
-    data = np.concatenate(data)
-
-    print("\n\n### atom distance min={}, max={}".format(min(data), max(data)))
-    filename = "~/Applications/db_access/mol_builder/atom_distances.pdf"
-    filename = to_path(filename)
-    plot_hist(data, filename)
 
 
 def write_group_isomorphic_to_file():
@@ -183,29 +102,62 @@ def number_of_bonds():
     print("### number of bonds median:", median)
 
 
-def get_single_atom_energy():
-    filename = "~/Applications/db_access/mol_builder/molecules_unfiltered.pkl"
-    # filename = "~/Applications/db_access/mol_builder/molecules.pkl"
-    # filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
-    mols = pickle_load(filename)
+def check_all(filename, output_prefix=None):
+    filename = to_path(filename)
 
-    formula = ["H1", "Li1", "C1", "O1", "F1", "P1"]
-    print("# formula    free energy    charge")
-    for m in mols:
-        if m.formula in formula:
-            print(m.formula, m.free_energy, m.charge)
+    mols = pickle_load(filename)
+    print("Number of mols before any check:", len(mols))
+
+    if output_prefix is None:
+        output_prefix = filename.parent
+
+    mols = check_connectivity(
+        mols=mols,
+        metal="Li",
+        filename_failed=output_prefix.joinpath("failed_connectivity.pkl"),
+    )
+    mols = check_rdkit_sanitize(
+        mols=mols, filename_failed=output_prefix.joinpath("failed_rdkit_sanitize.pkl")
+    )
+    mols = check_bond_species(
+        mols=mols, filename_failed=output_prefix.joinpath("failed_bond_species.pkl")
+    )
+    mols = check_bond_length(
+        mols=mols, filename_failed=output_prefix.joinpath("failed_bond length.pkl")
+    )
+    mols = remove_mols_containing_species(
+        mols=mols,
+        species=["P"],
+        filename_failed=output_prefix.joinpath("failed_containing_species.pkl"),
+    )
+
+    print("Number of mols after check:", len(mols))
+
+    outname = output_prefix.joinpath(filename.stem + "_qc" + filename.suffix)
+    pickle_dump(mols, outname)
 
 
 if __name__ == "__main__":
-    # pickle_db_entries()
-    pickle_molecules()
+
+    # # pickle_db_entries()
+    # pickle_molecules(
+    #     outname="~/Applications/db_access/mol_builder/molecules.pkl", num_entries=None
+    # )
+    #
+    # check_all(filename="~/applications/db_access/mol_builder/molecules.pkl")
+
+    get_single_atom_molecule_energy("~/applications/db_access/mol_builder/molecules.pkl")
 
     # print_mol_property()
 
-    # plot_molecules()
+    # plot_molecules(
+    # filename = "~/Applications/db_access/mol_builder/molecules_qc.pkl",
+    # plot_prefix = "~/Applications/db_access/mol_builder",
+    # )
+
     # plot_atom_distance_hist()
+
     # number_of_bonds()
     # detect_bad_mols()
 
     # write_group_isomorphic_to_file()
-    # get_single_atom_energy()

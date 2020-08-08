@@ -1,7 +1,10 @@
 import torch
 import numpy as np
 import pandas as pd
-from bondnet.data.dataset import train_validation_test_split
+from bondnet.data.dataset import (
+    train_validation_test_split,
+    train_validation_test_split_selected_bond_in_train,
+)
 from bondnet.data.dataloader import DataLoaderReactionNetwork
 from bondnet.prediction.load_model import load_model, load_dataset
 from bondnet.utils import seed_torch, to_path, yaml_load
@@ -88,7 +91,7 @@ def get_charges(label_file, feature_file):
 
 
 def main(
-    model_name="mesd/20200611",
+    model_name="mesd/20200808",
     sdf_file="~/Applications/db_access/mol_builder/struct_rxn_ntwk_rgrn_qc.sdf",
     label_file="~/Applications/db_access/mol_builder/label_rxn_ntwk_rgrn_qc.yaml",
     feature_file="~/Applications/db_access/mol_builder/feature_rxn_ntwk_rgrn_qc.yaml",
@@ -99,9 +102,18 @@ def main(
     seed_torch()
 
     dataset = load_dataset(model_name, sdf_file, label_file, feature_file)
-    trainset, valset, testset = train_validation_test_split(
-        dataset, validation=0.1, test=0.1
+
+    # trainset, valset, testset = train_validation_test_split(
+    #     dataset, validation=0.1, test=0.1
+    # )
+
+    trainset, valset, testset = train_validation_test_split_selected_bond_in_train(
+        dataset,
+        validation=0.1,
+        test=0.1,
+        selected_bond_type=(("H", "H"), ("H", "F"), ("F", "F")),
     )
+
     # data_loader = DataLoaderReactionNetwork(trainset, batch_size=100, shuffle=False)
     # data_loader = DataLoaderReactionNetwork(valset, batch_size=100, shuffle=False)
     data_loader = DataLoaderReactionNetwork(testset, batch_size=100, shuffle=False)

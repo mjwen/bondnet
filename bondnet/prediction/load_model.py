@@ -19,7 +19,11 @@ from bondnet.utils import load_checkpoints, check_exists
 kcalPerMol2eV = 0.043363
 
 MODEL_INFO = {
-    "mesd": {"allowed_charge": [-1, 0, 1], "date": ["20200611"], "unit_converter": 1.0},
+    "mesd": {
+        "allowed_charge": [-1, 0, 1],
+        "date": ["20200611", "20200808"],  # default to the last (should be the latest)
+        "unit_converter": 1.0,
+    },
     "pubchem": {
         "allowed_charge": [0],
         "date": ["20200531"],

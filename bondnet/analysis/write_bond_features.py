@@ -62,7 +62,7 @@ def evaluate(model, nodes, data_loader):
 
 
 def main(
-    model_name="mesd/20200611",
+    model_name="mesd/20200808",
     sdf_file="/Users/mjwen/Applications/db_access/mol_builder/post_analysis/lbdc/struct.sdf",
     label_file="/Users/mjwen/Applications/db_access/mol_builder/post_analysis/lbdc/label.yaml",
     feature_file="/Users/mjwen/Applications/db_access/mol_builder/post_analysis/lbdc/feature.yaml",

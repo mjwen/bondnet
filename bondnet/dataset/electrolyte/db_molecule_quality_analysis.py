@@ -1,7 +1,9 @@
 import copy
+import shutil
 import numpy as np
-import subprocess
 import itertools
+from collections import defaultdict
+from matplotlib import pyplot as plt
 from bondnet.core.molwrapper import create_rdkit_mol_from_mol_graph
 from bondnet.analysis.utils import TexWriter
 from bondnet.utils import pickle_dump, pickle_load, to_path
@@ -9,6 +11,7 @@ from bondnet.utils import pickle_dump, pickle_load, to_path
 
 def check_connectivity_mol(
     mol,
+    metal="Li",
     allowed_charge={
         "H": [1],
         "C": [1, 2, 3, 4],
@@ -17,11 +20,11 @@ def check_connectivity_mol(
         "P": [1, 2, 3, 5, 6],  # 6 for LiPF6
         "N": [1, 2, 3, 4, 5],
         "S": [1, 2, 3, 4, 5, 6],
+        "Cl": [1],
         # metal
         "Li": [1, 2, 3],
         "Mg": [1, 2, 3],
     },
-    metal="Li",
 ):
     """
     Check the connectivity of each atom in a mol, without considering their bonding to
@@ -142,6 +145,8 @@ def check_bond_length_mol(mol):
         ("H", "P"): 1.44,
         ("H", "N"): 1.01,
         ("H", "S"): 1.34,
+        # ("H", "Cl"): 1.27,
+        ("H", "Cl"): None,
         ("H", "Li"): li_len,
         ("H", "Mg"): mg_len,
         # C
@@ -151,6 +156,7 @@ def check_bond_length_mol(mol):
         ("C", "P"): 1.84,
         ("C", "N"): 1.47,
         ("C", "S"): 1.81,
+        ("C", "Cl"): 1.77,
         ("C", "Li"): li_len,
         ("C", "Mg"): mg_len,
         # O
@@ -159,6 +165,7 @@ def check_bond_length_mol(mol):
         ("O", "P"): 1.63,
         ("O", "N"): 1.44,
         ("O", "S"): 1.51,
+        ("O", "Cl"): 1.64,
         ("O", "Li"): li_len,
         ("O", "Mg"): mg_len,
         # F
@@ -167,23 +174,33 @@ def check_bond_length_mol(mol):
         ("F", "P"): 1.54,
         ("F", "N"): 1.39,
         ("F", "S"): 1.58,
+        # ("F", "Cl"): 1.66,
+        ("F", "Cl"): None,
         ("F", "Li"): li_len,
         ("F", "Mg"): mg_len,
         # P
         ("P", "P"): 2.21,
         ("P", "N"): 1.77,
         ("P", "S"): 2.1,
+        ("P", "Cl"): 204,
         ("P", "Li"): li_len,
         ("P", "Mg"): mg_len,
         # N
         ("N", "N"): 1.46,
         ("N", "S"): 1.68,
+        ("N", "Cl"): 1.91,
         ("N", "Li"): li_len,
         ("N", "Mg"): mg_len,
         # S
         ("S", "S"): 2.04,
+        ("S", "Cl"): 201,
         ("S", "Li"): li_len,
         ("S", "Mg"): mg_len,
+        # Cl
+        # ("Cl", "Cl"): 1.99,
+        ("Cl", "Cl"): None,
+        ("Cl", "Li"): li_len,
+        ("Cl", "Mg"): mg_len,
         # Li
         ("Li", "Li"): li_len,
         # Mg
@@ -212,7 +229,22 @@ def check_bond_length_mol(mol):
 
 
 def check_connectivity(
-    mols, metal, filename_failed="failed_check_connectivity.pkl",
+    mols,
+    metal,
+    allowed_charge={
+        "H": [1],
+        "C": [1, 2, 3, 4],
+        "O": [1, 2],
+        "F": [1],
+        "P": [1, 2, 3, 5, 6],  # 6 for LiPF6
+        "N": [1, 2, 3, 4, 5],
+        "S": [1, 2, 3, 4, 5, 6],
+        "Cl": [1],
+        # metal
+        "Li": [1, 2, 3],
+        "Mg": [1, 2, 3],
+    },
+    filename_failed="failed_check_connectivity.pkl",
 ):
 
     succeeded = []
@@ -220,7 +252,7 @@ def check_connectivity(
     reason = []
 
     for m in mols:
-        do_fail, rsn = check_connectivity_mol(m, metal=metal)
+        do_fail, rsn = check_connectivity_mol(m, metal, allowed_charge)
         if do_fail:
             failed.append(m)
             reason.append(rsn)
@@ -360,74 +392,112 @@ def remove_mols_containing_species(
     return succeeded
 
 
-def check_all(
-    filename="~/Applications/db_access/mol_builder/molecules_n200.pkl",
-    output_prefix=None,
+def plot_molecules(
+    filename="~/Applications/db_access/mol_builder/molecules_qc.pkl",
+    plot_prefix="~/Applications/db_access/mol_builder",
 ):
-    filename = to_path(filename)
+
+    plot_prefix = to_path(plot_prefix)
 
     mols = pickle_load(filename)
-    print("Number of mols before any check:", len(mols))
 
-    if output_prefix is None:
-        output_prefix = filename.parent
-
-    mols = check_connectivity(
-        mols=mols,
-        metal="Li",
-        filename_failed=output_prefix.joinpath("failed_connectivity.pkl"),
-    )
-    mols = check_rdkit_sanitize(
-        mols=mols, filename_failed=output_prefix.joinpath("failed_rdkit_sanitize.pkl")
-    )
-    mols = check_bond_species(
-        mols=mols, filename_failed=output_prefix.joinpath("failed_bond_species.pkl")
-    )
-    mols = check_bond_length(
-        mols=mols, filename_failed=output_prefix.joinpath("failed_bond length.pkl")
-    )
-    mols = remove_mols_containing_species(
-        mols=mols,
-        species=["P"],
-        filename_failed=output_prefix.joinpath("failed_containing_species.pkl"),
-    )
-
-    print("Number of mols after check:", len(mols))
-
-    outname = output_prefix.joinpath(filename.stem + "_qc" + filename.suffix)
-    pickle_dump(mols, outname)
-
-
-def plot_mol_graph(
-    filename="~/Applications/db_access/mol_builder/molecules.pkl",
-    # filename="~/Applications/db_access/mol_builder/molecules_n200.pkl",
-):
-    def plot_one(m, prefix):
-        fname = to_path(prefix).joinpath("{}.png".format(m.id))
-        m.draw(fname, show_atom_idx=True)
-        subprocess.run(["convert", fname, "-trim", "-resize", "100%", fname])
-
-    mols = pickle_load(filename)
     for m in mols:
 
-        # # mol builder
-        # prefix = "~/Applications/db_access/mol_builder/png_union_builder"
-        # plot_one(m, prefix)
+        fname1 = plot_prefix.joinpath(
+            "mol_png/{}_{}_{}_{}.png".format(
+                m.formula, m.charge, m.id, str(m.free_energy).replace(".", "dot")
+            ),
+        )
+        m.draw(filename=fname1, show_atom_idx=True)
+        fname2 = plot_prefix.joinpath(
+            "mol_png_id/{}_{}_{}_{}.png".format(
+                m.id, m.formula, m.charge, str(m.free_energy).replace(".", "dot")
+            ),
+        )
+        shutil.copyfile(fname1, fname2)
 
-        # babel builder with extender
-        m.convert_to_babel_mol_graph(use_metal_edge_extender=False)
-        prefix = "~/Applications/db_access/mol_builder/png_babel_builder"
-        plot_one(m, prefix)
+        for ext in ["sdf", "pdb"]:
+            fname1 = plot_prefix.joinpath(
+                "mol_{}/{}_{}_{}_{}.{}".format(
+                    ext,
+                    m.formula,
+                    m.charge,
+                    m.id,
+                    str(m.free_energy).replace(".", "dot"),
+                    ext,
+                ),
+            )
+            m.write(fname1, format=ext)
+            fname2 = plot_prefix.joinpath(
+                "mol_{}_id/{}_{}_{}_{}.{}".format(
+                    ext,
+                    m.id,
+                    m.formula,
+                    m.charge,
+                    str(m.free_energy).replace(".", "dot"),
+                    ext,
+                ),
+            )
+            shutil.copyfile(fname1, fname2)
 
-        # # babel builder with extender
-        # m.convert_to_babel_mol_graph(use_metal_edge_extender=True)
-        # prefix = "~/Applications/db_access/mol_builder/png_extender_builder"
-        # plot_one(m, prefix)
-        #
-        # # critic
-        # m.convert_to_critic_mol_graph()
-        # prefix = "~/Applications/db_access/mol_builder/png_critic_builder"
-        # plot_one(m, prefix)
+
+def plot_atom_distance_hist(
+    filename="~/Applications/db_access/mol_builder/molecules.pkl",
+):
+    """
+    Plot the distance between atoms.
+    """
+
+    def plot_hist(data, filename):
+        fig = plt.figure()
+        ax = fig.gca()
+        ax.hist(data, 20)
+
+        ax.set_xlabel("Bond length")
+        ax.set_ylabel("counts")
+
+        fig.savefig(filename, bbox_inches="tight")
+
+    def get_distances(m):
+        dist = [
+            np.linalg.norm(m.coords[u] - m.coords[v])
+            for u, v in itertools.combinations(range(len(m.coords)), 2)
+        ]
+        return dist
+
+    # prepare data
+    mols = pickle_load(filename)
+    data = [get_distances(m) for m in mols]
+    data = np.concatenate(data)
+
+    print("\n\n### atom distance min={}, max={}".format(min(data), max(data)))
+    filename = "~/Applications/db_access/mol_builder/atom_distances.pdf"
+    filename = to_path(filename)
+    plot_hist(data, filename)
+
+
+def get_single_atom_molecule_energy(filename="molecules.pkl"):
+    mols = pickle_load(filename)
+
+    single_atom = defaultdict(list)
+    for m in mols:
+        if m.num_atoms == 1:
+            single_atom[m.formula].append((m.charge, m.free_energy))
+
+    print("# formula    charge    free energy")
+    for k, v in single_atom.items():
+        print(k)
+        for c, e in v:
+            print(f"             {c}        {e}")
+
+
+def get_species_in_molecules(filename="molecules.pkl"):
+    mols = pickle_load(filename)
+    species = set()
+    for m in mols:
+        species.update(m.species)
+
+    print("Species in all molecules:", species)
 
 
 def compare_connectivity_across_graph_builder(
@@ -627,12 +697,3 @@ def compare_connectivity_across_graph_builder(
             len(molecules), len(mols_differ_graph)
         )
     )
-
-
-if __name__ == "__main__":
-
-    filename = "~/Applications/db_access/mol_builder/molecules.pkl"
-    check_all(filename)
-
-    # plot_mol_graph()
-    # compare_connectivity_across_graph_builder()

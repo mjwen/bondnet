@@ -25,7 +25,7 @@ def predict_single_molecule(
 
     Args:
         model (str): The pre-trained model to use for making predictions. A model should
-            be of the format format `dataset/date`, e.g. `mesd/20200611`,
+            be of the format format `dataset/date`, e.g. `mesd/20200808`,
             `pubchem/20200521`. It is possible to provide only the `dataset` part,
             and in this case, the latest model will be used.
         molecule (str): SMILES or InChI string or a path to a file storing these string.
@@ -81,7 +81,7 @@ def predict_multiple_molecules(model, molecule_file, charge_file, out_file, form
 
     Args:
         model (str): The pretrained model to use for making predictions. A model should
-            be of the format format `dataset/date`, e.g. `mesd/20200611`,
+            be of the format format `dataset/date`, e.g. `mesd/20200808`,
             `pubchem/20200531`. It is possible to provide only the `dataset` part,
             and in this case, the latest model will be used.
         molecule_file (str): path to molecule file
@@ -110,7 +110,7 @@ def predict_by_reactions(
 
     Args:
         model (str): The pretrained model to use for making predictions. A model should
-            be of the format format `dataset/date`, e.g. `mesd/20200611`,
+            be of the format format `dataset/date`, e.g. `mesd/20200808`,
             `pubchem/20200531`. It is possible to provide only the `dataset` part,
             and in this case, the latest model will be used.
         molecule_file (str): path to file storing all molecules

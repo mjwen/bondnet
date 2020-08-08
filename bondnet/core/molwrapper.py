@@ -490,6 +490,18 @@ def write_sdf_csv_dataset(
     feature_file="feature_mols.yaml",
     exclude_single_atom=True,
 ):
+    """
+    Write the molecular atomization free energy to file.
+    Args:
+        molecules:
+        struct_file:
+        label_file:
+        feature_file:
+        exclude_single_atom:
+
+    Returns:
+
+    """
     struct_file = to_path(struct_file)
     label_file = to_path(label_file)
 
