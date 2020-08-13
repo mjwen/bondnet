@@ -34,7 +34,7 @@ class ElectrolyteBondDataset(BaseDataset):
         # get state info
         if self.state_dict_filename is not None:
             logger.info(f"Load dataset state dict from: {self.state_dict_filename}")
-            state_dict = torch.load(self.state_dict_filename)
+            state_dict = torch.load(str(self.state_dict_filename))
             self.load_state_dict(state_dict)
 
         # get species
@@ -535,7 +535,7 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
         # get state info
         if self.state_dict_filename is not None:
             logger.info(f"Load dataset state dict from: {self.state_dict_filename}")
-            state_dict = torch.load(self.state_dict_filename)
+            state_dict = torch.load(str(self.state_dict_filename))
             self.load_state_dict(state_dict)
 
         # get species

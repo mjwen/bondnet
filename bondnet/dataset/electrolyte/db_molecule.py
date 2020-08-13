@@ -305,14 +305,14 @@ class MoleculeWrapperMolBuilder(MoleculeWrapper):
 
 class DatabaseOperation:
     @staticmethod
-    def query_db_entries(db_collection="mol_builder", db_file=None, num_entries=None):
+    def query_db_entries(db_file, db_collection="mol_builder", num_entries=None):
         """
         Query a (Sam's) database to pull all the molecules form molecule builder.
 
         Args:
+            db_file (str): a json file storing the info of the database.
             db_collection (str): which database to query. Optionals are `mol_builder`
                 and `task`.
-            db_file (str): a json file storing the info of the database.
             num_entries (int): the number of entries to query, if `None`, get all.
 
         Returns:
@@ -320,16 +320,6 @@ class DatabaseOperation:
         """
 
         logger.info("Start querying database...")
-
-        if db_file is None:
-            if db_collection == "mol_builder":
-                db_file = (
-                    "/Users/mjwen/Applications/db_access/sam_db/sam_db_mol_builder.json"
-                )
-            elif db_collection == "task":
-                db_file = "/Users/mjwen/Applications/db_access/sam_db/sam_db_tasks.json"
-            else:
-                raise Exception("Unrecognized db_collection = {}".format(db_collection))
 
         mmdb = QChemCalcDb.from_db_file(db_file, admin=True)
 
@@ -404,7 +394,8 @@ class DatabaseOperation:
     @staticmethod
     def filter_molecules(molecules, connectivity=True, isomorphism=True):
         """
-        Filter out some molecules.
+        Filter out molecules that are not connected and molecules with the same
+        isomorphism (keep the lowest energy).
 
         Args:
             molecules (list of MoleculeWrapper): molecules
@@ -451,76 +442,6 @@ class DatabaseOperation:
         )
 
         return filtered
-
-    @staticmethod
-    def write_group_isomorphic_to_file(molecules, filename):
-        def group_isomorphic(molecules):
-            """
-            Group molecules
-            Args:
-                molecules: a list of Molecules.
-
-            Returns:
-                A list of list, with inner list of isomorphic molecules.
-            """
-            groups = []
-            for m in molecules:
-                find_iso = False
-                for g in groups:
-                    iso_m = g[0]
-                    if m.mol_graph.isomorphic_to(iso_m.mol_graph):
-                        g.append(m)
-                        find_iso = True
-                        break
-                if not find_iso:
-                    groups.append([m])
-            return groups
-
-        groups = group_isomorphic(molecules)
-
-        # statistics or charges of mols
-        charges = defaultdict(int)
-        for m in molecules:
-            charges[m.charge] += 1
-
-        # statistics of isomorphic mols
-        sizes = defaultdict(int)
-        for g in groups:
-            sizes[len(g)] += 1
-
-        # statistics of charge combinations
-        charge_combinations = defaultdict(int)
-        for g in groups:
-            chg = [m.charge for m in g]
-            for ij in itertools.combinations(chg, 2):
-                ij = tuple(sorted(ij))
-                charge_combinations[ij] += 1
-
-        create_directory(filename)
-        with open(to_path(filename), "w") as f:
-            f.write("Number of molecules: {}\n\n".format(len(molecules)))
-            f.write("Molecule charge state statistics.\n")
-            f.write("# charge state     number of molecules:\n")
-            for k, v in charges.items():
-                f.write("{}    {}\n".format(k, v))
-
-            f.write("Number of isomorphic groups: {}\n\n".format(len(groups)))
-            f.write(
-                "Molecule isomorphic group size statistics. (i.e. the number of "
-                "isomorphic molecules that have a specific number of charge state\n"
-            )
-            f.write("# size     number of molecules:\n")
-            for k, v in sizes.items():
-                f.write("{}    {}\n".format(k, v))
-
-            f.write("# charge combinations     number:\n")
-            for k, v in charge_combinations.items():
-                f.write("{}    {}\n".format(k, v))
-
-            for g in groups:
-                for m in g:
-                    f.write("{}_{}_{}    ".format(m.formula, m.id, m.charge))
-                f.write("\n")
 
 
 class UnsuccessfulEntryError(Exception):

@@ -1,16 +1,6 @@
-import numpy as np
-from rdkit import Chem
+from bondnet.core.molecule_collection import MoleculeCollection
 from bondnet.dataset.electrolyte.db_molecule import DatabaseOperation
-from bondnet.dataset.electrolyte.db_molecule_quality_analysis import (
-    check_bond_length,
-    check_bond_species,
-    check_connectivity,
-    check_rdkit_sanitize,
-    remove_mols_containing_species,
-    plot_molecules,
-    get_single_atom_molecule_energy,
-)
-from bondnet.utils import pickle_dump, pickle_load, to_path
+from bondnet.utils import pickle_dump, to_path
 
 
 def pickle_db_entries(filename="~/Applications/db_access/mol_builder/database_n200.pkl"):
@@ -22,10 +12,16 @@ def pickle_db_entries(filename="~/Applications/db_access/mol_builder/database_n2
     pickle_dump(entries, filename)
 
 
-def pickle_molecules(outname, num_entries=500, db_file=None):
+def pickle_molecules(outname, num_entries=500, db_collection="mol_builder", db_file=None):
 
-    db_collection = "mol_builder"
-    # db_collection = "task"
+    if db_file is None:
+        if db_collection == "mol_builder":
+            db_file = "/Users/mjwen/Applications/db_access/sam_db/sam_db_mol_builder.json"
+        elif db_collection == "task":
+            db_file = "/Users/mjwen/Applications/db_access/sam_db/sam_db_tasks.json"
+        else:
+            raise Exception("Unrecognized db_collection = {}".format(db_collection))
+
     entries = DatabaseOperation.query_db_entries(
         db_collection=db_collection, db_file=db_file, num_entries=num_entries,
     )
@@ -39,125 +35,58 @@ def pickle_molecules(outname, num_entries=500, db_file=None):
     pickle_dump(mols, outname)
 
 
-def print_mol_property():
-    # filename = "~/Applications/db_access/mol_builder/molecules.pkl"
-    filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
-    mols = pickle_load(filename)
+def check_all(filename="molecules.pkl", outname="molecules_qc.pkl"):
 
-    m = mols[10]
+    mol_coll = MoleculeCollection.from_file(filename)
 
-    # get all attributes
-    for key, val in vars(m).items():
-        print("{}: {}".format(key, val))
+    print("Number of mols before any check:", len(mol_coll))
 
-    # @property attributes
-    properties = [
-        "charge",
-        "spin_multiplicity",
-        "atoms",
-        "bonds",
-        "species",
-        "coords",
-        "formula",
-        "composition_dict",
-        "weight",
-    ]
-    for prop in properties:
-        print("{}: {}".format(prop, getattr(m, prop)))
+    mol_coll.filter_by_connectivity(exclude_species=["Li"])
+    print("Number of mols after connectivity check:", len(mol_coll))
 
-    print("\n\nlooping m.bonds")
-    for bond, attr in m.bonds.items():
-        print(bond, attr)
+    mol_coll.filter_by_rdkit_sanitize()
+    print("Number of mols after rdkit check:", len(mol_coll))
 
+    mol_coll.filter_by_bond_species()
+    print("Number of mols after bond species check:", len(mol_coll))
 
-def write_group_isomorphic_to_file():
-    filename = "~/Applications/db_access/mol_builder/molecules.pkl"
-    # filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
-    mols = pickle_load(filename)
+    mol_coll.filter_by_bond_length()
+    print("Number of mols after bond length check:", len(mol_coll))
 
-    filename = "~/Applications/db_access/mol_builder/isomorphic_mols.txt"
-    DatabaseOperation.write_group_isomorphic_to_file(mols, filename)
+    mol_coll.filter_by_species(species=["P"])
+    print("Number of mols after species check:", len(mol_coll))
 
-
-def detect_bad_mols():
-    struct_file = "~/Applications/db_access/mol_builder/struct.sdf"
-    struct_file = to_path(struct_file)
-    suppl = Chem.SDMolSupplier(struct_file, sanitize=True, removeHs=False)
-    for i, mol in enumerate(suppl):
-        if mol is None:
-            print("bad mol:", i)
-
-
-def number_of_bonds():
-    filename = "~/Applications/db_access/mol_builder/molecules.pkl"
-    mols = pickle_load(filename)
-
-    nbonds = []
-    for m in mols:
-        nbonds.append(len(m.bonds))
-    mean = np.mean(nbonds)
-    median = np.median(nbonds)
-
-    print("### number of bonds mean:", mean)
-    print("### number of bonds median:", median)
-
-
-def check_all(filename, output_prefix=None):
-    filename = to_path(filename)
-
-    mols = pickle_load(filename)
-    print("Number of mols before any check:", len(mols))
-
-    if output_prefix is None:
-        output_prefix = filename.parent
-
-    mols = check_connectivity(
-        mols=mols,
-        metal="Li",
-        filename_failed=output_prefix.joinpath("failed_connectivity.pkl"),
-    )
-    mols = check_rdkit_sanitize(
-        mols=mols, filename_failed=output_prefix.joinpath("failed_rdkit_sanitize.pkl")
-    )
-    mols = check_bond_species(
-        mols=mols, filename_failed=output_prefix.joinpath("failed_bond_species.pkl")
-    )
-    mols = check_bond_length(
-        mols=mols, filename_failed=output_prefix.joinpath("failed_bond length.pkl")
-    )
-    mols = remove_mols_containing_species(
-        mols=mols,
-        species=["P"],
-        filename_failed=output_prefix.joinpath("failed_containing_species.pkl"),
-    )
-
-    print("Number of mols after check:", len(mols))
-
-    outname = output_prefix.joinpath(filename.stem + "_qc" + filename.suffix)
-    pickle_dump(mols, outname)
+    mol_coll.to_file(to_path(outname))
 
 
 if __name__ == "__main__":
 
-    # # pickle_db_entries()
-    # pickle_molecules(
-    #     outname="~/Applications/db_access/mol_builder/molecules.pkl", num_entries=None
-    # )
-    #
-    # check_all(filename="~/applications/db_access/mol_builder/molecules.pkl")
+    working_dir = to_path("~/Applications/db_access/mol_builder/")
 
-    get_single_atom_molecule_energy("~/applications/db_access/mol_builder/molecules.pkl")
+    # num_entries = 500
+    # filename = working_dir.joinpath("molecules_n200.pkl")
+    # # # num_entries = None
+    # # filename = working_dir.joinpath(molecules.pkl")
+    # pickle_molecules(num_entries=num_entries, outname=filename)
 
-    # print_mol_property()
+    filename = working_dir.joinpath("molecules_n200.pkl")
+    outname = working_dir.joinpath("molecules_n200_qc.pkl")
+    # filename = working_dir.joinpath("molecules.pkl")
+    # outname = working_dir.joinpath("molecules_qc.pkl")
+    check_all(filename, outname)
 
-    # plot_molecules(
-    # filename = "~/Applications/db_access/mol_builder/molecules_qc.pkl",
-    # plot_prefix = "~/Applications/db_access/mol_builder",
-    # )
+    # filename = working_dir.joinpath("molecules_qc.pkl")
+    # mol_coll = MoleculeCollection.from_file(filename)
+    # print(mol_coll.get_species())
 
-    # plot_atom_distance_hist()
+    # filename = working_dir.joinpath("molecules_qc.pkl")
+    # mol_coll = MoleculeCollection.from_file(filename)
+    # print(mol_coll.get_molecule_counts_by_charge())
 
-    # number_of_bonds()
-    # detect_bad_mols()
+    # filename = working_dir.joinpath("molecules_qc.pkl")
+    # mol_coll = MoleculeCollection.from_file(filename)
+    # mol_coll.print_single_atom_property()
 
-    # write_group_isomorphic_to_file()
+    # filename = working_dir.joinpath("molecules_qc.pkl")
+    # mol_coll = MoleculeCollection.from_file(filename)
+    # mol_coll.plot_molecules(prefix="~/Applications/db_mg")

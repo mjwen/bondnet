@@ -60,9 +60,12 @@ def check_exists(path, is_file=True):
             raise ValueError(f"File does not exist: {path}")
 
 
-def create_directory(path):
+def create_directory(path, path_is_directory=False):
     p = to_path(path)
-    dirname = p.parent
+    if not path_is_directory:
+        dirname = p.parent
+    else:
+        dirname = p
     if not dirname.exists():
         os.makedirs(dirname)
 
@@ -146,7 +149,7 @@ def load_checkpoints(state_dict_objects, map_location=None, filename="checkpoint
         state_dict_objects (dict): A dictionary of objects to save. The object should
             have state_dict() (e.g. model, optimizer, ...)
     """
-    checkpoints = torch.load(filename, map_location)
+    checkpoints = torch.load(str(filename), map_location)
     for k, obj in state_dict_objects.items():
         state_dict = checkpoints.pop(k)
         obj.load_state_dict(state_dict)

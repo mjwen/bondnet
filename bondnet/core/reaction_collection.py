@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class ReactionCollection:
     """
-    A set of Reactions, and operations on them.
+    A list of Reactions, and operations on them.
     """
 
     def __init__(self, reactions):

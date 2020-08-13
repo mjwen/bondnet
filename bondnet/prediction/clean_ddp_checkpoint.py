@@ -19,7 +19,7 @@ def clean(inname="checkpoint.pkl", outname="checkpoint_corrected.pkl"):
         outname (str): name of corrected checkpoint
     """
 
-    ckp = torch.load(inname, map_location=torch.device("cpu"))
+    ckp = torch.load(str(inname), map_location=torch.device("cpu"))
 
     new_ckp = {}
 

@@ -104,7 +104,7 @@ def _check_species(molecules, state_dict_filename):
 
     species = get_dataset_species(mols)
 
-    supported_species = torch.load(state_dict_filename)["species"]
+    supported_species = torch.load(str(state_dict_filename))["species"]
     not_supported = []
     for s in species:
         if s not in supported_species:
