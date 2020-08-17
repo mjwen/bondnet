@@ -609,9 +609,14 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
                     id=lb["id"],
                 )
                 reactions.append(rxn)
+                if "environment" in lb:
+                    environemnt = lb["environment"]
+                else:
+                    environemnt = None
                 label = {
                     "value": torch.tensor(lb["value"], dtype=getattr(torch, self.dtype)),
                     "id": lb["id"],
+                    "environment": environemnt,
                 }
                 self.labels.append(label)
 
