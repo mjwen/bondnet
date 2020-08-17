@@ -303,6 +303,34 @@ class MoleculeWrapper:
                 raise Exception("Mol not split into two parts")
             return mapping
 
+    def find_ring(self, by_species=False):
+        """
+        Find all rings in the molecule.
+
+        Args:
+            by_species (bool): If False, the rings will be denoted by atom indices. If
+                True, denoted by atom species.
+
+        Returns:
+            list of list: each inner list holds the atoms (index or specie) of a ring.
+        """
+        rings = self.mol_graph.find_rings()
+
+        rings_once_per_atom = []
+        for r in rings:
+            # the ring is given by the connectivity info. For example, for a 1-2-3 ring,
+            # r would be something like [(1,2), (2,3), (3,1)]
+            # here we remove the repeated atoms and let each atom appear only once
+            atoms = []
+            for i in r:
+                atoms.extend(i)
+            atoms = list(set(atoms))
+            if by_species:
+                atoms = [self.species[j] for j in atoms]
+            rings_once_per_atom.append(atoms)
+
+        return rings_once_per_atom
+
     def write(self, filename=None, name=None, format="sdf", kekulize=True, v3000=True):
         """Write a molecule to file or as string using rdkit.
 

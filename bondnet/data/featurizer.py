@@ -686,15 +686,20 @@ class AtomFeaturizerFull(BaseFeaturizer):
 
 class GlobalFeaturizer(BaseFeaturizer):
     """
-    Featurize the global state of a molecules using charge only.
+    Featurize the global state of a molecules using number of atoms, number of bonds,
+    molecular weight, and optionally charge and solvent environment.
+
 
     Args:
         allowed_charges (list, optional): charges allowed the the molecules to take.
+        solvent_environment (list, optional): solvent environment in which the
+        calculations for the molecule take place
     """
 
-    def __init__(self, allowed_charges=None, dtype="float32"):
+    def __init__(self, allowed_charges=None, solvent_environment=None, dtype="float32"):
         super(GlobalFeaturizer, self).__init__(dtype)
         self.allowed_charges = allowed_charges
+        self.solvent_environment = solvent_environment
 
     def __call__(self, mol, **kwargs):
 
@@ -705,7 +710,7 @@ class GlobalFeaturizer(BaseFeaturizer):
             sum([pt.GetAtomicWeight(a.GetAtomicNum()) for a in mol.GetAtoms()]),
         ]
 
-        if self.allowed_charges is not None:
+        if self.allowed_charges is not None or self.solvent_environment is not None:
             try:
                 feats_info = kwargs["extra_feats_info"]
             except KeyError as e:
@@ -714,7 +719,20 @@ class GlobalFeaturizer(BaseFeaturizer):
                         e, self.__class__.__name__
                     )
                 )
-            g += one_hot_encoding(feats_info["charge"], self.allowed_charges)
+
+            if self.allowed_charges is not None:
+                g += one_hot_encoding(feats_info["charge"], self.allowed_charges)
+
+            if self.solvent_environment is not None:
+                # if only two solvent_environment, we use 0/1 to denote the feature
+                if len(self.solvent_environment) == 2:
+                    ft = self.solvent_environment.index(feats_info["environment"])
+                    g += [ft]
+                # if more than two, we create a one-hot encoding
+                else:
+                    g += one_hot_encoding(
+                        feats_info["environment"], self.solvent_environment
+                    )
 
         feats = torch.tensor([g], dtype=getattr(torch, self.dtype))
 
@@ -722,6 +740,11 @@ class GlobalFeaturizer(BaseFeaturizer):
         self._feature_name = ["num atoms", "num bonds", "molecule weight"]
         if self.allowed_charges is not None:
             self._feature_name += ["charge one hot"] * len(self.allowed_charges)
+        if self.solvent_environment is not None:
+            if len(self.solvent_environment) == 2:
+                self._feature_name += ["solvent"]
+            else:
+                self._feature_name += ["solvent"] * len(self.solvent_environment)
 
         return {"feat": feats}
 

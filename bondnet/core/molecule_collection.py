@@ -69,6 +69,24 @@ class MoleculeCollection:
 
         return counts
 
+    def plot_molecule_counts_by_charge(
+        self, filename="molecule_counts_by_charge.pdf", **kwargs
+    ):
+        counts = self.get_molecule_counts_by_charge()
+        fig, ax = plt.subplots()
+        ax.grid(axis="y", zorder=1)
+
+        labels = sorted(counts.keys())
+        Y = [counts[k] for k in labels]
+        X = np.arange(len(Y))
+        ax.bar(X, Y, tick_label=labels, zorder=2, **kwargs)
+
+        ax.set_title("Molecule counts by charge")
+        ax.set_xlabel("Charge")
+        ax.set_ylabel("Counts")
+
+        fig.savefig(filename, bbox_inches="tight")
+
     def plot_molecules(self, prefix=Path.cwd()):
         """
         Plot molecules to .png and write .sdf and .pdb files.

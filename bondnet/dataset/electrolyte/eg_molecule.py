@@ -63,30 +63,37 @@ if __name__ == "__main__":
 
     working_dir = to_path("~/Applications/db_access/mol_builder/")
 
-    # num_entries = 500
-    # filename = working_dir.joinpath("molecules_n200.pkl")
-    # # # num_entries = None
-    # # filename = working_dir.joinpath(molecules.pkl")
-    # pickle_molecules(num_entries=num_entries, outname=filename)
+    num_entries = 500
+    filename = working_dir.joinpath("molecules_n200.pkl")
+    # num_entries = None
+    # filename = working_dir.joinpath("molecules.pkl")
+    pickle_molecules(num_entries=num_entries, outname=filename)
 
+    #
+    # clean molecules
+    #
     filename = working_dir.joinpath("molecules_n200.pkl")
     outname = working_dir.joinpath("molecules_n200_qc.pkl")
     # filename = working_dir.joinpath("molecules.pkl")
     # outname = working_dir.joinpath("molecules_qc.pkl")
     check_all(filename, outname)
 
+    #
+    # load molecule collection
+    #
+    # filename = working_dir.joinpath("molecules_n200_qc.pkl")
     # filename = working_dir.joinpath("molecules_qc.pkl")
     # mol_coll = MoleculeCollection.from_file(filename)
+
+    #
+    # operations
+    #
     # print(mol_coll.get_species())
 
-    # filename = working_dir.joinpath("molecules_qc.pkl")
-    # mol_coll = MoleculeCollection.from_file(filename)
     # print(mol_coll.get_molecule_counts_by_charge())
 
-    # filename = working_dir.joinpath("molecules_qc.pkl")
-    # mol_coll = MoleculeCollection.from_file(filename)
     # mol_coll.print_single_atom_property()
 
-    # filename = working_dir.joinpath("molecules_qc.pkl")
     # mol_coll = MoleculeCollection.from_file(filename)
+
     # mol_coll.plot_molecules(prefix="~/Applications/db_mg")

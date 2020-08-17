@@ -23,6 +23,9 @@ def predict_single_molecule(
     """
     Make predictions for a single molecule.
 
+    Breaking a bond may result in products with different combination of products
+    charge, we report the smallest charge w.r.t. the product charge assignation.
+
     Args:
         model (str): The pre-trained model to use for making predictions. A model should
             be of the format format `dataset/date`, e.g. `mesd/20200808`,

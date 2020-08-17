@@ -2,8 +2,9 @@ import itertools
 import logging
 import multiprocessing
 import numpy as np
+from matplotlib import pyplot as plt
 from collections import defaultdict, OrderedDict
-from bondnet.core.reaction import Reaction, ReactionsMultiplePerBond, ReactionsOnePerBond
+from bondnet.core.reaction import ReactionsMultiplePerBond, ReactionsOnePerBond
 from bondnet.utils import create_directory, pickle_load, yaml_dump, to_path
 
 logger = logging.getLogger(__name__)
@@ -29,29 +30,342 @@ class ReactionCollection:
         )
         return cls(d["reactions"])
 
-    def filter_reactions_by_bond_type(self, bond_type):
+    def get_counts_by_broken_bond_type(self):
         """
-        Filter the reactions by the type of the breaking bond, and only reactions with the
-        specified bond_type will be retained.
+        Count the reactions by broken bond type (species of atoms forming the bond).
+
+        Returns:
+            dict: {(spec1, spec2): counts} where (spec1, spec2) denotes the type of the
+                bond and counts is its number if the collection.
+        """
+        counts = defaultdict(int)
+        for rxn in self.reactions:
+            bond_type = tuple(sorted(rxn.get_broken_bond_attr()["species"]))
+            counts[bond_type] += 1
+        return counts
+
+    def get_counts_by_reactant_charge(self):
+        """
+        Count the reactions by the reactant charge.
+
+        Returns:
+            dict: {charge: counts} both charge and counts are integers.
+        """
+        counts = defaultdict(int)
+        for rxn in self.reactions:
+            charge = rxn.reactants[0].charge
+            counts[charge] += 1
+        return counts
+
+    def get_counts_by_reaction_charge(self):
+        """
+        Count the reactions by the charge of the reactant and the products.
+
+        Reaction charge means the charges of all the reactants and the products.
+
+        Returns:
+            list of dict: each dict gives the counts of specific combination of
+            reactants charge and products charge: { "reactants_charge": [],
+            "products_charge":[], "counts": counts}
+        """
+        counts = defaultdict(int)
+        for rxn in self.reactions:
+            rcts_charge = tuple(sorted([m.charge for m in rxn.reactants]))
+            prdts_charge = tuple(sorted([m.charge for m in rxn.products]))
+            charges = (rcts_charge, prdts_charge)
+            counts[charges] += 1
+
+        counts_list = []
+        for (rcts_charge, prdts_charge), cts in counts.items():
+            counts_list.append(
+                {
+                    "reactants_charge": rcts_charge,
+                    "products_charge": prdts_charge,
+                    "counts": cts,
+                }
+            )
+
+        return counts_list
+
+    def filter_by_bond_type(self, bond_type):
+        """
+        Filter the reactions by the type (species of the atoms forming the bond) of the
+        breaking bond.
 
         Args:
-            bond_type (tuple of string): species of the two atoms the bond connecting to
+            bond_type (tuple of string): species of the two atoms forming the bond
         """
-        reactions = []
+        new_rxns = []
         for rxn in self.reactions:
             attr = rxn.get_broken_bond_attr()
             species = attr["species"]
             if set(species) == set(bond_type):
-                reactions.append(rxn)
+                new_rxns.append(rxn)
+        self.reactions = new_rxns
 
-        self.reactions = reactions
+    def filter_by_reactant_charge(self, charge):
+        """
+        Filter reactions by charge of reactant.
+
+        Args:
+            charge (int): charge of reactant
+        """
+        new_rxns = []
+        for rxn in self.reactions:
+            if rxn.reactants[0].charge == charge:
+                new_rxns.append(rxn)
+        self.reactions = new_rxns
+
+    def filter_by_reactant_and_product_charge(self, reactants_charge, products_charge):
+        """
+        Filter reactions by the charge of the reactants and the products.
+
+        For the retained reactions, the number of reactants equals to the length of
+        `reactants_charge` and similarly the number of products equals to the
+        length of `products_charge`.
+
+        Args:
+            reactants_charge (list of int): charge of reactants
+            products_charge (list of int): charge of products
+        """
+        n_rct = len(reactants_charge)
+        n_prdt = len(products_charge)
+        charge_rct = set(reactants_charge)
+        charge_prdt = set(products_charge)
+
+        new_rxns = []
+        for rxn in self.reactions:
+            if (
+                len(rxn.reactants) == n_rct
+                and len(rxn.products) == n_prdt
+                and set([m.charge for m in rxn.reactants]) == charge_rct
+                and set([m.charge for m in rxn.products]) == charge_prdt
+            ):
+                new_rxns.append(rxn)
+
+        self.reactions = new_rxns
+
+    def plot_heatmap_of_counts_by_broken_bond_type(
+        self, filename="heatmap_bond_type.pdf", title=None, **kwargs
+    ):
+        """
+        Plot a heatmap of the counts of reactions by broken type (species of the two
+        atoms forming the bond).
+
+        Args:
+            filename (Path): path of the to-be-generated plot.
+            title (str): title for the plot.
+            kwargs: keyword arguments for matplotlib.imshow()
+        """
+
+        def plot_heatmap(matrix, labels):
+            fig, ax = plt.subplots()
+            im = ax.imshow(matrix, vmin=np.min(matrix), vmax=np.max(matrix), **kwargs)
+            plt.colorbar(im)
+
+            # We want to show all ticks...
+            ax.set_xticks(np.arange(len(labels)), minor=False)
+            ax.set_yticks(np.arange(len(labels)), minor=False)
+
+            # label them with the respective list entries
+            ax.set_xticklabels(labels, minor=False)
+            ax.set_yticklabels(labels, minor=False)
+            ax.set_xlim(-0.5, len(labels) - 0.5)
+            ax.set_ylim(len(labels) - 0.5, -0.5)
+
+            if title is not None:
+                ax.set_title(title)
+
+            fig.savefig(to_path(filename), bbox_inches="tight")
+
+        def prepare_data(counts_by_bond_type):
+            species = set()
+            for bond_type in counts_by_bond_type:
+                species.update(bond_type)
+            species = sorted(species)
+            data = np.zeros((len(species), len(species))).astype(np.int32)
+            for s1, s2 in itertools.combinations_with_replacement(species, 2):
+                idx1 = species.index(s1)
+                idx2 = species.index(s2)
+                key = tuple(sorted([s1, s2]))
+                data[idx1, idx2] = data[idx2, idx1] = counts_by_bond_type[key]
+            return data, species
+
+        counts = self.get_counts_by_broken_bond_type()
+        data, species = prepare_data(counts)
+        plot_heatmap(data, species)
+
+    def plot_bar_of_counts_by_reactant_charge(
+        self, filename="barplot_counts_by_reactant_charge.pdf", title=None, **kwargs
+    ):
+        """
+        Create a bar plot for the counts of reactions by reactant charge.
+
+        Args:
+            filename (Path): path of the to-be-generated plot.
+            title (str): title for the plot.
+            kwargs: keyword arguments for matplotlib.bar()
+        """
+
+        def plot_bar(counts, labels):
+            fig, ax = plt.subplots()
+            ax.grid(axis="y", zorder=1)
+
+            X = np.arange(len(counts))
+            ax.bar(X, counts, tick_label=labels, zorder=2, **kwargs)
+
+            ax.set_xlabel("Reactant charge")
+            ax.set_ylabel("Counts")
+
+            if title is not None:
+                ax.set_title(title)
+
+            fig.savefig(filename, bbox_inches="tight")
+
+        counts_dict = self.get_counts_by_reactant_charge()
+        labels = sorted(counts_dict.keys())
+        counts = [counts_dict[k] for k in labels]
+
+        plot_bar(counts, labels)
+
+    def plot_bar_of_counts_by_reaction_charge(
+        self, filename="barplot_counts_by_reaction_charge.pdf", title=None, **kwargs
+    ):
+        """
+        Create a bar plot for the counts of reactions by reaction charge.
+
+        Reaction charge means the charges of all the reactants and the products.
+
+        Args:
+            filename (Path): path of the to-be-generated plot.
+            title (str): title for the plot.
+            kwargs: keyword arguments for matplotlib.bar()
+        """
+
+        def plot_bar(counts, labels):
+            fig, ax = plt.subplots()
+            ax.grid(axis="y", zorder=1)
+
+            X = np.arange(len(counts))
+            ax.bar(X, counts, tick_label=labels, zorder=2, **kwargs)
+
+            ax.set_xticklabels(labels, rotation=45, ha="right")
+
+            ax.set_xlabel("[(reactants charge), (products charge)]")
+            ax.set_ylabel("Counts")
+
+            if title is not None:
+                ax.set_title(title)
+
+            fig.savefig(filename, bbox_inches="tight")
+
+        counts_dict = self.get_counts_by_reaction_charge()
+        # group by number of products
+        one_product = []
+        two_products = []
+        others = []
+        for d in counts_dict:
+            if len(d["products_charge"]) == 1:
+                one_product.append(d)
+            elif len(d["products_charge"]) == 2:
+                two_products.append(d)
+            else:
+                others.append(d)
+        # sort by reactant charge, assuming only one reactant
+        one_product = sorted(one_product, key=lambda d: d["reactants_charge"][0])
+        two_products = sorted(two_products, key=lambda d: d["reactants_charge"][0])
+        others = sorted(others, key=lambda d: d["reactants_charge"][0])
+
+        # get labels and counts
+        labels = []
+        counts = []
+        for d in one_product:
+            labels.append(str([d["reactants_charge"], d["products_charge"]]))
+            counts.append(d["counts"])
+        for d in two_products:
+            labels.append(str([d["reactants_charge"], d["products_charge"]]))
+            counts.append(d["counts"])
+        for d in others:
+            labels.append(str([d["reactants_charge"], d["products_charge"]]))
+            counts.append(d["counts"])
+
+        plot_bar(counts, labels)
+
+    def plot_histogram_of_reaction_energy(
+        self, filename="histogram_reaction_energy.pdf", title=None, **kwargs
+    ):
+        """
+        Plot histogram of the reaction energy.
+
+        Note, this will use all reactions in the reaction collection. If you want to
+        plot for a specific bond type or charge, filter the reaction first.
+
+        Args:
+            filename (Path): path of the to-be-generated plot.
+            title (str): title for the plot.
+            kwargs: keyword arguments for matplotlib.hist()
+        """
+
+        def plot_hist(data, xmin, xmax):
+            fig, ax = plt.subplots()
+            ax.hist(data, 20, range=(xmin, xmax), **kwargs)
+
+            ax.set_xlim(xmin, xmax)
+            ax.set_xlabel("Energy")
+            ax.set_ylabel("Counts")
+
+            if title is not None:
+                ax.set_title(title)
+
+            fig.savefig(to_path(filename), bbox_inches="tight")
+
+        energies = []
+        for rxn in self.reactions:
+            energies.append(rxn.get_free_energy())
+        xmin = min(energies) - 0.5
+        xmax = max(energies) + 0.5
+
+        plot_hist(energies, xmin, xmax)
+
+    def plot_histogram_of_broken_bond_length(
+        self, filename="histogram_broken_bond_length.pdf", title=None, **kwargs
+    ):
+        """
+        Plot histogram of the length of the broken bond.
+
+        Args:
+            filename (Path): path of the to-be-generated plot.
+            title (str): title for the plot.
+            kwargs: keyword arguments for matplotlib.hist()
+        """
+
+        def plot_hist(data):
+            fig, ax = plt.subplots()
+            ax.hist(data, 20, **kwargs)
+
+            ax.set_xlabel("Bond length")
+            ax.set_ylabel("Counts")
+
+            if title is not None:
+                ax.set_title(title)
+
+            fig.savefig(to_path(filename), bbox_inches="tight")
+
+        bond_lengths = []
+        for rxn in self.reactions:
+            coords = rxn.reactants[0].coords
+            u, v = rxn.get_broken_bond()
+            d = np.linalg.norm(coords[u] - coords[v])
+            bond_lengths.append(d)
+
+        plot_hist(bond_lengths)
 
     def group_by_reactant(self):
         """
         Group reactions that have the same reactant together.
 
         Returns:
-            dict: with reactant as the key and list of :class:`Reaction` as the value
+            dict: with reactant as the key and list of reactions as the value
         """
         grouped_reactions = defaultdict(list)
         for rxn in self.reactions:
@@ -193,6 +507,36 @@ class ReactionCollection:
                 )
                 result[(rsr1.reactant.charge, rsr2.reactant.charge)].extend(res)
         return result
+
+    def calculate_broken_bond_fraction(self):
+        """
+        For each unique reactant, calculate the fraction of bonds that are broken with
+        respect to all the bonds.
+
+        Note, this requires that, when extracting the reactions, all the reactions
+        of a reactant (ignoring symmetry) are extracted, i.e. set `find_one` to False
+        in :method:`ReactionExtractorFromMolSet.extract_one_bond_break`.
+
+        Returns:
+
+
+        """
+        groups = self.group_by_reactant()
+
+        num_bonds = []
+        frac = []
+        for reactant, rxns in groups.items():
+            rmb = ReactionsMultiplePerBond(reactant, rxns)
+            rsbs = rmb.group_by_bond()
+            tot = len(rsbs)
+            bond_has_rxn = [True if len(x.reactions) > 0 else False for x in rsbs]
+            num_bonds.append(tot)
+            frac.append(sum(bond_has_rxn) / tot)
+
+        print("### number of bonds in dataset (mean):", np.mean(num_bonds))
+        print("### number of bonds in dataset (median):", np.median(num_bonds))
+        print("### broken bond ratio in dataset (mean):", np.mean(frac))
+        print("### broken bond ratio in dataset (median):", np.median(frac))
 
     def write_bond_energies(self, filename):
         """
