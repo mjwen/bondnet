@@ -782,6 +782,7 @@ class ReactionCollection:
                 "bond_mapping": mps[1],
                 "id": rxn.get_id(),
                 "index": i,
+                "environment": rxn.reactants[0].environment,
             }
             labels.append(data)
 
