@@ -11,14 +11,11 @@ from torch.nn import MSELoss
 import torch.distributed as dist
 import torch.multiprocessing as mp
 from torch.nn.parallel import DistributedDataParallel as DDP
-from bondnet.training_script.metric import WeightedL1Loss, EarlyStopping
-from bondnet.model.gated_reaction_network import GatedGCNReactionNetwork
-from bondnet.data.dataset import (
-    train_validation_test_split,
-    train_validation_test_split_selected_bond_in_train,
-)
-from bondnet.data.electrolyte import ElectrolyteReactionNetworkDataset
-from bondnet.data.dataloader import DataLoaderReactionNetwork
+from bondnet.scripts.metric import WeightedL1Loss, EarlyStopping
+from bondnet.model.gated_bond import GatedGCNBond
+from bondnet.data.dataset import train_validation_test_split
+from bondnet.data.electrolyte import ElectrolyteBondDataset
+from bondnet.data.dataloader import DataLoaderBond
 from bondnet.data.grapher import HeteroMoleculeGraph
 from bondnet.data.featurizer import (
     AtomFeaturizerFull,
@@ -37,7 +34,7 @@ best = np.finfo(np.float32).max
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="GatedReactionNetwork")
+    parser = argparse.ArgumentParser(description="GatedBond")
 
     # embedding layer
     parser.add_argument("--embedding-size", type=int, default=24)
@@ -53,18 +50,7 @@ def parse_args():
     parser.add_argument("--gated-dropout", type=float, default="0.0")
 
     # readout layer
-    parser.add_argument(
-        "--num-lstm-iters",
-        type=int,
-        default=6,
-        help="number of iterations for the LSTM in set2set readout layer",
-    )
-    parser.add_argument(
-        "--num-lstm-layers",
-        type=int,
-        default=3,
-        help="number of layers for the LSTM in set2set readout layer",
-    )
+    parser.add_argument("--readout-type", type=str, default="bond")
 
     # fc layer
     parser.add_argument("--fc-num-layers", type=int, default=2)
@@ -139,7 +125,7 @@ def parse_args():
 
     if len(args.fc_hidden_size) == 1:
         # val = args.fc_hidden_size[0]
-        val = 2 * args.gated_hidden_size[-1]
+        val = args.gated_hidden_size[-1]
         args.fc_hidden_size = [max(val // 2 ** i, 8) for i in range(args.fc_num_layers)]
     else:
         assert len(args.fc_hidden_size) == args.fc_num_layers, (
@@ -165,19 +151,27 @@ def train(optimizer, model, nodes, data_loader, loss_fn, metric_fn, device=None)
     for it, (bg, label) in enumerate(data_loader):
         feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
         target = label["value"]
-        norm_atom = label["norm_atom"]
-        norm_bond = label["norm_bond"]
-        stdev = label["scaler_stdev"]
+        index = label["index"]
+        # norm_atom = label["norm_atom"]
+        # norm_bond = label["norm_bond"]
+        norm_atom = None
+        norm_bond = None
+        try:
+            stdev = label["scaler_stdev"]
+        except KeyError:
+            stdev = None
 
         if device is not None:
             feats = {k: v.to(device) for k, v in feats.items()}
             target = target.to(device)
-            norm_atom = norm_atom.to(device)
-            norm_bond = norm_bond.to(device)
-            stdev = stdev.to(device)
+            index = index.to(device)
+            # norm_atom = norm_atom.to(device)
+            # norm_bond = norm_bond.to(device)
+            if stdev is not None:
+                stdev = stdev.to(device)
 
-        pred = model(bg, feats, label["reaction"], norm_atom, norm_bond)
-        pred = pred.view(-1)
+        pred = model(bg, feats, norm_atom, norm_bond)
+        pred = pred[index]
 
         loss = loss_fn(pred, target)
         optimizer.zero_grad()
@@ -210,19 +204,27 @@ def evaluate(model, nodes, data_loader, metric_fn, device=None):
         for it, (bg, label) in enumerate(data_loader):
             feats = {nt: bg.nodes[nt].data["feat"] for nt in nodes}
             target = label["value"]
-            norm_atom = label["norm_atom"]
-            norm_bond = label["norm_bond"]
-            stdev = label["scaler_stdev"]
+            index = label["index"]
+            # norm_atom = label["norm_atom"]
+            # norm_bond = label["norm_bond"]
+            norm_atom = None
+            norm_bond = None
+            try:
+                stdev = label["scaler_stdev"]
+            except KeyError:
+                stdev = None
 
             if device is not None:
                 feats = {k: v.to(device) for k, v in feats.items()}
                 target = target.to(device)
-                norm_atom = norm_atom.to(device)
-                norm_bond = norm_bond.to(device)
-                stdev = stdev.to(device)
+                index = index.to(device)
+                # norm_atom = norm_atom.to(device)
+                # norm_bond = norm_bond.to(device)
+                if stdev is not None:
+                    stdev = stdev.to(device)
 
-            pred = model(bg, feats, label["reaction"], norm_atom, norm_bond)
-            pred = pred.view(-1)
+            pred = model(bg, feats, norm_atom, norm_bond)
+            pred = pred[index]
 
             accuracy += metric_fn(pred, target, stdev).detach().item()
             count += len(target)
@@ -268,19 +270,12 @@ def main_worker(gpu, world_size, args):
     seed_torch()
 
     ### dataset
-    sdf_file = "~/Applications/db_access/mol_builder/struct_rxn_ntwk_rgrn_n200.sdf"
-    label_file = "~/Applications/db_access/mol_builder/label_rxn_ntwk_rgrn_n200.yaml"
-    feature_file = "~/Applications/db_access/mol_builder/feature_rxn_ntwk_rgrn_n200.yaml"
-    # sdf_file = "~/Applications/db_access/zinc_bde/zinc_struct_rxn_ntwk_rgrn_n200.sdf"
-    # label_file = "~/Applications/db_access/zinc_bde/zinc_label_rxn_ntwk_rgrn_n200.yaml"
-    # feature_file = (
-    #    "~/Applications/db_access/zinc_bde/zinc_feature_rxn_ntwk_rgrn_n200.yaml"
-    # )
-    # sdf_file = "~/Applications/db_access/nrel_bde/nrel_struct_rxn_ntwk_rgrn_n200.sdf"
-    # label_file = "~/Applications/db_access/nrel_bde/nrel_label_rxn_ntwk_rgrn_n200.yaml"
-    # feature_file = (
-    #     "~/Applications/db_access/nrel_bde/nrel_feature_rxn_ntwk_rgrn_n200.yaml"
-    # )
+    sdf_file = "~/Applications/db_access/mol_builder/struct_n200.sdf"
+    label_file = "~/Applications/db_access/mol_builder/label_n200.yaml"
+    feature_file = "~/Applications/db_access/mol_builder/feature_n200.yaml"
+    # sdf_file = "~/Applications/db_access/zinc_bde/zinc_struct_bond_rgrn_n200.sdf"
+    # label_file = "~/Applications/db_access/zinc_bde/zinc_label_bond_rgrn_n200.txt"
+    # feature_file = "~/Applications/db_access/zinc_bde/zinc_feature_bond_rgrn_n200.yaml"
 
     if args.restore:
         dataset_state_dict_filename = args.dataset_state_dict_filename
@@ -296,7 +291,7 @@ def main_worker(gpu, world_size, args):
     else:
         dataset_state_dict_filename = None
 
-    dataset = ElectrolyteReactionNetworkDataset(
+    dataset = ElectrolyteBondDataset(
         grapher=get_grapher(),
         molecules=sdf_file,
         labels=label_file,
@@ -306,14 +301,8 @@ def main_worker(gpu, world_size, args):
         state_dict_filename=dataset_state_dict_filename,
     )
 
-    # trainset, valset, testset = train_validation_test_split(
-    #     dataset, validation=0.1, test=0.1
-    # )
-    trainset, valset, testset = train_validation_test_split_selected_bond_in_train(
-        dataset,
-        validation=0.1,
-        test=0.1,
-        selected_bond_type=(("H", "H"), ("H", "F"), ("F", "F")),
+    trainset, valset, testset = train_validation_test_split(
+        dataset, validation=0.1, test=0.1
     )
 
     if not args.distributed or (args.distributed and args.gpu == 0):
@@ -329,7 +318,7 @@ def main_worker(gpu, world_size, args):
     else:
         train_sampler = None
 
-    train_loader = DataLoaderReactionNetwork(
+    train_loader = DataLoaderBond(
         trainset,
         batch_size=args.batch_size,
         shuffle=(train_sampler is None),
@@ -338,9 +327,9 @@ def main_worker(gpu, world_size, args):
     # larger val and test set batch_size is faster but needs more memory
     # adjust the batch size of to fit memory
     bs = max(len(valset) // 10, 1)
-    val_loader = DataLoaderReactionNetwork(valset, batch_size=bs, shuffle=False)
+    val_loader = DataLoaderBond(valset, batch_size=bs, shuffle=False)
     bs = max(len(testset) // 10, 1)
-    test_loader = DataLoaderReactionNetwork(testset, batch_size=bs, shuffle=False)
+    test_loader = DataLoaderBond(testset, batch_size=bs, shuffle=False)
 
     ### model
 
@@ -359,7 +348,7 @@ def main_worker(gpu, world_size, args):
     if not args.distributed or (args.distributed and args.gpu == 0):
         yaml_dump(args, "train_args.yaml")
 
-    model = GatedGCNReactionNetwork(
+    model = GatedGCNBond(
         in_feats=args.feature_size,
         embedding_size=args.embedding_size,
         gated_num_layers=args.gated_num_layers,
@@ -370,16 +359,13 @@ def main_worker(gpu, world_size, args):
         gated_activation=args.gated_activation,
         gated_residual=args.gated_residual,
         gated_dropout=args.gated_dropout,
-        num_lstm_iters=args.num_lstm_iters,
-        num_lstm_layers=args.num_lstm_layers,
-        set2set_ntypes_direct=args.set2set_ntypes_direct,
+        readout_type=args.readout_type,
         fc_num_layers=args.fc_num_layers,
         fc_hidden_size=args.fc_hidden_size,
         fc_batch_norm=args.fc_batch_norm,
         fc_activation=args.fc_activation,
         fc_dropout=args.fc_dropout,
         outdim=1,
-        conv="GatedGCNConv",
     )
 
     if not args.distributed or (args.distributed and args.gpu == 0):
@@ -388,7 +374,7 @@ def main_worker(gpu, world_size, args):
     if args.gpu is not None:
         model.to(args.gpu)
     if args.distributed:
-        ddp_model = DDP(model, device_ids=[args.gpu])
+        ddp_model = DDP(model, device_ids=[args.gpu], find_unused_parameters=False)
         ddp_model.feature_before_fc = model.feature_before_fc
         model = ddp_model
 
