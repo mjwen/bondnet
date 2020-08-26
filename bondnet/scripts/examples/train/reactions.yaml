@@ -1,0 +1,1395 @@
+- energy: 2.5077022141203997
+  index: 0
+  products:
+  - 186
+  - 38
+  reactants:
+  - 45
+- energy: 1.4046117726515455
+  index: 1
+  products:
+  - 451
+  - 6
+  reactants:
+  - 270
+- energy: -1.8938060385917197
+  index: 2
+  products:
+  - 428
+  reactants:
+  - 427
+- energy: 7.325184801534533
+  index: 3
+  products:
+  - 260
+  - 147
+  reactants:
+  - 64
+- energy: 5.454827141832434
+  index: 4
+  products:
+  - 291
+  - 7
+  reactants:
+  - 416
+- energy: 0.49834859494512784
+  index: 5
+  products:
+  - 1
+  - 418
+  reactants:
+  - 170
+- energy: 0.8502820511121172
+  index: 6
+  products:
+  - 73
+  - 379
+  reactants:
+  - 345
+- energy: 0.9211313727554487
+  index: 7
+  products:
+  - 35
+  - 7
+  reactants:
+  - 355
+- energy: 4.042815781927342
+  index: 8
+  products:
+  - 357
+  - 6
+  reactants:
+  - 49
+- energy: 1.3138752593986283
+  index: 9
+  products:
+  - 426
+  - 198
+  reactants:
+  - 89
+- energy: 9.123181581532258
+  index: 10
+  products:
+  - 219
+  - 8
+  reactants:
+  - 183
+- energy: 2.4441720325285132
+  index: 11
+  products:
+  - 264
+  - 51
+  reactants:
+  - 5
+- energy: 3.8698981456482215
+  index: 12
+  products:
+  - 84
+  - 38
+  reactants:
+  - 120
+- energy: 3.4885399422113412
+  index: 13
+  products:
+  - 394
+  - 7
+  reactants:
+  - 152
+- energy: 0.0926886035102914
+  index: 14
+  products:
+  - 167
+  - 7
+  reactants:
+  - 21
+- energy: 2.7598490713698993
+  index: 15
+  products:
+  - 150
+  - 266
+  reactants:
+  - 334
+- energy: 6.620392215627866
+  index: 16
+  products:
+  - 173
+  - 8
+  reactants:
+  - 319
+- energy: 4.022976438417967
+  index: 17
+  products:
+  - 376
+  - 6
+  reactants:
+  - 447
+- energy: 8.255577119648073
+  index: 18
+  products:
+  - 101
+  - 8
+  reactants:
+  - 369
+- energy: 13.634074702656562
+  index: 19
+  products:
+  - 226
+  - 39
+  reactants:
+  - 271
+- energy: 0.8487066394009162
+  index: 20
+  products:
+  - 393
+  - 409
+  reactants:
+  - 185
+- energy: -0.07061126803143125
+  index: 21
+  products:
+  - 195
+  - 6
+  reactants:
+  - 175
+- energy: 3.6925998958445234
+  index: 22
+  products:
+  - 149
+  - 225
+  reactants:
+  - 232
+- energy: -1.7845035588579776
+  index: 23
+  products:
+  - 256
+  - 339
+  reactants:
+  - 4
+- energy: 0.008341890251813311
+  index: 24
+  products:
+  - 62
+  - 164
+  reactants:
+  - 284
+- energy: 4.611859931304025
+  index: 25
+  products:
+  - 211
+  - 326
+  reactants:
+  - 383
+- energy: -1.7410314739195805
+  index: 26
+  products:
+  - 400
+  - 6
+  reactants:
+  - 344
+- energy: 1.829232254833082
+  index: 27
+  products:
+  - 95
+  - 7
+  reactants:
+  - 206
+- energy: 0.27497492078327923
+  index: 28
+  products:
+  - 257
+  - 189
+  reactants:
+  - 320
+- energy: 3.559130191616017
+  index: 29
+  products:
+  - 300
+  - 6
+  reactants:
+  - 161
+- energy: 0.7493214520927722
+  index: 30
+  products:
+  - 324
+  - 2
+  reactants:
+  - 413
+- energy: 3.1225157125822385
+  index: 31
+  products:
+  - 127
+  - 6
+  reactants:
+  - 59
+- energy: 5.032716448554311
+  index: 32
+  products:
+  - 263
+  - 342
+  reactants:
+  - 200
+- energy: 7.250903774645443
+  index: 33
+  products:
+  - 262
+  - 8
+  reactants:
+  - 56
+- energy: 2.7706901442251226
+  index: 34
+  products:
+  - 37
+  - 7
+  reactants:
+  - 356
+- energy: 6.041961341919887
+  index: 35
+  products:
+  - 147
+  - 208
+  reactants:
+  - 42
+- energy: 9.36046808321094
+  index: 36
+  products:
+  - 79
+  - 8
+  reactants:
+  - 444
+- energy: -1.8475192298938055
+  index: 37
+  products:
+  - 256
+  - 438
+  reactants:
+  - 145
+- energy: 2.0449767993244983
+  index: 38
+  products:
+  - 407
+  - 6
+  reactants:
+  - 130
+- energy: 4.0329827056089504
+  index: 39
+  products:
+  - 49
+  - 8
+  reactants:
+  - 236
+- energy: 4.028761871129518
+  index: 40
+  products:
+  - 163
+  - 307
+  reactants:
+  - 188
+- energy: 0.8774969968399091
+  index: 41
+  products:
+  - 331
+  - 72
+  reactants:
+  - 85
+- energy: -1.2539068888572729
+  index: 42
+  products:
+  - 224
+  - 322
+  reactants:
+  - 168
+- energy: 0.9213369313497424
+  index: 43
+  products:
+  - 261
+  - 163
+  reactants:
+  - 107
+- energy: 1.939084556475791
+  index: 44
+  products:
+  - 2
+  - 378
+  reactants:
+  - 258
+- energy: 2.2379641384068236
+  index: 45
+  products:
+  - 416
+  - 197
+  reactants:
+  - 381
+- energy: 7.430480187562807
+  index: 46
+  products:
+  - 68
+  - 163
+  reactants:
+  - 87
+- energy: 2.208529591367551
+  index: 47
+  products:
+  - 279
+  - 102
+  reactants:
+  - 430
+- energy: 0.45749668519420084
+  index: 48
+  products:
+  - 446
+  - 313
+  reactants:
+  - 105
+- energy: 4.7762801940671125
+  index: 49
+  products:
+  - 227
+  - 342
+  reactants:
+  - 17
+- energy: 0.27944366442170576
+  index: 50
+  products:
+  - 134
+  reactants:
+  - 133
+- energy: 1.3149933350209118
+  index: 51
+  products:
+  - 278
+  - 6
+  reactants:
+  - 337
+- energy: 18.0387573920259
+  index: 52
+  products:
+  - 383
+  - 310
+  reactants:
+  - 156
+- energy: -0.9510417219444207
+  index: 53
+  products:
+  - 146
+  - 91
+  reactants:
+  - 212
+- energy: 4.976738910776476
+  index: 54
+  products:
+  - 328
+  - 297
+  reactants:
+  - 48
+- energy: 11.345297379461044
+  index: 55
+  products:
+  - 231
+  - 106
+  reactants:
+  - 60
+- energy: 3.7219452935313573
+  index: 56
+  products:
+  - 158
+  - 7
+  reactants:
+  - 296
+- energy: 7.834088455418672
+  index: 57
+  products:
+  - 366
+  - 8
+  reactants:
+  - 93
+- energy: 8.978542764552913
+  index: 58
+  products:
+  - 445
+  - 309
+  reactants:
+  - 359
+- energy: 0.3829669419719721
+  index: 59
+  products:
+  - 2
+  - 250
+  reactants:
+  - 323
+- energy: 10.135140881828697
+  index: 60
+  products:
+  - 367
+  - 8
+  reactants:
+  - 382
+- energy: 6.398676317763602
+  index: 61
+  products:
+  - 92
+  - 309
+  reactants:
+  - 449
+- energy: 10.466217365914872
+  index: 62
+  products:
+  - 117
+  - 77
+  reactants:
+  - 363
+- energy: 1.22504965421777
+  index: 63
+  products:
+  - 108
+  - 100
+  reactants:
+  - 88
+- energy: 1.9544386519809311
+  index: 64
+  products:
+  - 422
+  - 7
+  reactants:
+  - 178
+- energy: 2.661429543397645
+  index: 65
+  products:
+  - 311
+  - 99
+  reactants:
+  - 405
+- energy: 0.6680406574136519
+  index: 66
+  products:
+  - 76
+  - 6
+  reactants:
+  - 131
+- energy: 3.32172599365731
+  index: 67
+  products:
+  - 242
+  - 114
+  reactants:
+  - 439
+- energy: 0.8630593428679276
+  index: 68
+  products:
+  - 256
+  - 29
+  reactants:
+  - 412
+- energy: 6.710783270010828
+  index: 69
+  products:
+  - 237
+  - 8
+  reactants:
+  - 217
+- energy: 3.378057340482778
+  index: 70
+  products:
+  - 213
+  - 7
+  reactants:
+  - 13
+- energy: 13.6101173282309
+  index: 71
+  products:
+  - 190
+  - 39
+  reactants:
+  - 82
+- energy: 3.552723225526174
+  index: 72
+  products:
+  - 390
+  - 7
+  reactants:
+  - 380
+- energy: 2.0215766647501674
+  index: 73
+  products:
+  - 81
+  - 6
+  reactants:
+  - 360
+- energy: 1.04528465059812
+  index: 74
+  products:
+  - 135
+  - 100
+  reactants:
+  - 340
+- energy: 8.872010171179276
+  index: 75
+  products:
+  - 41
+  - 8
+  reactants:
+  - 332
+- energy: 2.677670336197025
+  index: 76
+  products:
+  - 396
+  - 377
+  reactants:
+  - 384
+- energy: 3.021086214030115
+  index: 77
+  products:
+  - 137
+  - 7
+  reactants:
+  - 28
+- energy: 0.32154331855599594
+  index: 78
+  products:
+  - 257
+  - 419
+  reactants:
+  - 112
+- energy: 3.356948108155743
+  index: 79
+  products:
+  - 162
+  - 7
+  reactants:
+  - 52
+- energy: 1.387927930440128
+  index: 80
+  products:
+  - 257
+  - 425
+  reactants:
+  - 265
+- energy: 4.935025888060409
+  index: 81
+  products:
+  - 239
+  - 103
+  reactants:
+  - 16
+- energy: 8.052650592665081
+  index: 82
+  products:
+  - 247
+  - 8
+  reactants:
+  - 125
+- energy: 5.838972566060469
+  index: 83
+  products:
+  - 65
+  - 8
+  reactants:
+  - 244
+- energy: 1.5494875196531268
+  index: 84
+  products:
+  - 375
+  - 100
+  reactants:
+  - 282
+- energy: 3.9183271986038424
+  index: 85
+  products:
+  - 80
+  - 7
+  reactants:
+  - 361
+- energy: 3.611938517307758
+  index: 86
+  products:
+  - 249
+  - 7
+  reactants:
+  - 119
+- energy: 1.376648644470956
+  index: 87
+  products:
+  - 171
+  - 7
+  reactants:
+  - 316
+- energy: -1.396772707906166
+  index: 88
+  products:
+  - 143
+  - 11
+  reactants:
+  - 372
+- energy: 7.712851233541642
+  index: 89
+  products:
+  - 115
+  - 329
+  reactants:
+  - 108
+- energy: -0.1713695060303202
+  index: 90
+  products:
+  - 184
+  - 6
+  reactants:
+  - 398
+- energy: 11.911442241515033
+  index: 91
+  products:
+  - 0
+  - 312
+  reactants:
+  - 368
+- energy: 9.55635054788268
+  index: 92
+  products:
+  - 450
+  - 8
+  reactants:
+  - 321
+- energy: 4.303992112298042
+  index: 93
+  products:
+  - 97
+  - 7
+  reactants:
+  - 210
+- energy: 1.3666476222209951
+  index: 94
+  products:
+  - 32
+  - 100
+  reactants:
+  - 223
+- energy: 0.826476842597458
+  index: 95
+  products:
+  - 144
+  - 102
+  reactants:
+  - 346
+- energy: 2.764200308350155
+  index: 96
+  products:
+  - 163
+  - 203
+  reactants:
+  - 389
+- energy: 2.2734115530446672
+  index: 97
+  products:
+  - 283
+  - 98
+  reactants:
+  - 255
+- energy: 0.8126637480827412
+  index: 98
+  products:
+  - 164
+  - 90
+  reactants:
+  - 386
+- energy: 3.3222363396262153
+  index: 99
+  products:
+  - 416
+  - 19
+  reactants:
+  - 192
+- energy: 4.4453264014646265
+  index: 100
+  products:
+  - 116
+  - 358
+  reactants:
+  - 128
+- energy: 9.539120809201044
+  index: 101
+  products:
+  - 181
+  - 8
+  reactants:
+  - 399
+- energy: 1.5542758649848167
+  index: 102
+  products:
+  - 111
+  - 100
+  reactants:
+  - 402
+- energy: 0.18510225475023034
+  index: 103
+  products:
+  - 46
+  - 6
+  reactants:
+  - 234
+- energy: 6.394049969464098
+  index: 104
+  products:
+  - 423
+  - 8
+  reactants:
+  - 180
+- energy: 7.278220184649903
+  index: 105
+  products:
+  - 230
+  - 8
+  reactants:
+  - 293
+- energy: 19.941268980552877
+  index: 106
+  products:
+  - 240
+  - 310
+  reactants:
+  - 286
+- energy: 2.638524124212296
+  index: 107
+  products:
+  - 290
+  - 98
+  reactants:
+  - 442
+- energy: 4.4353053668377775
+  index: 108
+  products:
+  - 424
+  - 6
+  reactants:
+  - 179
+- energy: -0.3689471090334031
+  index: 109
+  products:
+  - 123
+  - 6
+  reactants:
+  - 57
+- energy: 1.77610190082396
+  index: 110
+  products:
+  - 2
+  - 391
+  reactants:
+  - 421
+- energy: 8.598013536210601
+  index: 111
+  products:
+  - 53
+  - 309
+  reactants:
+  - 246
+- energy: 1.7483606228997814
+  index: 112
+  products:
+  - 336
+  - 102
+  reactants:
+  - 113
+- energy: -0.01715765552216908
+  index: 113
+  products:
+  - 164
+  - 139
+  reactants:
+  - 274
+- energy: 3.110902986405458
+  index: 114
+  products:
+  - 37
+  - 7
+  reactants:
+  - 354
+- energy: -0.2642142691383924
+  index: 115
+  products:
+  - 138
+  - 102
+  reactants:
+  - 362
+- energy: 10.293660439662744
+  index: 116
+  products:
+  - 193
+  - 436
+  reactants:
+  - 140
+- energy: 3.4848617095193593
+  index: 117
+  products:
+  - 228
+  - 7
+  reactants:
+  - 24
+- energy: 3.9648283559758966
+  index: 118
+  products:
+  - 151
+  - 306
+  reactants:
+  - 12
+- energy: 3.0986700054909306
+  index: 119
+  products:
+  - 118
+  - 218
+  reactants:
+  - 292
+- energy: 2.952145618275864
+  index: 120
+  products:
+  - 269
+  - 99
+  reactants:
+  - 397
+- energy: 8.351348583792564
+  index: 121
+  products:
+  - 453
+  - 8
+  reactants:
+  - 285
+- energy: 3.2102101044188203
+  index: 122
+  products:
+  - 61
+  - 408
+  reactants:
+  - 191
+- energy: 0.7505277290711092
+  index: 123
+  products:
+  - 395
+  - 194
+  reactants:
+  - 58
+- energy: 6.438285003079727
+  index: 124
+  products:
+  - 325
+  - 267
+  reactants:
+  - 429
+- energy: 0.03638407600374194
+  index: 125
+  products:
+  - 164
+  - 254
+  reactants:
+  - 30
+- energy: -0.6098120870601633
+  index: 126
+  products:
+  - 75
+  - 440
+  reactants:
+  - 350
+- energy: 2.603549268515053
+  index: 127
+  products:
+  - 154
+  - 177
+  reactants:
+  - 43
+- energy: 1.4976419579860565
+  index: 128
+  products:
+  - 166
+  - 7
+  reactants:
+  - 20
+- energy: 1.113181738573985
+  index: 129
+  products:
+  - 257
+  - 287
+  reactants:
+  - 313
+- energy: 8.567869260547518
+  index: 130
+  products:
+  - 132
+  - 8
+  reactants:
+  - 269
+- energy: 1.7414373559385101
+  index: 131
+  products:
+  - 220
+  - 7
+  reactants:
+  - 182
+- energy: 1.257886782859714
+  index: 132
+  products:
+  - 9
+  - 342
+  reactants:
+  - 55
+- energy: 1.254254190960637
+  index: 133
+  products:
+  - 295
+  - 102
+  reactants:
+  - 448
+- energy: -0.8864812729898404
+  index: 134
+  products:
+  - 124
+  - 435
+  reactants:
+  - 330
+- energy: 5.095393075484529
+  index: 135
+  products:
+  - 351
+  - 8
+  reactants:
+  - 50
+- energy: -0.9471182544048133
+  index: 136
+  products:
+  - 225
+  - 175
+  reactants:
+  - 18
+- energy: 0.43213622230490145
+  index: 137
+  products:
+  - 33
+  - 6
+  reactants:
+  - 348
+- energy: 3.7947741246243822
+  index: 138
+  products:
+  - 364
+  - 387
+  reactants:
+  - 417
+- energy: 3.25435787572213
+  index: 139
+  products:
+  - 215
+  - 7
+  reactants:
+  - 14
+- energy: 1.7977162641731717
+  index: 140
+  products:
+  - 252
+  - 6
+  reactants:
+  - 187
+- energy: 4.177616927507188
+  index: 141
+  products:
+  - 294
+  - 207
+  reactants:
+  - 259
+- energy: -1.9835702922191558
+  index: 142
+  products:
+  - 164
+  - 71
+  reactants:
+  - 434
+- energy: -0.31563322013244033
+  index: 143
+  products:
+  - 305
+  - 102
+  reactants:
+  - 67
+- energy: 1.6328208499207904
+  index: 144
+  products:
+  - 385
+  - 341
+  reactants:
+  - 302
+- energy: 4.656714620496027
+  index: 145
+  products:
+  - 174
+  - 7
+  reactants:
+  - 318
+- energy: 5.2698598938823125
+  index: 146
+  products:
+  - 392
+  - 341
+  reactants:
+  - 204
+- energy: 1.5360889819838892
+  index: 147
+  products:
+  - 253
+  - 7
+  reactants:
+  - 245
+- energy: 0.13860589245632582
+  index: 148
+  products:
+  - 26
+  reactants:
+  - 27
+- energy: 7.866858474666742
+  index: 149
+  products:
+  - 110
+  - 308
+  reactants:
+  - 136
+- energy: 1.6050448647856683
+  index: 150
+  products:
+  - 129
+  - 196
+  reactants:
+  - 176
+- energy: 3.8566911965926067
+  index: 151
+  products:
+  - 34
+  - 98
+  reactants:
+  - 221
+- energy: 0.45871588357658766
+  index: 152
+  products:
+  - 256
+  - 63
+  reactants:
+  - 105
+- energy: 0.7674632664842704
+  index: 153
+  products:
+  - 374
+  - 100
+  reactants:
+  - 169
+- energy: 4.300820838750951
+  index: 154
+  products:
+  - 202
+  - 103
+  reactants:
+  - 23
+- energy: 3.02657877930495
+  index: 155
+  products:
+  - 349
+  - 7
+  reactants:
+  - 44
+- energy: 4.845516742968357
+  index: 156
+  products:
+  - 142
+  - 103
+  reactants:
+  - 229
+- energy: 1.9045207946492155
+  index: 157
+  products:
+  - 326
+  - 288
+  reactants:
+  - 240
+- energy: 5.223402842661926
+  index: 158
+  products:
+  - 144
+  - 401
+  reactants:
+  - 214
+- energy: -0.08296659379948323
+  index: 159
+  products:
+  - 54
+  - 164
+  reactants:
+  - 70
+- energy: 3.3909484485920984
+  index: 160
+  products:
+  - 285
+  - 347
+  reactants:
+  - 86
+- energy: 3.7542859331151703
+  index: 161
+  products:
+  - 116
+  - 433
+  reactants:
+  - 281
+- energy: 3.9428107434213278
+  index: 162
+  products:
+  - 251
+  - 7
+  reactants:
+  - 241
+- energy: 2.5816455651547585
+  index: 163
+  products:
+  - 73
+  - 268
+  reactants:
+  - 338
+- energy: 0.36503799680485827
+  index: 164
+  products:
+  - 122
+  reactants:
+  - 121
+- energy: 0.9529201830428065
+  index: 165
+  products:
+  - 75
+  - 301
+  reactants:
+  - 235
+- energy: 8.038879731042975
+  index: 166
+  products:
+  - 159
+  - 8
+  reactants:
+  - 299
+- energy: 2.953675427684175
+  index: 167
+  products:
+  - 370
+  - 155
+  reactants:
+  - 452
+- energy: 1.6224857552087997
+  index: 168
+  products:
+  - 431
+  - 205
+  reactants:
+  - 25
+- energy: 6.335415424907691
+  index: 169
+  products:
+  - 109
+  - 6
+  reactants:
+  - 83
+- energy: 0.9150861096604785
+  index: 170
+  products:
+  - 257
+  - 411
+  reactants:
+  - 141
+- energy: 2.3789838089031807
+  index: 171
+  products:
+  - 303
+  - 7
+  reactants:
+  - 222
+- energy: 3.0737165949558403
+  index: 172
+  products:
+  - 3
+  - 277
+  reactants:
+  - 280
+- energy: 2.1274133173619703
+  index: 173
+  products:
+  - 115
+  - 365
+  reactants:
+  - 298
+- energy: 1.5547175634618586
+  index: 174
+  products:
+  - 36
+  - 7
+  reactants:
+  - 353
+- energy: 7.737572563707139
+  index: 175
+  products:
+  - 248
+  - 8
+  reactants:
+  - 126
+- energy: 0.3269427081285219
+  index: 176
+  products:
+  - 243
+  - 7
+  reactants:
+  - 404
+- energy: 4.124210078800388
+  index: 177
+  products:
+  - 414
+  - 104
+  reactants:
+  - 406
+- energy: 6.672206688797814
+  index: 178
+  products:
+  - 415
+  - 207
+  reactants:
+  - 317
+- energy: 4.260935566391709
+  index: 179
+  products:
+  - 74
+  - 443
+  reactants:
+  - 31
+- energy: -0.959250821913944
+  index: 180
+  products:
+  - 201
+  - 6
+  reactants:
+  - 314
+- energy: 3.227037489739814
+  index: 181
+  products:
+  - 276
+  reactants:
+  - 275
+- energy: 3.9327253034551948
+  index: 182
+  products:
+  - 172
+  - 7
+  reactants:
+  - 315
+- energy: 1.1229772631012427
+  index: 183
+  products:
+  - 15
+  - 7
+  reactants:
+  - 371
+- energy: 0.5557996441519979
+  index: 184
+  products:
+  - 373
+  - 7
+  reactants:
+  - 238
+- energy: 2.424180757567683
+  index: 185
+  products:
+  - 153
+  - 78
+  reactants:
+  - 216
+- energy: -0.9285967724945294
+  index: 186
+  products:
+  - 388
+  - 409
+  reactants:
+  - 420
+- energy: 8.148945780022181
+  index: 187
+  products:
+  - 304
+  - 8
+  reactants:
+  - 437
+- energy: 9.074429100016914
+  index: 188
+  products:
+  - 69
+  - 343
+  reactants:
+  - 10
+- energy: 1.8882197186384335
+  index: 189
+  products:
+  - 273
+  - 7
+  reactants:
+  - 346
+- energy: 4.252751125149189
+  index: 190
+  products:
+  - 291
+  - 335
+  reactants:
+  - 157
+- energy: 1.1657932913567493
+  index: 191
+  products:
+  - 327
+  - 199
+  reactants:
+  - 441
+- energy: 2.754505167592864
+  index: 192
+  products:
+  - 410
+  - 6
+  reactants:
+  - 40
+- energy: 2.115275136713535
+  index: 193
+  products:
+  - 395
+  - 432
+  reactants:
+  - 66
+- energy: 9.007726103606323
+  index: 194
+  products:
+  - 233
+  - 8
+  reactants:
+  - 289
+- energy: 5.1392276905480685
+  index: 195
+  products:
+  - 165
+  - 22
+  reactants:
+  - 333
+- energy: 2.2819576975398377
+  index: 196
+  products:
+  - 148
+  - 160
+  reactants:
+  - 403
+- energy: 1.2160874090203695
+  index: 197
+  products:
+  - 352
+  - 7
+  reactants:
+  - 47
+- energy: 5.458242979658674
+  index: 198
+  products:
+  - 94
+  - 6
+  reactants:
+  - 272
+- energy: 4.4552869530106225
+  index: 199
+  products:
+  - 96
+  - 7
+  reactants:
+  - 209

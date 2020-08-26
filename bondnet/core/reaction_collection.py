@@ -5,7 +5,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from collections import defaultdict, OrderedDict
 from bondnet.core.reaction import ReactionsMultiplePerBond, ReactionsOnePerBond
-from bondnet.utils import create_directory, pickle_load, yaml_dump, to_path
+from bondnet.utils import create_directory, pickle_load, pickle_dump, yaml_dump, to_path
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,16 @@ class ReactionCollection:
             "{} reactions loaded from file: {}".format(len(d["reactions"]), filename)
         )
         return cls(d["reactions"])
+
+    def to_file(self, filename="reactions.pkl"):
+        logger.info("Start writing reactions to file: {}".format(filename))
+
+        d = {
+            "@module": self.__class__.__module__,
+            "@class": self.__class__.__name__,
+            "reactions": self.reactions,
+        }
+        pickle_dump(d, filename)
 
     def get_counts_by_broken_bond_type(self):
         """
@@ -1423,6 +1433,56 @@ class ReactionCollection:
             all_feats.append(feat)
 
         return all_feats
+
+    def create_input_files(
+        self, mol_file="molecules.sdf", mol_attr_file="attr.yaml", rxn_file="rxn.yaml",
+    ):
+        """
+        Convert the reaction to input files expected from an end user.
+
+        This is similar to `create_regression_dataset_reaction_network_simple` but
+        write out different files.
+
+        Args:
+            mol_file (str): path to the sdf structure file of molecules
+            mol_attr_file (str): path to the attributes of molecules (e.g. charge)
+            rxn_file (str): path to the file of reactions
+
+        """
+
+        # all molecules in existing reactions
+        reactions = self.reactions
+        mol_reservoir = get_molecules_from_reactions(reactions)
+        mol_reservoir = sorted(mol_reservoir, key=lambda m: m.id)
+        mol_id_to_index_mapping = {m.id: i for i, m in enumerate(mol_reservoir)}
+
+        rxns = []
+        for i, rxn in enumerate(reactions):
+
+            # change to index (in mol_reservoir) representation
+            reactant_ids = [mol_id_to_index_mapping[m.id] for m in rxn.reactants]
+            product_ids = [mol_id_to_index_mapping[m.id] for m in rxn.products]
+
+            rxns.append(
+                {
+                    "index": i,
+                    "reactants": reactant_ids,
+                    "products": product_ids,
+                    "energy": rxn.get_free_energy(),
+                }
+            )
+
+        # mol file
+        self.write_sdf(mol_reservoir, mol_file)
+
+        # attr file
+        attr = []
+        for i, m in enumerate(mol_reservoir):
+            attr.append({"charge": m.charge})
+        yaml_dump(attr, mol_attr_file)
+
+        # reaction file
+        yaml_dump(rxns, rxn_file)
 
 
 def get_molecules_from_reactions(reactions):

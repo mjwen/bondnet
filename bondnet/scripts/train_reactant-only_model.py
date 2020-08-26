@@ -11,7 +11,7 @@ from torch.nn import MSELoss
 import torch.distributed as dist
 import torch.multiprocessing as mp
 from torch.nn.parallel import DistributedDataParallel as DDP
-from bondnet.scripts.metric import WeightedL1Loss, EarlyStopping
+from bondnet.model.metric import WeightedL1Loss, EarlyStopping
 from bondnet.model.gated_bond import GatedGCNBond
 from bondnet.data.dataset import train_validation_test_split
 from bondnet.data.electrolyte import ElectrolyteBondDataset

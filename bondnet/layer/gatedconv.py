@@ -22,7 +22,7 @@ class GatedGCNConv(nn.Module):
         input_dim,
         output_dim,
         num_fc_layers=1,
-        graph_norm=True,
+        graph_norm=False,
         batch_norm=True,
         activation=nn.ELU(),
         residual=False,

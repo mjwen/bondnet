@@ -461,8 +461,8 @@ class PredictionByReaction(BasePrediction):
     pymatgen molecule graph is used).
 
     Args:
-        mol_file (str): path to molecule file, e.g. mols.sdf, mols.pdb
-        rxn_file (str): path to charge file in csv format, e.g. reactions.csv
+        molecule_file (str): path to molecule file, e.g. mols.sdf, mols.pdb
+        reaction_file (str): path to charge file in csv format, e.g. reactions.csv
         charge_file (str): charge file, e.g. charges.txt
         format (str): format of the molecule file (e.g. `sdf`, `graph`, `pdb`,
             `smiles`, `inchi`.

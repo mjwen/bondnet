@@ -1,10 +1,12 @@
+import logging
 from collections import defaultdict
 import numpy as np
-import warnings
 import torch
 from sklearn.preprocessing import StandardScaler as sk_StandardScaler
 from dgl import DGLGraph
-from bondnet.utils import warn_stdout
+
+
+logger = logging.getLogger(__name__)
 
 
 def _transform(X, copy, with_mean=True, with_std=True, threshold=1.0e-3):
@@ -18,16 +20,15 @@ def _transform(X, copy, with_mean=True, with_std=True, threshold=1.0e-3):
     """
     if isinstance(X, list):
         X = torch.stack(X)
-    scaler = sk_StandardScaler(copy, with_mean, with_std)
+    scaler = sk_StandardScaler(copy=copy, with_mean=with_mean, with_std=with_std)
     rst = scaler.fit_transform(X)
     mean = scaler.mean_
     std = np.sqrt(scaler.var_)
     for i, v in enumerate(std):
         if v <= threshold:
-            warnings.showwarning = warn_stdout
-            warnings.warn(
-                "Standard deviation for feature {} is {}; smaller than {}. "
-                "Take a look at the log file.".format(i, v, threshold)
+            logger.warning(
+                "Standard deviation for feature {} is {}, smaller than {}. "
+                "You may want to exclude this feature.".format(i, v, threshold)
             )
 
     return rst, mean, std

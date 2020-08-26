@@ -7,7 +7,7 @@ from bondnet.model.gated_mol import GatedGCNMol
 
 
 class GatedGCNReactionNetwork(GatedGCNMol):
-    def forward(self, graph, feats, reactions, norm_atom, norm_bond):
+    def forward(self, graph, feats, reactions, norm_atom=None, norm_bond=None):
         """
         Args:
             graph (DGLHeteroGraph or BatchedDGLHeteroGraph): (batched) molecule graphs
@@ -15,8 +15,8 @@ class GatedGCNReactionNetwork(GatedGCNMol):
                 features as value.
             reactions (list): a sequence of :class:`bondnet.data.reaction_network.Reaction`,
                 each representing a reaction.
-            norm_atom (2D tensor)
-            norm_bond (2D tensor)
+            norm_atom (2D tensor or None): graph norm for atom
+            norm_bond (2D tensor or None): graph norm for bond
 
         Returns:
             2D tensor: of shape(N, M), where `M = outdim`.
@@ -111,7 +111,6 @@ def _split_batched_output(graph, value):
         return torch.split(value, nbonds)
     else:
         return [value]
-
 
 
 def mol_graph_to_rxn_graph(graph, feats, reactions):

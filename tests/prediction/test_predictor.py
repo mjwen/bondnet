@@ -6,7 +6,7 @@ from bondnet.prediction.predictor import (
     predict_multiple_molecules,
     predict_by_reactions,
 )
-from bondnet.scripts.prediction_cli import cli
+from bondnet.scripts.predict_cli import cli
 
 
 def test_predict_single_molecule():
@@ -15,7 +15,7 @@ def test_predict_single_molecule():
 
 
 def test_predict_multiple_molecules():
-    prefix = Path(bondnet.__file__).parent.joinpath("prediction", "examples")
+    prefix = Path(bondnet.__file__).parent.joinpath("scripts", "examples", "predict")
     molecule_file = prefix.joinpath("molecules.sdf")
     charge_file = prefix.joinpath("charges.txt")
 
@@ -37,7 +37,7 @@ def test_predict_multiple_molecules():
 
 
 def test_predict_by_reaction():
-    prefix = Path(bondnet.__file__).parent.joinpath("prediction", "examples")
+    prefix = Path(bondnet.__file__).parent.joinpath("scripts", "examples", "predict")
     molecule_file = prefix.joinpath("molecules.sdf")
     rxn_file = prefix.joinpath("reactions.csv")
     charge_file = prefix.joinpath("charges.txt")

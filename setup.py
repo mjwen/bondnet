@@ -20,7 +20,7 @@ setup(
     name="bondnet",
     version=get_version(),
     packages=find_packages(),
-    entry_points={"console_scripts": ["bondnet = bondnet.scripts.prediction_cli:cli"]},
+    entry_points={"console_scripts": ["bondnet = bondnet.scripts.predict_cli:cli"]},
     install_requires=["numpy", "pyyaml", "beautifultable", "sklearn", "click"],
     author="Mingjian Wen",
     author_email="wenxx151@gmail.com",

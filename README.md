@@ -1,9 +1,20 @@
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mjwen/bondnet/binder?filepath=bondnet%2Fscripts%2Fprediction_binder.ipynb)
+Use the pretrained model: [![Binder](https://mybinder.org/badge_logo.svg)](https
+://mybinder.org/v2/gh/mjwen/bondnet/binder?filepath=bondnet%2Fscripts%2Fpredict_binder.ipynb)
+Train the model: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mjwen/bondnet/binder?filepath=bondnet%2Fscripts%2Ftrain_bde.ipynb)
+
+
 
 # Table of Contents
-- [Introduction](#introduction)
+- [Table of Contents](#table-of-contents)
 - [Installation](#installation)
-- [Usage](#usage)
+- [Use pretrained model for prediction](#use-pretrained-model-for-prediction)
+- [Train the model](#train-the-model)
+
+
+BonDNet is a graph neural network model for the prediction of bond dissociation energies (BDEs). It can be applied to both homolytic and heterolytic bond dissociations for molecules of any charge.
+
+
+
 
 <a name="installation"></a>
 # Installation
@@ -17,7 +28,7 @@ Currently, we only support installation from source:
     conda install python==3.7.4
     ```
 
-2. install dependencies (see their websites for more installing options)
+2. install dependencies (see their websites for more options)
     ```bash
     conda install pytorch==1.5.0 torchvision -c pytorch   # https://pytorch.org
     conda install dgl==0.4.3 -c dglteam                   # https://www.dgl.ai/pages/start.html
@@ -32,12 +43,10 @@ Currently, we only support installation from source:
     pip install -e bondnet
     ```
 
-<a name="usage"></a>
-# Usage
+<a name="use-pretrained-model-for-prediction"></a>
+# Use pretrained model for prediction
 
-## Use pretrained model for prediction
-
-For a quick prediction of the energies of bonds in a single molecule, try the live demo at: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mjwen/bondnet/binder?filepath=bondnet%2Fscripts%2Fprediction_binder.ipynb)
+For a quick prediction of the BDEs for a single molecule, try the live demo at: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mjwen/bondnet/binder?filepath=bondnet%2Fscripts%2Fpredict_binder.ipynb)
 
 A command line interface (CLI) `bondnet` is also provided to make batch predictions.
 We support multiple modes of predictions using different input data format.
@@ -47,8 +56,7 @@ We support multiple modes of predictions using different input data format.
     $ bondnet single "C1COC(=O)O1"
     ```
 
-- multiple molecules listed in a file. Supported molecule format incldues `sdf`, `pdb
-`, `smiles` and `inchi`, e.g.:
+- multiple molecules listed in a file. Supported molecule format incldues `sdf`, `pdb`, `smiles` and `inchi`, e.g.:
     ```bash
     $ bondnet multiple molecules.sdf -o results.sdf
     ```
@@ -65,8 +73,17 @@ We support multiple modes of predictions using different input data format.
     $ bondnet reaction -t graph molecule_graphs.json reactions.csv
     ```
 
-Detailed description of the format of the input files and examples can be found
-[here](https://github.com/mjwen/bondnet/tree/binder/bondnet/prediction/examples).
+Descriptions of the format of the input files and examples can be found
+[here](https://github.com/mjwen/bondnet/tree/binder/bondnet/scripts/examples/predict).
 
 
-## (to come) Train the model for your own dataset
+<a name="train-the-model"></a>
+# Train the model
+
+The [train_bde.ipynb]() Jupyter notebook shows how to train BonDNet on an BDE dataset of both neutral and charged molecules. Try it at: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mjwen/bondnet/master?filepath=bondnet%2Fscripts%2Ftrain_bde.ipynb)
+
+The [train_bde.ipynb]() Jupyter notebook trains a model on CPU. If you want to train on GPUs (a single GPU or distributed), take a look at [train_bde_distributed.py]().
+
+Descriptions of the format of the input files for training and examples can be found
+[here](https://github.com/mjwen/bondnet/tree/master/bondnet/scripts/examples/train).
+

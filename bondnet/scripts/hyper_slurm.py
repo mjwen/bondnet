@@ -54,7 +54,7 @@ with ht.Scheduler(n_parallel=batch_size) as scheduler:
         samples = optimiser.run_step(batch_size=batch_size, minimise=True)
         jobs = [
             ht.SlurmJob(
-                task=Path.cwd().joinpath("train_bondnet.py"),
+                task=Path.cwd().joinpath("train_bondnet_distributed.py"),
                 args=s.as_dict(),
                 meta={
                     "binary": "python",

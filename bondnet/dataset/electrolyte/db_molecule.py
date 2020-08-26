@@ -216,6 +216,20 @@ class MoleculeWrapperMolBuilder(MoleculeWrapper):
                 )
                 raise UnsuccessfulEntryError
 
+        # solvent environment
+        try:
+            self.environment = db_entry["environment"]
+        except KeyError as e:
+            print(
+                "property not in db",
+                self.__class__.__name__,
+                e,
+                "environment",
+                self.id,
+                self.formula,
+            )
+            raise UnsuccessfulEntryError
+
     def convert_to_babel_mol_graph(self, use_metal_edge_extender=True):
         self.mol_graph = MoleculeGraph.with_local_env_strategy(
             self.pymatgen_mol, OpenBabelNN(order=True)
@@ -274,6 +288,7 @@ class MoleculeWrapperMolBuilder(MoleculeWrapper):
         feats["atomization_free_energy"] = self.atomization_free_energy
         feats["charge"] = self.charge
         feats["spin_multiplicity"] = self.spin_multiplicity
+        feats["environment"] = self.environment
 
         # submolecules level (upon bond breaking)
         if broken_bond is not None:

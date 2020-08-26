@@ -2,12 +2,52 @@ import itertools
 import numpy as np
 from collections import defaultdict
 from pprint import pprint
-import matplotlib as mpl
 from matplotlib import pyplot as plt
-from bondnet.analysis.utils import TexWriter
 from bondnet.core.reaction import ReactionsMultiplePerBond, ReactionExtractorFromMolSet
 from bondnet.core.reaction_collection import ReactionCollection
 from bondnet.utils import pickle_load, to_path, create_directory
+
+
+def eg_buckets(molecule_file):
+    molecules = pickle_load(molecule_file)
+    print("number of moles:", len(molecules))
+
+    extractor = ReactionExtractorFromMolSet(molecules)
+    buckets = extractor.bucket_molecules(keys=["formula", "charge", "spin_multiplicity"])
+    pprint(buckets)
+    buckets = extractor.bucket_molecules(keys=["formula"])
+    pprint(buckets)
+
+
+def eg_extract_A_to_B(molecule_file, reaction_file="reactions.pkl"):
+    molecules = pickle_load(molecule_file)
+    print("number of moles:", len(molecules))
+
+    extractor = ReactionExtractorFromMolSet(molecules)
+    extractor.extract_A_to_B_style_reaction(find_one=False)
+
+    extractor.to_file(reaction_file)
+
+
+def eg_extract_A_to_B_C(molecule_file, reaction_file="reactions.pkl"):
+
+    molecules = pickle_load(molecule_file)
+    print("number of moles:", len(molecules))
+
+    extractor = ReactionExtractorFromMolSet(molecules)
+    extractor.extract_A_to_B_C_style_reaction(find_one=False)
+
+    extractor.to_file(reaction_file)
+
+
+def eg_extract_one_bond_break(molecule_file, reaction_file="reactions.pkl"):
+    molecules = pickle_load(molecule_file)
+    print("number of moles:", len(molecules))
+
+    extractor = ReactionExtractorFromMolSet(molecules)
+    extractor.extract_one_bond_break(find_one=False)
+
+    extractor.to_file(reaction_file)
 
 
 def get_reactions_with_lowest_energy(extractor):
@@ -23,114 +63,6 @@ def get_reactions_with_lowest_energy(extractor):
     for rsr in groups:
         reactions.extend(rsr.reactions)
     return reactions
-
-
-def eg_buckets():
-    # filename = "~/Applications/db_access/mol_builder/molecules.pkl"
-    filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
-    molecules = pickle_load(filename)
-    print("number of moles:", len(molecules))
-
-    extractor = ReactionExtractorFromMolSet(molecules)
-    buckets = extractor.bucket_molecules(keys=["formula", "charge", "spin_multiplicity"])
-    pprint(buckets)
-    buckets = extractor.bucket_molecules(keys=["formula"])
-    pprint(buckets)
-
-
-def eg_extract_A_to_B():
-    # filename = "~/Applications/db_access/mol_builder/molecules.pkl"
-    filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
-    molecules = pickle_load(filename)
-    print("number of moles:", len(molecules))
-
-    extractor = ReactionExtractorFromMolSet(molecules)
-    extractor.extract_A_to_B_style_reaction(find_one=False)
-
-    filename = "~/Applications/db_access/mol_builder/reaction_n200.pkl"
-    extractor.to_file(filename)
-
-
-def eg_extract_A_to_B_C():
-    # filename = "~/Applications/db_access/mol_builder/molecules.pkl"
-    filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
-    molecules = pickle_load(filename)
-    print("number of moles:", len(molecules))
-
-    extractor = ReactionExtractorFromMolSet(molecules)
-    extractor.extract_A_to_B_C_style_reaction(find_one=False)
-
-    filename = "~/Applications/db_access/mol_builder/reactions_A2BC.pkl"
-    extractor.to_file(filename)
-
-
-def eg_extract_one_bond_break():
-    # filename = "~/Applications/db_access/mol_builder/molecules.pkl"
-    filename = "~/Applications/db_access/mol_builder/molecules_n200.pkl"
-    molecules = pickle_load(filename)
-    print("number of moles:", len(molecules))
-
-    extractor = ReactionExtractorFromMolSet(molecules)
-    extractor.extract_one_bond_break(find_one=False)
-
-    # filename = "~/Applications/db_access/mol_builder/reactions.pkl"
-    filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
-    extractor.to_file(filename)
-
-
-def subselect_reactions():
-    filename = "~/Applications/db_access/mol_builder/reactions_qc_ws.pkl"
-    extractor = ReactionCollection.from_file(filename)
-
-    ##############
-    # filter reactant charge = 0
-    ##############
-    # extractor.filter_reactions_by_reactant_attribute(key="charge", values=[0])
-
-    ##############
-    # filter charge 0 reactant and products
-    ##############
-    reactions = []
-    for rxn in extractor.reactions:
-        zero_charge = True
-        for m in rxn.reactants + rxn.products:
-            if m.charge != 0:
-                zero_charge = False
-                break
-        if zero_charge:
-            reactions.append(rxn)
-    extractor.reactions = reactions
-
-    # ##############
-    # # filter C-C bond
-    # ##############
-    # extractor.filter_reactions_by_bond_type_and_order(bond_type=("C", "C"))
-
-    reactions = extractor.reactions
-    extractor.molecules = extractor._get_molecules_from_reactions(reactions)
-    # filename = "~/Applications/db_access/mol_builder/reactions_C5H8Li1O3.pkl"
-    filename = "~/Applications/db_access/mol_builder/reactions_qc_ws_charge0.pkl"
-    extractor.to_file(filename)
-
-
-def bond_energies_to_file():
-    # filename = "~/Applications/db_access/mol_builder/reactions.pkl"
-    filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
-    extractor = ReactionCollection.from_file(filename)
-
-    # ##############
-    # # filter reactant charge = 0
-    # ##############
-    # extractor.filter_reactions_by_reactant_charge(charge=0)
-    #
-    # ##############
-    # # filter C-C bond and order
-    # ##############
-    # extractor.filter_reactions_by_bond_type_and_order(bond_type=("C", "C"))
-
-    # filename = "~/Applications/db_access/mol_builder/bond_energies.yaml"
-    filename = "~/Applications/db_access/mol_builder/bond_energies_n200.yaml"
-    extractor.write_bond_energies(filename)
 
 
 def reactant_broken_bond_fraction():
@@ -330,243 +262,6 @@ def plot_reaction_energy_difference_arcoss_reactant_charge(
         extract_one(extractor, s1, s2)
 
 
-def plot_bond_type_heat_map(
-    filename="~/Applications/db_access/mol_builder/reactions.pkl",
-    # filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
-):
-    """
-    Generate a heatmap to show the statistics of the bond type (species of the two
-    atoms).
-    """
-
-    def plot_heat_map(matrix, labels, filename="heat_map.pdf", cmap=mpl.cm.viridis):
-        fig, ax = plt.subplots()
-        im = ax.imshow(matrix, cmap=cmap, vmin=np.min(matrix), vmax=np.max(matrix))
-
-        # We want to show all ticks...
-        ax.set_xticks(np.arange(len(labels)), minor=False)
-        ax.set_yticks(np.arange(len(labels)), minor=False)
-
-        # label them with the respective list entries
-        ax.set_xticklabels(labels, minor=False)
-        ax.set_yticklabels(labels, minor=False)
-        ax.set_xlim(-0.5, len(labels) - 0.5)
-        ax.set_ylim(len(labels) - 0.5, -0.5)
-
-        # colorbar
-        plt.colorbar(im)
-        fig.savefig(filename, bbox_inches="tight")
-
-    def plot_one(reactions, charge):
-
-        num_bonds = defaultdict(float)
-        for rxn in reactions:
-            bt = tuple(sorted(rxn.get_broken_bond_attr()["species"]))
-            num_bonds[bt] += 1
-            # if bt == ("F", "F"):
-            #     print("@@@", rxn.as_dict())
-
-        species = ["H", "Li", "C", "O", "F", "P"]
-        data = np.zeros((len(species), len(species))).astype(np.int32)
-        for s1, s2 in itertools.combinations_with_replacement(species, 2):
-            idx1 = species.index(s1)
-            idx2 = species.index(s2)
-            key = tuple(sorted([s1, s2]))
-            data[idx1, idx2] = num_bonds[key]
-            data[idx2, idx1] = num_bonds[key]
-
-        # plot
-        filename = "~/Applications/db_access/mol_builder/bond_type_count_{}.pdf".format(
-            charge
-        )
-        filename = to_path(filename)
-        plot_heat_map(data, species, filename)
-
-        # table
-        table = TexWriter.beautifultable(data, species, species, " ")
-        print("number of reactions", len(reactions))
-        print("table for charges: {}".format(charge))
-        print(table)
-
-    # prepare data
-    extractor = ReactionCollection.from_file(filename)
-    all_reactions = extractor.get_reactions_with_lowest_energy()
-
-    # all charges
-    plot_one(all_reactions, "all")
-
-    # for specific charge
-    for charge in [-1, 0, 1]:
-        reactions = []
-        for rxn in all_reactions:
-            if rxn.reactants[0].charge == charge:
-                reactions.append(rxn)
-        plot_one(reactions, charge)
-
-
-def plot_bond_energy_hist(
-    filename="~/Applications/db_access/mol_builder/reactions.pkl",
-    # filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
-):
-    """
-    Plot histogram of bond energy of a specific type of bond (two atoms forming the
-    bond) and at a specific charge.
-    """
-
-    def plot_hist(data, filename, s1, s2, ch, xmin, xmax):
-        fig = plt.figure()
-        ax = fig.gca()
-        ax.hist(data, 20, range=(xmin, xmax))
-
-        ax.set_xlim(xmin, xmax)
-        ax.set_xlabel("Bond energy. species:{} {}; charge {}".format(s1, s2, ch))
-        ax.set_ylabel("counts")
-
-        fig.savefig(filename, bbox_inches="tight")
-
-    def plot_one(all_reactions, s1, s2):
-        charge = [None, -1, 0, 1]
-
-        for ch in charge:
-            if ch is None:
-                reactions = all_reactions
-            else:
-                reactions = []
-                for rxn in all_reactions:
-                    if rxn.reactants[0].charge == ch:
-                        reactions.append(rxn)
-
-            energies = []
-            for rxn in reactions:
-                energies.append(rxn.get_free_energy())
-
-            if ch is None:
-                if len(energies) == 0:
-                    xmin = 0.0
-                    xmax = 1.0
-                else:
-                    xmin = np.min(energies) - 0.5
-                    xmax = np.max(energies) + 0.5
-
-            outname = "~/Applications/db_access/mol_builder/bond_energy_hist/"
-            outname += "bond_energy_histogram_species_{}{}_charge_{}.pdf".format(
-                s1, s2, ch
-            )
-            outname = to_path(outname)
-
-            create_directory(outname)
-            plot_hist(energies, outname, s1, s2, ch, xmin, xmax)
-
-    # prepare data
-    extractor = ReactionCollection.from_file(filename)
-    all_reactions = get_reactions_with_lowest_energy(extractor)
-    print(
-        "@@@ total number of reactions: {}, lowest energy reactions: {}".format(
-            len(extractor.reactions), len(all_reactions)
-        )
-    )
-
-    # all species
-    plot_one(all_reactions, None, None)
-
-    # species pairs
-    species = ["H", "Li", "C", "O", "F", "P"]
-    for s1, s2 in itertools.combinations_with_replacement(species, 2):
-        reactions = []
-        for rxn in all_reactions:
-            bt = tuple(sorted(rxn.get_broken_bond_attr()["species"]))
-            if bt == tuple(sorted((s1, s2))):
-                reactions.append(rxn)
-        plot_one(reactions, s1, s2)
-
-
-def plot_all_bond_length_hist(
-    filename="~/Applications/db_access/mol_builder/reactions.pkl",
-    # filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
-):
-    """
-    This includes all bonds in molecules.
-    """
-
-    def plot_hist(data, filename):
-        fig = plt.figure()
-        ax = fig.gca()
-        ax.hist(data, 20)
-
-        ax.set_xlabel("Bond length")
-        ax.set_ylabel("counts")
-
-        fig.savefig(filename, bbox_inches="tight")
-
-    def get_length_of_bond(rxn):
-        reactant = rxn.reactants[0]
-        coords = reactant.coords
-        dist = [
-            np.linalg.norm(coords[u] - coords[v]) for (u, v), _ in reactant.bonds.items()
-        ]
-        return dist
-
-    # prepare data
-    extractor = ReactionCollection.from_file(filename)
-    all_reactions = get_reactions_with_lowest_energy(extractor)
-    data = [get_length_of_bond(rxn) for rxn in all_reactions]
-    data = np.concatenate(data)
-
-    print("\n\n@@@ all bond length min={}, max={}".format(min(data), max(data)))
-    filename = "~/Applications/db_access/mol_builder/bond_length_all.pdf"
-    filename = to_path(filename)
-    plot_hist(data, filename)
-
-
-def plot_broken_bond_length_hist(
-    # filename="~/Applications/db_access/mol_builder/reactions.pkl",
-    filename="~/Applications/db_access/mol_builder/reactions_qc.pkl",
-    # filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
-):
-    """
-    This includes only the broken bonds, not all the bonds.
-    """
-
-    def plot_hist(data, filename):
-        fig = plt.figure()
-        ax = fig.gca()
-        ax.hist(data, 20)
-
-        ax.set_xlabel("Bond length")
-        ax.set_ylabel("counts")
-        ax.set_yscale("log")
-
-        fig.savefig(filename, bbox_inches="tight")
-
-    def get_length_of_broken_bond(rxn):
-        coords = rxn.reactants[0].coords
-        u, v = rxn.get_broken_bond()
-        dist = np.linalg.norm(coords[u] - coords[v])
-
-        if dist > 3.0:
-            print(
-                "Some bonds are suspicious. id:",
-                rxn.reactants[0].id,
-                "bonds:",
-                u,
-                v,
-                "energy",
-                rxn.reactants[0].free_energy,
-            )
-
-        return dist
-
-    # prepare data
-    extractor = ReactionCollection.from_file(filename)
-    all_reactions = get_reactions_with_lowest_energy(extractor)
-    data = [get_length_of_broken_bond(rxn) for rxn in all_reactions]
-
-    print("\n\n@@@ broken bond length min={}, max={}".format(min(data), max(data)))
-    filename = "~/Applications/db_access/mol_builder/bond_length_broken.pdf"
-    filename = to_path(filename)
-    plot_hist(data, filename)
-
-
 def create_struct_label_dataset_mol_based():
     filename = "~/Applications/db_access/mol_builder/reactions.pkl"
     # filename = "~/Applications/db_access/mol_builder/reactions_n200.pkl"
@@ -676,30 +371,33 @@ def create_struct_label_dataset_reaction_based_classification(
 
 
 def create_struct_label_dataset_reaction_network_based_regression(
-    filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
+    reaction_file,
+    struct_file="struct_rxn_ntwk_rgrn.sdf",
+    label_file="label_rxn_ntwk_rgrn.yaml",
+    feature_file="feature_rxn_ntwk_rgrn.yaml",
 ):
-
-    extractor = ReactionCollection.from_file(filename)
-
+    extractor = ReactionCollection.from_file(reaction_file)
     extractor.create_struct_label_dataset_reaction_network_based_regression(
-        struct_file="~/Applications/db_access/mol_builder/struct_rxn_ntwk_rgrn_n200.sdf",
-        label_file="~/Applications/db_access/mol_builder/label_rxn_ntwk_rgrn_n200.yaml",
-        feature_file="~/Applications/db_access/mol_builder/feature_rxn_ntwk_rgrn_n200.yaml",
+        struct_file,
+        label_file,
+        feature_file,
         group_mode="all",
         one_per_iso_bond_group=True,
     )
 
 
 def create_struct_label_dataset_reaction_network_based_classification(
-    filename="~/Applications/db_access/mol_builder/reactions_n200.pkl",
+    reaction_file,
+    struct_file="struct_rxn_ntwk_clfn.sdf",
+    label_file="label_rxn_ntwk_clfn.yaml",
+    feature_file="feature_rxn_ntwk_clfn.yaml",
 ):
-
-    extractor = ReactionCollection.from_file(filename)
+    extractor = ReactionCollection.from_file(reaction_file)
 
     extractor.create_struct_label_dataset_reaction_network_based_classification(
-        struct_file="~/Applications/db_access/mol_builder/struct_rxn_ntwk_clfn_n200.sdf",
-        label_file="~/Applications/db_access/mol_builder/label_rxn_ntwk_clfn_n200.yaml",
-        feature_file="~/Applications/db_access/mol_builder/feature_rxn_ntwk_clfn_n200.yaml",
+        struct_file,
+        label_file,
+        feature_file,
         group_mode="all",
         top_n=2,
         complement_reactions=True,
@@ -707,34 +405,90 @@ def create_struct_label_dataset_reaction_network_based_classification(
     )
 
 
+def create_input_file_without_bond_mapping(
+    reaction_file,
+    mol_file="molecules.sdf",
+    mol_attr_file="molecule_attributes.yaml",
+    rxn_file="reactions.yaml",
+):
+    rxn_coll = ReactionCollection.from_file(reaction_file)
+    rxn_coll.create_input_files(
+        mol_file, mol_attr_file, rxn_file,
+    )
+
+
 if __name__ == "__main__":
+
+    working_dir = to_path("~/Applications/db_access/mol_builder")
+
+    n200 = True
+    if n200:
+        m = "molecules_n200_qc.pkl"
+        r = "reactions_n200_qc.pkl"
+        size = "_n200"
+    else:
+        m = "molecules_qc.pkl"
+        r = "reactions_qc.pkl"
+        size = ""
+    molecule_file = working_dir.joinpath(m)
+    reaction_file = working_dir.joinpath(r)
+
+    #
+    # extract reactions
+    #
     # eg_buckets()
-    # eg_extract_A_to_B()
-    # eg_extract_A_to_B_C()
-    eg_extract_one_bond_break()
-    # subselect_reactions()
+    # eg_extract_A_to_B(molecule_file, reaction_file)
+    # eg_extract_A_to_B_C(molecule_file, reaction_file)
+    eg_extract_one_bond_break(molecule_file, reaction_file)
 
-    # plot_reaction_energy_difference_arcoss_reactant_charge()
-    # plot_bond_type_heat_map()
-    # plot_bond_energy_hist()
-    # plot_broken_bond_length_hist()
-    # plot_all_bond_length_hist()
+    # #
+    # # analysis
+    # #
+    # rxn_coll = ReactionCollection.from_file(reaction_file)
+    #
+    # print("Counts of broken bond type:")
+    # pprint(rxn_coll.get_counts_by_broken_bond_type())
+    #
+    # print("Counts of reactant charge:")
+    # pprint(rxn_coll.get_counts_by_reactant_charge())
+    #
+    # print("Counts of reactant and product charge:")
+    # pprint(rxn_coll.get_counts_by_reaction_charge())
+    #
+    # rxn_coll.plot_heatmap_of_counts_by_broken_bond_type(
+    #     working_dir.joinpath("heatmap_counts_by_bond_type.pdf")
+    # )
+    #
+    # rxn_coll.plot_bar_of_counts_by_reactant_charge(
+    #     working_dir.joinpath("barplot_counts_by_reactant_charge.pdf")
+    # )
+    #
+    # rxn_coll.plot_bar_of_counts_by_reaction_charge(
+    #     working_dir.joinpath("barplot_counts_by_reaction_charge.pdf")
+    # )
+    #
+    # rxn_coll.plot_histogram_of_reaction_energy(
+    #     working_dir.joinpath("hist_reaction_energy.pdf")
+    # )
+    #
+    # rxn_coll.plot_histogram_of_broken_bond_length(
+    #     working_dir.joinpath("hist_broken_bond_length.pdf")
+    # )
 
-    # reactant_broken_bond_fraction()
-    # bond_label_fraction()
-    # bond_energy_difference_in_molecule_nth_lowest()
+    #
+    # write out files for fitting code
+    #
+    # struct_file = working_dir.joinpath(f"struct_rxn_ntwk_rgrn{size}.sdf")
+    # label_file = working_dir.joinpath(f"label_rxn_ntwk_rgrn{size}.yaml")
+    # feature_file = working_dir.joinpath(f"feature_rxn_ntwk_rgrn{size}.yaml")
+    # create_struct_label_dataset_reaction_network_based_regression(
+    #     reaction_file, struct_file, label_file, feature_file
+    # )
 
-    # bond_energies_to_file()
-
-    # write_reaction_sdf_mol_png()
-
-    # create_struct_label_dataset_mol_based()
-
-    create_struct_label_dataset_bond_based_regression()
-    # create_struct_label_dataset_bond_based_classification()
-
-    # create_struct_label_dataset_reaction_based_regression()
-    # create_struct_label_dataset_reaction_based_classification()
-
-    # create_struct_label_dataset_reaction_network_based_regression()
-    # create_struct_label_dataset_reaction_network_based_classification()
+    reaction_file = "~/Applications/db_access/mol_builder/reactions_1000.pkl"
+    create_input_file_without_bond_mapping(
+        reaction_file,
+        working_dir.joinpath(f"molecules.sdf"),
+        working_dir.joinpath(f"molecule_attributes.yaml"),
+        working_dir.joinpath(f"reactions.yaml"),
+    )

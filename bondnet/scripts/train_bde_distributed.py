@@ -11,11 +11,9 @@ from torch.nn import MSELoss
 import torch.distributed as dist
 import torch.multiprocessing as mp
 from torch.nn.parallel import DistributedDataParallel as DDP
-from bondnet.scripts.metric import WeightedL1Loss, EarlyStopping
+from bondnet.model.metric import WeightedL1Loss, EarlyStopping
 from bondnet.model.gated_reaction_network import GatedGCNReactionNetwork
-from bondnet.data.dataset import (
-    train_validation_test_split_selected_bond_in_train,
-)
+from bondnet.data.dataset import train_validation_test_split
 from bondnet.data.electrolyte import ElectrolyteReactionNetworkDataset
 from bondnet.data.dataloader import DataLoaderReactionNetwork
 from bondnet.data.grapher import HeteroMoleculeGraph
@@ -24,6 +22,7 @@ from bondnet.data.featurizer import (
     BondAsNodeFeaturizerFull,
     GlobalFeaturizer,
 )
+from bondnet.scripts.create_label_file import read_input_files
 from bondnet.utils import (
     load_checkpoints,
     save_checkpoints,
@@ -38,13 +37,18 @@ best = np.finfo(np.float32).max
 def parse_args():
     parser = argparse.ArgumentParser(description="GatedReactionNetwork")
 
+    # input files
+    parser.add_argument("molecule_file", type=str)
+    parser.add_argument("molecule_attributes_file", type=str)
+    parser.add_argument("reaction_file", type=str)
+
     # embedding layer
     parser.add_argument("--embedding-size", type=int, default=24)
 
     # gated layer
     parser.add_argument("--gated-num-layers", type=int, default=3)
     parser.add_argument("--gated-hidden-size", type=int, nargs="+", default=[64, 64, 64])
-    parser.add_argument("--gated-num-fc-layers", type=int, default=1)
+    parser.add_argument("--gated-num-fc-layers", type=int, default=2)
     parser.add_argument("--gated-graph-norm", type=int, default=0)
     parser.add_argument("--gated-batch-norm", type=int, default=1)
     parser.add_argument("--gated-activation", type=str, default="ReLU")
@@ -119,25 +123,7 @@ def parse_args():
             "{} and {}.".format(args.gated_hidden_size, args.gated_num_layers)
         )
 
-    # if len(args.fc_hidden_size) == 1:
-    #     args.fc_hidden_size = args.fc_hidden_size * args.num_fc_layers
-    # else:
-    #     assert len(args.fc_hidden_size) == args.num_fc_layers, (
-    #         "length of `fc-hidden-size` should be equal to `num-fc-layers`, but got "
-    #         "{} and {}.".format(args.fc_hidden_size, args.num_fc_layers)
-    #     )
-
-    # if len(args.gated_hidden_size) == 1:
-    #    val = args.gated_hidden_size[0]
-    #    args.gated_hidden_size = [val * 2 ** i for i in range(args.gated_num_layers)]
-    # else:
-    #    assert len(args.gated_hidden_size) == args.gated_num_layers, (
-    #        "length of `gat-hidden-size` should be equal to `num-gat-layers`, but got "
-    #        "{} and {}.".format(args.gated_hidden_size, args.gated_num_layers)
-    #    )
-
     if len(args.fc_hidden_size) == 1:
-        # val = args.fc_hidden_size[0]
         val = 2 * args.gated_hidden_size[-1]
         args.fc_hidden_size = [max(val // 2 ** i, 8) for i in range(args.fc_num_layers)]
     else:
@@ -266,21 +252,6 @@ def main_worker(gpu, world_size, args):
     # two processes (when distributed) start from the same random weights and biases
     seed_torch()
 
-    ### dataset
-    sdf_file = "~/Applications/db_access/mol_builder/struct_rxn_ntwk_rgrn_n200.sdf"
-    label_file = "~/Applications/db_access/mol_builder/label_rxn_ntwk_rgrn_n200.yaml"
-    feature_file = "~/Applications/db_access/mol_builder/feature_rxn_ntwk_rgrn_n200.yaml"
-    # sdf_file = "~/Applications/db_access/zinc_bde/zinc_struct_rxn_ntwk_rgrn_n200.sdf"
-    # label_file = "~/Applications/db_access/zinc_bde/zinc_label_rxn_ntwk_rgrn_n200.yaml"
-    # feature_file = (
-    #    "~/Applications/db_access/zinc_bde/zinc_feature_rxn_ntwk_rgrn_n200.yaml"
-    # )
-    # sdf_file = "~/Applications/db_access/nrel_bde/nrel_struct_rxn_ntwk_rgrn_n200.sdf"
-    # label_file = "~/Applications/db_access/nrel_bde/nrel_label_rxn_ntwk_rgrn_n200.yaml"
-    # feature_file = (
-    #     "~/Applications/db_access/nrel_bde/nrel_feature_rxn_ntwk_rgrn_n200.yaml"
-    # )
-
     if args.restore:
         dataset_state_dict_filename = args.dataset_state_dict_filename
 
@@ -295,24 +266,22 @@ def main_worker(gpu, world_size, args):
     else:
         dataset_state_dict_filename = None
 
+    # convert reactions in csv file to atom mapped label file if necessary
+    mols, attrs, labels = read_input_files(
+        args.molecule_file, args.molecule_attributes_file, args.reaction_file
+    )
     dataset = ElectrolyteReactionNetworkDataset(
         grapher=get_grapher(),
-        molecules=sdf_file,
-        labels=label_file,
-        extra_features=feature_file,
+        molecules=mols,
+        labels=labels,
+        extra_features=attrs,
         feature_transformer=True,
         label_transformer=True,
         state_dict_filename=dataset_state_dict_filename,
     )
 
-    # trainset, valset, testset = train_validation_test_split(
-    #     dataset, validation=0.1, test=0.1
-    # )
-    trainset, valset, testset = train_validation_test_split_selected_bond_in_train(
-        dataset,
-        validation=0.1,
-        test=0.1,
-        selected_bond_type=(("H", "H"), ("H", "F"), ("F", "F")),
+    trainset, valset, testset = train_validation_test_split(
+        dataset, validation=0.1, test=0.1
     )
 
     if not args.distributed or (args.distributed and args.gpu == 0):
@@ -346,10 +315,6 @@ def main_worker(gpu, world_size, args):
     feature_names = ["atom", "bond", "global"]
     set2set_ntypes_direct = ["global"]
     feature_size = dataset.feature_size
-
-    # feature_names = ["atom", "bond"]
-    # set2set_ntypes_direct = None
-    # feature_size = {k: v for k, v in dataset.feature_size.items() if k != "global"}
 
     args.feature_size = feature_size
     args.set2set_ntypes_direct = set2set_ntypes_direct
