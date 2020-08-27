@@ -13,8 +13,7 @@ import torch.multiprocessing as mp
 from torch.nn.parallel import DistributedDataParallel as DDP
 from bondnet.model.metric import WeightedL1Loss, EarlyStopping
 from bondnet.model.gated_reaction_network import GatedGCNReactionNetwork
-from bondnet.data.dataset import train_validation_test_split
-from bondnet.data.electrolyte import ElectrolyteReactionNetworkDataset
+from bondnet.data.dataset import train_validation_test_split, ReactionNetworkDataset
 from bondnet.data.dataloader import DataLoaderReactionNetwork
 from bondnet.data.grapher import HeteroMoleculeGraph
 from bondnet.data.featurizer import (
@@ -270,7 +269,7 @@ def main_worker(gpu, world_size, args):
     mols, attrs, labels = read_input_files(
         args.molecule_file, args.molecule_attributes_file, args.reaction_file
     )
-    dataset = ElectrolyteReactionNetworkDataset(
+    dataset = ReactionNetworkDataset(
         grapher=get_grapher(),
         molecules=mols,
         labels=labels,

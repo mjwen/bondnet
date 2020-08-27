@@ -1,11 +1,11 @@
 import numpy as np
 from pathlib import Path
-from bondnet.data.electrolyte import (
-    ElectrolyteBondDataset,
-    ElectrolyteBondDatasetClassification,
-    ElectrolyteMoleculeDataset,
-    ElectrolyteReactionDataset,
-    ElectrolyteReactionNetworkDataset,
+from bondnet.data.dataset import (
+    BondDataset,
+    BondDatasetClassification,
+    MoleculeDataset,
+    ReactionDataset,
+    ReactionNetworkDataset,
 )
 from bondnet.data.qm9 import QM9Dataset
 from bondnet.data.grapher import HeteroMoleculeGraph, HomoCompleteGraph
@@ -51,7 +51,7 @@ def test_electrolyte_bond_label():
             ref_std = [[std] * len(x) for x in ref_label_energy]
             ref_mean = [[mean] * len(x) for x in ref_label_energy]
 
-        dataset = ElectrolyteBondDataset(
+        dataset = BondDataset(
             grapher=get_grapher_hetero(),
             molecules=test_files.joinpath("electrolyte_struct_bond.sdf"),
             labels=test_files.joinpath("electrolyte_label_bond.yaml"),
@@ -82,7 +82,7 @@ def test_electrolyte_bond_label_classification():
     ref_label_class = [0, 1]
     ref_label_indicators = [1, 2]
 
-    dataset = ElectrolyteBondDatasetClassification(
+    dataset = BondDatasetClassification(
         grapher=get_grapher_hetero(),
         molecules=test_files.joinpath("electrolyte_struct_bond.sdf"),
         labels=test_files.joinpath("electrolyte_label_bond_clfn.txt"),
@@ -108,7 +108,7 @@ def test_electrolyte_molecule_label():
             ref_labels /= natoms
             ref_ts = natoms
 
-        dataset = ElectrolyteMoleculeDataset(
+        dataset = MoleculeDataset(
             grapher=get_grapher_homo(),
             molecules=test_files.joinpath("electrolyte_struct_mol.sdf"),
             labels=test_files.joinpath("electrolyte_label_mol.csv"),
@@ -183,7 +183,7 @@ def test_electrolyte_reaction_label():
             ref_label_class = (ref_label_class - mean) / std
             ref_ts = std
 
-        dataset = ElectrolyteReactionDataset(
+        dataset = ReactionDataset(
             grapher=get_grapher_hetero(),
             molecules=test_files.joinpath("electrolyte_struct_rxn_clfn.sdf"),
             labels=test_files.joinpath("electrolyte_label_rxn_clfn.yaml"),
@@ -217,7 +217,7 @@ def test_electrolyte_reaction_network_label():
             ref_label_class = (ref_label_class - mean) / std
             ref_ts = std
 
-        dataset = ElectrolyteReactionNetworkDataset(
+        dataset = ReactionNetworkDataset(
             grapher=get_grapher_hetero(),
             molecules=test_files.joinpath("electrolyte_struct_rxn_ntwk_clfn.sdf"),
             labels=test_files.joinpath("electrolyte_label_rxn_ntwk_clfn.yaml"),

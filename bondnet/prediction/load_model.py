@@ -3,7 +3,7 @@ import yaml
 import bondnet
 from pathlib import Path
 from bondnet.model.gated_reaction_network import GatedGCNReactionNetwork
-from bondnet.data.electrolyte import ElectrolyteReactionNetworkDataset
+from bondnet.data.dataset import ReactionNetworkDataset
 from bondnet.data.grapher import HeteroMoleculeGraph
 from bondnet.data.featurizer import (
     AtomFeaturizerMinimum,
@@ -81,7 +81,7 @@ def load_dataset(model_name, molecules, labels, extra_features):
 
     _check_species(molecules, state_dict_filename)
 
-    dataset = ElectrolyteReactionNetworkDataset(
+    dataset = ReactionNetworkDataset(
         grapher=_get_grapher(model_name),
         molecules=molecules,
         labels=labels,

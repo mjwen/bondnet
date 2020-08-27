@@ -6,11 +6,7 @@ Here we mainly test the correctness of batch.
 from pathlib import Path
 import torch
 import numpy as np
-from bondnet.data.electrolyte import (
-    ElectrolyteBondDataset,
-    ElectrolyteReactionDataset,
-    ElectrolyteReactionNetworkDataset,
-)
+from bondnet.data.dataset import BondDataset, ReactionDataset, ReactionNetworkDataset
 from bondnet.data.qm9 import QM9Dataset
 from bondnet.data.dataloader import (
     DataLoaderBond,
@@ -102,7 +98,7 @@ def test_dataloader_bond():
             ref_mean = [[mean] * len(x) for x in ref_label_energy]
             ref_std = [[std] * len(x) for x in ref_label_energy]
 
-        dataset = ElectrolyteBondDataset(
+        dataset = BondDataset(
             grapher=get_grapher_hetero(),
             molecules=test_files.joinpath("electrolyte_struct_bond.sdf"),
             labels=test_files.joinpath("electrolyte_label_bond.yaml"),
@@ -137,7 +133,7 @@ def test_dataloader_reaction():
     ref_label_class = [0, 1]
     ref_num_mols = [2, 3]
 
-    dataset = ElectrolyteReactionDataset(
+    dataset = ReactionDataset(
         grapher=get_grapher_hetero(),
         molecules=test_files.joinpath("electrolyte_struct_rxn_clfn.sdf"),
         labels=test_files.joinpath("electrolyte_label_rxn_clfn.yaml"),
@@ -162,7 +158,7 @@ def test_dataloader_reaction():
 def test_dataloader_reaction_network():
     ref_label_class = [0, 1]
 
-    dataset = ElectrolyteReactionNetworkDataset(
+    dataset = ReactionNetworkDataset(
         grapher=get_grapher_hetero(),
         molecules=test_files.joinpath("electrolyte_struct_rxn_ntwk_clfn.sdf"),
         labels=test_files.joinpath("electrolyte_label_rxn_ntwk_clfn.yaml"),

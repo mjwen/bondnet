@@ -12,7 +12,7 @@ from bondnet.utils import to_path
 
 
 def predict_single_molecule(
-    model,
+    model_name,
     molecule,
     charge=0,
     ring_bond=False,
@@ -27,8 +27,8 @@ def predict_single_molecule(
     charge, we report the smallest charge w.r.t. the product charge assignation.
 
     Args:
-        model (str): The pre-trained model to use for making predictions. A model should
-            be of the format format `dataset/date`, e.g. `mesd/20200808`,
+        model_name (str): The pre-trained model to use for making predictions. A model
+            should be of the format format `dataset/date`, e.g. `mesd/20200808`,
             `pubchem/20200521`. It is possible to provide only the `dataset` part,
             and in this case, the latest model will be used.
         molecule (str): SMILES or InChI string or a path to a file storing these string.
@@ -43,7 +43,7 @@ def predict_single_molecule(
         str: sdf string representing the molecules and energies.
     """
 
-    model, allowed_charge, unit_converter = select_model(model)
+    model_name, allowed_charge, unit_converter = select_model(model_name)
 
     assert (
         charge in allowed_charge
@@ -73,18 +73,20 @@ def predict_single_molecule(
     predictor = PredictionOneReactant(molecule, charge, format, allowed_charge, ring_bond)
 
     molecules, labels, extra_features = predictor.prepare_data()
-    predictions = get_prediction(model, unit_converter, molecules, labels, extra_features)
+    predictions = get_prediction(
+        model_name, unit_converter, molecules, labels, extra_features
+    )
 
     return predictor.write_results(predictions, figure_name, write_result)
 
 
-def predict_multiple_molecules(model, molecule_file, charge_file, out_file, format):
+def predict_multiple_molecules(model_name, molecule_file, charge_file, out_file, format):
     """
     Make predictions of bond energies of multiple molecules.
 
     Args:
-        model (str): The pretrained model to use for making predictions. A model should
-            be of the format format `dataset/date`, e.g. `mesd/20200808`,
+        model_name (str): The pretrained model to use for making predictions. A model
+            should be of the format format `dataset/date`, e.g. `mesd/20200808`,
             `pubchem/20200531`. It is possible to provide only the `dataset` part,
             and in this case, the latest model will be used.
         molecule_file (str): path to molecule file
@@ -94,26 +96,28 @@ def predict_multiple_molecules(model, molecule_file, charge_file, out_file, form
             and `inchi`.
     """
 
-    model, allowed_charge, unit_converter = select_model(model)
+    model_name, allowed_charge, unit_converter = select_model(model_name)
 
     predictor = PredictionMultiReactant(
         molecule_file, charge_file, format, allowed_charge, ring_bond=False
     )
     molecules, labels, extra_features = predictor.prepare_data()
-    predictions = get_prediction(model, unit_converter, molecules, labels, extra_features)
+    predictions = get_prediction(
+        model_name, unit_converter, molecules, labels, extra_features
+    )
 
     return predictor.write_results(predictions, out_file)
 
 
 def predict_by_reactions(
-    model, molecule_file, reaction_file, charge_file, out_file, format
+    model_name, molecule_file, reaction_file, charge_file, out_file, format
 ):
     """
     Make predictions for many bonds where each bond is specified as an reaction.
 
     Args:
-        model (str): The pretrained model to use for making predictions. A model should
-            be of the format format `dataset/date`, e.g. `mesd/20200808`,
+        model_name (str): The pretrained model to use for making predictions. A model
+            should be of the format format `dataset/date`, e.g. `mesd/20200808`,
             `pubchem/20200531`. It is possible to provide only the `dataset` part,
             and in this case, the latest model will be used.
         molecule_file (str): path to file storing all molecules
@@ -124,29 +128,33 @@ def predict_by_reactions(
             and `inchi`.
     """
 
-    model, allowed_charge, unit_converter = select_model(model)
+    model_name, allowed_charge, unit_converter = select_model(model_name)
 
     predictor = PredictionByReaction(
         molecule_file, reaction_file, charge_file, format=format
     )
 
     molecules, labels, extra_features = predictor.prepare_data()
-    predictions = get_prediction(model, unit_converter, molecules, labels, extra_features)
+    predictions = get_prediction(
+        model_name, unit_converter, molecules, labels, extra_features
+    )
 
     return predictor.write_results(predictions, out_file)
 
 
 def predict_by_struct_label_extra_feats_files(
-    model, molecule_file, label_file, extra_feats_file, out_file="bde.yaml"
+    model_name, molecule_file, label_file, extra_feats_file, out_file="bde.yaml"
 ):
-    model, allowed_charge, unit_converter = select_model(model)
+    model_name, allowed_charge, unit_converter = select_model(model_name)
 
     predictor = PredictionStructLabelFeatFiles(
         molecule_file, label_file, extra_feats_file
     )
 
     molecules, labels, extra_features = predictor.prepare_data()
-    predictions = get_prediction(model, unit_converter, molecules, labels, extra_features)
+    predictions = get_prediction(
+        model_name, unit_converter, molecules, labels, extra_features
+    )
 
     return predictor.write_results(predictions, out_file)
 

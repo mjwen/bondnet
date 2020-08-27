@@ -9,13 +9,13 @@ import warnings
 import itertools
 from collections import OrderedDict
 from rdkit import Chem
-from bondnet.data.electrolyte import ElectrolyteMoleculeDataset
+from bondnet.data.dataset import MoleculeDataset
 from bondnet.utils import to_path, yaml_dump
 
 logger = logging.getLogger(__name__)
 
 
-class QM9Dataset(ElectrolyteMoleculeDataset):
+class QM9Dataset(MoleculeDataset):
     """
     The QM9 dataset.
     """
