@@ -1,14 +1,50 @@
 import numpy as np
 from collections import defaultdict
-import itertools
 from bondnet.data.grapher import (
     HomoBidirectedGraph,
     HomoCompleteGraph,
     HeteroMoleculeGraph,
     HeteroCompleteGraph,
 )
-from bondnet.data.utils import get_atom_to_bond_map, get_bond_to_atom_map
 from .utils import make_a_mol
+
+
+def get_bond_to_atom_map(g):
+    """
+    Query which atoms are associated with the bonds.
+
+    Args:
+        g: dgl heterograph
+
+    Returns:
+        dict: with bond index as the key and a tuple of atom indices of atoms that
+            form the bond.
+    """
+    nbonds = g.number_of_nodes("bond")
+    bond_to_atom_map = dict()
+    for i in range(nbonds):
+        atoms = g.successors(i, "b2a")
+        bond_to_atom_map[i] = sorted(atoms)
+    return bond_to_atom_map
+
+
+def get_atom_to_bond_map(g):
+    """
+    Query which bonds are associated with the atoms.
+
+    Args:
+        g: dgl heterograph
+
+    Returns:
+        dict: with atom index as the key and a list of indices of bonds is
+        connected to the atom.
+    """
+    natoms = g.number_of_nodes("atom")
+    atom_to_bond_map = dict()
+    for i in range(natoms):
+        bonds = g.successors(i, "a2b")
+        atom_to_bond_map[i] = sorted(list(bonds))
+    return atom_to_bond_map
 
 
 def get_hetero_self_loop_map(g, ntype):

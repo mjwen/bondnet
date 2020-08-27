@@ -2,8 +2,9 @@ import logging
 from collections import defaultdict
 import numpy as np
 import torch
+import dgl
 from sklearn.preprocessing import StandardScaler as sk_StandardScaler
-from dgl import DGLGraph
+from typing import Optional, Dict, List
 
 
 logger = logging.getLogger(__name__)
@@ -68,20 +69,29 @@ class StandardScaler:
         return X
 
 
-class GraphFeatureStandardScaler:
+class HomoGraphFeatureStandardScaler:
     """
-    Standardize features using `sklearn.preprocessing.StandardScaler`.
+    Standardize homograph features by centering and normalization.
+    Both node and edge features are standardized.
+
+    The mean and std can be provided for standardization. If `None` they are computed
+    from the features of the graphs.
 
     Args:
-        mean (dict or None):
-        std (dict or None):
-        
+        copy: whether to copy the values as used by sklearn.preprocessing.StandardScaler
+        mean: with node type as key and the mean value as the value
+        std: with node type as key and the std value as the value
+
     Returns:
-        A list of graphs with updated feats. Note, the input graphs' features are also
-        updated in-place.
+        Graphs with their features standardized. Note, these are the input graphs.
     """
 
-    def __init__(self, copy=True, mean=None, std=None):
+    def __init__(
+        self,
+        copy: bool = True,
+        mean: Optional[Dict[str, torch.Tensor]] = None,
+        std: Optional[Dict[str, torch.Tensor]] = None,
+    ):
         self.copy = copy
         self._mean = mean
         self._std = std
@@ -94,15 +104,7 @@ class GraphFeatureStandardScaler:
     def std(self):
         return self._std
 
-    def __call__(self, graphs):
-
-        g = graphs[0]
-        if isinstance(g, DGLGraph):
-            return self._homo_graph(graphs)
-        else:
-            return self._hetero_graph(graphs)
-
-    def _homo_graph(self, graphs):
+    def __call__(self, graphs) -> List[dgl.DGLGraph]:
         node_feats = []
         node_feats_size = []
         edge_feats = []
@@ -150,7 +152,43 @@ class GraphFeatureStandardScaler:
 
         return graphs
 
-    def _hetero_graph(self, graphs):
+
+class HeteroGraphFeatureStandardScaler:
+    """
+    Standardize hetero graph features by centering and normalization.
+    Only node features are standardized.
+
+    The mean and std can be provided for standardization. If `None` they are computed
+    from the features of the graphs.
+
+    Args:
+        copy: whether to copy the values as used by sklearn.preprocessing.StandardScaler
+        mean: with node type as key and the mean value as the value
+        std: with node type as key and the std value as the value
+
+    Returns:
+        Graphs with their node features standardized. Note, these are the input graphs.
+    """
+
+    def __init__(
+        self,
+        copy: bool = True,
+        mean: Optional[Dict[str, torch.Tensor]] = None,
+        std: Optional[Dict[str, torch.Tensor]] = None,
+    ):
+        self.copy = copy
+        self._mean = mean
+        self._std = std
+
+    @property
+    def mean(self):
+        return self._mean
+
+    @property
+    def std(self):
+        return self._std
+
+    def __call__(self, graphs) -> List[dgl.DGLGraph]:
         g = graphs[0]
         node_types = g.ntypes
         node_feats = defaultdict(list)

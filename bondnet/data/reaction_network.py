@@ -160,8 +160,8 @@ class ReactionNetwork:
     """
 
     def __init__(self, molecules, reactions):
-        self.molecules = np.asarray(molecules)
-        self.reactions = np.asarray(reactions)
+        self.molecules = molecules
+        self.reactions = reactions
 
         m2r = []
         r2m = []
@@ -190,11 +190,16 @@ class ReactionNetwork:
                 ("reaction", "r2m", "molecule"): r2m,
             }
 
-        # create graph
-        self.g = dgl.heterograph(edges_dict)
-
-        # attach molecules to graph
-        self.g.nodes["molecule"].data.update({"mol": self.molecules})
+        # NOTE they are not used currently, so disable them. In fact, assign
+        # self.molecules to graph nodes would cause problem, because it does not have
+        # the shape method. Making it a numpy array is impossible, because DGL graph
+        # does not allow it. We may want to create a new class with a shape methods in
+        # the future.
+        # # create graph
+        # self.g = dgl.heterograph(edges_dict)
+        #
+        # # attach molecules to graph
+        # self.g.nodes["molecule"].data.update({"mol": self.molecules})
 
     @staticmethod
     def _get_mol_ids_from_reactions(reactions):
@@ -234,7 +239,7 @@ class ReactionNetwork:
             indices = x[:indices]
 
         # reactions subset
-        sub_reactions = self.reactions[indices]
+        sub_reactions = [self.reactions[i] for i in indices]
 
         # subset ids and map between global molecule index and subset molecule index
         ids = self._get_mol_ids_from_reactions(sub_reactions)
@@ -246,6 +251,6 @@ class ReactionNetwork:
             rxn.products = [global_to_subset_mapping[i] for i in rxn.init_products]
 
         # molecules subset
-        sub_molecules = self.molecules[ids]
+        sub_molecules = [self.molecules[i] for i in ids]
 
         return sub_reactions, sub_molecules

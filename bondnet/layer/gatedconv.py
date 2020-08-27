@@ -1,32 +1,50 @@
-"""
-ResGatedGCN: Residual Gated Graph ConvNets
-An Experimental Study of Neural Networks for Variable Graphs
-(Xavier Bresson and Thomas Laurent, ICLR 2018)
-https://arxiv.org/pdf/1711.07553v2.pdf
-"""
-
-
 import torch
 from torch import nn
 import logging
 from dgl import function as fn
 from bondnet.layer.hgatconv import NodeAttentionLayer
 from bondnet.layer.utils import LinearN
+from typing import Callable, Union, Dict
+import dgl
+
 
 logger = logging.getLogger(__name__)
 
 
 class GatedGCNConv(nn.Module):
+    """
+    Gated GCN layer.
+
+    It update bond, atom, and global features in sequence. See the BonDNet paper for
+    details. This is a direct extension of the Residual Gated Graph ConvNets
+    (https://arxiv.org/abs/1711.07553) by adding global features.
+
+    Args:
+        input_dim: input feature dimension
+        output_dim: output feature dimension
+        num_fc_layers: number of NN layers to transform input to output. In `Residual
+            Gated Graph ConvNets` the number of layers is set to 1. Here we make it a
+            variable to accept any number of layers.
+        graph_norm: whether to apply the graph norm proposed in
+            Benchmarking Graph Neural Networks (https://arxiv.org/abs/2003.00982)
+        batch_norm: whether to apply batch normalization
+        activation: activation function
+        residual: whether to add residual connection as in the ResNet:
+            Deep Residual Learning for Image Recognition (https://arxiv.org/abs/1512.03385)
+        dropout: dropout ratio. Note, dropout is applied after residual connection.
+            If `None`, do not apply dropout.
+    """
+
     def __init__(
         self,
-        input_dim,
-        output_dim,
-        num_fc_layers=1,
-        graph_norm=False,
-        batch_norm=True,
-        activation=nn.ELU(),
-        residual=False,
-        dropout=0.0,
+        input_dim: int,
+        output_dim: int,
+        num_fc_layers: int = 1,
+        graph_norm: bool = False,
+        batch_norm: bool = True,
+        activation: Callable = nn.ReLU(),
+        residual: bool = False,
+        dropout: Union[float, None] = None,
     ):
         super(GatedGCNConv, self).__init__()
         self.graph_norm = graph_norm
@@ -40,6 +58,8 @@ class GatedGCNConv(nn.Module):
         out_sizes = [output_dim] * num_fc_layers
         acts = [activation] * (num_fc_layers - 1) + [nn.Identity()]
         use_bias = [True] * num_fc_layers
+
+        # A, B, ... I are phi_1, phi_2, ..., phi_9 in the BonDNet paper
         self.A = LinearN(input_dim, out_sizes, acts, use_bias)
         self.B = LinearN(input_dim, out_sizes, acts, use_bias)
         self.C = LinearN(input_dim, out_sizes, acts, use_bias)
@@ -56,10 +76,10 @@ class GatedGCNConv(nn.Module):
             self.bn_node_u = nn.BatchNorm1d(output_dim)
 
         delta = 1e-3
-        if dropout >= delta:
-            self.dropout = nn.Dropout(dropout)
-        else:
+        if dropout is None or dropout < delta:
             self.dropout = nn.Identity()
+        else:
+            self.dropout = nn.Dropout(dropout)
 
     @staticmethod
     def reduce_fn_a2b(nodes):
@@ -99,7 +119,23 @@ class GatedGCNConv(nn.Module):
 
         return {"h": h}
 
-    def forward(self, g, feats, norm_atom=None, norm_bond=None):
+    def forward(
+        self,
+        g: dgl.DGLGraph,
+        feats: Dict[str, torch.Tensor],
+        norm_atom: torch.Tensor = None,
+        norm_bond: torch.Tensor = None,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Args:
+            g: the graph
+            feats: node features. Allowed node types are `atom`, `bond` and `global`.
+            norm_atom: values used to normalize atom features as proposed in graph norm.
+            norm_bond: values used to normalize bond features as proposed in graph norm.
+
+        Returns:
+            updated node features.
+        """
 
         g = g.local_var()
 
@@ -175,7 +211,8 @@ class GatedGCNConv(nn.Module):
             "sum",
         )
         u = g.nodes["global"].data["u"]
-        if self.batch_norm:
+        # do not apply batch norm if it there is only one graph
+        if self.batch_norm and u.shape[0] > 1:
             u = self.bn_node_u(u)
         u = self.activation(u)
         if self.residual:
@@ -325,19 +362,6 @@ class GatedGCNConv1(GatedGCNConv):
             h = h_in + h
         g.nodes["atom"].data["h"] = h
 
-        # update global feature u
-        # g.nodes["atom"].data.update({"Gh": self.G(h)})
-        # g.nodes["bond"].data.update({"He": self.H(e)})
-        # g.nodes["global"].data.update({"Iu": self.I(u)})
-        # g.multi_update_all(
-        #     {
-        #         "a2g": (fn.copy_u("Gh", "m"), fn.mean("m", "u")),  # G * (mean_i h_i)
-        #         "b2g": (fn.copy_u("He", "m"), fn.mean("m", "u")),  # H * (mean_ij e_ij)
-        #         "g2g": (fn.copy_u("Iu", "m"), fn.sum("m", "u")),  # I * u
-        #     },
-        #     "sum",
-        # )
-        # u = g.nodes["global"].data["u"]
         u = self.node_attn_layer(g, u, [h, e, u]).flatten(start_dim=1)
         if self.batch_norm:
             u = self.bn_node_u(u)
@@ -356,6 +380,10 @@ class GatedGCNConv1(GatedGCNConv):
 
 
 class GatedGCNConv2(GatedGCNConv):
+    """
+    Compared with GatedGCNConv, global feature is not used here.
+    """
+
     def __init__(
         self,
         input_dim,

@@ -1,39 +1,43 @@
 """
-Pooling layers
+Global readout (pooling) layers.
 """
 import torch
 from torch import nn
+import dgl
 from dgl import function as fn
-from dgl import BatchedDGLHeteroGraph
-from bondnet.layer.utils import broadcast_nodes, sum_nodes, softmax_nodes
+from typing import List, Tuple, Dict, Optional
 
 
 class ConcatenateMeanMax(nn.Module):
     """
-    Concatenate the mean and max of features of some nodes to other nodes.
+    Concatenate the mean and max of features of a node type to another node type.
 
     Args:
-        etypes (list of tuples): canonical edge types of a graph of which the features
-            of node `u` are concatenated to the features of node `v`.
+        etypes: canonical edge types of a graph of which the features of node
+            `u` are concatenated to the features of node `v`.
             For example: if `etypes = [('atom', 'a2b', 'bond'), ('global','g2b', 'bond')]`
-            then the mean and max of the features of `atom` and `global` are concatenated
-            to the features of `bond`.
+            then the mean and max of the features of `atom` as well as  `global` are
+            concatenated to the features of `bond`.
     """
 
-    def __init__(self, etypes):
+    def __init__(self, etypes: List[Tuple[str, str, str]]):
         super(ConcatenateMeanMax, self).__init__()
         self.etypes = etypes
 
-    def forward(self, graph, feats):
+    def forward(
+        self, graph: dgl.DGLGraph, feats: Dict[str, torch.Tensor]
+    ) -> Dict[str, torch.Tensor]:
         """
         Args:
-            graph (DGLHeteroGraph or BatchedDGLHeteroGraph): the graph
-            feats (dict): node features with node type as key and the corresponding
-                features as value.
+            graph: the graph
+            feats: node features with node type as key and the corresponding
+                features as value. Each tensor is of shape (N, D) where N is the number
+                of nodes of the corresponding node type, and D is the feature size.
 
         Returns:
-            dict: updated node features. The features of nodes specified in `etypes` at
-                instantiation are updated.
+            updated node features. Each tensor is of shape (N, D) where N is the number
+            of nodes of the corresponding node type, and D is the feature size.
+
         """
         graph = graph.local_var()
 
@@ -45,13 +49,12 @@ class ConcatenateMeanMax(nn.Module):
             # option 1
             graph[et].update_all(fn.copy_u("ft", "m"), fn.mean("m", "mean"), etype=et)
             graph[et].update_all(fn.copy_u("ft", "m"), fn.max("m", "max"), etype=et)
-            graph.apply_nodes(self._concatenate_node_feat, ntype=et[2])
 
-            # # using the above could be faster since we use as many dgl fn as possible
-            # option 2
-            # graph[et].update_all(
-            #     fn.copy_u("ft", "m"), self._concatenate_mean_max, etype=et
-            # )
+            nt = et[2]
+            graph.apply_nodes(self._concatenate_node_feat, ntype=nt)
+
+            # copy update feature from new_ft to ft
+            graph.nodes[nt].data.update({"ft": graph.nodes[nt].data["new_ft"]})
 
         return {nt: graph.nodes[nt].data["ft"] for nt in feats}
 
@@ -61,27 +64,18 @@ class ConcatenateMeanMax(nn.Module):
         mean = nodes.data["mean"]
         max = nodes.data["max"]
         concatenated = torch.cat((data, mean, max), dim=1)
-        return {"ft": concatenated}
-
-    @staticmethod
-    def _concatenate_mean_max(nodes):
-        message = nodes.mailbox["m"]
-        mean_v = torch.mean(message, dim=1)
-        # torch.max returns a named  tuple; check the doc
-        max_v = torch.max(message, dim=1).values
-        data = nodes.data["ft"]
-        concatenated = torch.cat((data, mean_v, max_v), dim=1)
-        return {"ft": concatenated}
+        return {"new_ft": concatenated}
 
 
 class ConcatenateMeanAbsDiff(nn.Module):
     """
-    Concatenate the mean and absolute difference of two nodes directed to a node.
+    Concatenate the mean and max of features of a node type to another node type.
+
     This is very specific to the scheme that two atoms directed to bond. Others may fail.
 
     Args:
-        etypes (list of tuples): canonical edge types of a graph of which the features
-            of node `u` are concatenated to the features of node `v`.
+        etypes: canonical edge types of a graph of which the features of node `u`
+            are concatenated to the features of node `v`.
             For example: if `etypes = [('atom', 'a2b', 'bond'), ('global','g2b', 'bond')]`
             then the mean and max of the features of `atom` and `global` are concatenated
             to the features of `bond`.
@@ -91,16 +85,20 @@ class ConcatenateMeanAbsDiff(nn.Module):
         super(ConcatenateMeanAbsDiff, self).__init__()
         self.etypes = etypes
 
-    def forward(self, graph, feats):
+    def forward(
+        self, graph: dgl.DGLGraph, feats: Dict[str, torch.Tensor]
+    ) -> Dict[str, torch.Tensor]:
+
         """
         Args:
-            graph (DGLHeteroGraph or BatchedDGLHeteroGraph): the graph
-            feats (dict): node features with node type as key and the corresponding
-                features as value.
+            graph: the graph
+            feats: node features with node type as key and the corresponding
+                features as value. Each tensor is of shape (N, D) where N is the number
+                of nodes of the corresponding node type, and D is the feature size.
 
         Returns:
-            dict: updated node features. The features of nodes specified in `etypes` at
-                instantiation are updated.
+            updated node features. Each tensor is of shape (N, D) where N is the number
+            of nodes of the corresponding node type, and D is the feature size.
         """
         graph = graph.local_var()
 
@@ -128,8 +126,8 @@ class ConcatenateMeanAbsDiff(nn.Module):
 
 
 class Set2Set(nn.Module):
-    r"""Apply Set2Set (`Order Matters: Sequence to sequence for sets
-    <https://arxiv.org/pdf/1511.06391.pdf>`__) over the nodes in the graph.
+    r"""
+    Compared to the Official dgl implementation, we allowed node type.
 
     For each individual graph in the batch, set2set computes
 
@@ -144,19 +142,14 @@ class Set2Set(nn.Module):
 
     for this graph.
 
-    Parameters
-    ----------
-    input_dim : int
-        Size of each input sample
-    n_iters : int
-        Number of iterations.
-    n_layers : int
-        Number of recurrent layers.
-    n_type : str
-        Node type
+    Args:
+        input_dim: The size of each input sample.
+        n_iters: The number of iterations.
+        n_layers: The number of recurrent layers.
+        ntype: Type of the node to apply Set2Set.
     """
 
-    def __init__(self, input_dim, n_iters, n_layers, ntype):
+    def __init__(self, input_dim: int, n_iters: int, n_layers: int, ntype: str):
         super(Set2Set, self).__init__()
         self.input_dim = input_dim
         self.output_dim = 2 * input_dim
@@ -170,30 +163,21 @@ class Set2Set(nn.Module):
         """Reinitialize learnable parameters."""
         self.lstm.reset_parameters()
 
-    def forward(self, graph, feat):
-        r"""Compute set2set pooling.
+    def forward(self, graph: dgl.DGLGraph, feat: torch.Tensor) -> torch.Tensor:
+        """
+        Compute set2set pooling.
 
-        Parameters
-        ----------
-        graph : DGLGraph or BatchedDGLGraph
-            The graph.
-        feat : torch.Tensor
-            The input feature with shape :math:`(N, D)` where
-            :math:`N` is the number of nodes in the graph.
-        ntype: string
-            Node type to apply set2set.
+        Args:
+            graph: the input graph
+            feat: The input feature with shape :math:`(N, D)` where  :math:`N` is the
+                number of nodes in the graph, and :math:`D` means the size of features.
 
-        Returns
-        -------
-        torch.Tensor
-            The output feature with shape :math:`(D)` (if
-            input graph is a BatchedDGLGraph, the result shape
-            would be :math:`(B, D)`.
+        Returns:
+            The output feature with shape :math:`(B, D)`, where :math:`B` refers to
+            the batch size, and :math:`D` means the size of features.
         """
         with graph.local_scope():
-            batch_size = 1
-            if isinstance(graph, BatchedDGLHeteroGraph):
-                batch_size = graph.batch_size
+            batch_size = graph.batch_size
 
             h = (
                 feat.new_zeros((self.n_layers, batch_size, self.input_dim)),
@@ -205,28 +189,20 @@ class Set2Set(nn.Module):
             for _ in range(self.n_iters):
                 q, h = self.lstm(q_star.unsqueeze(0), h)
                 q = q.view(batch_size, self.input_dim)
-
-                e = (feat * broadcast_nodes(graph, self.ntype, q)).sum(
+                e = (feat * dgl.broadcast_nodes(graph, q, ntype=self.ntype)).sum(
                     dim=-1, keepdim=True
                 )
                 graph.nodes[self.ntype].data["e"] = e
-                alpha = softmax_nodes(graph, self.ntype, "e")
-
+                alpha = dgl.softmax_nodes(graph, "e", ntype=self.ntype)
                 graph.nodes[self.ntype].data["r"] = feat * alpha
-                readout = sum_nodes(graph, self.ntype, "r")
-
-                if readout.dim() == 1:  # graph is not a BatchedDGLGraph
-                    readout = readout.unsqueeze(0)
-
+                readout = dgl.sum_nodes(graph, "r", ntype=self.ntype)
                 q_star = torch.cat([q, readout], dim=-1)
 
-            if isinstance(graph, BatchedDGLHeteroGraph):
-                return q_star
-            else:
-                return q_star.squeeze(0)
+            return q_star
 
     def extra_repr(self):
-        """Set the extra representation of the module.
+        """
+        Set the extra representation of the module.
         which will come into effect when printing the model.
         """
         summary = "n_iters={n_iters}"
@@ -235,19 +211,26 @@ class Set2Set(nn.Module):
 
 class Set2SetThenCat(nn.Module):
     """
-    Set2Set for nodes (separate for different node type) and then concatenate to create a
-    representation of the graph.
+    Set2Set for nodes (separate for different node type) and then concatenate the
+    features of different node types to create a representation of the graph.
 
      Args:
-        n_iter (int): number of LSTM iteration
-        n_layer (int): number of LSTM layers
-        ntypes (list of str): node types to perform Set2Set.
-        in_feats (list of int): feature size of nodes corresponds to ntypes
-        ntypes_direct_cat (list of str): node types on which not perform Set2Set, but
-            need to concatenate their feature directly.
+        n_iter: number of LSTM iteration
+        n_layer: number of LSTM layers
+        ntypes: node types to perform Set2Set, e.g. ['atom', 'bond']
+        in_feats: node feature sizes. The order should be the same as `ntypes`.
+        ntypes_direct_cat: node types to which not perform Set2Set, whose feature is
+            directly concatenated. e.g. ['global']
     """
 
-    def __init__(self, n_iters, n_layer, ntypes, in_feats, ntypes_direct_cat=None):
+    def __init__(
+        self,
+        n_iters: int,
+        n_layer: int,
+        ntypes: List[str],
+        in_feats: List[int],
+        ntypes_direct_cat: Optional[List[str]] = None,
+    ):
         super(Set2SetThenCat, self).__init__()
         self.ntypes = ntypes
         self.ntypes_direct_cat = ntypes_direct_cat
@@ -258,13 +241,20 @@ class Set2SetThenCat(nn.Module):
                 input_dim=sz, n_iters=n_iters, n_layers=n_layer, ntype=nt
             )
 
-    def forward(self, graph, feats):
+    def forward(
+        self, graph: dgl.DGLGraph, feats: Dict[str, torch.Tensor]
+    ) -> Dict[str, torch.Tensor]:
         """
         Args:
-            graph: DGLHeterograph or BatchedDGLHeterograph
-            feats (dict): feature dict
+            graph: the graph
+            feats: node features with node type as key and the corresponding
+                features as value. Each tensor is of shape (N, D) where N is the number
+                of nodes of the corresponding node type, and D is the feature size.
         Returns:
-            2D tensor: features
+            update features. Each tensor is of shape (B, D), where B is the batch size
+                and D is the feature size. Note D could be different for different
+                node type.
+
         """
         rst = []
         for nt in self.ntypes:
@@ -275,8 +265,6 @@ class Set2SetThenCat(nn.Module):
             for nt in self.ntypes_direct_cat:
                 rst.append(feats[nt])
 
-        # each element of rst is of shape (N, ft_size), where N is the batch size and
-        # ft_size could be different for different features
         res = torch.cat(rst, dim=-1)  # dim=-1 to deal with batched graph
 
         return res

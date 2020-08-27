@@ -1,7 +1,3 @@
-"""
-Heterogeneous Graph Attention Networks on molecule level property.
-"""
-
 import logging
 import torch.nn as nn
 from bondnet.layer.gatedconv import GatedGCNConv, GatedGCNConv1, GatedGCNConv2
@@ -13,7 +9,12 @@ logger = logging.getLogger(__name__)
 
 class GatedGCNMol(nn.Module):
     """
-    Heterograph attention network for molecules.
+    Gated graph neural network model to predict molecular property.
+
+    This model is similar to most GNN for molecular property such as MPNN and MEGNet.
+    It iteratively updates atom, bond, and global features, then aggregates the
+    features to form a representation of the molecule, and finally map the
+    representation to a molecular property.
 
 
     Args:

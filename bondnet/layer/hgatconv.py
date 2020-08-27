@@ -57,24 +57,6 @@ class NodeAttentionLayer(nn.Module):
         self.activation = activation
         self.edge_types = [(n, e, master_node) for n, e in zip(attn_nodes, attn_edges)]
 
-        # # linear FC layer (use it only when in size differ from out size)
-        # d = {}
-        # for nt, sz in in_feats.items():
-        #     if sz == out_feats * num_heads:
-        #         d[nt] = nn.Identity()
-        #     else:
-        #         d[nt] = nn.Linear(sz, out_feats * num_heads, bias=False)
-        # self.fc_layers = nn.ModuleDict(d)
-
-        # linear FC layer (two purposes, 1. W as in eq1 of the GAT paper. 2. unify size
-        # of feature from different node)
-        # self.fc_layers = nn.ModuleDict(
-        #     {
-        #         nt: nn.Linear(sz, out_feats * num_heads, bias=False)
-        #         for nt, sz in in_feats.items()
-        #     }
-        # )
-
         self.fc_layers = nn.ModuleDict()
         for nt, sz in in_feats.items():
             if num_fc_layers > 0:

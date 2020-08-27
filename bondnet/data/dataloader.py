@@ -1,6 +1,6 @@
-import numpy as np
 import torch
 import dgl
+import itertools
 
 
 class DataLoader(torch.utils.data.DataLoader):
@@ -18,18 +18,7 @@ class DataLoader(torch.utils.data.DataLoader):
 
         def collate(samples):
             graphs, labels = map(list, zip(*samples))
-
-            g = graphs[0]
-            if isinstance(g, dgl.DGLGraph):
-                batched_graphs = dgl.batch(graphs)
-            elif isinstance(g, dgl.DGLHeteroGraph):
-                batched_graphs = dgl.batch_hetero(graphs)
-            else:
-                raise ValueError(
-                    f"graph type {g.__class__.__name__} not supported. Should be either "
-                    f"dgl.DGLGraph or dgl.DGLHeteroGraph."
-                )
-
+            batched_graphs = dgl.batch(graphs)
             batched_labels = torch.utils.data.dataloader.default_collate(labels)
 
             return batched_graphs, batched_labels
@@ -53,22 +42,25 @@ class DataLoaderGraphNorm(torch.utils.data.DataLoader):
         def collate(samples):
             graphs, labels = map(list, zip(*samples))
 
-            g = graphs[0]
-            if isinstance(g, dgl.DGLGraph):
-                batched_graphs = dgl.batch(graphs)
-                sizes_atom = [g.number_of_nodes() for g in graphs]
-                sizes_bond = [g.number_of_edges() for g in graphs]
+            # g = graphs[0]
+            # if isinstance(g, dgl.DGLGraph):
+            #     batched_graphs = dgl.batch(graphs)
+            #     sizes_atom = [g.number_of_nodes() for g in graphs]
+            #     sizes_bond = [g.number_of_edges() for g in graphs]
+            #
+            # elif isinstance(g, dgl.DGLHeteroGraph):
+            #     batched_graphs = dgl.batch_hetero(graphs)
+            #     sizes_atom = [g.number_of_nodes("atom") for g in graphs]
+            #     sizes_bond = [g.number_of_nodes("bond") for g in graphs]
+            # else:
+            # raise ValueError(
+            #     f"graph type {g.__class__.__name__} not supported. Should be either "
+            #     f"dgl.DGLGraph or dgl.DGLHeteroGraph."
+            # )
 
-            elif isinstance(g, dgl.DGLHeteroGraph):
-                batched_graphs = dgl.batch_hetero(graphs)
-                sizes_atom = [g.number_of_nodes("atom") for g in graphs]
-                sizes_bond = [g.number_of_nodes("bond") for g in graphs]
-
-            else:
-                raise ValueError(
-                    f"graph type {g.__class__.__name__} not supported. Should be either "
-                    f"dgl.DGLGraph or dgl.DGLHeteroGraph."
-                )
+            batched_graphs = dgl.batch(graphs)
+            sizes_atom = [g.number_of_nodes("atom") for g in graphs]
+            sizes_bond = [g.number_of_nodes("bond") for g in graphs]
 
             batched_labels = torch.utils.data.dataloader.default_collate(labels)
 
@@ -97,17 +89,7 @@ class DataLoaderBond(torch.utils.data.DataLoader):
 
         def collate(samples):
             graphs, labels = map(list, zip(*samples))
-
-            g = graphs[0]
-            if isinstance(g, dgl.DGLGraph):
-                batched_graphs = dgl.batch(graphs)
-            elif isinstance(g, dgl.DGLHeteroGraph):
-                batched_graphs = dgl.batch_hetero(graphs)
-            else:
-                raise ValueError(
-                    f"graph type {g.__class__.__name__} not supported. Should be either "
-                    f"dgl.DGLGraph or dgl.DGLHeteroGraph."
-                )
+            batched_graphs = dgl.batch(graphs)
 
             value = torch.cat([la["value"] for la in labels])
             # index_0 = labels[0]["bond_index"]
@@ -161,17 +143,9 @@ class DataLoaderReaction(torch.utils.data.DataLoader):
             graphs, labels = map(list, zip(*samples))
 
             # note each element of graph is a list of mol graphs that constitute a rxn
-            graphs = np.concatenate(graphs)
-            g = graphs[0]
-            if isinstance(g, dgl.DGLGraph):
-                batched_graphs = dgl.batch(graphs)
-            elif isinstance(g, dgl.DGLHeteroGraph):
-                batched_graphs = dgl.batch_hetero(graphs)
-            else:
-                raise ValueError(
-                    f"graph type {g.__class__.__name__} not supported. Should be either "
-                    f"dgl.DGLGraph or dgl.DGLHeteroGraph."
-                )
+            # flatten double list
+            graphs = list(itertools.chain.from_iterable(graphs))
+            batched_graphs = dgl.batch(graphs)
 
             target_class = torch.stack([la["value"] for la in labels])
             atom_mapping = [la["atom_mapping"] for la in labels]
@@ -222,22 +196,26 @@ class DataLoaderReactionNetwork(torch.utils.data.DataLoader):
             # each element of `rn` is the same reaction network
             reactions, graphs = rn[0].subselect_reactions(rxn_ids)
 
-            g = graphs[0]
-            if isinstance(g, dgl.DGLGraph):
-                batched_graphs = dgl.batch(graphs)
-                sizes_atom = [g.number_of_nodes() for g in graphs]
-                sizes_bond = [g.number_of_edges() for g in graphs]
+            # g = graphs[0]
+            # if isinstance(g, dgl.DGLGraph):
+            #     batched_graphs = dgl.batch(graphs)
+            #     sizes_atom = [g.number_of_nodes() for g in graphs]
+            #     sizes_bond = [g.number_of_edges() for g in graphs]
+            #
+            # elif isinstance(g, dgl.DGLHeteroGraph):
+            #     batched_graphs = dgl.batch_hetero(graphs)
+            #     sizes_atom = [g.number_of_nodes("atom") for g in graphs]
+            #     sizes_bond = [g.number_of_nodes("bond") for g in graphs]
+            #
+            # else:
+            #     raise ValueError(
+            #         f"graph type {g.__class__.__name__} not supported. Should be either "
+            #         f"dgl.DGLGraph or dgl.DGLHeteroGraph."
+            #     )
 
-            elif isinstance(g, dgl.DGLHeteroGraph):
-                batched_graphs = dgl.batch_hetero(graphs)
-                sizes_atom = [g.number_of_nodes("atom") for g in graphs]
-                sizes_bond = [g.number_of_nodes("bond") for g in graphs]
-
-            else:
-                raise ValueError(
-                    f"graph type {g.__class__.__name__} not supported. Should be either "
-                    f"dgl.DGLGraph or dgl.DGLHeteroGraph."
-                )
+            batched_graphs = dgl.batch(graphs)
+            sizes_atom = [g.number_of_nodes("atom") for g in graphs]
+            sizes_bond = [g.number_of_nodes("bond") for g in graphs]
 
             target = torch.stack([la["value"] for la in labels])
             identifier = [la["id"] for la in labels]

@@ -1,5 +1,4 @@
-Use the pretrained model: [![Binder](https://mybinder.org/badge_logo.svg)](https
-://mybinder.org/v2/gh/mjwen/bondnet/binder?filepath=bondnet%2Fscripts%2Fpredict_binder.ipynb)
+Use the pretrained model: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mjwen/bondnet/binder?filepath=bondnet%2Fscripts%2Fpredict_binder.ipynb)
 Train the model: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mjwen/bondnet/binder?filepath=bondnet%2Fscripts%2Ftrain_bde.ipynb)
 
 
@@ -11,9 +10,9 @@ Train the model: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybind
 - [Train the model](#train-the-model)
 
 
-BonDNet is a graph neural network model for the prediction of bond dissociation energies (BDEs). It can be applied to both homolytic and heterolytic bond dissociations for molecules of any charge.
-
-
+BonDNet is a graph neural network model for the prediction of bond dissociation
+energies (BDEs). It can be applied to both homolytic and heterolytic bond dissociations
+for molecules of any charge.
 
 
 <a name="installation"></a>
@@ -25,15 +24,15 @@ Currently, we only support installation from source:
     ```bash
     conda create --name bondnet
     conda activate bondnet
-    conda install python==3.7.4
+    conda install python==3.7
     ```
 
 2. install dependencies (see their websites for more options)
     ```bash
-    conda install pytorch==1.5.0 torchvision -c pytorch   # https://pytorch.org
-    conda install dgl==0.4.3 -c dglteam                   # https://www.dgl.ai/pages/start.html
-    conda install pymatgen==2020.6.8 -c conda-forge       # https://pymatgen.org/installation.html
-    conda install rdkit==2020.03.3 -c conda-forge         # https://rdkit.org/docs/Install.html
+    conda install pytorch==1.6.0 torchvision -c pytorch   # https://pytorch.org
+    conda install dgl==0.5.0 -c dglteam                   # https://www.dgl.ai/pages/start.html
+    conda install pymatgen==2020.8.13 -c conda-forge       # https://pymatgen.org/installation.html
+    conda install rdkit==2020.03.5 -c conda-forge         # https://rdkit.org/docs/Install.html
     conda install openbabel==3.1.1 -c conda-forge         # http://openbabel.org/wiki/Category:Installation
     ```
 

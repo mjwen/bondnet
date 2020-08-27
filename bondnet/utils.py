@@ -13,6 +13,7 @@ import itertools
 import copy
 from pathlib import Path
 import numpy as np
+from typing import List, Any
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,42 @@ def np_split_by_size(array, sizes, axis=0):
     indices = indices[:-1]
 
     return np.split(array, indices, axis=axis)
+
+
+def list_split_by_size(data: List[Any], sizes: List[int]) -> List[List[Any]]:
+    """
+    Split a list into `len(sizes)` chunks with the size of each chunk given by `sizes`.
+
+    This is a similar to `np_split_by_size` for a list. We cannot use
+    `np_split_by_size` for a list of graphs, because DGL errors out if we convert a
+    list of graphs to an array of graphs.
+
+    Args:
+        data: the list of data to split
+        sizes: size of each chunk.
+
+    Returns:
+        a list of list, where the size of each inner list is given by `sizes`.
+
+    Example:
+        >>> list_split_by_size([0,1,2,3,4,5], [1,2,3])
+        >>>[[0], [1,2], [3,4,5]]
+    """
+    assert len(data) == sum(
+        sizes
+    ), f"Expect len(array) be equal to sum(sizes); got {len(data)} and {sum(sizes)}"
+
+    indices = list(itertools.accumulate(sizes))
+
+    new_data = []
+    a = []
+    for i, x in enumerate(data):
+        a.append(x)
+        if i + 1 in indices:
+            new_data.append(a)
+            a = []
+
+    return new_data
 
 
 def to_path(path):

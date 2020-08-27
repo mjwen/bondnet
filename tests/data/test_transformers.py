@@ -1,6 +1,10 @@
 import numpy as np
 from collections import defaultdict
-from bondnet.data.transformers import StandardScaler, GraphFeatureStandardScaler
+from bondnet.data.transformers import (
+    StandardScaler,
+    HomoGraphFeatureStandardScaler,
+    HeteroGraphFeatureStandardScaler,
+)
 import torch
 from ..utils import make_homo_CH2O, make_hetero_CH2O
 
@@ -33,7 +37,7 @@ def test_standard_scaler_hetero_graph():
         ref_feats[k] = v
 
     # apply standardization
-    scaler = GraphFeatureStandardScaler()
+    scaler = HeteroGraphFeatureStandardScaler()
     graphs = scaler(graphs)
     feats = defaultdict(list)
     for nt in ntypes:
@@ -62,7 +66,7 @@ def test_standard_scaler_homo_graph():
         ref_feats[k] = v
 
     # apply standardization
-    scaler = GraphFeatureStandardScaler()
+    scaler = HomoGraphFeatureStandardScaler()
     graphs = scaler(graphs)
 
     node_feats = []

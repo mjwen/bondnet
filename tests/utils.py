@@ -3,7 +3,7 @@ import dgl
 import numpy as np
 
 
-def make_hetero(num_atoms, num_bonds, a2b, b2a):
+def make_hetero(num_atoms, num_bonds, a2b, b2a, self_loop=False):
     """
     Create a hetero graph and create features.
     A global node is connected to all atoms and bonds.
@@ -27,18 +27,29 @@ def make_hetero(num_atoms, num_bonds, a2b, b2a):
         a2b = [(0, 0)]
         b2a = [(0, 0)]
 
-    g = dgl.heterograph(
-        {
-            ("atom", "a2b", "bond"): a2b,
-            ("bond", "b2a", "atom"): b2a,
-            ("atom", "a2g", "global"): [(i, 0) for i in range(num_atoms)],
-            ("global", "g2a", "atom"): [(0, i) for i in range(num_atoms)],
-            ("bond", "b2g", "global"): [(i, 0) for i in range(num_bonds)],
-            ("global", "g2b", "bond"): [(0, i) for i in range(num_bonds)],
-        }
-    )
-    feats_size = {"atom": 2, "bond": 3, "global": 4}
+    edge_dict = {
+        ("atom", "a2b", "bond"): a2b,
+        ("bond", "b2a", "atom"): b2a,
+        ("atom", "a2g", "global"): [(i, 0) for i in range(num_atoms)],
+        ("global", "g2a", "atom"): [(0, i) for i in range(num_atoms)],
+        ("bond", "b2g", "global"): [(i, 0) for i in range(num_bonds)],
+        ("global", "g2b", "bond"): [(0, i) for i in range(num_bonds)],
+    }
 
+    if self_loop:
+        a2a = [(i, i) for i in range(num_atoms)]
+        b2b = [(i, i) for i in range(num_bonds)]
+        g2g = [(0, 0)]
+        edge_dict.update(
+            {
+                ("atom", "a2a", "atom"): a2a,
+                ("bond", "b2b", "bond"): b2b,
+                ("global", "g2g", "global"): g2g,
+            }
+        )
+    g = dgl.heterograph(edge_dict)
+
+    feats_size = {"atom": 2, "bond": 3, "global": 4}
     feats = {}
     for ntype, size in feats_size.items():
         num_node = g.number_of_nodes(ntype)
@@ -51,7 +62,7 @@ def make_hetero(num_atoms, num_bonds, a2b, b2a):
     return g, feats
 
 
-def make_hetero_CH2O():
+def make_hetero_CH2O(self_loop=False):
     r"""
             O (0)
             || (0)
@@ -79,6 +90,7 @@ def make_hetero_CH2O():
         num_bonds=3,
         a2b=[(0, 0), (1, 0), (1, 1), (1, 2), (2, 1), (3, 2)],
         b2a=[(0, 0), (0, 1), (1, 1), (1, 2), (2, 1), (2, 3)],
+        self_loop=self_loop,
     )
 
 
@@ -130,7 +142,7 @@ def make_hetero_H():
 
 def make_batched_hetero_CH2O(size=3):
     graphs = [make_hetero_CH2O()[0] for i in range(size)]
-    g = dgl.batch_hetero(graphs)
+    g = dgl.batch(graphs)
     feats = {t: g.nodes[t].data["feat"] for t in ["atom", "bond", "global"]}
     return g, feats
 
@@ -144,7 +156,7 @@ def make_batched_hetero_forming_reaction():
         make_hetero_CHO()[0],
         make_hetero_H()[0],
     ]
-    g = dgl.batch_hetero(graphs)
+    g = dgl.batch(graphs)
     feats = {t: g.nodes[t].data["feat"] for t in ["atom", "bond", "global"]}
     return g, feats
 

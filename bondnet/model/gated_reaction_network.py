@@ -2,7 +2,6 @@ import torch
 import itertools
 import numpy as np
 import dgl
-from dgl import BatchedDGLHeteroGraph
 from bondnet.model.gated_mol import GatedGCNMol
 
 
@@ -106,11 +105,8 @@ def _split_batched_output(graph, value):
         list of tensor.
 
     """
-    if isinstance(graph, BatchedDGLHeteroGraph):
-        nbonds = graph.batch_num_nodes("bond")
-        return torch.split(value, nbonds)
-    else:
-        return [value]
+    nbonds = graph.batch_num_nodes("bond")
+    return torch.split(value, nbonds)
 
 
 def mol_graph_to_rxn_graph(graph, feats, reactions):
@@ -132,6 +128,7 @@ def mol_graph_to_rxn_graph(graph, feats, reactions):
             reactions.
         feats (dict): features for the batched graph
     """
+    # TODO add graph.local_var() since hetero and homo graphs are combined
     # should not use graph.local_var() to make a local copy, since it converts a
     # BatchedDGLHeteroGraph into a DGLHeteroGraph. Then unbatch_hetero(graph) below
     # will not work.
@@ -142,15 +139,14 @@ def mol_graph_to_rxn_graph(graph, feats, reactions):
         graph.nodes[nt].data.update({"ft": ft})
 
     # unbatch molecule graph
-    graphs = dgl.unbatch_hetero(graph)
-    graphs = np.asarray(graphs)
+    graphs = dgl.unbatch(graph)
 
     # create reaction graphs
     reaction_graphs = []
     reaction_feats = []
     for rxn in reactions:
-        reactants = graphs[rxn.reactants]
-        products = graphs[rxn.products]
+        reactants = [graphs[i] for i in rxn.reactants]
+        products = [graphs[i] for i in rxn.products]
 
         # whether a molecule has bonds?
         has_bonds = {
@@ -167,7 +163,7 @@ def mol_graph_to_rxn_graph(graph, feats, reactions):
         reaction_feats.append(fts)
 
     # batched reaction graph and data
-    batched_graph = dgl.batch_hetero(reaction_graphs)
+    batched_graph = dgl.batch(reaction_graphs)
     batched_feats = {}
     for nt in feats:
         batched_feats[nt] = torch.cat([ft[nt] for ft in reaction_feats])

@@ -1,15 +1,11 @@
-"""
-Heterogeneous Graph Attention Networks on bond level property.
-"""
-
-import warnings
+import logging
 import torch
-from dgl import BatchedDGLHeteroGraph
 import torch.nn as nn
 from bondnet.layer.gatedconv import GatedGCNConv
 from bondnet.layer.readout import ConcatenateMeanMax, ConcatenateMeanAbsDiff
 from bondnet.layer.utils import UnifySize
-from bondnet.utils import warn_stdout
+
+logger = logging.getLogger(__name__)
 
 
 class GatedGCNBond(nn.Module):
@@ -92,8 +88,7 @@ class GatedGCNBond(nn.Module):
         # need dropout?
         delta = 1e-3
         if fc_dropout < delta:
-            warnings.showwarning = warn_stdout
-            warnings.warn(
+            logger.warning(
                 "`fc_drop = {}` provided for {} smaller than {}. "
                 "Ignore dropout.".format(fc_dropout, self.__class__.__name__, delta)
             )
@@ -209,11 +204,8 @@ class GatedGCNBond(nn.Module):
             list of tensor.
 
         """
-        if isinstance(graph, BatchedDGLHeteroGraph):
-            nbonds = graph.batch_num_nodes("bond")
-            return torch.split(value, nbonds)
-        else:
-            return [value]
+        nbonds = graph.batch_num_nodes("bond")
+        return torch.split(value, nbonds)
 
     def _bond_pred_to_mol_pred(self, graph, bond_pred):
         """

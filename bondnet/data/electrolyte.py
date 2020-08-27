@@ -1,18 +1,15 @@
-"""
-The Li-EC electrolyte dataset.
-"""
-
 import torch
 import logging
 import numpy as np
+import itertools
 from collections import OrderedDict
 from pathlib import Path
 import pandas as pd
 from bondnet.data.dataset import BaseDataset
-from bondnet.data.transformers import StandardScaler, GraphFeatureStandardScaler
+from bondnet.data.transformers import StandardScaler, HeteroGraphFeatureStandardScaler
 from bondnet.data.reaction_network import ReactionInNetwork, ReactionNetwork
 from bondnet.data.utils import get_dataset_species
-from bondnet.utils import yaml_load, np_split_by_size
+from bondnet.utils import yaml_load, list_split_by_size
 
 
 logger = logging.getLogger(__name__)
@@ -76,7 +73,7 @@ class ElectrolyteBondDataset(BaseDataset):
         if self.feature_transformer:
 
             if self.state_dict_filename is None:
-                feature_scaler = GraphFeatureStandardScaler(mean=None, std=None)
+                feature_scaler = HeteroGraphFeatureStandardScaler(mean=None, std=None)
             else:
                 assert (
                     self._feature_scaler_mean is not None
@@ -85,7 +82,7 @@ class ElectrolyteBondDataset(BaseDataset):
                     self._feature_scaler_std is not None
                 ), "Corrupted state_dict file, `feature_scaler_std` not found"
 
-                feature_scaler = GraphFeatureStandardScaler(
+                feature_scaler = HeteroGraphFeatureStandardScaler(
                     mean=self._feature_scaler_mean, std=self._feature_scaler_std
                 )
 
@@ -221,7 +218,7 @@ class ElectrolyteBondDatasetClassification(BaseDataset):
 
         # feature transformers
         if self.feature_transformer:
-            feature_scaler = GraphFeatureStandardScaler()
+            feature_scaler = HeteroGraphFeatureStandardScaler()
             self.graphs = feature_scaler(self.graphs)
             logger.info("Feature scaler mean: {}".format(feature_scaler.mean))
             logger.info("Feature scaler std: {}".format(feature_scaler.std))
@@ -330,7 +327,7 @@ class ElectrolyteMoleculeDataset(BaseDataset):
 
         # feature and label transformer
         if self.feature_transformer:
-            feature_scaler = GraphFeatureStandardScaler()
+            feature_scaler = HeteroGraphFeatureStandardScaler()
             self.graphs = feature_scaler(self.graphs)
             logger.info("Feature scaler mean: {}".format(feature_scaler.mean))
             logger.info("Feature scaler std: {}".format(feature_scaler.std))
@@ -471,7 +468,7 @@ class ElectrolyteReactionDataset(BaseDataset):
 
         # regroup graphs to reactions
         num_mols = [lb["num_mols"] for lb in raw_labels]
-        reactions = np_split_by_size(graphs, num_mols)
+        reactions = list_split_by_size(graphs, num_mols)
 
         # global feat mapping
         global_mapping = [[{0: 0} for _ in range(n)] for n in num_mols]
@@ -487,11 +484,11 @@ class ElectrolyteReactionDataset(BaseDataset):
 
         # transformers
         if self.feature_transformer:
-            feature_scaler = GraphFeatureStandardScaler()
-            graphs = np.concatenate(self.graphs)
+            graphs = list(itertools.chain.from_iterable(self.graphs))  # flatten the list
+            feature_scaler = HeteroGraphFeatureStandardScaler()
             graphs = feature_scaler(graphs)
             num_mols = [len(rxn) for rxn in self.graphs]
-            self.graphs = np_split_by_size(graphs, num_mols)
+            self.graphs = list_split_by_size(graphs, num_mols)
             logger.info("Feature scaler mean: {}".format(feature_scaler.mean))
             logger.info("Feature scaler std: {}".format(feature_scaler.std))
 
@@ -548,7 +545,6 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
 
         # create dgl graphs
         graphs = self.build_graphs(self.grapher, molecules, extra_features, species)
-        graphs = np.asarray(graphs)
         graphs_not_none_indices = [i for i, g in enumerate(graphs) if g is not None]
 
         # store feature name and size
@@ -561,7 +557,7 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
         if self.feature_transformer:
 
             if self.state_dict_filename is None:
-                feature_scaler = GraphFeatureStandardScaler(mean=None, std=None)
+                feature_scaler = HeteroGraphFeatureStandardScaler(mean=None, std=None)
             else:
                 assert (
                     self._feature_scaler_mean is not None
@@ -570,11 +566,11 @@ class ElectrolyteReactionNetworkDataset(BaseDataset):
                     self._feature_scaler_std is not None
                 ), "Corrupted state_dict file, `feature_scaler_std` not found"
 
-                feature_scaler = GraphFeatureStandardScaler(
+                feature_scaler = HeteroGraphFeatureStandardScaler(
                     mean=self._feature_scaler_mean, std=self._feature_scaler_std
                 )
 
-            graphs_not_none = graphs[graphs_not_none_indices]
+            graphs_not_none = [graphs[i] for i in graphs_not_none_indices]
             graphs_not_none = feature_scaler(graphs_not_none)
 
             # update graphs

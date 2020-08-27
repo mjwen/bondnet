@@ -2,7 +2,7 @@ import torch
 import logging
 from rdkit import Chem
 from bondnet.data.dataset import BaseDataset
-from bondnet.data.transformers import GraphFeatureStandardScaler
+from bondnet.data.transformers import HeteroGraphFeatureStandardScaler
 from bondnet.utils import yaml_load
 from bondnet.data.utils import get_dataset_species
 
@@ -78,7 +78,7 @@ class BondAnnotationDataset(BaseDataset):
 
         # feature transformers
         if self.feature_transformer:
-            feature_scaler = GraphFeatureStandardScaler()
+            feature_scaler = HeteroGraphFeatureStandardScaler()
             self.graphs = feature_scaler(self.graphs)
 
             logger.info("Feature scaler mean: {}".format(feature_scaler.mean))

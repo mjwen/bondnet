@@ -21,7 +21,7 @@ setup(
     version=get_version(),
     packages=find_packages(),
     entry_points={"console_scripts": ["bondnet = bondnet.scripts.predict_cli:cli"]},
-    install_requires=["numpy", "pyyaml", "beautifultable", "sklearn", "click"],
+    install_requires=["numpy", "pyyaml", "scikit-learn", "click"],
     author="Mingjian Wen",
     author_email="wenxx151@gmail.com",
     url="https://github.com/mjwen/bondnet",
