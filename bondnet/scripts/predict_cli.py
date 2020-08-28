@@ -21,7 +21,7 @@ CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
 @click.option(
     "-m",
     "--model",
-    type=click.Choice(["pubchem", "mesd"], case_sensitive=False),
+    # type=click.Choice(["pubchem", "mesd"], case_sensitive=False),
     default="pubchem",
     show_default=True,
     help="prediction using model trained to the dataset",

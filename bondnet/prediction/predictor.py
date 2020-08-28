@@ -7,7 +7,12 @@ from bondnet.prediction.io import (
     PredictionByReaction,
     PredictionStructLabelFeatFiles,
 )
-from bondnet.prediction.load_model import select_model, load_model, load_dataset
+from bondnet.prediction.load_model import (
+    get_model_path,
+    get_model_info,
+    load_model,
+    load_dataset,
+)
 from bondnet.utils import to_path
 
 
@@ -43,7 +48,10 @@ def predict_single_molecule(
         str: sdf string representing the molecules and energies.
     """
 
-    model_name, allowed_charge, unit_converter = select_model(model_name)
+    model_path = get_model_path(model_name)
+    model_info = get_model_info(model_path)
+    allowed_charge = model_info["allowed_charge"]
+    unit_converter = model_info["unit_conversion"]
 
     assert (
         charge in allowed_charge
@@ -74,7 +82,7 @@ def predict_single_molecule(
 
     molecules, labels, extra_features = predictor.prepare_data()
     predictions = get_prediction(
-        model_name, unit_converter, molecules, labels, extra_features
+        model_path, unit_converter, molecules, labels, extra_features
     )
 
     return predictor.write_results(predictions, figure_name, write_result)
@@ -96,14 +104,17 @@ def predict_multiple_molecules(model_name, molecule_file, charge_file, out_file,
             and `inchi`.
     """
 
-    model_name, allowed_charge, unit_converter = select_model(model_name)
+    model_path = get_model_path(model_name)
+    model_info = get_model_info(model_path)
+    allowed_charge = model_info["allowed_charge"]
+    unit_converter = model_info["unit_conversion"]
 
     predictor = PredictionMultiReactant(
         molecule_file, charge_file, format, allowed_charge, ring_bond=False
     )
     molecules, labels, extra_features = predictor.prepare_data()
     predictions = get_prediction(
-        model_name, unit_converter, molecules, labels, extra_features
+        model_path, unit_converter, molecules, labels, extra_features
     )
 
     return predictor.write_results(predictions, out_file)
@@ -127,8 +138,9 @@ def predict_by_reactions(
         format (str): format of molecules, e.g. `sdf`, `graph`, `pdb`, `smiles`,
             and `inchi`.
     """
-
-    model_name, allowed_charge, unit_converter = select_model(model_name)
+    model_path = get_model_path(model_name)
+    model_info = get_model_info(model_path)
+    unit_converter = model_info["unit_conversion"]
 
     predictor = PredictionByReaction(
         molecule_file, reaction_file, charge_file, format=format
@@ -136,7 +148,7 @@ def predict_by_reactions(
 
     molecules, labels, extra_features = predictor.prepare_data()
     predictions = get_prediction(
-        model_name, unit_converter, molecules, labels, extra_features
+        model_path, unit_converter, molecules, labels, extra_features
     )
 
     return predictor.write_results(predictions, out_file)
@@ -145,7 +157,9 @@ def predict_by_reactions(
 def predict_by_struct_label_extra_feats_files(
     model_name, molecule_file, label_file, extra_feats_file, out_file="bde.yaml"
 ):
-    model_name, allowed_charge, unit_converter = select_model(model_name)
+    model_path = get_model_path(model_name)
+    model_info = get_model_info(model_path)
+    unit_converter = model_info["unit_conversion"]
 
     predictor = PredictionStructLabelFeatFiles(
         molecule_file, label_file, extra_feats_file
@@ -153,16 +167,16 @@ def predict_by_struct_label_extra_feats_files(
 
     molecules, labels, extra_features = predictor.prepare_data()
     predictions = get_prediction(
-        model_name, unit_converter, molecules, labels, extra_features
+        model_path, unit_converter, molecules, labels, extra_features
     )
 
     return predictor.write_results(predictions, out_file)
 
 
-def get_prediction(model_name, unit_converter, molecules, labels, extra_features):
+def get_prediction(model_path, unit_converter, molecules, labels, extra_features):
 
-    model = load_model(model_name)
-    dataset = load_dataset(model_name, molecules, labels, extra_features)
+    model = load_model(model_path)
+    dataset = load_dataset(model_path, molecules, labels, extra_features)
     data_loader = DataLoaderReactionNetwork(dataset, batch_size=100, shuffle=False)
 
     feature_names = ["atom", "bond", "global"]

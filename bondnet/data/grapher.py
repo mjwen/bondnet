@@ -16,6 +16,12 @@ class BaseGraph:
         self.bond_featurizer = bond_featurizer
         self.self_loop = self_loop
 
+    def build_graph(self, mol):
+        raise NotImplementedError
+
+    def featurize(self, g, mol, **kwargs):
+        raise NotImplementedError
+
     def build_graph_and_featurize(self, mol, **kwargs):
         """
         Build a graph with atoms as the nodes and bonds as the edges and then featurize

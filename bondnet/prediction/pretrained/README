@@ -1,7 +1,8 @@
-Pre-trained BonDNet models.
+Pretrained BonDNet models.
 
 mesd: using the dataset consists of homolytic and heterolytic bond dissociation
-of charged and neutral molecules. This is a newly generated dataset to test
+for molecules of charge -1, 0, and 1. This is a newly generated dataset to test
 BonDNet.
 
-pubchem: using the PubChem BDE dataset developed in the ALFABET paper: https://doi.org/10.1038/s41467-020-16201-z
+pubchem: using the PubChem BDE dataset for neutral molecules developed in the ALFABET
+paper: https://doi.org/10.1038/s41467-020-16201-z
