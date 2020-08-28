@@ -37,16 +37,16 @@ reaction for each bond.
 
 - Try the live demo at: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mjwen/bondnet/pretrained?filepath=bondnet%2Fscripts%2Fpredict_binder.ipynb)
 
-- Or use the `b ondnet` command line tool and provide the molecule as a `SMILES` or
+- Or use the `bondnet` command line tool and provide the molecule as a `SMILES` or
     `InChI` string.
 
     Example:
     ```bash
-    $ bondnet single "C1COC(=O)O1"    # default to use pubchem model
-    $ bondnet single --ring-bond  "C1COC(=O)O1"
-    $ bondnet --model mesd single "C1COC(=O)O1"
-    $ bondnet --model mesd single --charge -1 "C1COC(=O)O1"
-    $ bondnet single -h
+    bondnet single "C1COC(=O)O1"    # default to use pubchem model
+    bondnet single --ring-bond  "C1COC(=O)O1"
+    bondnet --model mesd single "C1COC(=O)O1"
+    bondnet --model mesd single --charge -1 "C1COC(=O)O1"
+    bondnet single -h
     ```
 
 ### Multiple molecules
@@ -57,9 +57,9 @@ Supported molecule format includes `sdf`, `pdb`, `smiles` and `inchi`.
 
 Example:
 ```bash
-$ bondnet multiple molecules.sdf -o results.sdf
-$ bondnet multiple -t smiles molecules.smi -o results.sdf
-$ bondnet multiple -h
+bondnet multiple molecules.sdf -o results.sdf
+bondnet multiple -t smiles molecules.smi -o results.sdf
+bondnet multiple -h
 ```
 
 ## Make predictions for bonds specified in reactions
@@ -94,9 +94,9 @@ Two files are needed:
 
 Exmaple:
 ```bash
-$ bondnet reaction -t graph molecule_graphs.json reactions.csv
-$ bondnet --model mesd reaction -t graph molecule_graphs.json reactions.csv
-$ bondnet reaction -h
+bondnet reaction -t graph molecule_graphs.json reactions.csv
+bondnet --model mesd reaction -t graph molecule_graphs.json reactions.csv
+bondnet reaction -h
 ```
 
 ### Molecules given as SDF, PDB, or SMILES
@@ -119,6 +119,6 @@ Three files are needed:
 
 Example:
 ```bash
-$ bondnet reaction -t sdf molecules.sdf reactions.csv
-$ bondnet --model mesd reaction -t smiles molecules.smi reactions.csv -c charges.txt
+bondnet reaction -t sdf molecules.sdf reactions.csv
+bondnet --model mesd reaction -t smiles molecules.smi reactions.csv -c charges.txt
 ```

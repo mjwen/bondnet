@@ -33,8 +33,8 @@ MODEL_INFO = {
 
 GOOGLE_DRIVE_MODEL_INFO = {
     "mg": {
-        "date": ["20200826"],
-        "file_id": ["1N_ZKbvNhpStwnY4bCO41q_q6ixzVN7Vx"],  # should corresponds to data
+        "date": ["20200828"],
+        "file_id": ["1hnt3OpNlBiGWEP2dyzC8stwM9EYV0HIX"],  # should corresponds to data
     },
     "phosphorus": {"date": ["20200826"]},
 }
@@ -146,6 +146,26 @@ def load_model(model_path, pretrained=True):
 
 
 def load_dataset(model_path, molecules, labels, extra_features):
+
+    # NOTE inplace fix for the mg_thf_g2 featurizer (see _get_grapher()), which needs
+    # the solvent environment. We ask the user to provide this info in model_info.yaml
+    # something like:
+    # "environment": "g2"
+    # TODO should replace this by a more general solution
+    model_info = get_model_info(model_path)
+    if model_info["featurizer_set"] == "mg_thf_g2":
+        env_map = {"thf": "smd_thf", "g2": "smd_7.23,1.4097,0,0.859,36.83,0.00,0.00"}
+        env = model_info["environment"]
+        if env not in env_map:
+            raise RuntimeError(
+                f"Unsupported `environment` {env} specified in `model_info.yaml`. "
+                f"Supported ones are {list(env_map.keys())}"
+            )
+        else:
+            for x in extra_features:
+                if "environment" not in x:
+                    x["environment"] = env_map[env]
+
     state_dict_filename = model_path.joinpath("dataset_state_dict.pkl")
     _check_species(molecules, state_dict_filename)
     _check_charge(model_path, extra_features)
@@ -219,6 +239,14 @@ def _get_grapher(model_path):
         atom_featurizer = AtomFeaturizerMinimum()
         bond_featurizer = BondAsNodeFeaturizerMinimum(length_featurizer=None)
         global_featurizer = GlobalFeaturizer(allowed_charges=allowed_charge)
+
+    elif featurizer_set == "mg_thf_g2":
+        atom_featurizer = AtomFeaturizerMinimum()
+        bond_featurizer = BondAsNodeFeaturizerMinimum(length_featurizer=None)
+        global_featurizer = GlobalFeaturizer(
+            allowed_charges=allowed_charge,
+            solvent_environment=["smd_thf", "smd_7.23,1.4097,0,0.859,36.83,0.00,0.00"],
+        )
 
     else:
         raise ValueError(

@@ -46,7 +46,7 @@ The [train_bde.ipynb](../../train_bde.ipynb) Jupyter notebook trains a model on 
 If you want to train on GPUs (a single GPU or distributed), take a look at
 [train_bde_distributed.py](../../train_bde_distributed.py). A model can be trained by
 ```bash
-$ python  train_bde_distributed.py  molecules.sdf molecule_attributes.yaml reactions.yaml
+python  train_bde_distributed.py  molecules.sdf molecule_attributes.yaml reactions.yaml
 ```
 
 
@@ -62,10 +62,10 @@ and use them for all you runs. This can save you some time.
 [create_label_file.py](../../create_label_file.py) can be used to generate the atom-mapped
 reactions:
 ```bash
-$ python  create_label_file.py  molecules.sdf molecule_attributes.yaml reactions.yaml reactions_atom_mapped.yaml
+python  create_label_file.py  molecules.sdf molecule_attributes.yaml reactions.yaml reactions_atom_mapped.yaml
 ```
 
 Then you can train using the atom-mapped reaction file: 
 ```bash
-$ python  train_bde_distributed.py  molecules.sdf molecule_attributes.yaml reactions_atom_mapped.yaml
+python  train_bde_distributed.py  molecules.sdf molecule_attributes.yaml reactions_atom_mapped.yaml
 ```
