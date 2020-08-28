@@ -2,7 +2,7 @@ Use the pretrained model:
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mjwen/bondnet/pretrained?filepath=bondnet%2Fscripts%2Fpredict_binder.ipynb)
 
 Train the model: 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mjwen/bondnet/master?filepath=bondnet%2Fscripts%2Ftrain_bde.ipynb)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mjwen/bondnet/pretrained?filepath=bondnet%2Fscripts%2Ftrain_bde.ipynb)
 
 
 # Table of Contents
@@ -76,7 +76,7 @@ can be found [here](./bondnet/scripts/examples/predict).
 
 The [train_bde.ipynb](./bondnet/scripts/train_bde.ipynb) Jupyter notebook shows
 how to train BonDNet on a BDE dataset of both neutral and charged molecules.
-Try it at: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mjwen/bondnet/master?filepath=bondnet%2Fscripts%2Ftrain_bde.ipynb)
+Try it at: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mjwen/bondnet/pretrained?filepath=bondnet%2Fscripts%2Ftrain_bde.ipynb)
 
 The [train_bde.ipynb](./bondnet/scripts/train_bde.ipynb) Jupyter notebook trains a model on CPU.
 If you want to train on GPUs (a single GPU or distributed), take a look at

@@ -6,9 +6,9 @@ channels:
   - defaults
 dependencies:
   - pip
-  - pymatgen==2020.6.8
-  - rdkit==2020.03.3
+  - pymatgen==2020.8.13
+  - rdkit==2020.03.5
   - openbabel==3.1.1
-  - pytorch==1.5.0
+  - pytorch==1.6.0
   - torchvision
-  - dgl==0.4.3
+  - dgl==0.5.0

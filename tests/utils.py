@@ -172,11 +172,9 @@ def make_homo_CH2O():
     A global node u is attached to all atoms and bonds.
     """
 
-    g = dgl.DGLGraph()
-    g.add_nodes(4)
     src = [0, 1, 1, 1, 2, 3]
-    des = [1, 0, 2, 3, 1, 1]
-    g.add_edges(src, des)
+    dst = [1, 0, 2, 3, 1, 1]
+    g = dgl.graph((src, dst))
 
     feats = {}
     N = 4

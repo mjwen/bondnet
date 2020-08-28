@@ -83,27 +83,23 @@ class HomoBidirectedGraph(BaseGraph):
         )
 
     def build_graph(self, mol):
-        g = dgl.DGLGraph()
 
-        # Add nodes
         num_atoms = mol.GetNumAtoms()
-        g.add_nodes(num_atoms)
+        num_bonds = mol.GetNumBonds()
 
-        # Add edges
         src_list = []
         dst_list = []
-        num_bonds = mol.GetNumBonds()
         for i in range(num_bonds):
             bond = mol.GetBondWithIdx(i)
             u = bond.GetBeginAtomIdx()
             v = bond.GetEndAtomIdx()
             src_list.extend([u, v])
             dst_list.extend([v, u])
-        g.add_edges(src_list, dst_list)
-
         if self.self_loop:
-            nodes = g.nodes()
-            g.add_edges(nodes, nodes)
+            src_list.extend(range(num_atoms))
+            dst_list.extend(range(num_atoms))
+
+        g = dgl.graph((src_list, dst_list), num_nodes=num_atoms)
 
         # add name
         g.mol_name = mol.GetProp("_Name")
@@ -136,20 +132,16 @@ class HomoCompleteGraph(BaseGraph):
 
     def build_graph(self, mol):
 
-        g = dgl.DGLGraph()
         num_atoms = mol.GetNumAtoms()
-        g.add_nodes(num_atoms)
 
         if self.self_loop:
-            g.add_edges(
-                [i for i in range(num_atoms) for j in range(num_atoms)],
-                [j for i in range(num_atoms) for j in range(num_atoms)],
-            )
+            src_list = [i for i in range(num_atoms) for j in range(num_atoms)]
+            dst_list = [j for i in range(num_atoms) for j in range(num_atoms)]
         else:
-            g.add_edges(
-                [i for i in range(num_atoms) for j in range(num_atoms - 1)],
-                [j for i in range(num_atoms) for j in range(num_atoms) if i != j],
-            )
+            src_list = [i for i in range(num_atoms) for j in range(num_atoms - 1)]
+            dst_list = [j for i in range(num_atoms) for j in range(num_atoms) if i != j]
+
+        g = dgl.graph((src_list, dst_list), num_nodes=num_atoms)
 
         # add name
         g.mol_name = mol.GetProp("_Name")
