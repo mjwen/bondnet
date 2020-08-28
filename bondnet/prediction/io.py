@@ -113,7 +113,7 @@ class PredictionOneReactant(BasePrediction):
         molecule (str): a string representing a molecule.
         format (str): format of the molecule string, supported are `smiles`, `inchi`,
         `sdf`, and `pdb`.
-        charge (int): charge of the molecule. 
+        charge (int): charge of the molecule.
         allowed_product_charges (list): allowed charges for created product molecules
         ring_bond (bool): whether to make predictions for ring bond
     """
@@ -408,7 +408,7 @@ class PredictionMultiReactant(BasePrediction):
                 all_predictions.append(predictions)
                 all_failed.append(failed)
 
-        has_failed = True
+        has_failed = False
         for failed in all_failed:
             if failed is None:
                 logger.error(f"Cannot read molecule {mol_id}, ignored.")
@@ -621,13 +621,14 @@ class PredictionByReaction(BasePrediction):
                 f"See the log file for more info."
             )
 
-        df["bond_energy"] = all_predictions
+        df["energy"] = all_predictions
         filename = to_path(filename) if filename is not None else filename
         rst = df.to_csv(filename, index=False)
         if rst is not None:
             print(rst)
 
 
+# NOTE, this is currently not used by any prediction code
 class PredictionSmilesReaction:
     """
     Read reactions in which reactants and products are given in smiles in a csv file.

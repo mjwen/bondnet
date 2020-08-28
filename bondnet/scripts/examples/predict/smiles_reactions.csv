@@ -1,4 +1,4 @@
-reactant,fragment1,fragment2,charge_reactant,charge_fragment1,charge_fragment2
+reactant,product1,product2,charge_reactant,charge_product1,charge_product2
 C,[H],[CH3],0,0,0
 C[C@H](O)C(=O)O,C[C@H](O)[C]=O,[OH],0,0,0
 C[C@H](O)C(=O)O,C[C@H](O)[C]=O,[OH],0,-1,1

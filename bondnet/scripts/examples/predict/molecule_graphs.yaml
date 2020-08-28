@@ -339,7 +339,7 @@
   molecule:
     '@class': Molecule
     '@module': pymatgen.core.structure
-    charge: -1
+    charge: 0
     sites:
     - name: C
       properties: {}
@@ -386,7 +386,7 @@
       - 1.4173
       - 0.4575
       - -0.0758
-    spin_multiplicity: 1
+    spin_multiplicity: 2
 - '@class': MoleculeGraph
   '@module': pymatgen.analysis.graphs
   graphs:
@@ -412,7 +412,7 @@
   molecule:
     '@class': Molecule
     '@module': pymatgen.core.structure
-    charge: 1
+    charge: 0
     sites:
     - name: H
       properties: {}
@@ -423,4 +423,4 @@
       - 0.0
       - 0.0
       - 0.0
-    spin_multiplicity: 1
+    spin_multiplicity: 2

@@ -1,1 +1,698 @@
-[{"@module": "pymatgen.analysis.graphs", "@class": "MoleculeGraph", "molecule": {"@module": "pymatgen.core.structure", "@class": "Molecule", "charge": 0, "spin_multiplicity": 1, "sites": [{"name": "C", "species": [{"element": "C", "occu": 1}], "xyz": [-0.3703, -0.0198, -0.0162], "properties": {}}, {"name": "O", "species": [{"element": "O", "occu": 1}], "xyz": [0.9569, -0.3122, -0.4129], "properties": {}}, {"name": "H", "species": [{"element": "H", "occu": 1}], "xyz": [-0.5229, -0.3441, 1.0161], "properties": {}}, {"name": "H", "species": [{"element": "H", "occu": 1}], "xyz": [-0.5488, 1.0549, -0.1019], "properties": {}}, {"name": "H", "species": [{"element": "H", "occu": 1}], "xyz": [-1.0628, -0.5552, -0.67], "properties": {}}, {"name": "H", "species": [{"element": "H", "occu": 1}], "xyz": [1.548, 0.1765, 0.1848], "properties": {}}]}, "graphs": {"directed": true, "multigraph": true, "graph": [["edge_weight_name", "weight"], ["edge_weight_units", ""], ["name", "bonds"]], "nodes": [{"specie": "C", "coords": [-0.3703, -0.0198, -0.0162], "properties": {}, "id": 0}, {"specie": "O", "coords": [0.9569, -0.3122, -0.4129], "properties": {}, "id": 1}, {"specie": "H", "coords": [-0.5229, -0.3441, 1.0161], "properties": {}, "id": 2}, {"specie": "H", "coords": [-0.5488, 1.0549, -0.1019], "properties": {}, "id": 3}, {"specie": "H", "coords": [-1.0628, -0.5552, -0.67], "properties": {}, "id": 4}, {"specie": "H", "coords": [1.548, 0.1765, 0.1848], "properties": {}, "id": 5}], "adjacency": [[{"id": 2, "key": 0}, {"id": 1, "key": 0}, {"id": 3, "key": 0}, {"id": 4, "key": 0}], [{"id": 5, "key": 0}], [], [], [], []]}}, {"@module": "pymatgen.analysis.graphs", "@class": "MoleculeGraph", "molecule": {"@module": "pymatgen.core.structure", "@class": "Molecule", "charge": 0, "spin_multiplicity": 2, "sites": [{"name": "C", "species": [{"element": "C", "occu": 1}], "xyz": [-0.0, 0.0, -0.0], "properties": {}}, {"name": "H", "species": [{"element": "H", "occu": 1}], "xyz": [1.0726, -0.1459, 0.016], "properties": {}}, {"name": "H", "species": [{"element": "H", "occu": 1}], "xyz": [-0.6628, -0.8559, 0.0059], "properties": {}}, {"name": "H", "species": [{"element": "H", "occu": 1}], "xyz": [-0.4097, 1.0018, -0.022], "properties": {}}]}, "graphs": {"directed": true, "multigraph": true, "graph": [["edge_weight_name", "weight"], ["edge_weight_units", ""], ["name", "bonds"]], "nodes": [{"specie": "C", "coords": [-0.0, 0.0, -0.0], "properties": {}, "id": 0}, {"specie": "H", "coords": [1.0726, -0.1459, 0.016], "properties": {}, "id": 1}, {"specie": "H", "coords": [-0.6628, -0.8559, 0.0059], "properties": {}, "id": 2}, {"specie": "H", "coords": [-0.4097, 1.0018, -0.022], "properties": {}, "id": 3}], "adjacency": [[{"id": 2, "key": 0}, {"id": 1, "key": 0}, {"id": 3, "key": 0}], [], [], []]}}, {"@module": "pymatgen.analysis.graphs", "@class": "MoleculeGraph", "molecule": {"@module": "pymatgen.core.structure", "@class": "Molecule", "charge": 0, "spin_multiplicity": 2, "sites": [{"name": "O", "species": [{"element": "O", "occu": 1}], "xyz": [0.4889, 0.0, 0.0], "properties": {}}, {"name": "H", "species": [{"element": "H", "occu": 1}], "xyz": [-0.4889, 0.0, 0.0], "properties": {}}]}, "graphs": {"directed": true, "multigraph": true, "graph": [["edge_weight_name", "weight"], ["edge_weight_units", ""], ["name", "bonds"]], "nodes": [{"specie": "O", "coords": [0.4889, 0.0, 0.0], "properties": {}, "id": 0}, {"specie": "H", "coords": [-0.4889, 0.0, 0.0], "properties": {}, "id": 1}], "adjacency": [[{"id": 1, "key": 0}], []]}}, {"@module": "pymatgen.analysis.graphs", "@class": "MoleculeGraph", "molecule": {"@module": "pymatgen.core.structure", "@class": "Molecule", "charge": -1, "spin_multiplicity": 1, "sites": [{"name": "C", "species": [{"element": "C", "occu": 1}], "xyz": [-0.4513, -0.0966, -0.0025], "properties": {}}, {"name": "O", "species": [{"element": "O", "occu": 1}], "xyz": [0.8667, -0.2752, 0.2543], "properties": {}}, {"name": "H", "species": [{"element": "H", "occu": 1}], "xyz": [-1.0952, -0.8859, 0.3469], "properties": {}}, {"name": "H", "species": [{"element": "H", "occu": 1}], "xyz": [-0.7375, 0.8002, -0.5229], "properties": {}}, {"name": "H", "species": [{"element": "H", "occu": 1}], "xyz": [1.4173, 0.4575, -0.0758], "properties": {}}]}, "graphs": {"directed": true, "multigraph": true, "graph": [["edge_weight_name", "weight"], ["edge_weight_units", ""], ["name", "bonds"]], "nodes": [{"specie": "C", "coords": [-0.4513, -0.0966, -0.0025], "properties": {}, "id": 0}, {"specie": "O", "coords": [0.8667, -0.2752, 0.2543], "properties": {}, "id": 1}, {"specie": "H", "coords": [-1.0952, -0.8859, 0.3469], "properties": {}, "id": 2}, {"specie": "H", "coords": [-0.7375, 0.8002, -0.5229], "properties": {}, "id": 3}, {"specie": "H", "coords": [1.4173, 0.4575, -0.0758], "properties": {}, "id": 4}], "adjacency": [[{"id": 1, "key": 0}, {"id": 2, "key": 0}, {"id": 3, "key": 0}], [{"id": 4, "key": 0}], [], [], []]}}, {"@module": "pymatgen.analysis.graphs", "@class": "MoleculeGraph", "molecule": {"@module": "pymatgen.core.structure", "@class": "Molecule", "charge": 1, "spin_multiplicity": 1, "sites": [{"name": "H", "species": [{"element": "H", "occu": 1}], "xyz": [0.0, 0.0, 0.0], "properties": {}}]}, "graphs": {"directed": true, "multigraph": true, "graph": [["edge_weight_name", "weight"], ["edge_weight_units", ""], ["name", "bonds"]], "nodes": [{"specie": "H", "coords": [0.0, 0.0, 0.0], "properties": {}, "id": 0}], "adjacency": [[]]}}]
+[
+ {
+  "@module": "pymatgen.analysis.graphs",
+  "@class": "MoleculeGraph",
+  "molecule": {
+   "@module": "pymatgen.core.structure",
+   "@class": "Molecule",
+   "charge": 0,
+   "spin_multiplicity": 1,
+   "sites": [
+    {
+     "name": "C",
+     "species": [
+      {
+       "element": "C",
+       "occu": 1
+      }
+     ],
+     "xyz": [
+      -0.3703,
+      -0.0198,
+      -0.0162
+     ],
+     "properties": {}
+    },
+    {
+     "name": "O",
+     "species": [
+      {
+       "element": "O",
+       "occu": 1
+      }
+     ],
+     "xyz": [
+      0.9569,
+      -0.3122,
+      -0.4129
+     ],
+     "properties": {}
+    },
+    {
+     "name": "H",
+     "species": [
+      {
+       "element": "H",
+       "occu": 1
+      }
+     ],
+     "xyz": [
+      -0.5229,
+      -0.3441,
+      1.0161
+     ],
+     "properties": {}
+    },
+    {
+     "name": "H",
+     "species": [
+      {
+       "element": "H",
+       "occu": 1
+      }
+     ],
+     "xyz": [
+      -0.5488,
+      1.0549,
+      -0.1019
+     ],
+     "properties": {}
+    },
+    {
+     "name": "H",
+     "species": [
+      {
+       "element": "H",
+       "occu": 1
+      }
+     ],
+     "xyz": [
+      -1.0628,
+      -0.5552,
+      -0.67
+     ],
+     "properties": {}
+    },
+    {
+     "name": "H",
+     "species": [
+      {
+       "element": "H",
+       "occu": 1
+      }
+     ],
+     "xyz": [
+      1.548,
+      0.1765,
+      0.1848
+     ],
+     "properties": {}
+    }
+   ]
+  },
+  "graphs": {
+   "directed": true,
+   "multigraph": true,
+   "graph": [
+    [
+     "edge_weight_name",
+     "weight"
+    ],
+    [
+     "edge_weight_units",
+     ""
+    ],
+    [
+     "name",
+     "bonds"
+    ]
+   ],
+   "nodes": [
+    {
+     "specie": "C",
+     "coords": [
+      -0.3703,
+      -0.0198,
+      -0.0162
+     ],
+     "properties": {},
+     "id": 0
+    },
+    {
+     "specie": "O",
+     "coords": [
+      0.9569,
+      -0.3122,
+      -0.4129
+     ],
+     "properties": {},
+     "id": 1
+    },
+    {
+     "specie": "H",
+     "coords": [
+      -0.5229,
+      -0.3441,
+      1.0161
+     ],
+     "properties": {},
+     "id": 2
+    },
+    {
+     "specie": "H",
+     "coords": [
+      -0.5488,
+      1.0549,
+      -0.1019
+     ],
+     "properties": {},
+     "id": 3
+    },
+    {
+     "specie": "H",
+     "coords": [
+      -1.0628,
+      -0.5552,
+      -0.67
+     ],
+     "properties": {},
+     "id": 4
+    },
+    {
+     "specie": "H",
+     "coords": [
+      1.548,
+      0.1765,
+      0.1848
+     ],
+     "properties": {},
+     "id": 5
+    }
+   ],
+   "adjacency": [
+    [
+     {
+      "id": 2,
+      "key": 0
+     },
+     {
+      "id": 1,
+      "key": 0
+     },
+     {
+      "id": 3,
+      "key": 0
+     },
+     {
+      "id": 4,
+      "key": 0
+     }
+    ],
+    [
+     {
+      "id": 5,
+      "key": 0
+     }
+    ],
+    [],
+    [],
+    [],
+    []
+   ]
+  }
+ },
+ {
+  "@module": "pymatgen.analysis.graphs",
+  "@class": "MoleculeGraph",
+  "molecule": {
+   "@module": "pymatgen.core.structure",
+   "@class": "Molecule",
+   "charge": 0,
+   "spin_multiplicity": 2,
+   "sites": [
+    {
+     "name": "C",
+     "species": [
+      {
+       "element": "C",
+       "occu": 1
+      }
+     ],
+     "xyz": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "properties": {}
+    },
+    {
+     "name": "H",
+     "species": [
+      {
+       "element": "H",
+       "occu": 1
+      }
+     ],
+     "xyz": [
+      1.0726,
+      -0.1459,
+      0.016
+     ],
+     "properties": {}
+    },
+    {
+     "name": "H",
+     "species": [
+      {
+       "element": "H",
+       "occu": 1
+      }
+     ],
+     "xyz": [
+      -0.6628,
+      -0.8559,
+      0.0059
+     ],
+     "properties": {}
+    },
+    {
+     "name": "H",
+     "species": [
+      {
+       "element": "H",
+       "occu": 1
+      }
+     ],
+     "xyz": [
+      -0.4097,
+      1.0018,
+      -0.022
+     ],
+     "properties": {}
+    }
+   ]
+  },
+  "graphs": {
+   "directed": true,
+   "multigraph": true,
+   "graph": [
+    [
+     "edge_weight_name",
+     "weight"
+    ],
+    [
+     "edge_weight_units",
+     ""
+    ],
+    [
+     "name",
+     "bonds"
+    ]
+   ],
+   "nodes": [
+    {
+     "specie": "C",
+     "coords": [
+      -0.0,
+      0.0,
+      -0.0
+     ],
+     "properties": {},
+     "id": 0
+    },
+    {
+     "specie": "H",
+     "coords": [
+      1.0726,
+      -0.1459,
+      0.016
+     ],
+     "properties": {},
+     "id": 1
+    },
+    {
+     "specie": "H",
+     "coords": [
+      -0.6628,
+      -0.8559,
+      0.0059
+     ],
+     "properties": {},
+     "id": 2
+    },
+    {
+     "specie": "H",
+     "coords": [
+      -0.4097,
+      1.0018,
+      -0.022
+     ],
+     "properties": {},
+     "id": 3
+    }
+   ],
+   "adjacency": [
+    [
+     {
+      "id": 2,
+      "key": 0
+     },
+     {
+      "id": 1,
+      "key": 0
+     },
+     {
+      "id": 3,
+      "key": 0
+     }
+    ],
+    [],
+    [],
+    []
+   ]
+  }
+ },
+ {
+  "@module": "pymatgen.analysis.graphs",
+  "@class": "MoleculeGraph",
+  "molecule": {
+   "@module": "pymatgen.core.structure",
+   "@class": "Molecule",
+   "charge": 0,
+   "spin_multiplicity": 2,
+   "sites": [
+    {
+     "name": "O",
+     "species": [
+      {
+       "element": "O",
+       "occu": 1
+      }
+     ],
+     "xyz": [
+      0.4889,
+      0.0,
+      0.0
+     ],
+     "properties": {}
+    },
+    {
+     "name": "H",
+     "species": [
+      {
+       "element": "H",
+       "occu": 1
+      }
+     ],
+     "xyz": [
+      -0.4889,
+      0.0,
+      0.0
+     ],
+     "properties": {}
+    }
+   ]
+  },
+  "graphs": {
+   "directed": true,
+   "multigraph": true,
+   "graph": [
+    [
+     "edge_weight_name",
+     "weight"
+    ],
+    [
+     "edge_weight_units",
+     ""
+    ],
+    [
+     "name",
+     "bonds"
+    ]
+   ],
+   "nodes": [
+    {
+     "specie": "O",
+     "coords": [
+      0.4889,
+      0.0,
+      0.0
+     ],
+     "properties": {},
+     "id": 0
+    },
+    {
+     "specie": "H",
+     "coords": [
+      -0.4889,
+      0.0,
+      0.0
+     ],
+     "properties": {},
+     "id": 1
+    }
+   ],
+   "adjacency": [
+    [
+     {
+      "id": 1,
+      "key": 0
+     }
+    ],
+    []
+   ]
+  }
+ },
+ {
+  "@module": "pymatgen.analysis.graphs",
+  "@class": "MoleculeGraph",
+  "molecule": {
+   "@module": "pymatgen.core.structure",
+   "@class": "Molecule",
+   "charge": 0,
+   "spin_multiplicity": 2,
+   "sites": [
+    {
+     "name": "C",
+     "species": [
+      {
+       "element": "C",
+       "occu": 1
+      }
+     ],
+     "xyz": [
+      -0.4513,
+      -0.0966,
+      -0.0025
+     ],
+     "properties": {}
+    },
+    {
+     "name": "O",
+     "species": [
+      {
+       "element": "O",
+       "occu": 1
+      }
+     ],
+     "xyz": [
+      0.8667,
+      -0.2752,
+      0.2543
+     ],
+     "properties": {}
+    },
+    {
+     "name": "H",
+     "species": [
+      {
+       "element": "H",
+       "occu": 1
+      }
+     ],
+     "xyz": [
+      -1.0952,
+      -0.8859,
+      0.3469
+     ],
+     "properties": {}
+    },
+    {
+     "name": "H",
+     "species": [
+      {
+       "element": "H",
+       "occu": 1
+      }
+     ],
+     "xyz": [
+      -0.7375,
+      0.8002,
+      -0.5229
+     ],
+     "properties": {}
+    },
+    {
+     "name": "H",
+     "species": [
+      {
+       "element": "H",
+       "occu": 1
+      }
+     ],
+     "xyz": [
+      1.4173,
+      0.4575,
+      -0.0758
+     ],
+     "properties": {}
+    }
+   ]
+  },
+  "graphs": {
+   "directed": true,
+   "multigraph": true,
+   "graph": [
+    [
+     "edge_weight_name",
+     "weight"
+    ],
+    [
+     "edge_weight_units",
+     ""
+    ],
+    [
+     "name",
+     "bonds"
+    ]
+   ],
+   "nodes": [
+    {
+     "specie": "C",
+     "coords": [
+      -0.4513,
+      -0.0966,
+      -0.0025
+     ],
+     "properties": {},
+     "id": 0
+    },
+    {
+     "specie": "O",
+     "coords": [
+      0.8667,
+      -0.2752,
+      0.2543
+     ],
+     "properties": {},
+     "id": 1
+    },
+    {
+     "specie": "H",
+     "coords": [
+      -1.0952,
+      -0.8859,
+      0.3469
+     ],
+     "properties": {},
+     "id": 2
+    },
+    {
+     "specie": "H",
+     "coords": [
+      -0.7375,
+      0.8002,
+      -0.5229
+     ],
+     "properties": {},
+     "id": 3
+    },
+    {
+     "specie": "H",
+     "coords": [
+      1.4173,
+      0.4575,
+      -0.0758
+     ],
+     "properties": {},
+     "id": 4
+    }
+   ],
+   "adjacency": [
+    [
+     {
+      "id": 1,
+      "key": 0
+     },
+     {
+      "id": 2,
+      "key": 0
+     },
+     {
+      "id": 3,
+      "key": 0
+     }
+    ],
+    [
+     {
+      "id": 4,
+      "key": 0
+     }
+    ],
+    [],
+    [],
+    []
+   ]
+  }
+ },
+ {
+  "@module": "pymatgen.analysis.graphs",
+  "@class": "MoleculeGraph",
+  "molecule": {
+   "@module": "pymatgen.core.structure",
+   "@class": "Molecule",
+   "charge": 0,
+   "spin_multiplicity": 2,
+   "sites": [
+    {
+     "name": "H",
+     "species": [
+      {
+       "element": "H",
+       "occu": 1
+      }
+     ],
+     "xyz": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "properties": {}
+    }
+   ]
+  },
+  "graphs": {
+   "directed": true,
+   "multigraph": true,
+   "graph": [
+    [
+     "edge_weight_name",
+     "weight"
+    ],
+    [
+     "edge_weight_units",
+     ""
+    ],
+    [
+     "name",
+     "bonds"
+    ]
+   ],
+   "nodes": [
+    {
+     "specie": "H",
+     "coords": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "properties": {},
+     "id": 0
+    }
+   ],
+   "adjacency": [
+    []
+   ]
+  }
+ }
+]
