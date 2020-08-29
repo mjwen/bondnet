@@ -1,0 +1,6 @@
+allowed_charge:
+- -1
+- 0
+- 1
+unit_conversion: 1.0
+featurizer_set: minimum

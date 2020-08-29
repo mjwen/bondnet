@@ -1,0 +1,38 @@
+!!python/object:argparse.Namespace
+batch_size: 100
+dataset_state_dict_filename: dataset_state_dict.pkl
+embedding_size: 24
+epochs: 1000
+fc_activation: ReLU
+fc_batch_norm: 0
+fc_dropout: 0.0
+fc_hidden_size:
+- 384
+- 192
+fc_num_layers: 2
+feature_size:
+  atom: 13
+  bond: 7
+  global: 6
+gated_activation: ReLU
+gated_batch_norm: 1
+gated_dropout: 0.0
+gated_graph_norm: 0
+gated_hidden_size:
+- 192
+- 192
+- 192
+- 192
+gated_num_fc_layers: 2
+gated_num_layers: 4
+gated_residual: 1
+gpu: 0
+lr: 0.001
+num_lstm_iters: 6
+num_lstm_layers: 3
+output_file: results.pkl
+restore: 1
+set2set_ntypes_direct:
+- global
+start_epoch: 0
+weight_decay: 0.0

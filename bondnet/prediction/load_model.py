@@ -153,18 +153,24 @@ def load_dataset(model_path, molecules, labels, extra_features):
     # "environment": "g2"
     # TODO should replace this by a more general solution
     model_info = get_model_info(model_path)
+
     if model_info["featurizer_set"] == "mg_thf_g2":
-        env_map = {"thf": "smd_thf", "g2": "smd_7.23,1.4097,0,0.859,36.83,0.00,0.00"}
-        env = model_info["environment"]
-        if env not in env_map:
-            raise RuntimeError(
-                f"Unsupported `environment` {env} specified in `model_info.yaml`. "
-                f"Supported ones are {list(env_map.keys())}"
-            )
-        else:
-            for x in extra_features:
-                if "environment" not in x:
-                    x["environment"] = env_map[env]
+
+        # not directly using training file (file is directly used in
+        # predict_by_struct_label_extra_feats_files()
+        if not isinstance(extra_features, (str, Path)):
+
+            env_map = {"thf": "smd_thf", "g2": "smd_7.23,1.4097,0,0.859,36.83,0.00,0.00"}
+            env = model_info["environment"]
+            if env not in env_map:
+                raise RuntimeError(
+                    f"Unsupported `environment` {env} specified in `model_info.yaml`. "
+                    f"Supported ones are {list(env_map.keys())}"
+                )
+            else:
+                for x in extra_features:
+                    if "environment" not in x:
+                        x["environment"] = env_map[env]
 
     state_dict_filename = model_path.joinpath("dataset_state_dict.pkl")
     _check_species(molecules, state_dict_filename)
