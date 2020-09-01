@@ -36,7 +36,10 @@ GOOGLE_DRIVE_MODEL_INFO = {
         "date": ["20200828"],
         "file_id": ["1hnt3OpNlBiGWEP2dyzC8stwM9EYV0HIX"],  # should corresponds to data
     },
-    "phosphorus": {"date": ["20200826"]},
+    "phosphorus": {
+        "date": ["20200901"],
+        "file_id": ["1rbANewsZOGgPBEtecYi9ubc_wsxQqGl5"],  # should corresponds to data
+    },
 }
 
 
