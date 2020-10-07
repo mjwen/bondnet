@@ -471,7 +471,7 @@ class PredictionByReaction(BasePrediction):
     """
 
     def __init__(
-        self, molecule_file, reaction_file, charge_file=None, format="sdf", nprocs=None
+        self, molecule_file, reaction_file, charge_file=None, format="sdf", nprocs=1
     ):
         self.molecule_file = to_path(molecule_file)
         self.reaction_file = to_path(reaction_file)
@@ -658,7 +658,7 @@ class PredictionSmilesReaction:
             If None, use a serial version.
     """
 
-    def __init__(self, filename, nprocs=None):
+    def __init__(self, filename, nprocs=1):
         self.filename = to_path(filename)
         self.nprocs = nprocs
         self.failed = None
@@ -732,7 +732,7 @@ class PredictionSmilesReaction:
             except RdkitMolCreationError:
                 m = None
             rdkit_mols.append((m, c, None, s))
-        if self.nprocs is None:
+        if self.nprocs <= 1:
             molecules = [wrapper_rdkit_mol_to_wrapper_mol(*x) for x in rdkit_mols]
         else:
             with multiprocessing.Pool(self.nprocs) as p:
@@ -909,7 +909,7 @@ def add_bond_energy_to_sdf(m, energy):
 
 
 def rdkit_mols_to_wrapper_mols(
-    rdkit_mols, identifiers, charges=None, energies=None, nprocs=None
+    rdkit_mols, identifiers, charges=None, energies=None, nprocs=1
 ):
     """
     Convert a list of rdkit molecules to MoleculeWrapper molecules.
@@ -923,7 +923,7 @@ def rdkit_mols_to_wrapper_mols(
     charges = [None] * len(rdkit_mols) if charges is None else charges
     energies = [None] * len(rdkit_mols) if energies is None else energies
 
-    if nprocs is None:
+    if nprocs <= 1:
         molecules = [
             wrapper_rdkit_mol_to_wrapper_mol(m, c, e, iden)
             for m, c, e, iden in zip(rdkit_mols, charges, energies, identifiers)

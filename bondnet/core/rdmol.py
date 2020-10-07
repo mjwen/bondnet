@@ -37,7 +37,7 @@ def smiles_to_rdkit_mol(s, add_H=True):
     try:
         m = generate_3D_coords(m)
     except GenerateCoordsError as e:
-        raise RdkitMolCreationError(f"smiles: {e}")
+        raise RdkitMolCreationError(f"cannot create 3D coords smiles: {e}")
 
     m.SetProp("_Name", s)
 
@@ -598,6 +598,24 @@ def smarts_atom_mapping(s):
     if m is None:
         raise RdkitMolCreationError(f"smarts: {s}")
 
+    ind_map = []
+    for atom in m.GetAtoms():
+        map_num = atom.GetAtomMapNum()
+        if map_num != 0:
+            ind_map.append(map_num - 1)
+        else:
+            ind_map.append(None)
+
+    return ind_map
+
+
+def rdkit_mol_mapping(m):
+    """
+    Get atom mapping of an rdkit molecule.
+
+    Same functionality as `smarts_atom_mapping` except accepts rdkit mol instead of
+    smarts string.
+    """
     ind_map = []
     for atom in m.GetAtoms():
         map_num = atom.GetAtomMapNum()

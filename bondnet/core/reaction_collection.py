@@ -580,6 +580,7 @@ class ReactionCollection:
         top_n=2,
         complement_reactions=False,
         one_per_iso_bond_group=True,
+        nprocs=1,
     ):
         """
         Write the reaction.
@@ -606,6 +607,7 @@ class ReactionCollection:
             complement_reactions (bool): whether to extract complement reactions.
             one_per_iso_bond_group (bool): whether to keep just one reaction from each
                 iso bond group.
+            nprocs (int): number of processes to use, if 1, running in serial mode.
 
         """
 
@@ -646,9 +648,11 @@ class ReactionCollection:
         mol_id_to_index_mapping = {m.id: i for i, m in enumerate(mol_reservoir)}
 
         # use multiprocessing to get atom mappings since they are relatively expensive
-        # mappings = [get_atom_bond_mapping(r) for r in reactions]
-        with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
-            mappings = p.map(get_atom_bond_mapping, reactions)
+        if nprocs <= 1:
+            mappings = [get_atom_bond_mapping(r) for r in reactions]
+        else:
+            with multiprocessing.Pool(nprocs) as p:
+                mappings = p.map(get_atom_bond_mapping, reactions)
 
         all_labels = []  # one per reaction
 
@@ -705,6 +709,7 @@ class ReactionCollection:
         group_mode="all",
         one_per_iso_bond_group=True,
         write_to_file=True,
+        nprocs=1,
     ):
         """
         Write the reaction
@@ -772,9 +777,11 @@ class ReactionCollection:
         mol_id_to_index_mapping = {m.id: i for i, m in enumerate(mol_reservoir)}
 
         # use multiprocessing to get atom mappings since they are relatively expensive
-        # mappings = [get_atom_bond_mapping(r) for r in reactions]
-        with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
-            mappings = p.map(get_atom_bond_mapping, reactions)
+        if nprocs <= 1:
+            mappings = [get_atom_bond_mapping(r) for r in reactions]
+        else:
+            with multiprocessing.Pool(nprocs) as p:
+                mappings = p.map(get_atom_bond_mapping, reactions)
 
         labels = []  # one per reaction
         for i, (rxn, mps) in enumerate(zip(reactions, mappings)):
@@ -820,6 +827,7 @@ class ReactionCollection:
         label_file="label.txt",
         feature_file=None,
         write_to_file=True,
+        nprocs=1,
     ):
         """
         Convert the reaction to standard data format that the fitting code expects.
@@ -839,6 +847,7 @@ class ReactionCollection:
             write_to_file (bool): if True, the results are written to files. If False,
                 not write to files and `struct_file`, `label_file` and `feature_file`
                 are ignored.
+            nprocs (int): number of processes to use, if 1, running in serial mode.
 
         Returns:
             rdkit_mols (list): rdkit molecules participating the reactions
@@ -856,9 +865,11 @@ class ReactionCollection:
         rdkit_mols = [m.rdkit_mol for m in mol_reservoir]
 
         # use multiprocessing to get atom mappings since they are relatively expensive
-        # mappings = [get_atom_bond_mapping(r) for r in reactions]
-        with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
-            mappings = p.map(get_atom_bond_mapping, reactions)
+        if nprocs <= 1:
+            mappings = [get_atom_bond_mapping(r) for r in reactions]
+        else:
+            with multiprocessing.Pool(nprocs) as p:
+                mappings = p.map(get_atom_bond_mapping, reactions)
 
         labels = []  # one per reaction
         for i, (rxn, mps) in enumerate(zip(reactions, mappings)):
