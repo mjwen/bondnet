@@ -28,7 +28,7 @@ from bondnet.utils import (
 
 MODEL_INFO = {
     "mesd": {"date": ["20200808"]},  # default to the last (should be the latest)
-    "pubchem": {"date": ["20200531"]},
+    "pubchem": {"date": ["20200810"]},
 }
 
 GOOGLE_DRIVE_MODEL_INFO = {

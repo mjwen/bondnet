@@ -1,0 +1,4 @@
+allowed_charge:
+- 0
+unit_conversion: 0.043363    # kcal/mol to eV
+featurizer_set: full
