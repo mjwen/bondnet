@@ -102,7 +102,7 @@ def evaluate(model, nodes, data_loader, compute_features=False):
 
 
 def main(
-    model_name="mesd/20200808",
+    model_name="bdncm/20200808",
     sdf_file="~/Applications/db_access/mol_builder/struct_rxn_ntwk_rgrn_qc.sdf",
     label_file="~/Applications/db_access/mol_builder/label_rxn_ntwk_rgrn_qc.yaml",
     feature_file="~/Applications/db_access/mol_builder/feature_rxn_ntwk_rgrn_qc.yaml",

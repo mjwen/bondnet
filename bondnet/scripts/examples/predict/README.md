@@ -44,8 +44,8 @@ reaction for each bond.
     ```bash
     bondnet single "C1COC(=O)O1"    # default to use pubchem model
     bondnet single --ring-bond  "C1COC(=O)O1"
-    bondnet --model mesd single "C1COC(=O)O1"
-    bondnet --model mesd single --charge -1 "C1COC(=O)O1"
+    bondnet --model bdncm single "C1COC(=O)O1"
+    bondnet --model bdncm single --charge -1 "C1COC(=O)O1"
     bondnet single -h
     ```
 
@@ -95,7 +95,7 @@ Two files are needed:
 Exmaple:
 ```bash
 bondnet reaction -t graph molecule_graphs.json reactions.csv
-bondnet --model mesd reaction -t graph molecule_graphs.json reactions.csv
+bondnet --model bdncm reaction -t graph molecule_graphs.json reactions.csv
 bondnet reaction -h
 ```
 
@@ -120,5 +120,5 @@ Three files are needed:
 Example:
 ```bash
 bondnet reaction -t sdf molecules.sdf reactions.csv
-bondnet --model mesd reaction -t smiles molecules.smi reactions.csv -c charges.txt
+bondnet --model bdncm reaction -t smiles molecules.smi reactions.csv -c charges.txt
 ```
