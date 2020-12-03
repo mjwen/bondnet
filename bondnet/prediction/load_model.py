@@ -211,7 +211,10 @@ def _check_species(molecules, state_dict_filename):
         supported = ",".join(supported_species)
         raise ValueError(
             f"Model trained with a dataset having species: {supported}; Cannot make "
-            f"predictions for molecule containing species: {not_supported}."
+            f"predictions for molecule containing species: {not_supported}. "
+            f"Note that two models trained on different datasets are provided: "
+            f"the `pubchem` supports C, H, O, N and the `bdncm` supports C, H, O, F, Li. "
+            f"You may want to switch the model if you see this message."
         )
 
 
@@ -227,6 +230,10 @@ def _check_charge(model_path, features):
         raise ValueError(
             f"Supported molecular charges include {allowed_charge}; "
             f"but the dataset contains molecules of charge {charges}."
+            f"Note that two models trained on different datasets are provided: "
+            f"the `pubchem` supports neutral molecules and the `bdncm` supports "
+            f"molecules of charge -1, 0, and 1. "
+            f"You may want to switch the model if you see this message."
         )
 
 
