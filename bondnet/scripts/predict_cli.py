@@ -21,10 +21,10 @@ CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
 @click.option(
     "-m",
     "--model",
-    type=click.Choice(["pubchem", "bdncm"], case_sensitive=False),
+    # type=click.Choice(["pubchem", "bdncm"], case_sensitive=False),
     default="pubchem",
     show_default=True,
-    help="prediction using model trained to the dataset",
+    help="prediction using model trained to the dataset, e.g. (pubchem and bdncm).",
 )
 @click.version_option(version=bondnet.__version__)
 @click.pass_context
@@ -47,7 +47,9 @@ def single(model, molecule, charge, ring_bond):
 
     MOLECULE is a SMILES string or InChI string.
     """
-    return predict_single_molecule(model, molecule, charge, ring_bond, write_result=True)
+    return predict_single_molecule(
+        model, molecule, charge, ring_bond, write_result=True
+    )
 
 
 @cli.command(context_settings=CONTEXT_SETTINGS)
@@ -77,7 +79,9 @@ def multiple(model, molecule_file, charge_file, out_file, format):
     """
     Make predictions for multiple molecules.
     """
-    return predict_multiple_molecules(model, molecule_file, charge_file, out_file, format)
+    return predict_multiple_molecules(
+        model, molecule_file, charge_file, out_file, format
+    )
 
 
 @cli.command(context_settings=CONTEXT_SETTINGS)
