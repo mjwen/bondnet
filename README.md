@@ -17,7 +17,9 @@ for molecules of any charge. This model is described in the paper:
 [BonDNet: a graph neural network for the prediction of bond dissociation 
   energies for charged molecules, *Chemical Science*, 2021.](https://doi.org/10.1039/D0SC05251E)
 
-![BonDNet](bondnet.png)
+<p align="center">
+<img src="bondnet.png" alt="BonDNet" width="600">
+</p>
 
 
 # Installation
