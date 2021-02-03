@@ -37,9 +37,12 @@ def parse_args():
     parser = argparse.ArgumentParser(description="GatedReactionNetwork")
 
     # input files
-    parser.add_argument("molecule_file", type=str)
-    parser.add_argument("molecule_attributes_file", type=str)
-    parser.add_argument("reaction_file", type=str)
+    parser.add_argument("--molecule_file", type=str,
+                        default='examples/train/molecules.sdf')
+    parser.add_argument("--molecule_attributes_file", type=str,
+                        default='examples/train/molecule_attributes.yaml')
+    parser.add_argument("--reaction_file", type=str,
+                        default='examples/train/reactions.yaml')
 
     # embedding layer
     parser.add_argument("--embedding-size", type=int, default=24)
