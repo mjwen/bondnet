@@ -2,12 +2,12 @@
 Script to make predictions using command line interface.
 """
 
-import click
 import bondnet
+import click
 from bondnet.prediction.predictor import (
-    predict_single_molecule,
-    predict_multiple_molecules,
     predict_by_reactions,
+    predict_multiple_molecules,
+    predict_single_molecule,
 )
 from rdkit import RDLogger
 
@@ -38,17 +38,27 @@ def cli(ctx, model):
 @click.option(
     "--ring-bond/--no-ring-bond",
     default=False,
-    help="make prediction for bonds in a ring",
+    help="make prediction for bonds in a ring (Warning, the pubchem dataset does not "
+    "has ring bond in the dataset. So if using a model trained on this dataset, "
+    "extra care needs to be taken.)",
+)
+@click.option(
+    "--isomorphic-bond/--no-isomorphic-bond",
+    default=False,
+    help="For graphically isomorphic bonds, whether to show all their bond "
+    "dissociation energies. Note, BonDNet will predict the same bond dissociation "
+    "energies for graphically isomorphic bonds. So, this is just a convenience option.",
 )
 @click.pass_obj
-def single(model, molecule, charge, ring_bond):
+def single(model, molecule, charge, ring_bond, isomorphic_bond):
     """
     Make predictions for a molecule.
 
     MOLECULE is a SMILES string or InChI string.
     """
+    one_per_iso_bond_group = not isomorphic_bond
     return predict_single_molecule(
-        model, molecule, charge, ring_bond, write_result=True
+        model, molecule, charge, ring_bond, one_per_iso_bond_group, write_result=True
     )
 
 

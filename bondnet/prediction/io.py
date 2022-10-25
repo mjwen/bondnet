@@ -2,25 +2,25 @@
 Converting data files to standard data the model accepts and write prediction results.
 """
 
-import logging
 import json
+import logging
 import multiprocessing
 import warnings
-import pandas as pd
 from collections import defaultdict
-from rdkit import Chem
-from pymatgen.analysis.graphs import MoleculeGraph
+
+import pandas as pd
 from bondnet.core.molwrapper import MoleculeWrapper, rdkit_mol_to_wrapper_mol
 from bondnet.core.rdmol import (
-    smiles_to_rdkit_mol,
-    inchi_to_rdkit_mol,
     RdkitMolCreationError,
+    inchi_to_rdkit_mol,
     read_rdkit_mols_from_file,
+    smiles_to_rdkit_mol,
 )
 from bondnet.core.reaction import Reaction, ReactionExtractorFromReactant
 from bondnet.core.reaction_collection import ReactionCollection
-from bondnet.utils import to_path
-from bondnet.utils import yaml_load, yaml_dump
+from bondnet.utils import to_path, yaml_dump, yaml_load
+from pymatgen.analysis.graphs import MoleculeGraph
+from rdkit import Chem
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +88,11 @@ class BasePrediction:
         self.read_reactions()
         extractor = ReactionCollection(self.reactions)
 
-        mols, labls, feats = extractor.create_regression_dataset_reaction_network_simple(
+        (
+            mols,
+            labls,
+            feats,
+        ) = extractor.create_regression_dataset_reaction_network_simple(
             write_to_file=False
         )
 
@@ -116,6 +120,9 @@ class PredictionOneReactant(BasePrediction):
         charge (int): charge of the molecule.
         allowed_product_charges (list): allowed charges for created product molecules
         ring_bond (bool): whether to make predictions for ring bond
+        one_per_iso_bond_group (bool): If `True`, keep one reaction for each
+            isomorphic bond group (fragments obtained by breaking different bond
+            are isomorphic to each other). If `False`, keep all.
     """
 
     def __init__(
@@ -125,6 +132,7 @@ class PredictionOneReactant(BasePrediction):
         format="smiles",
         allowed_product_charges=[0],
         ring_bond=False,
+        one_per_iso_bond_group=True,
     ):
         super(PredictionOneReactant, self).__init__()
 
@@ -133,6 +141,7 @@ class PredictionOneReactant(BasePrediction):
         self.charge = charge
         self.allowed_product_charges = allowed_product_charges
         self.ring_bond = ring_bond
+        self.one_per_iso_bond_group = one_per_iso_bond_group
 
         self.rxn_idx_to_bond_map = None
 
@@ -173,7 +182,9 @@ class PredictionOneReactant(BasePrediction):
         extractor = ReactionExtractorFromReactant(
             molecule, allowed_charge=self.allowed_product_charges
         )
-        extractor.extract(ring_bond=self.ring_bond, one_per_iso_bond_group=True)
+        extractor.extract(
+            ring_bond=self.ring_bond, one_per_iso_bond_group=self.one_per_iso_bond_group
+        )
 
         reactions = extractor.reactions
         for r in reactions:
@@ -246,8 +257,8 @@ class PredictionOneReactant(BasePrediction):
             print(sdf)
 
             print(
-                "The predicted bond energies in the SDF file are the 7th value in lines "
-                "between `BEGIN BOND` and `End BOND`."
+                "The predicted bond energies (in the units of eV) in the SDF file are "
+                "the 7th value in lines between `BEGIN BOND` and `End BOND`."
             )
             print(f"Also shown in the generated file `{figure_name}`.")
 
@@ -502,7 +513,9 @@ class PredictionByReaction(BasePrediction):
                 )
 
             mol_graphs = [MoleculeGraph.from_dict(d) for d in mol_graph_dicts]
-            molecules = [MoleculeWrapper(g, id=str(i)) for i, g in enumerate(mol_graphs)]
+            molecules = [
+                MoleculeWrapper(g, id=str(i)) for i, g in enumerate(mol_graphs)
+            ]
 
         else:
             # read rdkit mols

@@ -1,17 +1,17 @@
-import torch
 import numpy as np
+import torch
 from bondnet.data.dataloader import DataLoaderReactionNetwork
 from bondnet.prediction.io import (
-    PredictionOneReactant,
-    PredictionMultiReactant,
     PredictionByReaction,
+    PredictionMultiReactant,
+    PredictionOneReactant,
     PredictionStructLabelFeatFiles,
 )
 from bondnet.prediction.load_model import (
-    get_model_path,
     get_model_info,
-    load_model,
+    get_model_path,
     load_dataset,
+    load_model,
 )
 from bondnet.utils import to_path
 
@@ -21,6 +21,7 @@ def predict_single_molecule(
     molecule,
     charge=0,
     ring_bond=False,
+    one_per_iso_bond_group=True,
     write_result=False,
     figure_name="prediction.png",
     format=None,
@@ -39,6 +40,9 @@ def predict_single_molecule(
         molecule (str): SMILES or InChI string or a path to a file storing these string.
         charge (int): charge of the molecule.
         ring_bond (bool): whether to make predictions for ring bond.
+        one_per_iso_bond_group (bool): If `True`, keep one reaction for each
+            isomorphic bond group (fragments obtained by breaking different bond
+            are isomorphic to each other). If `False`, keep all.
         write_result (bool): whether to write the returned sdf to stdout.
         figure_name (str): the name of the figure to be created showing the bond energy.
         format (str): format of the molecule, if not provided, will guess based on the
@@ -78,7 +82,9 @@ def predict_single_molecule(
             else:
                 format = "smiles"
 
-    predictor = PredictionOneReactant(molecule, charge, format, allowed_charge, ring_bond)
+    predictor = PredictionOneReactant(
+        molecule, charge, format, allowed_charge, ring_bond, one_per_iso_bond_group
+    )
 
     molecules, labels, extra_features = predictor.prepare_data()
     predictions = get_prediction(
@@ -88,7 +94,9 @@ def predict_single_molecule(
     return predictor.write_results(predictions, figure_name, write_result)
 
 
-def predict_multiple_molecules(model_name, molecule_file, charge_file, out_file, format):
+def predict_multiple_molecules(
+    model_name, molecule_file, charge_file, out_file, format
+):
     """
     Make predictions of bond energies of multiple molecules.
 
