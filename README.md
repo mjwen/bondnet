@@ -33,12 +33,12 @@ Currently, we support installation from source:
    conda install python
    ```
 
-2. install dependencies 
+2. install dependencies
 
    ```bash
-   conda install "pytorch>=1.10.0" -c pytorch   
-   conda install "dgl>=0.5.0" -c dglteam                   
-   conda install "pymatgen>=2022.01.08" "rdkit>=2020.03.5" "openbabel>=3.1.1" -c conda-forge      
+   conda install "pytorch>=1.10.0" -c pytorch
+   conda install "dgl>=0.5.0" -c dglteam
+   conda install "pymatgen>=2022.01.08" "rdkit>=2020.03.5" "openbabel>=3.1.1" -c conda-forge
    ```
 
 3. install this repo
@@ -77,8 +77,11 @@ Alternatively, a command line interface (CLI) `bondnet` is provided for batch pr
   bondnet reaction -t sdf molecules.sdf reactions.csv
   ```
 
-More detailed instructions, example input files, and description of the file formats,
-can be found [here](./bondnet/scripts/examples/predict).
+## More information
+
+- More detailed instructions, example input files, and description of the file formats,
+  can be found [here](./bondnet/scripts/examples/predict).
+- To get help, do `bondnet -h`. Help of subcommand can be obtained by, e.g. `bondnet single -h`
 
 # Train the model
 
