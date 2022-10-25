@@ -84,13 +84,35 @@ def single(model, molecule, charge, ring_bond, isomorphic_bond):
     show_default=True,
     help="format of molecules",
 )
+@click.option(
+    "--ring-bond/--no-ring-bond",
+    default=False,
+    help="make prediction for bonds in a ring (Warning, the pubchem dataset does not "
+    "has ring bond in the dataset. So if using a model trained on this dataset, "
+    "extra care needs to be taken.)",
+)
+@click.option(
+    "--isomorphic-bond/--no-isomorphic-bond",
+    default=False,
+    help="For graphically isomorphic bonds, whether to show all their bond "
+    "dissociation energies. Note, BonDNet will predict the same bond dissociation "
+    "energies for graphically isomorphic bonds. So, this is just a convenience option.",
+)
 @click.pass_obj
-def multiple(model, molecule_file, charge_file, out_file, format):
+def multiple(
+    model, molecule_file, charge_file, out_file, format, ring_bond, isomorphic_bond
+):
     """
     Make predictions for multiple molecules.
     """
     return predict_multiple_molecules(
-        model, molecule_file, charge_file, out_file, format
+        model,
+        molecule_file,
+        charge_file,
+        out_file,
+        format,
+        ring_bond=ring_bond,
+        one_per_iso_bond_group=not isomorphic_bond,
     )
 
 

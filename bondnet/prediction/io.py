@@ -278,6 +278,9 @@ class PredictionMultiReactant(BasePrediction):
             `smiles`, `inchi`, `sdf`, and `pdb`.
         allowed_product_charges (list): allowed charges for created product molecules
         ring_bond (bool): whether to make predictions for ring bond
+        one_per_iso_bond_group (bool): If `True`, keep one reaction for each
+            isomorphic bond group (fragments obtained by breaking different bond
+            are isomorphic to each other). If `False`, keep all.
     """
 
     def __init__(
@@ -287,6 +290,7 @@ class PredictionMultiReactant(BasePrediction):
         format="smiles",
         allowed_product_charges=[0],
         ring_bond=False,
+        one_per_iso_bond_group=True,
     ):
         super(PredictionMultiReactant, self).__init__()
 
@@ -295,6 +299,7 @@ class PredictionMultiReactant(BasePrediction):
         self.format = format
         self.allowed_product_charges = allowed_product_charges
         self.ring_bond = ring_bond
+        self.one_per_iso_bond_group = one_per_iso_bond_group
 
         self.rxn_idx_to_mol_and_bond_map = None
 
@@ -340,7 +345,10 @@ class PredictionMultiReactant(BasePrediction):
                 extractor = ReactionExtractorFromReactant(
                     mol, allowed_charge=self.allowed_product_charges
                 )
-                extractor.extract(ring_bond=False, one_per_iso_bond_group=True)
+                extractor.extract(
+                    ring_bond=self.ring_bond,
+                    one_per_iso_bond_group=self.one_per_iso_bond_group,
+                )
 
                 rxns = extractor.reactions
                 reactions.extend(rxns)
