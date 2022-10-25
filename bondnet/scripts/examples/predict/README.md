@@ -10,19 +10,19 @@
 
 ## Pretrained models
 
-Two pretrained models are available for use: one trained on the `mesd` BDE da taset of
+Two pretrained models are available for use: one trained on the `bdncm` BDE da taset of
 homolytic and heterolytic bond dissociations for molecules of charge -1, 0, and  1;
 the other trained on the `pubchem` BDE dataset of homolytic bond dissociation of
 neutral molecules. The default model is `pubchem` and models can be switched by providing
-the dataset name (`mesd` or `pubchem`).
+the dataset name (`bdncm` or `pubchem`).
 
 ## Make predictions for all bonds in molecules
 
 For a given molecule, all its bonds are broken to create a number reactions.
 For a given bond, all possible charge combinations for the products are considered
 and the smallest energy is reported. Take the `C-O` bond in `H3C-OH` as an example.
-Assume we use the `mesd` model and `H3C-OH` has a charge of `0`, then there are three
-reactions because molecules are allowed to have charge -1, 0, and 1 in the `mesd` model:
+Assume we use the `bdncm` model and `H3C-OH` has a charge of `0`, then there are three
+reactions because molecules are allowed to have charge -1, 0, and 1 in the `bdncm` model:
 
 - `H3C-OH (0) --> H3C (0)  + OH (0)`
 - `H3C-OH (0) --> H3C (-1)  + OH (1)`

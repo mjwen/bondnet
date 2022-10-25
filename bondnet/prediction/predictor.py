@@ -33,7 +33,7 @@ def predict_single_molecule(
 
     Args:
         model_name (str): The pre-trained model to use for making predictions. A model
-            should be of the format format `dataset/date`, e.g. `bdncm/20200808`,
+            should be of the format `dataset/date`, e.g. `bdncm/20200808`,
             `pubchem/20200521`. It is possible to provide only the `dataset` part,
             and in this case, the latest model will be used.
         molecule (str): SMILES or InChI string or a path to a file storing these string.

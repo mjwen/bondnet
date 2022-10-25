@@ -1,6 +1,6 @@
 Pretrained BonDNet models.
 
-mesd: using the dataset consists of homolytic and heterolytic bond dissociation
+bdncm: using the dataset consists of homolytic and heterolytic bond dissociation
 for molecules of charge -1, 0, and 1. This is a newly generated dataset to test
 BonDNet.
 

@@ -30,17 +30,15 @@ Currently, we support installation from source:
    ```bash
    conda create --name bondnet
    conda activate bondnet
-   conda install python==3.7
+   conda install python
    ```
 
-2. install dependencies (see their websites for more options)
+2. install dependencies 
 
    ```bash
-   conda install pytorch==1.6.0 torchvision -c pytorch   # https://pytorch.org
-   conda install dgl==0.5.0 -c dglteam                   # https://www.dgl.ai/pages/start.html
-   conda install pymatgen==2020.8.13 -c conda-forge      # https://pymatgen.org/installation.html
-   conda install rdkit==2020.03.5 -c conda-forge         # https://rdkit.org/docs/Install.html
-   conda install openbabel==3.1.1 -c conda-forge         # http://openbabel.org/wiki/Category:Installation
+   conda install "pytorch>=1.10.0" -c pytorch   
+   conda install "dgl>=0.5.0" -c dglteam                   
+   conda install "pymatgen>=2022.01.08" "rdkit>=2020.03.5" "openbabel>=3.1.1" -c conda-forge      
    ```
 
 3. install this repo
@@ -51,13 +49,12 @@ Currently, we support installation from source:
 
 # Use pretrained model for prediction
 
+The predicted BDE will be in the units of `eV`.
+
 For a quick prediction of the BDEs for a single molecule, try the live demo at:
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mjwen/bondnet/pretrained?filepath=bondnet%2Fscripts%2Fpredict_binder.ipynb)
 
 Alternatively, a command line interface (CLI) `bondnet` is provided for batch predictions.
-(Optional. We suggest switching to the `pretrained` branch for using the `bondnet` CLI
-to make predictions. It should be more stable. To install the `pretrained` branch
-, do `cd bondnet`, then `git checkout pretrained`, and finally `pip install -e .`)
 
 - A single molecule given by a `SMILES` or `InChI` string, e.g.:
 
@@ -85,7 +82,7 @@ can be found [here](./bondnet/scripts/examples/predict).
 
 # Train the model
 
-A new implementation of BondNet can be found [here](https://github.com/mjwen/rxnrep/tree/bondnet), which trains ~4 times faster. But the below instructions should still work. 
+A new implementation of BondNet can be found [here](https://github.com/mjwen/rxnrep/tree/bondnet), which trains ~4 times faster. But the below instructions should still work.
 
 ~~The [train_bde.ipynb](./bondnet/scripts/train_bde.ipynb) Jupyter notebook shows how to train BonDNet on a BDE dataset of both neutral and charged molecules. Try it at: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/mjwen/bondnet/pretrained?filepath=bondnet%2Fscripts%2Ftrain_bde.ipynb)~~
 
