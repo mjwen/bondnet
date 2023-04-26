@@ -4,6 +4,7 @@ channels:
   - conda-forge
   - defaults
 dependencies:
+  - python=3.8
   - pip
   - pymatgen==2020.8.13
   - rdkit==2020.03.5
