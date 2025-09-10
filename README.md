@@ -78,14 +78,15 @@ Alternatively, a command line interface (CLI) `bondnet` is provided for batch pr
   bondnet reaction -t sdf molecules.sdf reactions.csv
   ```
 
-## More information
+More instructions, example input files, and description of the file formats,
+can be found [here](./bondnet/scripts/examples/predict).
 
-- More detailed instructions, example input files, and description of the file formats,
-  can be found [here](./bondnet/scripts/examples/predict).
-- To get help, do `bondnet -h`. Help of subcommand can be obtained by, e.g. `bondnet single -h`
+To get help, do `bondnet -h`. Help of subcommand can be obtained by, e.g. `bondnet single -h`
+
 
 # Dataset 
 The BDNCM dataset is publicly available at: https://zenodo.org/records/15117901  
+
 
 # Train the model
 
