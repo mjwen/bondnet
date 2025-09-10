@@ -9,6 +9,7 @@ Train the model:
 - [Table of Contents](#table-of-contents)
 - [Installation](#installation)
 - [Use pretrained model for prediction](#use-pretrained-model-for-prediction)
+- [Dataset](#dataset)
 - [Train the model](#train-the-model)
 
 BonDNet is a graph neural network model for the prediction of bond dissociation
@@ -82,6 +83,9 @@ Alternatively, a command line interface (CLI) `bondnet` is provided for batch pr
 - More detailed instructions, example input files, and description of the file formats,
   can be found [here](./bondnet/scripts/examples/predict).
 - To get help, do `bondnet -h`. Help of subcommand can be obtained by, e.g. `bondnet single -h`
+
+# Dataset 
+The BDNCM dataset is publicly available at: https://zenodo.org/records/15117901  
 
 # Train the model
 
